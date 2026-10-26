@@ -40,10 +40,11 @@ pub const RIGID_BODY2D: &str = om::RIGID_BODY2D_COMPONENT_ID;
 pub const JOINT2D: &str = om::JOINT2D_COMPONENT_ID;
 pub const SUBVIEWPORT2D: &str = om::SUBVIEWPORT2D_COMPONENT_ID;
 pub const SPLIT_SCREEN2D: &str = om::SPLIT_SCREEN2D_COMPONENT_ID;
+pub const DEPTH2D: &str = om::DEPTH2D_COMPONENT_ID;
 
 /// Every engine 2D component the editor authors and cooks itself: its class id, the
 /// property key holding its record, and its C++ class.
-const BUILTINS: [(&str, &str, &str); 23] = [
+const BUILTINS: [(&str, &str, &str); 24] = [
     (SPRITE2D, "sprite2d", "epok::Sprite2DComponent"),
     (CAMERA2D, "camera2d", "epok::Camera2DComponent"),
     (COLLIDER2D, "collider2d", "epok::Collider2DComponent"),
@@ -107,6 +108,7 @@ const BUILTINS: [(&str, &str, &str); 23] = [
         "split_screen2d",
         "epok::SplitScreen2DComponent",
     ),
+    (DEPTH2D, "depth2d", "epok::Depth2DComponent"),
 ];
 pub fn is_builtin(class_id: &str) -> bool {
     BUILTINS.iter().any(|b| b.0 == class_id)
@@ -413,6 +415,8 @@ pub struct CanvasLayer2D {
     pub offset: [f32; 2],
     pub follow_viewport: bool,
     pub visible: bool,
+    /// Draw before every other canvas and, with a 3D camera, before the 3D world.
+    pub under_3d: bool,
 }
 impl Default for CanvasLayer2D {
     fn default() -> Self {
@@ -421,7 +425,39 @@ impl Default for CanvasLayer2D {
             offset: [0.; 2],
             follow_viewport: false,
             visible: true,
+            under_3d: false,
         }
+    }
+}
+
+/// Places the sprites and tile layers of its node, and of the nodes attached to it, inside
+/// the 3D world at one camera depth (see `runtime/world2d_tiles.hpp`).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct Depth2D {
+    /// World units in front of the 3D camera, 0 to 128.
+    pub distance: f32,
+    /// A 3D actor whose position gives the depth instead of `distance`.
+    pub anchor: Option<Uuid>,
+    /// Ordering-table buckets (a quarter unit each) added to the depth; positive is farther.
+    pub bias: i16,
+    pub enabled: bool,
+}
+impl Default for Depth2D {
+    fn default() -> Self {
+        Self {
+            distance: 8.,
+            anchor: None,
+            bias: 0,
+            enabled: true,
+        }
+    }
+}
+impl Depth2D {
+    /// The ordering-table bucket of `distance` and the bias, as the runtime computes it.
+    pub fn bucket(&self) -> u16 {
+        let z = (f64::from(self.distance.clamp(0., 128.)) * 4096.).round() as i32;
+        ((z >> 10) + i32::from(self.bias)).clamp(0, 511) as u16
     }
 }
 
@@ -746,6 +782,7 @@ pub fn validate(component: &ComponentInstance) -> Result<(), String> {
         JOINT2D => decode::<crate::physics2d::Joint2D>(value).map(|_| ()),
         SUBVIEWPORT2D => decode::<crate::viewport2d::SubViewport2D>(value).map(|_| ()),
         SPLIT_SCREEN2D => decode::<crate::viewport2d::SplitScreen2D>(value).map(|_| ()),
+        DEPTH2D => decode::<Depth2D>(value).map(|_| ()),
         _ => decode::<CharacterBody2D>(value).map(|_| ()),
     };
     result.map_err(|e| format!("{key}: {e}"))
@@ -778,6 +815,7 @@ fn default_record(class_id: &str) -> serde_json::Value {
         JOINT2D => value::<crate::physics2d::Joint2D>(),
         SUBVIEWPORT2D => value::<crate::viewport2d::SubViewport2D>(),
         SPLIT_SCREEN2D => value::<crate::viewport2d::SplitScreen2D>(),
+        DEPTH2D => value::<Depth2D>(),
         _ => value::<CharacterBody2D>(),
     }
 }
@@ -913,12 +951,14 @@ pub fn capacity_defines<'a>(
         + templates.iter().map(|t| sum(t, &pieces)).sum::<usize>() * 4;
     let particles = particles.clamp(1, MAX_PARTICLES);
     // A textured quad fragment is 40 bytes, a rectangle 20 (16 for 8 and 16 pixel tiles)
-    // and a page change 8. Tile layers draw at most a screen of cells each.
-    let tiles: usize = scenes
+    // and a page change 8; inside the 3D ordering table (Depth2D) each rectangle carries its
+    // own page, 4 more. Tile layers draw at most a screen of cells each.
+    let tile_bytes: usize = scenes
         .iter()
         .chain(templates.iter().copied())
         .map(|scene| {
             let display = scene.display_size.map(usize::from);
+            let rectangle = if count(scene, DEPTH2D) > 0 { 24 } else { 20 };
             scene
                 .actors
                 .iter()
@@ -929,14 +969,14 @@ pub fn capacity_defines<'a>(
                         .tile_set
                         .and_then(|id| scene.tilesets.get(&id))
                         .map_or([16, 16], |set| set.tile_size.map(|v| usize::from(v.max(1))));
-                    (display[0] / size[0] + 2) * (display[1] / size[1] + 2)
+                    (display[0] / size[0] + 2) * (display[1] / size[1] + 2) * rectangle
                 })
                 .sum::<usize>()
         })
         .max()
         .unwrap_or(0);
     let arena = (sprites * 48
-        + tiles * 20
+        + tile_bytes
         + layers * 16
         + shape_bytes
         + if particles > 1 { particles * 40 } else { 0 })
@@ -1088,10 +1128,11 @@ pub enum Preset {
     Joint2D,
     SubViewport2D,
     SplitScreen2D,
+    Depth2D,
     DungeonGenerator,
 }
 impl Preset {
-    pub const ALL: [Preset; 28] = [
+    pub const ALL: [Preset; 29] = [
         Preset::Node2D,
         Preset::Sprite2D,
         Preset::AnimatedSprite2D,
@@ -1115,6 +1156,7 @@ impl Preset {
         Preset::NavigationAgent2D,
         Preset::CanvasLayer2D,
         Preset::CanvasModulate2D,
+        Preset::Depth2D,
         Preset::SubViewport2D,
         Preset::SplitScreen2D,
         Preset::AudioPlayer2D,
@@ -1144,6 +1186,7 @@ impl Preset {
             Preset::NavigationRegion2D | Preset::NavigationAgent2D => "Navigation",
             Preset::CanvasLayer2D
             | Preset::CanvasModulate2D
+            | Preset::Depth2D
             | Preset::SubViewport2D
             | Preset::SplitScreen2D => "Canvas and views",
             Preset::AudioPlayer2D
@@ -1180,6 +1223,7 @@ impl Preset {
             Preset::Joint2D => "Joint2D",
             Preset::SubViewport2D => "SubViewport2D",
             Preset::SplitScreen2D => "SplitScreen2D",
+            Preset::Depth2D => "Depth2D",
             Preset::DungeonGenerator => "DungeonGenerator",
         }
     }
@@ -1228,6 +1272,9 @@ impl Preset {
             Preset::SplitScreen2D => {
                 "Shows two cameras side by side or stacked: local multiplayer."
             }
+            Preset::Depth2D => {
+                "Puts attached sprites and tile layers at a 3D depth: masks 3D characters walk behind."
+            }
             Preset::DungeonGenerator => {
                 "Generates rooms, corridors and walls from a seed into a tile layer."
             }
@@ -1260,6 +1307,7 @@ impl Preset {
             Preset::Joint2D => &[JOINT2D],
             Preset::SubViewport2D => &[SUBVIEWPORT2D],
             Preset::SplitScreen2D => &[SPLIT_SCREEN2D],
+            Preset::Depth2D => &[DEPTH2D],
             Preset::DungeonGenerator => &[],
         }
     }
@@ -1766,12 +1814,25 @@ pub fn cook(
         CANVAS_LAYER2D => {
             let c: CanvasLayer2D = read(component);
             body += &format!(
-                "c->layer={};c->offset[0]={};c->offset[1]={};c->follow_viewport={};c->visible={};",
+                "c->layer={};c->offset[0]={};c->offset[1]={};c->follow_viewport={};c->visible={};c->under_3d={};",
                 c.layer.clamp(-64, 64),
                 fixed(c.offset[0]),
                 fixed(c.offset[1]),
                 c.follow_viewport,
-                c.visible
+                c.visible,
+                c.under_3d
+            );
+        }
+        DEPTH2D => {
+            let d: Depth2D = read(component);
+            if let Some(slot) = context.actor(d.anchor) {
+                body += &format!("c->anchor=actors[{slot}];");
+            }
+            body += &format!(
+                "c->distance={};c->bias={};c->enabled={};",
+                fixed(d.distance.clamp(0., 128.)),
+                d.bias.clamp(-512, 512),
+                d.enabled
             );
         }
         CANVAS_MODULATE2D => {
@@ -2458,11 +2519,26 @@ mod tests {
             p.setters
                 .contains("c->reference[1]=epok::Fixed(-81920,epok::Fixed::RAW);")
         );
-        let hud = create(Preset::CanvasLayer2D, "HUD", [0., 0.]);
+        let mut hud = create(Preset::CanvasLayer2D, "HUD", [0., 0.]);
         let c = cook(&hud.components[1], 1, "c", &mut context, "HUD").unwrap();
         assert!(
-            c.setters.contains("c->layer=1;") && c.setters.contains("c->follow_viewport=false;")
+            c.setters.contains("c->layer=1;")
+                && c.setters.contains("c->follow_viewport=false;")
+                && c.setters.contains("c->under_3d=false;")
         );
+        write(
+            &mut hud.components[1],
+            &CanvasLayer2D {
+                under_3d: true,
+                ..Default::default()
+            },
+        );
+        let c = cook(&hud.components[1], 1, "c", &mut context, "HUD").unwrap();
+        assert!(c.setters.contains("c->under_3d=true;"));
+        // A record saved before the field existed loads as drawn over the 3D world.
+        let old: CanvasLayer2D =
+            serde_json::from_value(serde_json::json!({"layer": -20, "visible": true})).unwrap();
+        assert!(!old.under_3d && old.layer == -20);
         let mut night = create(Preset::CanvasModulate2D, "Night", [0., 0.]);
         write(
             &mut night.components[1],
@@ -2475,6 +2551,53 @@ mod tests {
             m.setters
                 .contains("c->color[0]=110;c->color[1]=120;c->color[2]=190;")
         );
+    }
+
+    #[test]
+    fn depth_records_cook_their_anchor_distance_and_bias() {
+        let textures = |_| true;
+        let tilesets = BTreeMap::new();
+        let pillar = create(Preset::Node2D, "Pillar", [0., 0.]);
+        let pillar_id = pillar.id;
+        let slot = move |id: Uuid| (id == pillar_id).then_some(7);
+        let mut context = CookContext::new(&textures, &tilesets, [0., 0.]).with_actors(&slot);
+        let mut masks = create(Preset::Depth2D, "Masks", [0., 0.]);
+        assert_eq!(read::<Depth2D>(&masks.components[1]), Depth2D::default());
+        let d = cook(&masks.components[1], 1, "d", &mut context, "Masks").unwrap();
+        assert!(
+            d.setters
+                .contains("registry.resolve<epok::Depth2DComponent>(components[1])")
+        );
+        assert!(d.setters.contains(
+            "c->distance=epok::Fixed(32768,epok::Fixed::RAW);c->bias=0;c->enabled=true;"
+        ));
+        assert!(!d.setters.contains("c->anchor="));
+        write(
+            &mut masks.components[1],
+            &Depth2D {
+                distance: 500.,
+                anchor: Some(pillar_id),
+                bias: -900,
+                enabled: false,
+            },
+        );
+        let d = cook(&masks.components[1], 1, "d", &mut context, "Masks").unwrap();
+        assert!(d.setters.contains("c->anchor=actors[7];"));
+        assert!(d.setters.contains(
+            "c->distance=epok::Fixed(524288,epok::Fixed::RAW);c->bias=-512;c->enabled=false;"
+        ));
+        // The bucket the Inspector reports matches the runtime's: a quarter unit each.
+        let bucket = |distance: f32, bias: i16| {
+            Depth2D {
+                distance,
+                bias,
+                ..Default::default()
+            }
+            .bucket()
+        };
+        assert_eq!(bucket(10., 2), 42);
+        assert_eq!(bucket(0., -3), 0);
+        assert_eq!(bucket(200., 0), 511);
     }
 
     #[test]

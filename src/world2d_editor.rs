@@ -13,7 +13,7 @@ use crate::{
     scene_view_mode::{SceneView2D, Transform2D},
     world2d::{
         self, Animation2D, Camera2D, CanvasLayer2D, CanvasModulate2D, CharacterBody2D, Collider2D,
-        Frame2D, Parallax2D, Preset, Shape2D, Sprite2D,
+        Depth2D, Frame2D, Parallax2D, Preset, Shape2D, Sprite2D,
     },
 };
 use imgui::{MouseButton, Ui};
@@ -55,6 +55,7 @@ pub const ICON_RIGHT: &str = "\u{f051}";
 pub const ICON_PARALLAX: &str = "\u{f302}";
 pub const ICON_CANVAS: &str = "\u{f5fd}";
 pub const ICON_MODULATE: &str = "\u{f53f}";
+pub const ICON_DEPTH: &str = "\u{f6fa}";
 
 pub fn preset_icon(preset: Preset) -> &'static str {
     match preset {
@@ -69,6 +70,7 @@ pub fn preset_icon(preset: Preset) -> &'static str {
         Preset::Parallax2D => ICON_PARALLAX,
         Preset::CanvasLayer2D => ICON_CANVAS,
         Preset::CanvasModulate2D => ICON_MODULATE,
+        Preset::Depth2D => ICON_DEPTH,
         Preset::Path2D => crate::world2d_shapes_editor::ICON_PATH,
         Preset::PathFollow2D => crate::world2d_shapes_editor::ICON_FOLLOW,
         Preset::Line2D => crate::world2d_shapes_editor::ICON_LINE,
@@ -472,8 +474,9 @@ impl TileLayerView {
         self.cells.contains_key(&cell)
     }
 }
-/// The canvas layer and parallax repeat an actor inherits through its attachments.
-fn canvas_of(scene: &crate::scene::Scene, index: usize) -> (i8, [f32; 2]) {
+/// The canvas an actor inherits through its attachments, which draws first when it is
+/// under the 3D world, and its nearest parallax repeat.
+fn canvas_of(scene: &crate::scene::Scene, index: usize) -> ((i8, bool), [f32; 2]) {
     let mut current = index;
     let mut repeat = None;
     for _ in 0..32 {
@@ -484,10 +487,8 @@ fn canvas_of(scene: &crate::scene::Scene, index: usize) -> (i8, [f32; 2]) {
             repeat = Some(world2d::read::<Parallax2D>(p).repeat_size);
         }
         if let Some(c) = world2d::component(actor, world2d::CANVAS_LAYER2D) {
-            return (
-                world2d::read::<CanvasLayer2D>(c).layer,
-                repeat.unwrap_or_default(),
-            );
+            let layer = world2d::read::<CanvasLayer2D>(c);
+            return ((layer.layer, layer.under_3d), repeat.unwrap_or_default());
         }
         let Some(parent) = actor
             .attach
@@ -498,7 +499,7 @@ fn canvas_of(scene: &crate::scene::Scene, index: usize) -> (i8, [f32; 2]) {
         };
         current = parent;
     }
-    (0, repeat.unwrap_or_default())
+    ((0, false), repeat.unwrap_or_default())
 }
 
 fn is_2d(actor: &crate::scene::Actor) -> bool {
@@ -541,6 +542,7 @@ pub fn create_command(preset: Preset) -> &'static str {
         Preset::Joint2D => "create-node2d-Joint2D",
         Preset::SubViewport2D => "create-node2d-SubViewport2D",
         Preset::SplitScreen2D => "create-node2d-SplitScreen2D",
+        Preset::Depth2D => "create-node2d-Depth2D",
         Preset::DungeonGenerator => "create-node2d-DungeonGenerator",
     }
 }
@@ -663,7 +665,7 @@ pub fn views(e: &mut Editor) -> Vec<View> {
                 _ => {}
             }
         }
-        let (canvas, repeat) = canvas_of(&e.scene, index);
+        let ((canvas, under_3d), repeat) = canvas_of(&e.scene, index);
         let local = root_transform(actor);
         let (id, name, active) = (actor.id, actor.name.clone(), actor.active);
         let tiles = tile_record.map(|(component, layer)| {
@@ -754,8 +756,10 @@ pub fn views(e: &mut Editor) -> Vec<View> {
             repeat,
             group,
             bounds: (min, max),
+            // Canvases under the 3D world draw before every other canvas. Depth2D nodes keep
+            // their canvas here: this view has no 3D world to place them in.
             order: (
-                z + i32::from(canvas) * 65536,
+                z + i32::from(canvas) * 65536 + if under_3d { 0 } else { 1 << 24 },
                 if y_sort { world.t[1] } else { f32::MIN },
                 index,
             ),
@@ -3042,6 +3046,8 @@ pub fn node_icon(actor: &crate::scene::Actor) -> &'static str {
         ICON_CANVAS
     } else if has(world2d::CANVAS_MODULATE2D) {
         ICON_MODULATE
+    } else if has(world2d::DEPTH2D) {
+        ICON_DEPTH
     } else if has(world2d::PARTICLES2D) {
         crate::world2d_shapes_editor::ICON_PARTICLES
     } else if has(world2d::PATH_FOLLOW2D) {
@@ -3368,6 +3374,7 @@ fn inspector_body(ui: &Ui, e: &mut Editor, id: Uuid) {
             Some(world2d::PARALLAX2D) => parallax_band(ui, e, id, &component),
             Some(world2d::CANVAS_LAYER2D) => canvas_layer_band(ui, e, id, &component),
             Some(world2d::CANVAS_MODULATE2D) => canvas_modulate_band(ui, e, id, &component),
+            Some(world2d::DEPTH2D) => depth_band(ui, e, id, &component),
             _ if crate::world2d_shapes_editor::band(ui, e, id, &component) => {}
             _ if crate::world2d_skeleton_editor::band(ui, e, id, &component) => {}
             _ if crate::world2d_navigation_editor::band(ui, e, id, &component) => {}
@@ -3468,6 +3475,7 @@ fn finish_band(
                 world2d::PARALLAX2D => world2d::write(c, &Parallax2D::default()),
                 world2d::CANVAS_LAYER2D => world2d::write(c, &CanvasLayer2D::default()),
                 world2d::CANVAS_MODULATE2D => world2d::write(c, &CanvasModulate2D::default()),
+                world2d::DEPTH2D => world2d::write(c, &Depth2D::default()),
                 _ => {}
             }
             e.scene.actors[index].refresh_components();
@@ -4350,12 +4358,16 @@ fn canvas_layer_band(
         }
         if ui.is_item_hovered() {
             ui.tooltip_text(
-                "The world is layer 0: negative layers draw behind it, positive ones in front",
+                "The 2D world is layer 0: negative layers draw behind it, positive ones in front. Draw places the layer relative to the 3D world.",
             );
         }
         let mut mode = usize::from(c.follow_viewport);
         if segmented(ui, "Space", &["Screen", "World"], &mut mode) {
             c.follow_viewport = mode == 1;
+        }
+        let mut placement = usize::from(c.under_3d);
+        if segmented(ui, "Draw", &["Over 3D", "Under 3D"], &mut placement) {
+            c.under_3d = placement == 1;
         }
         if !c.follow_viewport {
             vec2(ui, "Offset", &mut c.offset, 0.5, "%.0f");
@@ -4369,8 +4381,95 @@ fn canvas_layer_band(
                 "Attached nodes are placed in screen pixels (0, 0 is the top-left corner) and ignore the camera."
             },
         );
+        if c.under_3d {
+            crate::gui::muted(
+                ui,
+                "Drawn before every other canvas and, with a 3D camera, behind the 3D world: a background the 3D scene stands in.",
+            );
+        }
         if c != before {
             commit(e, actor, component.id, &c);
+        }
+    }
+    finish_band(e, actor, component, remove, reset);
+}
+fn depth_band(
+    ui: &Ui,
+    e: &mut Editor,
+    actor: Uuid,
+    component: &crate::actor_document::ComponentInstance,
+) {
+    let (mut remove, mut reset) = (false, false);
+    let open = band(
+        ui,
+        &format!("{ICON_DEPTH} Depth2D"),
+        &mut remove,
+        &mut reset,
+        true,
+    );
+    if open {
+        let mut d: Depth2D = world2d::read(component);
+        let before = d.clone();
+        crate::world2d_shapes_editor::actor_combo(
+            ui,
+            e,
+            "Anchor",
+            "None: use Distance",
+            actor,
+            &|a| crate::actor_components::domain(a) == crate::reflection_schema::Domain::World3D,
+            &mut d.anchor,
+        );
+        if ui.is_item_hovered() {
+            ui.tooltip_text(
+                "A 3D actor whose position gives the depth every frame, so the masks keep their depth when the camera moves",
+            );
+        }
+        if d.anchor.is_none() {
+            crate::gui::Drag::new(crate::gui::field(ui, "Distance"))
+                .range(0., 128.)
+                .speed(0.05)
+                .display_format("%.2f")
+                .build(ui, &mut d.distance);
+            d.distance = d.distance.clamp(0., 128.);
+            if ui.is_item_hovered() {
+                ui.tooltip_text("World units in front of the 3D camera, along its view");
+            }
+        }
+        let mut bias = i32::from(d.bias);
+        if crate::gui::Drag::new(crate::gui::field(ui, "Depth bias"))
+            .range(-512, 512)
+            .speed(0.1)
+            .build(ui, &mut bias)
+        {
+            d.bias = bias.clamp(-512, 512) as i16;
+        }
+        if ui.is_item_hovered() {
+            ui.tooltip_text(
+                "Ordering-table buckets of a quarter unit each; positive moves the depth farther away",
+            );
+        }
+        crate::gui::toggle(ui, "Enabled", &mut d.enabled);
+        if d.anchor.is_none() {
+            let bucket = d.bucket();
+            crate::gui::muted(
+                ui,
+                format!(
+                    "Bucket {bucket} of 512: 3D geometry from {:.2} units on is hidden behind the opaque texels.",
+                    f32::from(bucket) * 0.25
+                ),
+            );
+        } else {
+            crate::gui::muted(
+                ui,
+                "Each frame the anchor's depth picks the bucket; 3D geometry behind it is hidden behind the opaque texels.",
+            );
+        }
+        crate::gui::muted(
+            ui,
+            "Applies to the sprites and tile layers of this node and of the nodes attached to it, while a 3D camera is active.",
+        );
+        if d != before {
+            commit(e, actor, component.id, &d);
         }
     }
     finish_band(e, actor, component, remove, reset);

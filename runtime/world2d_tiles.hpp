@@ -1,6 +1,6 @@
 #pragma once
 // World2D tile worlds and canvas layers (World2D initiative, phase 2): cooked tile sets,
-// TileMapLayer, Parallax2D, CanvasLayer2D and CanvasModulate2D.
+// TileMapLayer, Parallax2D, CanvasLayer2D, CanvasModulate2D and Depth2D.
 //
 // Tile maps. A TileMapLayer draws one cooked TileSet atlas on a grid anchored at its
 // owner's world position (the owner's rotation and scale are ignored: a tile map is
@@ -17,6 +17,9 @@
 // ancestor (through attachments), or to the default world canvas (layer 0). Layers draw
 // in ascending order; a layer that does not follow the viewport is drawn in screen pixels,
 // untouched by the Camera2D. A CanvasModulate2D tints everything on its canvas.
+// Canvases marked `under_3d` draw before every other canvas and, when a 3D camera is
+// active, before the 3D world. A Depth2D instead puts its drawables inside the 3D world's
+// ordering table, at a camera depth.
 //
 // Parallax. A Parallax2D moves its actor, and therefore everything attached to it, by
 // (camera - reference) * (1 - scroll_scale) plus its autoscroll; with a repeat size the
@@ -30,6 +33,7 @@ class TileMapLayerComponent;
 class Parallax2DComponent;
 class CanvasLayer2DComponent;
 class CanvasModulate2DComponent;
+class Depth2DComponent;
 
 enum class TileCollision : uint8_t { None, Full, Rect };
 inline constexpr uint8_t tile_one_way = 1;
@@ -65,6 +69,7 @@ inline List<TileMapLayerComponent> tile_layers;
 inline List<Parallax2DComponent> parallaxes;
 inline List<CanvasLayer2DComponent> canvas_layers;
 inline List<CanvasModulate2DComponent> canvas_modulates;
+inline List<Depth2DComponent> depths;
 inline uint16_t tile_layer_serial = 0;
 
 // Installed by the service: runtime cell edits live there, so a build without 2D content
@@ -293,6 +298,8 @@ public:
 // order and the default world canvas is layer 0. Unless it follows the viewport, the
 // layer is drawn in screen pixels (a world position of 0, 0 is the screen's top-left
 // corner, shifted by `offset`) and ignores the Camera2D: HUD sprites, fixed backgrounds.
+// An `under_3d` layer draws before every other canvas and, with a 3D camera, before the
+// 3D world: a pre-rendered background the 3D characters stand in.
 class EPOK_CLASS(Blueprintable, Domain=World2D, Owners=World2D, Capability=canvas2d, Id="bd384e4b-5903-485c-b114-5ffb6a330538") CanvasLayer2DComponent : public ActorComponent {
 public:
     static constexpr uint64_t static_class_id = detail::compact_class_id("bd384e4b-5903-485c-b114-5ffb6a330538");
@@ -305,6 +312,7 @@ public:
     Fixed offset[2] = {0.0, 0.0};
     bool follow_viewport = false;
     bool visible = true;
+    bool under_3d = false;
 
     EPOK_FUNCTION(BlueprintCallable, Id="fa31c08c-8328-4ca1-b974-1fe0268963f6") void set_layer(int32_t value) { layer = int8_t(value < -64 ? -64 : value > 64 ? 64 : value); }
     EPOK_FUNCTION(BlueprintPure, Id="9001123d-07a1-4b00-a6e6-c755becdd9b3") int32_t get_layer() const { return layer; }
@@ -312,6 +320,8 @@ public:
     EPOK_FUNCTION(BlueprintCallable, Id="16c698ed-9f18-4ebb-ac68-b260c0c4bf34") void set_visible(bool value) { visible = value; }
     EPOK_FUNCTION(BlueprintPure, Id="bba393bd-dbea-414a-8736-103d85ec856d") bool is_visible() const { return visible; }
     EPOK_FUNCTION(BlueprintCallable, Id="08977ad7-6887-4685-8c2d-b60d0baa8180") void set_follow_viewport(bool value) { follow_viewport = value; }
+    EPOK_FUNCTION(BlueprintCallable, Id="75788a47-9d7e-4eda-bcf6-68cc7d6d723d") void set_under_3d(bool value) { under_3d = value; }
+    EPOK_FUNCTION(BlueprintPure, Id="e9cae8ae-8b1d-4f29-ab34-a7d2d0a14a48") bool is_under_3d() const { return under_3d; }
 };
 
 // ---- CanvasModulate2D -------------------------------------------------------------------
@@ -335,11 +345,63 @@ public:
     }
 };
 
+// ---- Depth2D ----------------------------------------------------------------------------
+//
+// Draws the sprites and tile layers of its actor, and of everything attached to it, inside
+// the 3D world instead of over it: they join the 3D ordering table at one camera depth, so
+// 3D geometry behind that depth is hidden by their opaque texels and geometry in front
+// covers them. A cut-out of a pre-rendered background becomes a mask a 3D character walks
+// behind. Geometry in the same bucket draws first, so the mask wins a tie.
+//
+// The depth is `distance` world units along the 3D camera's view axis or, with an `anchor`,
+// the view depth of that 3D actor's position. `bias` then moves it in ordering-table
+// buckets (a quarter unit each; positive is farther), like a material's depth bias. The
+// nearest enabled Depth2D up the attachment chain applies. Without a 3D camera, or while a
+// SplitScreen2D is active, the drawables stay on their canvas.
+class EPOK_CLASS(Blueprintable, Domain=World2D, Owners=World2D, Capability=canvas2d, Id="a116bf9a-c98d-4d4b-b6df-0bb237ba81ee") Depth2DComponent : public ActorComponent {
+public:
+    static constexpr uint64_t static_class_id = detail::compact_class_id("a116bf9a-c98d-4d4b-b6df-0bb237ba81ee");
+    uint64_t class_id() const override { return m_runtime_class_id ? m_runtime_class_id : static_class_id; }
+    void level_attached() override { world2d::depths.add(this); }
+    ~Depth2DComponent() override { world2d::depths.remove(this); }
+    world2d::Link<Depth2DComponent> link2d;
+
+    Fixed distance = 8.0;
+    ObjectId anchor;
+    int16_t bias = 0;
+    bool enabled = true;
+
+    EPOK_FUNCTION(BlueprintCallable, Id="787a4a9b-fdfa-41d2-8c4d-f505f71bdbe5") void set_enabled(bool value) { enabled = value; }
+    EPOK_FUNCTION(BlueprintPure, Id="9243f10b-7e99-4977-bd0c-7df918e84404") bool is_enabled() const { return enabled; }
+    // World units in front of the 3D camera, 0 to 128 (the far end of the ordering table).
+    EPOK_FUNCTION(BlueprintCallable, Id="020b64b3-7c95-49d1-9394-2b4770bb8f45") void set_distance(Fixed value) {
+        distance = value < Fixed(0.0) ? Fixed(0.0) : value > Fixed(128.0) ? Fixed(128.0) : value;
+    }
+    EPOK_FUNCTION(BlueprintPure, Id="cb31d206-6490-4112-bdd3-c86a5daa2e7d") Fixed get_distance() const { return distance; }
+    // A 3D actor whose position gives the depth; an empty id returns to `distance`.
+    EPOK_FUNCTION(BlueprintCallable, Id="428a740b-177e-47e3-80de-e24f64ebf078") void set_anchor(ObjectId actor) { anchor = actor; }
+    EPOK_FUNCTION(BlueprintPure, Id="6c8f74cf-f996-472c-8b67-f612fbd8ac1f") ObjectId get_anchor() const { return anchor; }
+    EPOK_FUNCTION(BlueprintCallable, Id="8d5c41cd-5151-4d24-bd91-7e95a2920395") void set_bias(int32_t buckets) {
+        bias = int16_t(buckets < -512 ? -512 : buckets > 512 ? 512 : buckets);
+    }
+    EPOK_FUNCTION(BlueprintPure, Id="671481d2-b660-4044-a6aa-6ea10bcf70fb") int32_t get_bias() const { return bias; }
+};
+
 namespace world2d {
+// The 3D world's ordering table: buckets of a quarter world unit of camera depth, from the
+// camera to 128 units (runtime/main.cpp asserts that its table matches).
+inline constexpr int depth_buckets = 512;
+// The bucket of camera-space depth `z` (Q12), moved by `bias` buckets and clamped to the
+// table: the bucket a 3D triangle averaging that depth falls in.
+inline int depth_bucket(int32_t z, int32_t bias) {
+    const int32_t bucket = (z >> 10) + bias;
+    return int(bucket < 0 ? 0 : bucket >= depth_buckets ? depth_buckets - 1 : bucket);
+}
 // The canvas a drawable belongs to, resolved through its owner's attachment chain.
 struct Canvas {
     int8_t layer = 0;
     bool screen = false;           // drawn in screen pixels, ignoring the camera
+    bool under_3d = false;         // drawn before the other canvases and the 3D world
     Fixed offset[2] = {0.0, 0.0};  // screen-space shift of a screen canvas
     bool visible = true;
     const Parallax2DComponent* parallax = nullptr;
@@ -362,6 +424,7 @@ inline Canvas canvas_of(ActorComponent& component) {
             found = true;
             canvas.layer = layer.layer;
             canvas.screen = !layer.follow_viewport;
+            canvas.under_3d = layer.under_3d;
             canvas.offset[0] = layer.offset[0];
             canvas.offset[1] = layer.offset[1];
             canvas.visible = layer.visible;
@@ -371,6 +434,23 @@ inline Canvas canvas_of(ActorComponent& component) {
         owner = node ? const_cast<SceneComponent2D*>(node)->get_owner() : nullptr;
     }
     return canvas;
+}
+// The nearest enabled, active Depth2D on `component`'s owner or up its attachments.
+inline const Depth2DComponent* depth_of(ActorComponent& component) {
+    if (!depths.head) return nullptr;
+    const SceneComponent2D* node = root_of(component);
+    Actor* owner = component.get_owner();
+    for (size_t depth = 0; owner && depth < world2d_depth_limit; ++depth) {
+        const Depth2DComponent* found = nullptr;
+        depths.each([&](Depth2DComponent& entry) {
+            if (!found && entry.get_owner() == owner && entry.enabled && is_active(&entry)) found = &entry;
+        });
+        if (found) return found;
+        if (!node || !node->attach_parent.valid()) break;
+        node = resolve_scene2d(node->attach_parent);
+        owner = node ? const_cast<SceneComponent2D*>(node)->get_owner() : nullptr;
+    }
+    return nullptr;
 }
 }  // namespace world2d
 }  // namespace epok

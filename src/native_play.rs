@@ -61,6 +61,8 @@ pub struct Frame {
     pub camera: Option<usize>,
     pub hud_rgba: Vec<u8>,
     pub hud_size: [u32; 2],
+    /// 2D layers drawn under or inside the 3D image, each `hud_size`.
+    pub screen_layers: Vec<hud_native::ScreenLayer>,
     pub stats: [u32; 5],
     pub audio_voices: u32,
     pub audio_pending: u32,
@@ -207,7 +209,7 @@ fn read_packet(input: &mut impl Read) -> Result<Packet, String> {
         || (loading_size[0] == 0) != (loading_size[1] == 0)
         || actor_count > 1024
         || authored_count > actor_count
-        || command_count > 2560
+        || command_count > 8192
         || audio_count > AUDIO_LIMIT
         || text_length > 95
         || fade > 255
@@ -346,7 +348,7 @@ fn apply(
             skeletal.looping = state.animation_looping;
         }
     }
-    let mut hud_rgba = hud_native::render_overlay_with_resources(
+    let (mut hud_rgba, screen_layers) = hud_native::render_overlay_layers(
         &scene,
         resources,
         &packet.commands,
@@ -367,6 +369,7 @@ fn apply(
         actor_count: packet.actor_count,
         camera: packet.camera.filter(|index| *index < count),
         hud_rgba,
+        screen_layers,
         stats: packet.stats,
         audio_voices: audio_voices as u32,
         audio_pending: audio_pending as u32,

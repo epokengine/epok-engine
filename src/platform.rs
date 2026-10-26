@@ -1665,6 +1665,7 @@ const EDITOR_FA_GLYPHS: &[u32] = &[
     0xf5ee, 0xf5ee, // draw-polygon: Polygon2D
     0xf5fd, 0xf5fd, // layer-group: z index
     0xf6d9, 0xf6d9, // dungeon: Dungeon Generator
+    0xf6fa, 0xf6fa, // mask: Depth2D
     0xf6fc, 0xf6fc, // mountain: sharp falloff
     0xf70c, 0xf70c, // person-running: CharacterBody2D
     0xf70e, 0xf70e, // scroll: Dungeon Recipe

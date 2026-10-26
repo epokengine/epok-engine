@@ -6,7 +6,7 @@ This module covers the world2d viewports module. It documents 23 public callable
 
 ## Declared types
 
-`epok::SplitScreen2DComponent`, `epok::SubViewport2DComponent`, `epok::world2d::RenderPass`
+`epok::SplitScreen2DComponent`, `epok::SubViewport2DComponent`, `epok::world2d::DrawPhase`, `epok::world2d::RenderPass`
 
 ## Callable index
 
@@ -46,7 +46,7 @@ This module covers the world2d viewports module. It documents 23 public callable
 uint64_t class_id() const override
 ```
 
-- **Declared at:** [line 92](../../../runtime/world2d_viewports.hpp#L92)
+- **Declared at:** [line 99](../../../runtime/world2d_viewports.hpp#L99)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint64_t`. Check the purpose and failure notes before using the value.
@@ -79,7 +79,7 @@ auto result = object.class_id();
 void half(int index, int16_t* rect) const
 ```
 
-- **Declared at:** [line 107](../../../runtime/world2d_viewports.hpp#L107)
+- **Declared at:** [line 114](../../../runtime/world2d_viewports.hpp#L114)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -123,7 +123,7 @@ object.half(index, rect);
 bool is_enabled() const
 ```
 
-- **Declared at:** [line 103](../../../runtime/world2d_viewports.hpp#L103)
+- **Declared at:** [line 110](../../../runtime/world2d_viewports.hpp#L110)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -156,7 +156,7 @@ auto result = object.is_enabled();
 bool is_side_by_side() const
 ```
 
-- **Declared at:** [line 105](../../../runtime/world2d_viewports.hpp#L105)
+- **Declared at:** [line 112](../../../runtime/world2d_viewports.hpp#L112)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -189,7 +189,7 @@ auto result = object.is_side_by_side();
 void level_attached() override
 ```
 
-- **Declared at:** [line 93](../../../runtime/world2d_viewports.hpp#L93)
+- **Declared at:** [line 100](../../../runtime/world2d_viewports.hpp#L100)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -222,7 +222,7 @@ object.level_attached();
 void set_enabled(bool value)
 ```
 
-- **Declared at:** [line 102](../../../runtime/world2d_viewports.hpp#L102)
+- **Declared at:** [line 109](../../../runtime/world2d_viewports.hpp#L109)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -264,7 +264,7 @@ object.set_enabled(value);
 void set_side_by_side(bool value)
 ```
 
-- **Declared at:** [line 104](../../../runtime/world2d_viewports.hpp#L104)
+- **Declared at:** [line 111](../../../runtime/world2d_viewports.hpp#L111)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -306,7 +306,7 @@ object.set_side_by_side(value);
 bool view(int index, Camera2D& out) const
 ```
 
-- **Declared at:** [line 124](../../../runtime/world2d_viewports.hpp#L124)
+- **Declared at:** [line 131](../../../runtime/world2d_viewports.hpp#L131)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -350,7 +350,7 @@ auto result = object.view(index, out);
 ~SplitScreen2DComponent() override
 ```
 
-- **Declared at:** [line 94](../../../runtime/world2d_viewports.hpp#L94)
+- **Declared at:** [line 101](../../../runtime/world2d_viewports.hpp#L101)
 - **Kind:** `destructor`
 
 **Use it when.** You need the world2d viewports module and the preconditions in the declaration are already satisfied.
@@ -379,7 +379,7 @@ auto result = object.view(index, out);
 uint64_t class_id() const override
 ```
 
-- **Declared at:** [line 56](../../../runtime/world2d_viewports.hpp#L56)
+- **Declared at:** [line 63](../../../runtime/world2d_viewports.hpp#L63)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint64_t`. Check the purpose and failure notes before using the value.
@@ -412,7 +412,7 @@ auto result = object.class_id();
 ObjectId get_camera() const
 ```
 
-- **Declared at:** [line 79](../../../runtime/world2d_viewports.hpp#L79)
+- **Declared at:** [line 86](../../../runtime/world2d_viewports.hpp#L86)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `ObjectId`. Check the purpose and failure notes before using the value.
@@ -445,7 +445,7 @@ auto result = object.get_camera();
 bool is_enabled() const
 ```
 
-- **Declared at:** [line 77](../../../runtime/world2d_viewports.hpp#L77)
+- **Declared at:** [line 84](../../../runtime/world2d_viewports.hpp#L84)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -478,7 +478,7 @@ auto result = object.is_enabled();
 void level_attached() override
 ```
 
-- **Declared at:** [line 57](../../../runtime/world2d_viewports.hpp#L57)
+- **Declared at:** [line 64](../../../runtime/world2d_viewports.hpp#L64)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -511,7 +511,7 @@ object.level_attached();
 void set_camera(ObjectId actor)
 ```
 
-- **Declared at:** [line 78](../../../runtime/world2d_viewports.hpp#L78)
+- **Declared at:** [line 85](../../../runtime/world2d_viewports.hpp#L85)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -553,7 +553,7 @@ object.set_camera(actor);
 void set_enabled(bool value)
 ```
 
-- **Declared at:** [line 76](../../../runtime/world2d_viewports.hpp#L76)
+- **Declared at:** [line 83](../../../runtime/world2d_viewports.hpp#L83)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -595,7 +595,7 @@ object.set_enabled(value);
 void set_interval(uint32_t frames)
 ```
 
-- **Declared at:** [line 81](../../../runtime/world2d_viewports.hpp#L81)
+- **Declared at:** [line 88](../../../runtime/world2d_viewports.hpp#L88)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -637,7 +637,7 @@ object.set_interval(frames);
 bool view(Camera2D& out) const
 ```
 
-- **Declared at:** [line 85](../../../runtime/world2d_viewports.hpp#L85)
+- **Declared at:** [line 92](../../../runtime/world2d_viewports.hpp#L92)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -679,7 +679,7 @@ auto result = object.view(out);
 ~SubViewport2DComponent() override
 ```
 
-- **Declared at:** [line 58](../../../runtime/world2d_viewports.hpp#L58)
+- **Declared at:** [line 65](../../../runtime/world2d_viewports.hpp#L65)
 - **Kind:** `destructor`
 
 **Use it when.** You need the world2d viewports module and the preconditions in the declaration are already satisfied.
@@ -708,7 +708,7 @@ auto result = object.view(out);
 inline SplitScreen2DComponent* active_split()
 ```
 
-- **Declared at:** [line 139](../../../runtime/world2d_viewports.hpp#L139)
+- **Declared at:** [line 146](../../../runtime/world2d_viewports.hpp#L146)
 - **Kind:** `function decl`
 
 **Returns.** Returns `SplitScreen2DComponent *`. Check the purpose and failure notes before using the value.
@@ -739,7 +739,7 @@ auto result = epok::world2d::active_split();
 inline Camera2DComponent* camera_on(ObjectId actor)
 ```
 
-- **Declared at:** [line 128](../../../runtime/world2d_viewports.hpp#L128)
+- **Declared at:** [line 135](../../../runtime/world2d_viewports.hpp#L135)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -779,7 +779,7 @@ auto result = epok::world2d::camera_on(actor);
 bool accepts(const Canvas& canvas) const
 ```
 
-- **Declared at:** [line 38](../../../runtime/world2d_viewports.hpp#L38)
+- **Declared at:** [line 45](../../../runtime/world2d_viewports.hpp#L45)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -821,7 +821,7 @@ auto result = object.accepts(canvas);
 void hide(int8_t layer)
 ```
 
-- **Declared at:** [line 45](../../../runtime/world2d_viewports.hpp#L45)
+- **Declared at:** [line 52](../../../runtime/world2d_viewports.hpp#L52)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -863,7 +863,7 @@ object.hide(layer);
 inline SubViewport2DComponent* subviewport_on(ObjectId actor)
 ```
 
-- **Declared at:** [line 133](../../../runtime/world2d_viewports.hpp#L133)
+- **Declared at:** [line 140](../../../runtime/world2d_viewports.hpp#L140)
 - **Kind:** `function decl`
 
 **Parameters**
