@@ -1,10 +1,10 @@
 # PsyQo API: Vector
 
-> **Header:** `"psyqo/vector.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/vector.hh)
+> **Header:** `"psyqo/vector.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/vector.hh)
 
 This module covers fixed-point vector arithmetic. It documents 25 public callables declared directly in this header.
 
-PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552d`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
+PsyQo is pinned through Nugget revision `bfc3f65010efaaf979e10852e4cf203a2eff1b13`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
 
 ## Declared types
 
@@ -50,7 +50,7 @@ PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552
 static constexpr Vector BACKWARD() requires(N == 3)
 ```
 
-- **Declared at:** [line 230](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/vector.hh#L230)
+- **Declared at:** [line 230](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/vector.hh#L230)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Returns.** Returns `Vector<N, precisionBits, T>`. Check the purpose and failure notes before using the value.
@@ -81,7 +81,7 @@ auto result = psyqo::Vector::BACKWARD();
 static constexpr Vector DOWN() requires(N <= 3)
 ```
 
-- **Declared at:** [line 194](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/vector.hh#L194)
+- **Declared at:** [line 194](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/vector.hh#L194)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Returns.** Returns `Vector<N, precisionBits, T>`. Check the purpose and failure notes before using the value.
@@ -112,7 +112,7 @@ auto result = psyqo::Vector::DOWN();
 static constexpr Vector FORWARD() requires(N == 3)
 ```
 
-- **Declared at:** [line 221](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/vector.hh#L221)
+- **Declared at:** [line 221](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/vector.hh#L221)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Returns.** Returns `Vector<N, precisionBits, T>`. Check the purpose and failure notes before using the value.
@@ -143,7 +143,7 @@ auto result = psyqo::Vector::FORWARD();
 constexpr FixedPointType& get(unsigned i)
 ```
 
-- **Declared at:** [line 54](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/vector.hh#L54)
+- **Declared at:** [line 54](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/vector.hh#L54)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -185,7 +185,7 @@ auto result = object.get(i);
 constexpr const FixedPointType& get(unsigned i) const
 ```
 
-- **Declared at:** [line 63](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/vector.hh#L63)
+- **Declared at:** [line 63](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/vector.hh#L63)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -227,7 +227,7 @@ auto result = object.get(i);
 static constexpr Vector LEFT() requires(N <= 3)
 ```
 
-- **Declared at:** [line 203](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/vector.hh#L203)
+- **Declared at:** [line 203](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/vector.hh#L203)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Returns.** Returns `Vector<N, precisionBits, T>`. Check the purpose and failure notes before using the value.
@@ -258,7 +258,7 @@ auto result = psyqo::Vector::LEFT();
 static constexpr Vector ONE() requires(N <= 3)
 ```
 
-- **Declared at:** [line 176](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/vector.hh#L176)
+- **Declared at:** [line 176](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/vector.hh#L176)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Returns.** Returns `Vector<N, precisionBits, T>`. Check the purpose and failure notes before using the value.
@@ -289,7 +289,7 @@ auto result = psyqo::Vector::ONE();
 constexpr operator Vertex() const requires((N == 2) && std::is_signed<T>::value)
 ```
 
-- **Declared at:** [line 73](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/vector.hh#L73)
+- **Declared at:** [line 73](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/vector.hh#L73)
 - **Kind:** `conversion function`; qualifiers: `const`
 
 **Returns.** Returns `Vertex`. Check the purpose and failure notes before using the value.
@@ -322,7 +322,7 @@ auto result = object.operator Vertex();
 constexpr Vector operator*(const FixedPointType& rhs) const
 ```
 
-- **Declared at:** [line 137](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/vector.hh#L137)
+- **Declared at:** [line 137](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/vector.hh#L137)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -364,7 +364,7 @@ auto result = object.operator*(rhs);
 template <std::integral U> constexpr Vector operator*(U rhs) const
 ```
 
-- **Declared at:** [line 152](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/vector.hh#L152)
+- **Declared at:** [line 152](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/vector.hh#L152)
 - **Kind:** `function template`; qualifiers: `const, template`
 
 **Parameters**
@@ -409,7 +409,7 @@ auto result = object.operator*<U>(rhs);
 constexpr Vector& operator*=(const FixedPointType& rhs)
 ```
 
-- **Declared at:** [line 90](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/vector.hh#L90)
+- **Declared at:** [line 90](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/vector.hh#L90)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -451,7 +451,7 @@ auto result = object.operator*=(rhs);
 template <std::integral U> constexpr Vector& operator*=(U rhs)
 ```
 
-- **Declared at:** [line 103](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/vector.hh#L103)
+- **Declared at:** [line 103](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/vector.hh#L103)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -496,7 +496,7 @@ auto result = object.operator*=<U>(rhs);
 constexpr Vector operator+(const Vector& rhs) const
 ```
 
-- **Declared at:** [line 123](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/vector.hh#L123)
+- **Declared at:** [line 123](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/vector.hh#L123)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -538,7 +538,7 @@ auto result = object.operator+(rhs);
 constexpr Vector& operator+=(const Vector& rhs)
 ```
 
-- **Declared at:** [line 78](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/vector.hh#L78)
+- **Declared at:** [line 78](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/vector.hh#L78)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -580,7 +580,7 @@ auto result = object.operator+=(rhs);
 constexpr Vector operator-() const
 ```
 
-- **Declared at:** [line 116](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/vector.hh#L116)
+- **Declared at:** [line 116](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/vector.hh#L116)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `Vector<N, precisionBits, T>`. Check the purpose and failure notes before using the value.
@@ -613,7 +613,7 @@ auto result = object.operator-();
 constexpr Vector operator-(const Vector& rhs) const
 ```
 
-- **Declared at:** [line 130](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/vector.hh#L130)
+- **Declared at:** [line 130](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/vector.hh#L130)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -655,7 +655,7 @@ auto result = object.operator-(rhs);
 constexpr Vector& operator-=(const Vector& rhs)
 ```
 
-- **Declared at:** [line 84](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/vector.hh#L84)
+- **Declared at:** [line 84](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/vector.hh#L84)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -697,7 +697,7 @@ auto result = object.operator-=(rhs);
 constexpr Vector operator/(const FixedPointType& rhs) const
 ```
 
-- **Declared at:** [line 144](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/vector.hh#L144)
+- **Declared at:** [line 144](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/vector.hh#L144)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -739,7 +739,7 @@ auto result = object.operator/(rhs);
 template <std::integral U> constexpr Vector operator/(U rhs) const
 ```
 
-- **Declared at:** [line 160](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/vector.hh#L160)
+- **Declared at:** [line 160](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/vector.hh#L160)
 - **Kind:** `function template`; qualifiers: `const, template`
 
 **Parameters**
@@ -784,7 +784,7 @@ auto result = object.operator/<U>(rhs);
 constexpr Vector& operator/=(const FixedPointType& rhs)
 ```
 
-- **Declared at:** [line 96](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/vector.hh#L96)
+- **Declared at:** [line 96](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/vector.hh#L96)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -826,7 +826,7 @@ auto result = object.operator/=(rhs);
 template <std::integral U> constexpr Vector& operator/=(U rhs)
 ```
 
-- **Declared at:** [line 110](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/vector.hh#L110)
+- **Declared at:** [line 110](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/vector.hh#L110)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -871,7 +871,7 @@ auto result = object.operator/=<U>(rhs);
 constexpr FixedPointType& operator[](unsigned i)
 ```
 
-- **Declared at:** [line 72](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/vector.hh#L72)
+- **Declared at:** [line 72](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/vector.hh#L72)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -913,7 +913,7 @@ auto result = object.operator[](i);
 static constexpr Vector RIGHT() requires(N <= 3)
 ```
 
-- **Declared at:** [line 212](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/vector.hh#L212)
+- **Declared at:** [line 212](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/vector.hh#L212)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Returns.** Returns `Vector<N, precisionBits, T>`. Check the purpose and failure notes before using the value.
@@ -944,7 +944,7 @@ auto result = psyqo::Vector::RIGHT();
 static constexpr Vector UP() requires(N <= 3)
 ```
 
-- **Declared at:** [line 185](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/vector.hh#L185)
+- **Declared at:** [line 185](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/vector.hh#L185)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Returns.** Returns `Vector<N, precisionBits, T>`. Check the purpose and failure notes before using the value.
@@ -975,7 +975,7 @@ auto result = psyqo::Vector::UP();
 static constexpr Vector ZERO() requires(N <= 3)
 ```
 
-- **Declared at:** [line 167](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/vector.hh#L167)
+- **Declared at:** [line 167](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/vector.hh#L167)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Returns.** Returns `Vector<N, precisionBits, T>`. Check the purpose and failure notes before using the value.

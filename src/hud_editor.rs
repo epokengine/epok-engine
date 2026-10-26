@@ -157,7 +157,12 @@ pub fn inspector(
         }
         crate::gui::muted(ui, "Atlas pixels; zero width/height uses the full texture.");
         let mut borders = c.borders.map(i32::from);
-        if crate::gui::Drag::new(crate::gui::field(ui, "Nine-slice borders (px)"))
+        let borders_label = if c.texture.is_some() {
+            "Nine-slice borders (px)"
+        } else {
+            "Frame borders (px)"
+        };
+        if crate::gui::Drag::new(crate::gui::field(ui, borders_label))
             .speed(1.)
             .build_array(ui, &mut borders)
         {
@@ -165,7 +170,7 @@ pub fn inspector(
         }
         crate::gui::muted(
             ui,
-            "Left, top, right, bottom; zero stretches the whole region.",
+            "Left, top, right, bottom. Without a texture, nonzero widths draw a hollow frame; all zero fills the rect.",
         );
         if let Some(_combo) = ui.begin_combo(crate::gui::field(ui, "Tiling"), c.tiling.label()) {
             for tiling in hud::ImageTiling::ALL {

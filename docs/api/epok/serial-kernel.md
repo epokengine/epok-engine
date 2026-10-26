@@ -2,7 +2,7 @@
 
 > **Header:** `"serial_kernel.hpp"` · **Tier:** Epok runtime API · **Source:** [open header](../../../runtime/serial_kernel.hpp)
 
-This module covers PSX kernel ownership, interrupts and low-level services. It documents 5 public callables declared directly in this header.
+This module covers PSX kernel ownership, interrupts and low-level services. It documents 7 public callables declared directly in this header.
 
 ## Declared types
 
@@ -10,11 +10,107 @@ This module covers PSX kernel ownership, interrupts and low-level services. It d
 
 ## Callable index
 
+- [`epok::serial_recover_dma`](#epok-serial-recover-dma-1) — The resident serial handler can consume a CPU IRQ while an enabled DMA flag remains asserted in DICR.
+- [`epok::serial_schedule_dma_poll`](#epok-serial-schedule-dma-poll-1) — PsyQo periodic timers advance one period per pump, even when several periods have elapsed.
 - [`epok::SerialKernelState::callback`](#epok-serialkernelstate-callback-1) — Performs `callback` as part of PSX kernel ownership, interrupts and low-level services.
 - [`epok::SerialKernelState::capture`](#epok-serialkernelstate-capture-1) — Performs `capture` as part of PSX kernel ownership, interrupts and low-level services.
 - [`epok::SerialKernelState::ram`](#epok-serialkernelstate-ram-1) — Performs `ram` as part of PSX kernel ownership, interrupts and low-level services.
 - [`epok::SerialKernelState::resident`](#epok-serialkernelstate-resident-1) — Performs `resident` as part of PSX kernel ownership, interrupts and low-level services.
 - [`epok::SerialKernelState::restore`](#epok-serialkernelstate-restore-1) — Performs `restore` as part of PSX kernel ownership, interrupts and low-level services.
+
+<a id="epok-serial-recover-dma-1"></a>
+
+## `epok::serial_recover_dma`
+
+**Purpose.** The resident serial handler can consume a CPU IRQ while an enabled DMA flag remains asserted in DICR.
+
+**Details.** Deliver only that real, otherwise stranded event; the normal DMA handler owns acknowledgement and continuation.
+
+**Exact declaration**
+
+```cpp
+template<class Memory, class Deliver> bool serial_recover_dma(Memory& memory, Deliver&& deliver)
+```
+
+- **Declared at:** [line 19](../../../runtime/serial_kernel.hpp#L19)
+- **Kind:** `function template`; qualifiers: `template`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `memory` | `Memory &` | Input/output; inspect the function contract | Value supplied for `memory`. See the exact type and module contract. |
+| `deliver` | `Deliver &&` | Consumed or moved input | Value supplied for `deliver`. See the exact type and module contract. |
+
+**Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
+
+**Use it when.** Deliver only that real, otherwise stranded event; the normal DMA handler owns acknowledgement and continuation.
+
+**Usage pattern**
+
+```cpp
+#include "serial_kernel.hpp"
+
+// Replace these template arguments with types or values accepted by the declaration:
+// Memory, Deliver
+
+// Assume these named values have been initialized with valid data:
+// Memory & memory
+// Deliver && deliver
+
+auto result = epok::serial_recover_dma<Memory, Deliver>(memory, deliver);
+```
+
+**Why choose it.** Template dispatch is resolved at compile time and normally adds no runtime indirection. The boolean result makes success, availability or state explicit without exceptions.
+
+**Trade-offs and warnings.** Every instantiated type must satisfy the header's compile-time requirements; extra instantiations can increase code size. Check the return value; `false` is part of normal control flow for many PSX resource operations. Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
+
+<a id="epok-serial-schedule-dma-poll-1"></a>
+
+## `epok::serial_schedule_dma_poll`
+
+**Purpose.** PsyQo periodic timers advance one period per pump, even when several periods have elapsed.
+
+**Details.** A 2 ms timer serviced once per video frame eventually trails by more than INT32_MAX and its signed deadline check stops firing. Rearm a single one-shot from the live clock instead. The old timer remains valid until its callback returns; PsyQo then removes it and retains the newly queued timer.
+
+**Exact declaration**
+
+```cpp
+template<class GPU, class Poll> void serial_schedule_dma_poll(GPU& gpu, Poll poll)
+```
+
+- **Declared at:** [line 10](../../../runtime/serial_kernel.hpp#L10)
+- **Kind:** `function template`; qualifiers: `template`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `gpu` | `GPU &` | Input/output; inspect the function contract | Value supplied for `gpu`. See the exact type and module contract. |
+| `poll` | `Poll` | Input | Value supplied for `poll`. See the exact type and module contract. |
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** A 2 ms timer serviced once per video frame eventually trails by more than INT32_MAX and its signed deadline check stops firing. Rearm a single one-shot from the live clock instead. The old timer remains valid until its callback returns; PsyQo then removes it and retains the newly queued timer.
+
+**Usage pattern**
+
+```cpp
+#include "serial_kernel.hpp"
+
+// Replace these template arguments with types or values accepted by the declaration:
+// GPU, Poll
+
+// Assume these named values have been initialized with valid data:
+// GPU & gpu
+// Poll poll
+
+epok::serial_schedule_dma_poll<GPU, Poll>(gpu, poll);
+```
+
+**Why choose it.** Template dispatch is resolved at compile time and normally adds no runtime indirection. The asynchronous shape lets the frame loop continue while hardware or queued work completes.
+
+**Trade-offs and warnings.** Every instantiated type must satisfy the header's compile-time requirements; extra instantiations can increase code size. Captured data and buffers must remain valid until the callback or task has completed. Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
 
 <a id="epok-serialkernelstate-callback-1"></a>
 
@@ -28,7 +124,7 @@ This module covers PSX kernel ownership, interrupts and low-level services. It d
 static bool callback(uint32_t address)
 ```
 
-- **Declared at:** [line 23](../../../runtime/serial_kernel.hpp#L23)
+- **Declared at:** [line 45](../../../runtime/serial_kernel.hpp#L45)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**
@@ -68,7 +164,7 @@ auto result = epok::SerialKernelState::callback(address);
 template<class Memory> bool capture(Memory& memory)
 ```
 
-- **Declared at:** [line 29](../../../runtime/serial_kernel.hpp#L29)
+- **Declared at:** [line 51](../../../runtime/serial_kernel.hpp#L51)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -113,7 +209,7 @@ auto result = object.capture<Memory>(memory);
 static bool ram(uint32_t address, uint32_t bytes)
 ```
 
-- **Declared at:** [line 14](../../../runtime/serial_kernel.hpp#L14)
+- **Declared at:** [line 36](../../../runtime/serial_kernel.hpp#L36)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**
@@ -155,7 +251,7 @@ auto result = epok::SerialKernelState::ram(address, bytes);
 static bool resident(uint32_t address)
 ```
 
-- **Declared at:** [line 20](../../../runtime/serial_kernel.hpp#L20)
+- **Declared at:** [line 42](../../../runtime/serial_kernel.hpp#L42)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**
@@ -195,7 +291,7 @@ auto result = epok::SerialKernelState::resident(address);
 template<class Memory> void restore(Memory& memory)
 ```
 
-- **Declared at:** [line 52](../../../runtime/serial_kernel.hpp#L52)
+- **Declared at:** [line 74](../../../runtime/serial_kernel.hpp#L74)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**

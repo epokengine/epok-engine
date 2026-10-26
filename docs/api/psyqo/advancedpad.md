@@ -1,10 +1,10 @@
 # PsyQo API: Advancedpad
 
-> **Header:** `"psyqo/advancedpad.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/advancedpad.hh)
+> **Header:** `"psyqo/advancedpad.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/advancedpad.hh)
 
 This module covers the advancedpad module. It documents 11 public callables declared directly in this header.
 
-PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552d`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
+PsyQo is pinned through Nugget revision `bfc3f65010efaaf979e10852e4cf203a2eff1b13`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
 
 ## Declared types
 
@@ -38,7 +38,7 @@ PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552
 uint8_t getAdc(Pad pad, unsigned int index) const
 ```
 
-- **Declared at:** [line 164](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/advancedpad.hh#L164)
+- **Declared at:** [line 164](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/advancedpad.hh#L164)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -84,7 +84,7 @@ auto result = object.getAdc(pad, index);
 uint16_t getHalfword(Pad pad, unsigned int index) const
 ```
 
-- **Declared at:** [line 187](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/advancedpad.hh#L187)
+- **Declared at:** [line 187](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/advancedpad.hh#L187)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -130,7 +130,7 @@ auto result = object.getHalfword(pad, index);
 uint8_t getPadType(Pad pad) const
 ```
 
-- **Declared at:** [line 199](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/advancedpad.hh#L199)
+- **Declared at:** [line 199](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/advancedpad.hh#L199)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -172,7 +172,7 @@ auto result = object.getPadType(pad);
 void initialize(PollingMode mode = PollingMode::Normal)
 ```
 
-- **Declared at:** [line 103](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/advancedpad.hh#L103)
+- **Declared at:** [line 103](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/advancedpad.hh#L103)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -216,7 +216,7 @@ object.initialize(mode);
 bool isButtonPressed(Pad pad, Button button) const
 ```
 
-- **Declared at:** [line 146](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/advancedpad.hh#L146)
+- **Declared at:** [line 146](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/advancedpad.hh#L146)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -262,7 +262,7 @@ auto result = object.isButtonPressed(pad, button);
 bool isPadConnected(Pad pad) const
 ```
 
-- **Declared at:** [line 134](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/advancedpad.hh#L134)
+- **Declared at:** [line 134](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/advancedpad.hh#L134)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -306,7 +306,7 @@ auto result = object.isPadConnected(pad);
 void setOnEvent(eastl::function<void(Event)>&& callback)
 ```
 
-- **Declared at:** [line 123](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/advancedpad.hh#L123)
+- **Declared at:** [line 123](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/advancedpad.hh#L123)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -348,7 +348,7 @@ object.setOnEvent(callback);
 inline psyqo::AdvancedPad::Pad operator++(psyqo::AdvancedPad::Pad& pad, int)
 ```
 
-- **Declared at:** [line 260](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/advancedpad.hh#L260)
+- **Declared at:** [line 260](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/advancedpad.hh#L260)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -390,7 +390,7 @@ auto result = psyqo::operator++(pad, arg2);
 inline psyqo::AdvancedPad::Pad& operator++(psyqo::AdvancedPad::Pad& pad)
 ```
 
-- **Declared at:** [line 255](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/advancedpad.hh#L255)
+- **Declared at:** [line 255](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/advancedpad.hh#L255)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -430,7 +430,7 @@ auto result = psyqo::operator++(pad);
 inline psyqo::AdvancedPad::Pad operator--(psyqo::AdvancedPad::Pad& pad, int)
 ```
 
-- **Declared at:** [line 272](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/advancedpad.hh#L272)
+- **Declared at:** [line 272](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/advancedpad.hh#L272)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -472,7 +472,7 @@ auto result = psyqo::operator--(pad, arg2);
 inline psyqo::AdvancedPad::Pad& operator--(psyqo::AdvancedPad::Pad& pad)
 ```
 
-- **Declared at:** [line 267](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/advancedpad.hh#L267)
+- **Declared at:** [line 267](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/advancedpad.hh#L267)
 - **Kind:** `function decl`
 
 **Parameters**

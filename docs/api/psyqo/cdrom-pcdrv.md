@@ -1,10 +1,10 @@
 # PsyQo API: Cdrom Pcdrv
 
-> **Header:** `"psyqo/cdrom-pcdrv.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-pcdrv.hh)
+> **Header:** `"psyqo/cdrom-pcdrv.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-pcdrv.hh)
 
 This module covers the cdrom pcdrv module. It documents 3 public callables declared directly in this header.
 
-PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552d`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
+PsyQo is pinned through Nugget revision `bfc3f65010efaaf979e10852e4cf203a2eff1b13`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
 
 ## Declared types
 
@@ -28,7 +28,7 @@ PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552
 CDRomPCDrv(const char* isoName) : m
 ```
 
-- **Declared at:** [line 37](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-pcdrv.hh#L37)
+- **Declared at:** [line 37](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-pcdrv.hh#L37)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -66,7 +66,7 @@ psyqo::CDRomPCDrv value(isoName);
 bool ensureOpen()
 ```
 
-- **Declared at:** [line 39](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-pcdrv.hh#L39)
+- **Declared at:** [line 39](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-pcdrv.hh#L39)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -99,7 +99,7 @@ auto result = object.ensureOpen();
 void readSectors(uint32_t sector, uint32_t count, void *buffer, eastl::function<void(bool)> &&callback) override
 ```
 
-- **Declared at:** [line 47](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-pcdrv.hh#L47)
+- **Declared at:** [line 47](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-pcdrv.hh#L47)
 - **Kind:** `cxx method`
 
 **Parameters**

@@ -1,10 +1,10 @@
 # PsyQo API: Soft Math
 
-> **Header:** `"psyqo/soft-math.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/soft-math.hh)
+> **Header:** `"psyqo/soft-math.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/soft-math.hh)
 
 This module covers the soft math module. It documents 30 public callables declared directly in this header.
 
-PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552d`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
+PsyQo is pinned through Nugget revision `bfc3f65010efaaf979e10852e4cf203a2eff1b13`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
 
 ## Declared types
 
@@ -55,7 +55,7 @@ PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552
 Vec3 crossProductVec3(const Vec3 &v1, const Vec3 &v2)
 ```
 
-- **Declared at:** [line 160](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/soft-math.hh#L160)
+- **Declared at:** [line 160](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/soft-math.hh#L160)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -97,7 +97,7 @@ auto result = psyqo::SoftMath::crossProductVec3(v1, v2);
 static inline Vec3 crossProductVec3(const Vec3 *v1, const Vec3 *v2)
 ```
 
-- **Declared at:** [line 161](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/soft-math.hh#L161)
+- **Declared at:** [line 161](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/soft-math.hh#L161)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Parameters**
@@ -139,7 +139,7 @@ auto result = psyqo::SoftMath::crossProductVec3(v1, v2);
 static inline void crossProductVec3(const Vec3 *v1, const Vec3 *v2, Vec3 *out)
 ```
 
-- **Declared at:** [line 148](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/soft-math.hh#L148)
+- **Declared at:** [line 148](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/soft-math.hh#L148)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Parameters**
@@ -183,7 +183,7 @@ psyqo::SoftMath::crossProductVec3(v1, v2, out);
 void crossProductVec3(const Vec3 &v1, const Vec3 &v2, Vec3 *out)
 ```
 
-- **Declared at:** [line 147](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/soft-math.hh#L147)
+- **Declared at:** [line 147](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/soft-math.hh#L147)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -227,7 +227,7 @@ psyqo::SoftMath::crossProductVec3(v1, v2, out);
 void fastNormalizeVec3(Vec3 *v)
 ```
 
-- **Declared at:** [line 235](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/soft-math.hh#L235)
+- **Declared at:** [line 235](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/soft-math.hh#L235)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -267,7 +267,7 @@ psyqo::SoftMath::fastNormalizeVec3(v);
 Matrix33 generateRotationMatrix33(Angle t, Axis a, const Trig<> &trig)
 ```
 
-- **Declared at:** [line 60](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/soft-math.hh#L60)
+- **Declared at:** [line 60](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/soft-math.hh#L60)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -311,7 +311,7 @@ auto result = psyqo::SoftMath::generateRotationMatrix33(t, a, trig);
 static inline Matrix33 generateRotationMatrix33(Angle t, Axis a, const Trig<> *trig)
 ```
 
-- **Declared at:** [line 61](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/soft-math.hh#L61)
+- **Declared at:** [line 61](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/soft-math.hh#L61)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Parameters**
@@ -355,7 +355,7 @@ auto result = psyqo::SoftMath::generateRotationMatrix33(t, a, trig);
 static inline void generateRotationMatrix33(Matrix33 *m, Angle t, Axis a, const Trig<> *trig)
 ```
 
-- **Declared at:** [line 47](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/soft-math.hh#L47)
+- **Declared at:** [line 47](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/soft-math.hh#L47)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Parameters**
@@ -401,7 +401,7 @@ psyqo::SoftMath::generateRotationMatrix33(m, t, a, trig);
 void generateRotationMatrix33(Matrix33 *m, Angle t, Axis a, const Trig<> &trig)
 ```
 
-- **Declared at:** [line 46](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/soft-math.hh#L46)
+- **Declared at:** [line 46](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/soft-math.hh#L46)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -447,7 +447,7 @@ psyqo::SoftMath::generateRotationMatrix33(m, t, a, trig);
 FixedPoint<> inverseSquareRoot(FixedPoint<> x, FixedPoint<> y)
 ```
 
-- **Declared at:** [line 202](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/soft-math.hh#L202)
+- **Declared at:** [line 202](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/soft-math.hh#L202)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -489,7 +489,7 @@ auto result = psyqo::SoftMath::inverseSquareRoot(x, y);
 static inline FixedPoint<> inverseSquareRoot(FixedPoint<> x)
 ```
 
-- **Declared at:** [line 210](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/soft-math.hh#L210)
+- **Declared at:** [line 210](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/soft-math.hh#L210)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Parameters**
@@ -529,7 +529,7 @@ auto result = psyqo::SoftMath::inverseSquareRoot(x);
 FixedPoint<> matrixDeterminant3(const Matrix33 &m)
 ```
 
-- **Declared at:** [line 172](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/soft-math.hh#L172)
+- **Declared at:** [line 172](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/soft-math.hh#L172)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -569,7 +569,7 @@ auto result = psyqo::SoftMath::matrixDeterminant3(m);
 static inline FixedPoint<> matrixDeterminant3(const Matrix33 *m)
 ```
 
-- **Declared at:** [line 173](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/soft-math.hh#L173)
+- **Declared at:** [line 173](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/soft-math.hh#L173)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Parameters**
@@ -609,7 +609,7 @@ auto result = psyqo::SoftMath::matrixDeterminant3(m);
 static inline void matrixVecMul3(const Matrix33 *m, const Vec3 *v, Vec3 *out)
 ```
 
-- **Declared at:** [line 109](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/soft-math.hh#L109)
+- **Declared at:** [line 109](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/soft-math.hh#L109)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Parameters**
@@ -653,7 +653,7 @@ psyqo::SoftMath::matrixVecMul3(m, v, out);
 void matrixVecMul3(const Matrix33 &m, const Vec3 &v, Vec3 *out)
 ```
 
-- **Declared at:** [line 108](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/soft-math.hh#L108)
+- **Declared at:** [line 108](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/soft-math.hh#L108)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -697,7 +697,7 @@ psyqo::SoftMath::matrixVecMul3(m, v, out);
 static inline void matrixVecMul3xy(const Matrix33 *m, const Vec3 *v, Vec2 *out)
 ```
 
-- **Declared at:** [line 122](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/soft-math.hh#L122)
+- **Declared at:** [line 122](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/soft-math.hh#L122)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Parameters**
@@ -741,7 +741,7 @@ psyqo::SoftMath::matrixVecMul3xy(m, v, out);
 void matrixVecMul3xy(const Matrix33 &m, const Vec3 &v, Vec2 *out)
 ```
 
-- **Declared at:** [line 121](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/soft-math.hh#L121)
+- **Declared at:** [line 121](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/soft-math.hh#L121)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -785,7 +785,7 @@ psyqo::SoftMath::matrixVecMul3xy(m, v, out);
 FixedPoint<> matrixVecMul3z(const Matrix33 &m, const Vec3 &v)
 ```
 
-- **Declared at:** [line 134](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/soft-math.hh#L134)
+- **Declared at:** [line 134](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/soft-math.hh#L134)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -827,7 +827,7 @@ auto result = psyqo::SoftMath::matrixVecMul3z(m, v);
 static inline FixedPoint<> matrixVecMul3z(const Matrix33 *m, const Vec3 *v)
 ```
 
-- **Declared at:** [line 135](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/soft-math.hh#L135)
+- **Declared at:** [line 135](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/soft-math.hh#L135)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Parameters**
@@ -869,7 +869,7 @@ auto result = psyqo::SoftMath::matrixVecMul3z(m, v);
 Matrix33 multiplyMatrix33(const Matrix33 &m1, const Matrix33 &m2)
 ```
 
-- **Declared at:** [line 87](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/soft-math.hh#L87)
+- **Declared at:** [line 87](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/soft-math.hh#L87)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -911,7 +911,7 @@ auto result = psyqo::SoftMath::multiplyMatrix33(m1, m2);
 static inline Matrix33 multiplyMatrix33(const Matrix33 *m1, const Matrix33 *m2)
 ```
 
-- **Declared at:** [line 88](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/soft-math.hh#L88)
+- **Declared at:** [line 88](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/soft-math.hh#L88)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Parameters**
@@ -953,7 +953,7 @@ auto result = psyqo::SoftMath::multiplyMatrix33(m1, m2);
 static inline void multiplyMatrix33(const Matrix33 *m1, const Matrix33 *m2, Matrix33 *out)
 ```
 
-- **Declared at:** [line 74](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/soft-math.hh#L74)
+- **Declared at:** [line 74](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/soft-math.hh#L74)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Parameters**
@@ -997,7 +997,7 @@ psyqo::SoftMath::multiplyMatrix33(m1, m2, out);
 void multiplyMatrix33(const Matrix33 &m1, const Matrix33 &m2, Matrix33 *out)
 ```
 
-- **Declared at:** [line 73](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/soft-math.hh#L73)
+- **Declared at:** [line 73](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/soft-math.hh#L73)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1041,7 +1041,7 @@ psyqo::SoftMath::multiplyMatrix33(m1, m2, out);
 void normalizeVec3(Vec3 *v)
 ```
 
-- **Declared at:** [line 228](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/soft-math.hh#L228)
+- **Declared at:** [line 228](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/soft-math.hh#L228)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1081,7 +1081,7 @@ psyqo::SoftMath::normalizeVec3(v);
 FixedPoint<> normOfVec3(const Vec3 &v)
 ```
 
-- **Declared at:** [line 218](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/soft-math.hh#L218)
+- **Declared at:** [line 218](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/soft-math.hh#L218)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1121,7 +1121,7 @@ auto result = psyqo::SoftMath::normOfVec3(v);
 static inline FixedPoint<> normOfVec3(const Vec3 *v)
 ```
 
-- **Declared at:** [line 219](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/soft-math.hh#L219)
+- **Declared at:** [line 219](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/soft-math.hh#L219)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Parameters**
@@ -1161,7 +1161,7 @@ auto result = psyqo::SoftMath::normOfVec3(v);
 void project(const Vec3 *v, FixedPoint<> h, Vec2 *out)
 ```
 
-- **Declared at:** [line 244](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/soft-math.hh#L244)
+- **Declared at:** [line 244](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/soft-math.hh#L244)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1205,7 +1205,7 @@ psyqo::SoftMath::project(v, h, out);
 void scaleMatrix33(Matrix33 *m, FixedPoint<> s)
 ```
 
-- **Declared at:** [line 99](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/soft-math.hh#L99)
+- **Declared at:** [line 99](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/soft-math.hh#L99)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1247,7 +1247,7 @@ psyqo::SoftMath::scaleMatrix33(m, s);
 FixedPoint<> squareRoot(FixedPoint<> x, FixedPoint<> y)
 ```
 
-- **Declared at:** [line 184](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/soft-math.hh#L184)
+- **Declared at:** [line 184](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/soft-math.hh#L184)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1289,7 +1289,7 @@ auto result = psyqo::SoftMath::squareRoot(x, y);
 static inline FixedPoint<> squareRoot(FixedPoint<> x)
 ```
 
-- **Declared at:** [line 192](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/soft-math.hh#L192)
+- **Declared at:** [line 192](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/soft-math.hh#L192)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Parameters**

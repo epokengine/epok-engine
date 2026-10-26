@@ -49,6 +49,7 @@ mod console;
 mod content_preview;
 mod controls;
 mod controls_ui;
+mod rumble;
 mod data_table;
 mod data_table_editor;
 mod dependencies;
@@ -2068,6 +2069,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     memory_ui::size(report.files.used)
                 ),
                 Ok(pipeline::Event::SerialIssue(s)) => eprintln!("{s}"),
+                Ok(pipeline::Event::RuntimeIssue { message, .. }) => eprintln!("ERROR: {message}"),
                 Ok(pipeline::Event::SerialPorts(_)) => {}
                 Ok(pipeline::Event::SerialConfigured(serial)) => {
                     let mut preferences = settings::Preferences::load()?;

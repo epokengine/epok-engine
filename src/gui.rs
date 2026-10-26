@@ -13,6 +13,74 @@ const SEARCH: &str = "\u{ea6d}";
 // codepoint. Reuse the verified glyph so hierarchy rows never degrade to `?`.
 const ACTOR: &str = CUBE;
 
+/// Shared by the viewport dropdown and the user's default navigation settings.
+pub(crate) fn camera_speed_controls(ui: &imgui::Ui, view: &mut crate::viewport::View) -> bool {
+    let before = (
+        view.fly_speed,
+        view.camera_speed_scalar,
+        view.distance_scaled_speed,
+    );
+    ui.text("Camera Speed");
+    ui.set_next_item_width(260.);
+    let mut level = view.camera_speed_level();
+    if ui
+        .slider_config("##camera-speed-level", 1., 8.)
+        .display_format("%.1f")
+        .build(&mut level)
+    {
+        view.set_camera_speed_level(level);
+    }
+    #[cfg(test)]
+    record_script_control(ui, "Camera Speed");
+    if ui.is_item_hovered() {
+        ui.tooltip_text("Slow to fast: 1 to 8. Ctrl+click to enter a value.\nRMB + mouse wheel changes the same speed while flying.");
+    }
+    ui.text("Camera Speed Scalar");
+    ui.set_next_item_width(260.);
+    if Drag::new("##camera-speed-scalar")
+        .speed(0.1)
+        .range(1., 128.)
+        .display_format("%.2f")
+        .build(ui, &mut view.camera_speed_scalar)
+    {
+        view.camera_speed_scalar = view.camera_speed_scalar.clamp(1., 128.);
+    }
+    #[cfg(test)]
+    record_script_control(ui, "Camera Speed Scalar");
+    if ui.is_item_hovered() {
+        ui.tooltip_text(
+            "Multiplies camera movement speed. Drag to adjust or click to type. Range: 1 to 128.",
+        );
+    }
+    ui.checkbox(
+        "Distance Based Camera Speed",
+        &mut view.distance_scaled_speed,
+    );
+    #[cfg(test)]
+    record_script_control(ui, "Distance Based Camera Speed");
+    if ui.is_item_hovered() {
+        ui.tooltip_text("Scale navigation speed by the distance to the orbit pivot.\nMove more slowly near the pivot and faster when farther away.");
+    }
+    ui.separator();
+    ui.text_disabled(format!(
+        "{:.2} units/s | Shift: 4x",
+        view.navigation_speed()
+    ));
+    if ui.button("Reset Speed") {
+        view.fly_speed = 5.;
+        view.camera_speed_scalar = 1.;
+        view.distance_scaled_speed = false;
+    }
+    #[cfg(test)]
+    record_script_control(ui, "Reset Speed");
+    before
+        != (
+            view.fly_speed,
+            view.camera_speed_scalar,
+            view.distance_scaled_speed,
+        )
+}
+
 pub fn configure_input(io: &mut imgui::Io) {
     // Scene/HUD handles are drawn over images rather than ImGui buttons.
     // Their drags must never also move or undock the containing panel.
@@ -676,6 +744,7 @@ pub fn draw(
         e.scene_look = false;
         e.raw_look = None;
         e.drag_axis = None;
+        e.scene_orientation.cancel();
         e.hud_drag = None;
         e.game_capture = false;
         crate::busy_ui::background(ui, || {
@@ -1002,6 +1071,15 @@ fn draw_workspace(
                         }
                     });
                 }
+            } else if e.play_profile.runtime == crate::play::Runtime::PlayStation
+                && e.play_profile.target == crate::play::Target::Serial
+            {
+                ui.same_line_with_spacing(0., 3.);
+                ui.disabled(e.job.is_some() || e.critical_busy() || e.assets.busy || e.bake_job.is_some(), || {
+                    if icon(ui, "R", "reset-psx", "Reset PSX (reconnect to the selected adapter)", false) {
+                        e.action("serial-reset");
+                    }
+                });
             }
             ui.same_line_with_pos(size[0] - 270.);
             if ui.button("Build") {
@@ -3319,6 +3397,7 @@ fn scene_view(
     }
     let _compact_padding =
         compact.then(|| ui.push_style_var(imgui::StyleVar::WindowPadding([0., 0.])));
+    let mut orientation_visible = false;
     window.build(|| {
         if !compact {
             for mode in crate::scene_view_mode::SceneViewMode::ALL {
@@ -3368,12 +3447,24 @@ fn scene_view(
             if ui.button("Reset View") {
                 e.action("reset-view");
             }
-            inline_width(ui, 125.);
-            ui.set_next_item_width(70.);
-            crate::gui::Drag::new("Speed")
-                .speed(0.1)
-                .range(0.1, 100.)
-                .build(ui, &mut e.view.fly_speed);
+            inline_width(ui, 130.);
+            let right = ui.window_content_region_max()[0] - 130.;
+            if right > ui.cursor_pos()[0] {
+                ui.set_cursor_pos([right, ui.cursor_pos()[1]]);
+            }
+            if ui.button_with_size(format!("{CAMERA} {:.1}  \u{eab4}##camera-speed", e.view.camera_speed_level()), [130., 0.]) {
+                ui.open_popup("scene-camera-speed");
+            }
+            #[cfg(test)]
+            record_script_control(ui, "Camera Speed Menu");
+            if ui.is_item_hovered() {
+                ui.tooltip_text(format!("Camera Speed\nRMB + mouse wheel: adjust speed\nCurrent movement: {:.2} units/s", e.view.navigation_speed()));
+            }
+            ui.popup("scene-camera-speed", || {
+                if camera_speed_controls(ui, &mut e.view) {
+                    e.view_dirty = true;
+                }
+            });
             muted(ui, "RMB + WASD: fly | Q/E: down/up | Alt + LMB: orbit");
             crate::lighting_editor::preview_status(ui, e);
             crate::baked_preview::ui(ui, e);
@@ -3409,18 +3500,28 @@ fn scene_view(
         // A text field may own ActiveId until navigation explicitly relinquishes it.
         let navigation_hovered = ui
             .is_item_hovered_with_flags(imgui::ItemHoveredFlags::ALLOW_WHEN_BLOCKED_BY_ACTIVE_ITEM);
-        if hovered && ui.io().mouse_wheel != 0. {
+        let right = ui.is_mouse_down(imgui::MouseButton::Right);
+        let middle = ui.is_mouse_down(imgui::MouseButton::Middle);
+        let orientation_position = [
+            position[0] + available[0] - crate::gizmo::ORIENTATION_SIZE - 9.,
+            position[1] + 8.,
+        ];
+        orientation_visible = true;
+        let orientation_enabled = !e.critical_busy() && e.drag_axis.is_none() && !right && !middle;
+        if e.scene_orientation.interact(ui, &mut e.view, orientation_position, orientation_enabled) {
+            e.view_dirty = true;
+        }
+        let over_orientation = e.scene_orientation.owns_pointer;
+        if hovered && !over_orientation && ui.io().mouse_wheel != 0. {
             if ui.is_mouse_down(imgui::MouseButton::Right) {
-                e.view.fly_speed =
-                    (e.view.fly_speed * 1.2_f32.powf(ui.io().mouse_wheel)).clamp(0.1, 100.);
+                e.view.adjust_camera_speed(ui.io().mouse_wheel);
             } else {
                 e.view.dolly(ui.io().mouse_wheel);
             }
             e.view_dirty = true;
         }
-        let right = ui.is_mouse_down(imgui::MouseButton::Right);
-        let middle = ui.is_mouse_down(imgui::MouseButton::Middle);
         if navigation_hovered
+            && !over_orientation
             && (ui.is_mouse_clicked(imgui::MouseButton::Right)
                 || ui.is_mouse_clicked(imgui::MouseButton::Middle))
         {
@@ -3453,7 +3554,7 @@ fn scene_view(
             e.view.fly(axes, ui.io().delta_time, ui.io().key_shift);
             e.view_dirty = true;
         }
-        if hovered && ui.is_mouse_dragging(imgui::MouseButton::Left) && ui.io().key_alt {
+        if hovered && !over_orientation && ui.is_mouse_dragging(imgui::MouseButton::Left) && ui.io().key_alt {
             e.view.look(ui.io().mouse_delta, true);
             e.view_dirty = true;
         }
@@ -3482,6 +3583,7 @@ fn scene_view(
         let eligible = hovered
             && !over_tools
             && !over_axes
+            && !over_orientation
             && !over_path_key
             && !e.playing
             && !ui.io().key_alt
@@ -3520,7 +3622,7 @@ fn scene_view(
                 e.search.clear();
             }
         }
-        if ui.is_window_focused() && !ui.io().want_text_input && !right && !middle {
+        if ui.is_window_focused() && !ui.io().want_text_input && !right && !middle && !over_orientation {
             crate::mesh_editor::geometry_shortcuts(ui, e);
             crate::terrain_editor::brush_shortcuts(ui, e);
             for (i, key) in [imgui::Key::Q, imgui::Key::W, imgui::Key::E, imgui::Key::R]
@@ -3555,14 +3657,11 @@ fn scene_view(
             });
         drop(tool_spacing);
         drop(tool_padding);
-        let orientation_position = [
-            position[0] + available[0] - crate::gizmo::ORIENTATION_SIZE - 9.,
-            position[1] + 8.,
-        ];
-        if crate::gizmo::draw_orientation(ui, &mut e.view, orientation_position) {
-            e.view_dirty = true;
-        }
+        crate::gizmo::draw_orientation(ui, &e.view, &e.scene_orientation, orientation_position);
     });
+    if !orientation_visible {
+        e.scene_orientation.cancel();
+    }
 }
 fn game_view(
     ui: &imgui::Ui,
@@ -3573,17 +3672,24 @@ fn game_view(
     let mut visible = false;
     ui.window("\u{ec17} Game###Game").build(|| {
         visible = true;
-        if e.active_play_runtime == crate::play::Runtime::PlayStation
+        if (e.active_play_runtime == crate::play::Runtime::PlayStation
             && e.active_play_target == crate::play::Target::Serial
-            && e.job.is_some()
+            && e.job.is_some())
+            || (e.job.is_none() && e.play_profile.runtime == crate::play::Runtime::PlayStation
+                && e.play_profile.target == crate::play::Target::Serial)
         {
-            ui.text_wrapped("PSX serial session. The picture is on the console's display; use its controller. Upload progress and TTY messages appear in Console.");
-            ui.text_wrapped("Stop disconnects NOTPSXSerial. It does not reset or halt the console.");
-            ui.disabled(!e.playing || e.serial_ui.command_pending, || {
+            ui.text_wrapped(if e.playing {
+                "PSX serial session. The picture is on the console's display; use its controller. Stop requests a console reset before disconnecting."
+            } else {
+                "PSX via serial. Start Play from the Unirom loader. Reset PSX can reconnect to recover a previous execution if its resident handler still responds."
+            });
+            ui.disabled(!e.playing || e.serial_ui.command_pending || e.job.as_ref().is_some_and(crate::pipeline::Job::stopping), || {
                 if ui.button("Pause PSX") { e.action("serial-pause"); }
                 ui.same_line();
                 if ui.button("Continue PSX") { e.action("serial-resume"); }
-                ui.same_line();
+            });
+            ui.same_line();
+            ui.disabled(e.serial_ui.command_pending || e.job.as_ref().is_some_and(|job| !e.playing || job.stopping()) || e.critical_busy() || e.assets.busy || e.bake_job.is_some(), || {
                 if ui.button("Reset PSX") { e.action("serial-reset"); }
             });
             if e.serial_ui.command_pending { ui.text_disabled("Waiting for Unirom..."); }
@@ -3712,6 +3818,129 @@ fn game_view(
 #[cfg(test)]
 mod interaction_tests {
     use super::*;
+
+    #[test]
+    fn camera_speed_dropdown_changes_navigation_and_preserves_scene_data() {
+        let mut context = crate::gui::tests::imgui_context();
+        configure_input(context.io_mut());
+        context.set_ini_filename(None);
+        context.io_mut().display_size = [1200., 800.];
+        context.io_mut().delta_time = 1. / 60.;
+        context
+            .fonts()
+            .add_font(&[imgui::FontSource::DefaultFontData { config: None }]);
+        context.fonts().build_rgba32_texture();
+        context.load_ini_settings("[Window][###Scene]\nPos=10,10\nSize=1100,700\nCollapsed=0\n");
+        let root = crate::workspace::tests::temp("camera-speed-dropdown");
+        let mut editor = Editor::new(root.clone());
+        editor.auto_build = false;
+        editor.view = Default::default();
+        let scene = editor.scene.clone();
+        let dirty = editor.dirty;
+        let undo = (editor.can_undo_scene(), editor.can_redo_scene());
+        fn frame(context: &mut imgui::Context, editor: &mut Editor) {
+            clear_script_controls();
+            let ui = context.frame();
+            scene_view(
+                ui,
+                editor,
+                imgui::TextureId::new(999),
+                imgui::TextureId::new(1000),
+                [960., 600.],
+            );
+            context.render();
+        }
+        fn click(context: &mut imgui::Context, editor: &mut Editor, point: [f32; 2]) {
+            context.io_mut().add_mouse_pos_event(point);
+            frame(context, editor);
+            context
+                .io_mut()
+                .add_mouse_button_event(imgui::MouseButton::Left, true);
+            frame(context, editor);
+            context
+                .io_mut()
+                .add_mouse_button_event(imgui::MouseButton::Left, false);
+            frame(context, editor);
+        }
+        frame(&mut context, &mut editor);
+        frame(&mut context, &mut editor);
+        let menu = script_control("Camera Speed Menu").unwrap();
+        click(&mut context, &mut editor, menu);
+        // Popups at the right edge settle their auto-fit position on the next frame.
+        frame(&mut context, &mut editor);
+        frame(&mut context, &mut editor);
+        let slider = script_control("Camera Speed").expect("Camera Speed dropdown opens");
+        click(&mut context, &mut editor, [slider[0] + 80., slider[1]]);
+        assert!(
+            editor.view.camera_speed_level() > 6.,
+            "level={}, slider={slider:?}, current={:?}",
+            editor.view.camera_speed_level(),
+            script_control("Camera Speed")
+        );
+        let scalar = script_control("Camera Speed Scalar").unwrap();
+        context.io_mut().add_mouse_pos_event(scalar);
+        frame(&mut context, &mut editor);
+        context
+            .io_mut()
+            .add_mouse_button_event(imgui::MouseButton::Left, true);
+        frame(&mut context, &mut editor);
+        context
+            .io_mut()
+            .add_mouse_pos_event([scalar[0] + 60., scalar[1]]);
+        frame(&mut context, &mut editor);
+        context
+            .io_mut()
+            .add_mouse_button_event(imgui::MouseButton::Left, false);
+        frame(&mut context, &mut editor);
+        assert!(editor.view.camera_speed_scalar > 1.);
+        let toggle = script_control("Distance Based Camera Speed").unwrap();
+        click(&mut context, &mut editor, toggle);
+        assert!(editor.view.distance_scaled_speed);
+        let chosen = (editor.view.fly_speed, editor.view.camera_speed_scalar);
+        editor.action("reset-view");
+        assert_eq!(
+            (editor.view.fly_speed, editor.view.camera_speed_scalar),
+            chosen
+        );
+        assert!(editor.view.distance_scaled_speed);
+        context.io_mut().add_key_event(imgui::Key::Escape, true);
+        frame(&mut context, &mut editor);
+        context.io_mut().add_key_event(imgui::Key::Escape, false);
+        frame(&mut context, &mut editor);
+        let before = editor.view;
+        context.io_mut().add_mouse_pos_event([300., 330.]);
+        frame(&mut context, &mut editor);
+        context
+            .io_mut()
+            .add_mouse_button_event(imgui::MouseButton::Right, true);
+        frame(&mut context, &mut editor);
+        context.io_mut().add_mouse_wheel_event([0., -1.]);
+        frame(&mut context, &mut editor);
+        assert!(editor.view.fly_speed < before.fly_speed);
+        assert_eq!(
+            editor.view.center, before.center,
+            "Speed wheel must not dolly"
+        );
+        assert_eq!(editor.view.camera_speed_scalar, before.camera_speed_scalar);
+        context
+            .io_mut()
+            .add_mouse_button_event(imgui::MouseButton::Right, false);
+        frame(&mut context, &mut editor);
+        let menu = script_control("Camera Speed Menu").unwrap();
+        click(&mut context, &mut editor, menu);
+        frame(&mut context, &mut editor);
+        frame(&mut context, &mut editor);
+        let reset = script_control("Reset Speed").unwrap();
+        click(&mut context, &mut editor, reset);
+        assert_eq!(editor.view.fly_speed, 5.);
+        assert_eq!(editor.view.camera_speed_scalar, 1.);
+        assert!(!editor.view.distance_scaled_speed);
+        assert_eq!(editor.scene, scene);
+        assert_eq!(editor.dirty, dirty);
+        assert_eq!((editor.can_undo_scene(), editor.can_redo_scene()), undo);
+        drop(editor);
+        std::fs::remove_dir_all(root).unwrap();
+    }
 
     #[test]
     fn hierarchy_double_click_frames_and_rename_respects_focus_and_outside_clicks() {

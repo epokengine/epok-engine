@@ -1,13 +1,6 @@
 #pragma once
+#include "scene_lifecycle.hpp"
 namespace epok {
-struct SceneStats {uint32_t transitions=0,rejected=0;size_t active=0;bool waiting=false;};
-inline SceneStats scene_stats;
-inline int pending_scene=-1;
-inline bool scene_stopping=false;
-inline bool scene_transitioning=false;
-#ifdef EPOK_TRANSITIONS
-inline TransitionState pending_transition;
-#endif
 #ifdef EPOK_ACTOR_TABLES
 // ---- object-model service hooks ----------------------------------------------------
 // Both predicates are installed rather than hard-wired: runtime/object_model.hpp is
@@ -26,42 +19,11 @@ inline void install_actor_service_hooks(){
     audio_source_retained=&music_retains_audio_source;
 }
 #endif
-size_t current_scene(){return scene_stats.active;}
-uint32_t scene_transition_count(){return scene_stats.transitions;}
-uint32_t scene_rejected_count(){return scene_stats.rejected;}
-bool scene_waiting(){return scene_stats.waiting;}
 bool scene_loading(){return pending_scene>=0||scene_file_waiting()
 #ifdef EPOK_TRANSITIONS
     ||transition.busy()
 #endif
     ;}
-bool request_scene(size_t index){
-    if(index>=scene_bank_count){++scene_stats.rejected;return false;}
-#ifdef EPOK_TRANSITIONS
-    pending_transition.begin(TransitionOptions{},0);
-#endif
-    pending_scene=int(index);scene_stats.waiting=true;return true;
-}
-bool request_scene(const char* name){
-    if(name)for(size_t i=0;i<scene_bank_count;++i){size_t n=0;while(name[n]&&name[n]==scene_banks[i].name[n])++n;if(!name[n]&&!scene_banks[i].name[n])return request_scene(i);}
-    ++scene_stats.rejected;return false;
-}
-#ifdef EPOK_TRANSITIONS
-bool request_scene(size_t index,const TransitionOptions& options){
-    if(!request_scene(index))return false;
-    pending_transition.begin(options,0);return true;
-}
-bool request_scene(const char* name,const TransitionOptions& options){
-    if(!request_scene(name))return false;
-    pending_transition.begin(options,0);return true;
-}
-#endif
-// Run a bank's load function once its data is in RAM, then start its audio.
-inline void scene_start_bank(size_t next){
-    scene_banks[next].load();
-    for(size_t i=0;i<object_count;++i)if(is_active(&objects[i])&&objects[i].audio.enabled&&objects[i].audio.play_on_start&&!objects[i].audio.is_playing())objects[i].audio.play();
-    scene_transitioning=false;scene_stats.waiting=scene_loading();
-}
 // The outgoing scene is gone and the next bank's file is loading behind the
 // loading screen. Nothing of the bank runs until its file is verified.
 inline bool scene_file_tick(psyqo::GPU& gpu){
@@ -98,10 +60,7 @@ inline bool scene_tick(psyqo::GPU& gpu){
     if(transition.phase==TransitionPhase::Idle)transition.begin(pending_transition.options,gpu.now());
     if(transition.phase!=TransitionPhase::Loading||!transition.presented)return false;
 #endif
-    if(!scene_stopping){
-        for(size_t i=0;i<object_count;++i)if(objects[i].alive)objects[i].audio.stop();
-        scene_stopping=true;
-    }
+    scene_stop_audio();
     // Async XA callbacks retain AudioSource pointers until seek/stop completes.
     // Geometry callbacks retain page slots only; source lifetime is held only
     // by XA lookup/action callbacks. Global page IDs survive scene changes.
@@ -112,25 +71,7 @@ inline bool scene_tick(psyqo::GPU& gpu){
     if(sequence_retiring())return false;
 #endif
     gpu.waitChainIdle();
-    // Consume this request before callbacks, so requests from teardown/start
-    // remain queued for the following safe frame boundary.
-    size_t next=size_t(pending_scene);pending_scene=-1;scene_transitioning=true;
-    bool alive[objects.size()]={},active[objects.size()]={};
-    for(size_t i=0;i<object_count;++i){alive[i]=objects[i].alive;active[i]=is_active(&objects[i]);}
-    lifecycle_tearing_down=true;
-#ifdef EPOK_ACTOR_TABLES
-    // The scene script ends play first, while the actors and their legacy slots are
-    // still alive; then the level tears the actors down. Both precede the legacy
-    // binding teardown and reset_runtime_services below.
-    unload_actor_bank();
-#endif
-    for(size_t i=0;i<object_count;++i)if(alive[i]){
-        objects[i].alive=objects[i].active=false;
-        objects[i].generation=next_generation(objects[i].generation);
-    }
-    reset_runtime_services();
-    lifecycle_tearing_down=false;scene_stopping=false;
-    scene_stats.active=next;++scene_stats.transitions;
+    const size_t next=scene_retire_bank();
     if constexpr(scene_file_count>0)if(!scene_bank_ready(next)){
         scene_file_bank=int(next);
         scene_file_begin(next,gpu.now());

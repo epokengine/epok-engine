@@ -1,10 +1,10 @@
 # PsyQo API: Cdrom
 
-> **Header:** `"psyqo/cdrom.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom.hh)
+> **Header:** `"psyqo/cdrom.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom.hh)
 
 This module covers the cdrom module. It documents 5 public callables declared directly in this header.
 
-PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552d`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
+PsyQo is pinned through Nugget revision `bfc3f65010efaaf979e10852e4cf203a2eff1b13`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
 
 ## Declared types
 
@@ -32,7 +32,7 @@ PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552
 virtual void readSectors(uint32_t sector, uint32_t count, void *buffer, eastl::function<void(bool)> &&callback) = 0
 ```
 
-- **Declared at:** [line 99](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom.hh#L99)
+- **Declared at:** [line 99](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom.hh#L99)
 - **Kind:** `cxx method`; qualifiers: `virtual`
 
 **Parameters**
@@ -82,7 +82,7 @@ object.readSectors(sector, count, buffer, callback);
 ReadSectorsAwaiter readSectorsForCoroutine(uint32_t sector, uint32_t count, void *buffer)
 ```
 
-- **Declared at:** [line 139](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom.hh#L139)
+- **Declared at:** [line 139](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom.hh#L139)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -130,7 +130,7 @@ auto result = object.readSectorsForCoroutine(sector, count, buffer);
 TaskQueue::Task scheduleReadRequest(const ReadRequest *request)
 ```
 
-- **Declared at:** [line 125](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom.hh#L125)
+- **Declared at:** [line 125](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom.hh#L125)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -174,7 +174,7 @@ auto result = object.scheduleReadRequest(request);
 TaskQueue::Task scheduleReadSectors(uint32_t sector, uint32_t count, void *buffer)
 ```
 
-- **Declared at:** [line 112](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom.hh#L112)
+- **Declared at:** [line 112](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom.hh#L112)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -220,7 +220,7 @@ auto result = object.scheduleReadSectors(sector, count, buffer);
 virtual ~CDRom()
 ```
 
-- **Declared at:** [line 70](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom.hh#L70)
+- **Declared at:** [line 70](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom.hh#L70)
 - **Kind:** `destructor`; qualifiers: `virtual`
 
 **Use it when.** You need the cdrom module and the preconditions in the declaration are already satisfied.

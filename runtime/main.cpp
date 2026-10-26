@@ -7,7 +7,7 @@
 #include "ordered_projection.hpp"
 #include "baked_packet.hpp"
 #include "psyqo/scene.hh"
-#include "psyqo/advancedpad.hh"
+#include "controller_pad.hpp"
 #include "memory_card_backend.hpp"
 #include "fixed_trigonometry.hpp"
 #include "track_camera_pose.hpp"
@@ -172,7 +172,7 @@ struct ScanlineScope {
 std::array<Matrix, epok::objects.size()> world;
 epok::TransformCache<Fixed,epok::objects.size()> transform_cache;
 epok::MotionInterpolation<Fixed,epok::objects.size(),epok::motion_interpolation> motion;
-psyqo::AdvancedPad pad;
+epok::ControllerPad pad;
 epok::PsyqoMemoryCardDriver card_driver;
 epok::CollisionWorld<Fixed,epok::objects.size()> collision_world;
 epok::SpriteRenderer<epok::sprite_triangle_budget> sprites;
@@ -945,6 +945,10 @@ class GameScene final : public psyqo::Scene {
     hud.initialize(gpu());
     epok::debug_hud::initialize(gpu());
       epok::input.reset();
+#ifdef EPOK_RUMBLE
+      epok::rumble.begin_frame(gpu().now());
+      for(unsigned p=0;p<4;++p)epok::rumble.device(p,true,false,true);
+#endif
 #ifdef EPOK_PLAYBACK_WAITS
       epok::bp::playback_observer=&observe_blueprint_playback;
 #endif
@@ -995,7 +999,11 @@ class Game final : public psyqo::Application {
         .set(epok::display_interlaced ? psyqo::GPU::Interlace::INTERLACED : psyqo::GPU::Interlace::PROGRESSIVE);
     gpu().initialize(config);
     epok::serial_debug::install(gpu());
-    pad.initialize(psyqo::AdvancedPad::PollingMode::Fast);
+#ifdef EPOK_RUMBLE
+    pad.initialize(true);
+#else
+    pad.initialize();
+#endif
     card_driver.prepare(gpu());
 #ifdef EPOK_PROFILE_SAMPLE
     epok::cpu_sample_start();
@@ -1022,6 +1030,29 @@ class Game final : public psyqo::Application {
 Game game;
 
 __attribute__((optimize("O3"))) void GameScene::frame() {
+  pad.synchronize(gpu().now());
+#if EPOK_SERIAL_DEBUG && defined(EPOK_RUMBLE)
+  // Report a bounded number of state changes after the transfer, never from
+  // inside its timing-sensitive byte/ACK loops. Keep ordinary frames quiet.
+  static uint32_t pad_trace_key=0xffffffffu;
+  static unsigned pad_trace_budget=16;
+  const auto& pad_trace=pad.trace();
+  const uint32_t trace_key=(uint32_t(pad_trace.command)<<24)|(uint32_t(pad_trace.result)<<16)|
+      (uint32_t(pad_trace.id)<<8)|pad_trace.header;
+  if(pad_trace.command&&pad_trace_budget&&trace_key!=pad_trace_key){
+    pad_trace_key=trace_key;--pad_trace_budget;
+    ramsyscall_printf("EPOK PAD1 cmd=%02x result=%u byte=%u id=%02x/%02x sio=%08x\n",
+        pad_trace.command,pad_trace.result,pad_trace.index,pad_trace.id,pad_trace.header,pad_trace.status);
+  }
+#endif
+  epok::rumble.begin_frame(gpu().now(),epok::time.paused()||epok::scene_loading()||epok::pending_texture_bank);
+  for(unsigned p=0;p<4;++p)epok::rumble.device(p,pad.isPadConnected(static_cast<epok::ControllerPad::Pad>(p)),pad.rumbleSupported(p),pad.rumbleProbing(p));
+  struct MotorFlush {
+    ~MotorFlush(){
+      if(epok::time.paused()||epok::scene_loading()||epok::pending_texture_bank)epok::rumble.suspend();
+      for(unsigned p=0;p<4;++p){const auto out=epok::rumble.output(p);pad.setRumble(p,out.large,out.small,out.remaining_us);}
+    }
+  } motor_flush;
 #ifdef EPOK_HAS_VIDEO
   // A playing video owns the screen, the CD and the pad; the game stands still.
   if(epok::fmv::frame(gpu(),pad)){epok::time.synchronize(gpu().now());return;}
@@ -2563,6 +2594,7 @@ bool camera_project(const Fixed* world_point,Fixed* screen_xy) {
   screen_xy[0]=Fixed(int32_t(sx),Fixed::RAW);screen_xy[1]=Fixed(int32_t(sy),Fixed::RAW);return true;
 }
 void reset_runtime_services() {
+  epok::rumble.suspend();
   world3d_visible=true;
 #ifdef EPOK_EFFECTS
   epok::effects::reset_scene();

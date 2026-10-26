@@ -9,16 +9,20 @@ use std::{
     process::{Child, ChildStdin, Command, Stdio},
     sync::{
         Arc, Mutex, OnceLock,
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
         mpsc::{self, Receiver},
     },
     time::{Duration, Instant},
 };
 
-const MAGIC: u32 = 0x324e_5045; // "EPN2"
+const MAGIC: u32 = 0x344e_5045; // "EPN4"
 const ACTOR_WORDS: usize = 16;
 const AUDIO_WORDS: usize = 6;
 const AUDIO_LIMIT: u32 = 256;
+fn next_rumble_session() -> u64 {
+    static NEXT_SESSION: AtomicU64 = AtomicU64::new(1);
+    NEXT_SESSION.fetch_add(1, Ordering::Relaxed)
+}
 
 #[derive(Clone, Debug)]
 struct ActorState {
@@ -49,6 +53,9 @@ struct AudioEvent {
 pub struct Frame {
     pub scene: Scene,
     pub number: u64,
+    pub scene_bank: u32,
+    pub scene_generation: u32,
+    pub transition_phase: u32,
     pub buttons: u16,
     pub actor_count: u32,
     pub camera: Option<usize>,
@@ -98,6 +105,8 @@ impl Frame {
             distance,
             phase: self.number as f32 / 60.,
             fly_speed: 5.,
+            camera_speed_scalar: 1.,
+            distance_scaled_speed: false,
             mirror_x: camera.camera_mirror_x,
             lighting: true,
         }
@@ -109,24 +118,30 @@ pub struct State {
     pub frame: Option<Arc<Frame>>,
     pub connected: bool,
     pub error: Option<String>,
+    pub rumble: Option<crate::rumble::Snapshot>,
 }
 
 #[derive(Clone)]
 pub struct Bridge {
     pub state: Arc<Mutex<State>>,
     pub pads: Arc<Mutex<[crate::controls::PadState; 4]>>,
+    pub session: u64,
+    pub output_enabled: Arc<AtomicBool>,
 }
 impl Bridge {
     pub fn new() -> Self {
         Self {
             state: Arc::new(Mutex::new(State::default())),
             pads: Arc::new(Mutex::new(Default::default())),
+            session: next_rumble_session(),
+            output_enabled: Arc::new(AtomicBool::new(false)),
         }
     }
 }
 
 #[derive(Debug)]
 struct Packet {
+    rumble: [crate::rumble::Command; 4],
     number: u32,
     fade: u8,
     actor_count: u32,
@@ -135,7 +150,14 @@ struct Packet {
     actors: Vec<ActorState>,
     commands: Vec<hud_native::Command>,
     audio: Vec<AudioEvent>,
-    requested_scene: String,
+    scene_bank: u32,
+    scene_generation: u32,
+    transition_phase: u32,
+    audio_gain: u32,
+    loading_text: String,
+    loading_color: [u8; 3],
+    loading_size: [u32; 2],
+    loading_pixels: Vec<u16>,
     stats: [u32; 5],
     track_sample: Option<u32>,
 }
@@ -171,14 +193,44 @@ fn read_packet(input: &mut impl Read) -> Result<Packet, String> {
         u32::MAX => None,
         value => Some(value),
     };
-    if actor_count > 1024
+    let scene_bank = word(input)?;
+    let scene_generation = word(input)?;
+    let transition_phase = word(input)?;
+    let audio_gain = word(input)?;
+    let loading_color = word(input)?.to_le_bytes();
+    let loading_size = [word(input)?, word(input)?];
+    if scene_bank >= 16
+        || transition_phase > 4
+        || audio_gain > 4096
+        || loading_size.iter().any(|size| *size > 64)
+        || loading_size[0] % 2 != 0
+        || (loading_size[0] == 0) != (loading_size[1] == 0)
+        || actor_count > 1024
         || authored_count > actor_count
         || command_count > 2560
         || audio_count > AUDIO_LIMIT
-        || text_length > 4096
+        || text_length > 95
         || fade > 255
     {
         return Err("Native PC Play packet exceeds protocol bounds".into());
+    }
+    let mut rumble = [crate::rumble::Command::default(); 4];
+    for command in &mut rumble {
+        let identity = word(input)?;
+        let revision = word(input)?;
+        let large = word(input)?;
+        let small = word(input)?;
+        let remaining_us = word(input)?;
+        if large > 255 || small > 1 || remaining_us > 60_000_000 {
+            return Err("Native PC rumble packet exceeds protocol bounds".into());
+        }
+        *command = crate::rumble::Command {
+            identity,
+            revision,
+            large: large as u8,
+            small: small != 0,
+            remaining_us,
+        };
     }
     let mut actors = Vec::with_capacity(actor_count as usize);
     for _ in 0..actor_count {
@@ -225,7 +277,14 @@ fn read_packet(input: &mut impl Read) -> Result<Packet, String> {
     input
         .read_exact(&mut text)
         .map_err(|error| error.to_string())?;
+    let mut loading_pixels = Vec::with_capacity((loading_size[0] * loading_size[1]) as usize);
+    for _ in 0..loading_size[0] * loading_size[1] {
+        let mut bytes = [0; 2];
+        input.read_exact(&mut bytes).map_err(|e| e.to_string())?;
+        loading_pixels.push(u16::from_le_bytes(bytes));
+    }
     Ok(Packet {
+        rumble,
         number,
         fade: fade as u8,
         actor_count,
@@ -234,7 +293,14 @@ fn read_packet(input: &mut impl Read) -> Result<Packet, String> {
         actors,
         commands,
         audio,
-        requested_scene: String::from_utf8_lossy(&text).into_owned(),
+        scene_bank,
+        scene_generation,
+        transition_phase,
+        audio_gain,
+        loading_text: String::from_utf8_lossy(&text).into_owned(),
+        loading_color: [loading_color[0], loading_color[1], loading_color[2]],
+        loading_size,
+        loading_pixels,
         stats,
         track_sample,
     })
@@ -242,6 +308,7 @@ fn read_packet(input: &mut impl Read) -> Result<Packet, String> {
 
 fn apply(
     mut scene: Scene,
+    resources: &Scene,
     packet: &Packet,
     buttons: u16,
     audio_voices: usize,
@@ -279,13 +346,20 @@ fn apply(
             skeletal.looping = state.animation_looping;
         }
     }
-    let hud_rgba = hud_native::render_overlay(
+    let mut hud_rgba = hud_native::render_overlay_with_resources(
         &scene,
+        resources,
         &packet.commands,
         packet.number as f32 / 60.,
         packet.fade,
     );
+    if matches!(packet.transition_phase, 2 | 4) {
+        render_loading(&mut hud_rgba, scene.display_size, packet);
+    }
     Frame {
+        scene_bank: packet.scene_bank,
+        scene_generation: packet.scene_generation,
+        transition_phase: packet.transition_phase,
         hud_size: scene.display_size.map(u32::from),
         scene,
         number: u64::from(packet.number),
@@ -297,6 +371,62 @@ fn apply(
         audio_voices: audio_voices as u32,
         audio_pending: audio_pending as u32,
         track_sample: packet.track_sample,
+    }
+}
+
+// Use the console loading layout: fixed 8x16 glyphs, right/bottom margin 5%,
+// with the optional resident RGB555 image above the text.
+fn render_loading(pixels: &mut [u8], size: [u16; 2], packet: &Packet) {
+    let [width, height] = size.map(i32::from);
+    for pixel in pixels.chunks_exact_mut(4) {
+        pixel.copy_from_slice(&[0, 0, 0, 255]);
+    }
+    let mut put = |x: i32, y: i32, rgb: [u8; 3]| {
+        if x >= 0 && y >= 0 && x < width && y < height {
+            let i = ((y * width + x) * 4) as usize;
+            pixels[i..i + 4].copy_from_slice(&[rgb[0], rgb[1], rgb[2], 255]);
+        }
+    };
+    let columns = ((width - width / 10) / 8).max(1) as usize;
+    let text = packet.loading_text.as_bytes();
+    let rows = text.len().div_ceil(columns) as i32;
+    let right = width - width / 20;
+    let top = height - height / 20 - rows * 16;
+    for (row, line) in text.chunks(columns).enumerate() {
+        let left = right - line.len() as i32 * 8;
+        for (column, ch) in line.iter().enumerate() {
+            let ch = if (32..=126).contains(ch) { *ch } else { b'?' };
+            for (y, bits) in crate::bitmap_font::glyph(char::from(ch))
+                .unwrap_or([0; 16])
+                .iter()
+                .enumerate()
+            {
+                for x in 0..8 {
+                    if bits & (1 << x) != 0 {
+                        put(
+                            left + column as i32 * 8 + x,
+                            top + row as i32 * 16 + y as i32,
+                            packet.loading_color,
+                        );
+                    }
+                }
+            }
+        }
+    }
+    let [w, h] = packet.loading_size;
+    for (i, color) in packet.loading_pixels.iter().enumerate() {
+        if *color == 0 {
+            continue;
+        }
+        let rgb = [0, 5, 10].map(|shift| {
+            let c = ((color >> shift) & 31) as u8;
+            (c << 3) | (c >> 2)
+        });
+        put(
+            right - w as i32 + (i as u32 % w) as i32,
+            top - if rows > 0 { 4 } else { 0 } - h as i32 + (i as u32 / w) as i32,
+            rgb,
+        );
     }
 }
 
@@ -345,6 +475,7 @@ impl Frame {
         let q12 = |v: f32| (v * 4096.).round() as i64;
         Some(serde_json::json!({
             "sample": sample, "frame": self.number,
+            "scene": self.scene.name, "scene_bank": self.scene_bank, "scene_generation": self.scene_generation,
             "basis": (0..3).map(|r| (0..3).map(|c| q12(basis.0[r][c])).collect::<Vec<_>>()).collect::<Vec<_>>(),
             "origin": (0..3).map(|r| q12(world.0[r][3])).collect::<Vec<_>>(),
             "row_scale": [q12(cot * horizontal * if camera.camera_mirror_x { -1. } else { 1. }), q12(cot)],
@@ -352,6 +483,11 @@ impl Frame {
     }
 }
 fn record_frame(frame: &Frame) {
+    // One recording feeds one visibility bake. Never mix another bank's sample
+    // numbers into the initial scene's file, or record a frozen loading pose.
+    if frame.scene_bank != 0 || frame.transition_phase != 0 {
+        return;
+    }
     let mut recorder = RECORDER.lock().unwrap();
     let Some(recorder) = recorder.as_mut() else {
         return;
@@ -427,7 +563,8 @@ impl Session {
             return Err("Native PC audio completion batch exceeds protocol bounds".into());
         }
         self.input
-            .write_all(&elapsed.to_le_bytes())
+            .write_all(&MAGIC.to_le_bytes())
+            .and_then(|_| self.input.write_all(&elapsed.to_le_bytes()))
             .and_then(|_| {
                 for pad in pads {
                     self.input
@@ -435,6 +572,11 @@ impl Session {
                     self.input.write_all(&u32::from(pad.analog).to_le_bytes())?;
                     self.input
                         .write_all(&u32::from_le_bytes(pad.axes).to_le_bytes())?;
+                    let flags = u32::from(pad.connected)
+                        | (u32::from(pad.rumble_supported) << 1)
+                        | (u32::from(pad.rumble_enabled) << 2);
+                    self.input.write_all(&flags.to_le_bytes())?;
+                    self.input.write_all(&pad.identity.to_le_bytes())?;
                 }
                 Ok(())
             })
@@ -482,6 +624,7 @@ struct HostAudio {
     clips: Vec<HostClip>,
     players: HashMap<u64, crate::preview_audio::Player>,
     pending: HashMap<u64, AudioEvent>,
+    gain: u32,
 }
 impl HostAudio {
     fn new(root: &Path, scene: &Scene, index: &crate::assets::Index) -> Result<Self, String> {
@@ -511,6 +654,7 @@ impl HostAudio {
             clips,
             players: HashMap::new(),
             pending: HashMap::new(),
+            gain: 4096,
         };
         for clip in scene
             .actors
@@ -599,7 +743,7 @@ impl HostAudio {
         }
         let pitch = (event.pitch as f32 / 4096.).clamp(0.25, 4.);
         pcm.rate = (pcm.rate as f32 * pitch).round().clamp(8_000., 192_000.) as u32;
-        let player = crate::preview_audio::Player::start(pcm)
+        let player = crate::preview_audio::Player::start_with_gain(pcm, self.gain as f32 / 4096.)
             .map_err(|error| format!("Native PC audio: {error}"))?;
         self.players.insert(event.source, player);
         Ok(true)
@@ -667,6 +811,15 @@ impl HostAudio {
         }
         Ok(completed)
     }
+    fn set_gain(&mut self, gain: u32) -> Result<(), String> {
+        if self.gain != gain {
+            for player in self.players.values() {
+                player.set_gain(gain as f32 / 4096.)?;
+            }
+            self.gain = gain;
+        }
+        Ok(())
+    }
     fn reset(&mut self) {
         self.players.clear();
         self.pending.clear();
@@ -681,31 +834,70 @@ impl HostAudio {
     }
 }
 
-fn prepare(
+struct Prepared {
+    exe: PathBuf,
+    banks: Vec<Scene>,
+    resources: Scene,
+}
+fn prepare_input(
     root: &Path,
-    mut scene: Scene,
-    scene_ready: bool,
-    catalog: Option<Vec<crate::scripts::Script>>,
+    input: &crate::scene_dependencies::Input,
     cancel: &AtomicBool,
-) -> Result<PathBuf, String> {
-    if !scene_ready {
-        crate::project::refresh_linked_scene(root, &mut scene)?;
-        let assets = crate::assets::scan(root, &mut Default::default());
-        crate::mesh::resolve(&mut scene, &assets)?;
-        crate::skeletal::resolve(&mut scene, &assets)?;
-        crate::texture::resolve(&mut scene, &assets)?;
-        crate::hud::resolve_fonts(&mut scene, &assets)?;
-    }
+) -> Result<Prepared, String> {
+    let mut banks =
+        crate::scene_bank::load_selected(root, &input.scene, &input.origin, Some(input))?.scenes;
+    let assets = crate::assets::scan(root, &mut Default::default());
     let rendering = crate::settings::rendering(root)?;
-    scene.display_size = [rendering.width, rendering.height];
-    let catalog = catalog.map_or_else(|| crate::scripts::catalog(root), Ok)?;
-    crate::hud_simulation::build_runner(
+    for scene in &mut banks {
+        if cancel.load(Ordering::Relaxed) {
+            return Err("Native PC Play cancelled".into());
+        }
+        crate::project::refresh_linked_scene(root, scene)?;
+        crate::mesh::resolve(scene, &assets)?;
+        crate::skeletal::resolve(scene, &assets)?;
+        crate::texture::resolve(scene, &assets)?;
+        crate::hud::resolve_fonts(scene, &assets)?;
+        scene.display_size = [rendering.width, rendering.height];
+        // Ordered draw is a PSX packet/streaming optimization. Native geometry
+        // uses the editor renderer; rail/visibility-track gameplay remains live.
+        scene.ordered_draw = None;
+    }
+    let resources = crate::scene_bank::resources(&banks);
+    let catalog = input
+        .native_play_catalog
+        .clone()
+        .map_or_else(|| crate::scripts::catalog(root), Ok)?;
+    // Always compute the complete bank hash: an inactive map or its resources
+    // may have changed without changing the editor's current scene revision.
+    let exe = crate::hud_simulation::build_runner(
         root,
-        &scene,
+        &resources,
         &catalog,
         cancel,
         crate::hud_simulation::Runner::NativePlay,
-    )
+        Some(&banks),
+    )?;
+    Ok(Prepared {
+        exe,
+        banks,
+        resources,
+    })
+}
+#[cfg(test)]
+fn prepare(
+    root: &Path,
+    scene: Scene,
+    _scene_ready: bool,
+    catalog: Option<Vec<crate::scripts::Script>>,
+    cancel: &AtomicBool,
+) -> Result<PathBuf, String> {
+    let mut input = crate::scene_dependencies::Input::from(scene);
+    input.play = Some(crate::play::Profile {
+        content: crate::play::Content::CurrentScene,
+        ..Default::default()
+    });
+    input.native_play_catalog = catalog;
+    Ok(prepare_input(root, &input, cancel)?.exe)
 }
 
 pub fn execute(
@@ -715,69 +907,53 @@ pub fn execute(
     controls: &Receiver<crate::pipeline::Control>,
     bridge: &Bridge,
 ) -> Result<(), String> {
-    let assets = input
-        .native_play_assets
-        .clone()
-        .unwrap_or_else(|| crate::assets::scan(root, &mut Default::default()));
-    // Decode authored start-on-play audio alongside C++ preparation rather than
-    // extending the time between a ready runtime and its first audible frame.
-    let mut audio = HostAudio::new(root, &input.scene, &assets)?;
-    let (exe, built) = if let Some(exe) = input
-        .native_play_cache
-        .as_ref()
-        .filter(|path| path.is_file())
-    {
-        let _ = tx.send(crate::pipeline::Event::Stage(
-            "Starting Native PC runtime".into(),
-        ));
-        let _ = tx.send(crate::pipeline::Event::Log(
-            "Reusing current Native PC runtime.".into(),
-        ));
-        (exe.clone(), false)
-    } else {
-        let _ = tx.send(crate::pipeline::Event::Stage(
-            "Building Native PC runtime".into(),
-        ));
-        let _ = tx.send(crate::pipeline::Event::Log(
-            "Compiling shared C++ gameplay for Native PC...".into(),
-        ));
-        let cancel = Arc::new(AtomicBool::new(false));
-        let (done_tx, done_rx) = mpsc::channel();
-        let root_owned = root.to_path_buf();
-        let scene = input.scene.clone();
-        let scene_ready = input.native_play_scene_ready;
-        let catalog = input.native_play_catalog.clone();
-        let compile_cancel = cancel.clone();
-        std::thread::spawn(move || {
-            let _ = done_tx.send(prepare(
-                &root_owned,
-                scene,
-                scene_ready,
-                catalog,
-                &compile_cancel,
-            ));
-        });
-        let exe = loop {
-            match done_rx.recv_timeout(Duration::from_millis(30)) {
-                Ok(result) => break result?,
-                Err(mpsc::RecvTimeoutError::Timeout) => match controls.try_recv() {
-                    Ok(crate::pipeline::Control::Stop) | Err(mpsc::TryRecvError::Disconnected) => {
-                        cancel.store(true, Ordering::Relaxed);
-                        return Err("Native PC Play cancelled".into());
-                    }
-                    _ => {}
-                },
-                Err(mpsc::RecvTimeoutError::Disconnected) => {
-                    return Err("Native PC compilation worker ended".into());
-                }
-            }
-        };
-        (exe, true)
-    };
-    if built {
-        let _ = tx.send(crate::pipeline::Event::Built(exe.clone()));
+    struct ClearRumble(Bridge);
+    impl Drop for ClearRumble {
+        fn drop(&mut self) {
+            let mut state = self.0.state.lock().unwrap();
+            state.rumble = None;
+            state.connected = false;
+        }
     }
+    let _rumble_guard = ClearRumble(bridge.clone());
+    let _ = tx.send(crate::pipeline::Event::Stage(
+        "Preparing Native PC scene banks".into(),
+    ));
+    let cancel = Arc::new(AtomicBool::new(false));
+    let (done_tx, done_rx) = mpsc::channel();
+    let root_owned = root.to_path_buf();
+    let input = input.clone();
+    let compile_cancel = cancel.clone();
+    let worker = std::thread::spawn(move || {
+        let _ = done_tx.send(prepare_input(&root_owned, &input, &compile_cancel));
+    });
+    let prepared = loop {
+        match done_rx.recv_timeout(Duration::from_millis(30)) {
+            Ok(result) => break result?,
+            Err(mpsc::RecvTimeoutError::Timeout) => match controls.try_recv() {
+                Ok(crate::pipeline::Control::Stop | crate::pipeline::Control::StopAndReset) | Err(mpsc::TryRecvError::Disconnected) => {
+                    cancel.store(true, Ordering::Relaxed);
+                    let _ = worker.join();
+                    return Err("Native PC Play cancelled".into());
+                }
+                _ => {}
+            },
+            Err(mpsc::RecvTimeoutError::Disconnected) => {
+                return Err("Native PC compilation worker ended".into());
+            }
+        }
+    };
+    let Prepared {
+        exe,
+        banks,
+        resources,
+    } = prepared;
+    let assets = crate::assets::scan(root, &mut Default::default());
+    let mut audio = HostAudio::new(root, &resources, &assets)?;
+    let _ = tx.send(crate::pipeline::Event::Built(exe.clone()));
+    let mut generation = None;
     let mut session = Session::launch(&exe)?;
+    let mut rumble_session = bridge.session;
     let _ = tx.send(crate::pipeline::Event::Running(session.child.id()));
     bridge.state.lock().unwrap().connected = true;
     let mut paused = false;
@@ -785,12 +961,29 @@ pub fn execute(
     let mut sampled_pads = [crate::controls::PadState::default(); 4];
     loop {
         let packet = session.receive(Duration::from_secs(5))?;
+        bridge.state.lock().unwrap().rumble = Some(crate::rumble::Snapshot {
+            session: rumble_session,
+            generation: packet.scene_generation,
+            commands: packet.rumble,
+            received: Instant::now(),
+        });
+        let scene = banks
+            .get(packet.scene_bank as usize)
+            .ok_or("Native PC returned an unknown scene bank")?;
+        if generation != Some(packet.scene_generation) {
+            audio.reset();
+            generation = Some(packet.scene_generation);
+        }
+        audio.set_gain(packet.audio_gain)?;
         let completed_audio = audio.update(&packet.audio)?;
         let (audio_voices, audio_pending) = audio.status();
-        let pads = *bridge.pads.lock().unwrap();
-        let requested = packet.requested_scene.clone();
+        let mut pads = *bridge.pads.lock().unwrap();
+        for pad in &mut pads {
+            pad.rumble_enabled &= bridge.output_enabled.load(Ordering::Relaxed);
+        }
         let frame = apply(
-            input.scene.clone(),
+            scene.clone(),
+            &resources,
             &packet,
             sampled_pads[0].buttons,
             audio_voices,
@@ -799,19 +992,15 @@ pub fn execute(
         let frame_number = frame.number;
         record_frame(&frame);
         bridge.state.lock().unwrap().frame = Some(Arc::new(frame));
-        if !requested.is_empty() {
-            return Err(format!(
-                "Native PC scene transition to `{requested}` is not available in this MVP. Use PlayStation runtime for multi-scene Play."
-            ));
-        }
         let mut reset = false;
         loop {
             match controls.try_recv() {
-                Ok(crate::pipeline::Control::Stop) | Err(mpsc::TryRecvError::Disconnected) => {
+                Ok(crate::pipeline::Control::Stop | crate::pipeline::Control::StopAndReset) | Err(mpsc::TryRecvError::Disconnected) => {
                     return Ok(());
                 }
                 Ok(crate::pipeline::Control::Pause) => {
                     paused = true;
+                    bridge.state.lock().unwrap().rumble = None;
                     audio.pause(true);
                     let _ = tx.send(crate::pipeline::Event::Paused(true));
                 }
@@ -829,7 +1018,10 @@ pub fn execute(
             }
         }
         if reset {
+            bridge.state.lock().unwrap().rumble = None;
+            rumble_session = next_rumble_session();
             session = Session::launch(&exe)?;
+            generation = None;
             audio.reset();
             bridge.state.lock().unwrap().frame = None;
             paused = false;
@@ -860,6 +1052,339 @@ pub fn execute(
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn wire_header() -> [u32; 42] {
+        let mut header = [0u32; 42];
+        header[..22].copy_from_slice(&[
+            MAGIC,
+            0,
+            0,
+            0,
+            0,
+            u32::MAX,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            u32::MAX,
+            0,
+            0,
+            0,
+            4096,
+            0xffffff,
+            0,
+            0,
+        ]);
+        header
+    }
+    #[test]
+    fn transition_packet_limits_and_truncated_images_are_rejected() {
+        for (slot, value) in [
+            (15, 16),
+            (17, 5),
+            (18, 4097),
+            (20, 66),
+            (20, 3),
+            (21, 65),
+            (7, 96),
+        ] {
+            let mut words = wire_header();
+            words[slot] = value;
+            let bytes: Vec<u8> = words.into_iter().flat_map(u32::to_le_bytes).collect();
+            assert!(read_packet(&mut &bytes[..]).unwrap_err().contains("bounds"));
+        }
+        let mut words = wire_header();
+        words[20] = 2;
+        words[21] = 1;
+        let bytes: Vec<u8> = words.into_iter().flat_map(u32::to_le_bytes).collect();
+        assert!(read_packet(&mut &bytes[..]).is_err());
+    }
+    #[test]
+    fn loading_overlay_preserves_text_and_rgb555_image_over_black() {
+        let mut words = wire_header();
+        words[17] = 2;
+        words[7] = 1;
+        words[20] = 2;
+        words[21] = 1;
+        let mut bytes: Vec<u8> = words.into_iter().flat_map(u32::to_le_bytes).collect();
+        bytes.extend_from_slice(b"A");
+        bytes.extend_from_slice(&31u16.to_le_bytes());
+        bytes.extend_from_slice(&992u16.to_le_bytes());
+        let packet = read_packet(&mut &bytes[..]).unwrap();
+        let mut pixels = vec![127; 320 * 240 * 4];
+        render_loading(&mut pixels, [320, 240], &packet);
+        assert_eq!(&pixels[..4], &[0, 0, 0, 255]);
+        let image = ((228 - 16 - 4 - 1) * 320 + 304 - 2) * 4;
+        assert_eq!(&pixels[image..image + 8], &[255, 0, 0, 255, 0, 255, 0, 255]);
+        assert!(pixels.chunks_exact(4).any(|p| p == [255, 255, 255, 255]));
+    }
+    fn scene_fixture(root: &Path) -> crate::scene_dependencies::Input {
+        let scripts = root.join("assets/scripts");
+        fs::create_dir_all(&scripts).unwrap();
+        fs::write(
+            scripts.join("SceneProbe.hpp"),
+            include_bytes!("../tests/fixtures/native-scenes/SceneProbe.hpp"),
+        )
+        .unwrap();
+        fs::write(
+            scripts.join("SceneProbe.cpp"),
+            include_bytes!("../tests/fixtures/native-scenes/SceneProbe.cpp"),
+        )
+        .unwrap();
+        let mut a = Scene {
+            name: "A".into(),
+            actors: vec![crate::scene::Actor::cube("Probe".into())],
+            ..Default::default()
+        };
+        a.actors[0]
+            .components
+            .push(crate::actor_document::ComponentInstance::new(
+                uuid::Uuid::new_v4(),
+                crate::actor_document::ClassReference::new(
+                    "SceneProbe",
+                    "582e4f6b-711a-487b-a3f4-831ba03c757e",
+                ),
+                "Probe",
+            ));
+        let mut b = a.clone();
+        b.name = "B".into();
+        b.actors.push(crate::scene::Actor::cube("Only B".into()));
+        for (scene, color) in [(&mut a, [255u8, 0, 0]), (&mut b, [0, 255, 0])] {
+            let source = format!("assets/{}.png", scene.name);
+            let file = fs::File::create(root.join(&source)).unwrap();
+            let mut encoder = png::Encoder::new(file, 4, 4);
+            encoder.set_color(png::ColorType::Rgb);
+            encoder.set_depth(png::BitDepth::Eight);
+            encoder
+                .write_header()
+                .unwrap()
+                .write_image_data(&color.repeat(16))
+                .unwrap();
+            let id = crate::assets::commit(
+                crate::texture::prepare(
+                    root,
+                    &source,
+                    &format!("assets/{}.epokasset", scene.name),
+                    None,
+                    false,
+                )
+                .unwrap(),
+            )
+            .unwrap();
+            let canvas_index = scene.actors.len();
+            let mut canvas = crate::scene::Actor::cube("Canvas".into());
+            canvas.kind = "Empty".into();
+            canvas.canvas = Some(Default::default());
+            scene.actors.push(canvas);
+            let mut image = crate::scene::Actor::cube("Image".into());
+            image.kind = "Empty".into();
+            image.parent = Some(canvas_index);
+            image.rect = Some(crate::hud::RectTransform {
+                anchor_min: [0., 1.],
+                anchor_max: [0., 1.],
+                pivot: [0., 1.],
+                size: [4., 4.],
+                ..Default::default()
+            });
+            image.image = Some(crate::hud::Image {
+                texture: Some(id),
+                color: [1.; 3],
+                ..Default::default()
+            });
+            scene.actors.push(image);
+        }
+        let ap = root.join("assets/scenes/A.epokmap");
+        a.save(&ap).unwrap();
+        b.save(&root.join("assets/scenes/B.epokmap")).unwrap();
+        let mut excluded = a.clone();
+        excluded.name = "Excluded".into();
+        excluded
+            .save(&root.join("assets/scenes/Excluded.epokmap"))
+            .unwrap();
+        let mut input = crate::scene_dependencies::Input::load(&ap).unwrap();
+        input.play = Some(crate::play::Profile {
+            runtime: crate::play::Runtime::NativePc,
+            content: crate::play::Content::SelectedScenes,
+            selected_scenes: vec![
+                "assets/scenes/A.epokmap".into(),
+                "assets/scenes/B.epokmap".into(),
+            ],
+            ..Default::default()
+        });
+        input
+    }
+    fn step(
+        session: &mut Session,
+        elapsed: u32,
+        button: Option<crate::controls::Button>,
+        completed: &[u64],
+    ) -> Packet {
+        let mut pads = [crate::controls::PadState::default(); 4];
+        for pad in &mut pads {
+            pad.connected = true;
+        }
+        if let Some(button) = button {
+            pads[0].buttons = 1 << button as u32;
+        }
+        session.request(elapsed, pads, completed).unwrap();
+        session.receive(Duration::from_secs(10)).unwrap()
+    }
+    #[test]
+    #[ignore = "requires a native C++ compiler and epok-header-tool"]
+    fn scene_banks_round_trip_pause_reset_callbacks_and_stale_audio() {
+        let root =
+            std::env::temp_dir().join(format!("epok-native-scenes-{}", uuid::Uuid::new_v4()));
+        let input = scene_fixture(&root);
+        let prepared = prepare_input(&root, &input, &AtomicBool::new(false)).unwrap();
+        assert_eq!(prepared.banks.len(), 2);
+        let mut session = Session::launch(&prepared.exe).unwrap();
+        let mut packet = session.receive(Duration::from_secs(10)).unwrap();
+        assert_eq!((packet.scene_bank, packet.scene_generation), (0, 0));
+        let mut old_audio = packet.audio[0].source;
+        use crate::controls::Button;
+        for turn in 0..24 {
+            let expected = (turn + 1) % 2;
+            let before = packet.scene_generation;
+            // Release the previous button before requesting the next bank.
+            step(&mut session, 16667, None, &[]);
+            step(
+                &mut session,
+                16667,
+                Some(if expected == 1 {
+                    Button::Cross
+                } else {
+                    Button::Circle
+                }),
+                &[],
+            );
+            let mut loading = false;
+            let mut intermediate_gain = false;
+            let mut new_audio = None;
+            for _ in 0..30 {
+                packet = step(&mut session, 16667, None, &[old_audio]);
+                intermediate_gain |= packet.audio_gain > 0 && packet.audio_gain < 4096;
+                if packet.transition_phase == 2 {
+                    loading = true;
+                    assert_eq!(packet.scene_generation, before);
+                    assert_eq!(packet.loading_text, "Scene probe");
+                    assert_eq!(packet.loading_pixels, vec![31, 992]);
+                }
+                if matches!(packet.transition_phase, 1..=3) {
+                    let frozen = (
+                        packet.number,
+                        packet.scene_bank,
+                        packet.scene_generation,
+                        packet.transition_phase,
+                        packet.audio_gain,
+                    );
+                    for _ in 0..3 {
+                        let p = step(&mut session, 0, None, &[]);
+                        assert_eq!(
+                            (
+                                p.number,
+                                p.scene_bank,
+                                p.scene_generation,
+                                p.transition_phase,
+                                p.audio_gain
+                            ),
+                            frozen
+                        );
+                    }
+                }
+                for audio in &packet.audio {
+                    if audio.play {
+                        new_audio = Some(audio.source);
+                        assert_ne!(audio.source, old_audio);
+                    }
+                }
+                if packet.scene_generation == before + 1 && packet.transition_phase == 0 {
+                    break;
+                }
+            }
+            assert!(loading);
+            if expected == 1 {
+                assert!(intermediate_gain);
+            }
+            assert_eq!(
+                (packet.scene_bank, packet.scene_generation),
+                (expected, before + 1)
+            );
+            assert_eq!(packet.authored_count, if expected == 1 { 4 } else { 3 });
+            packet = step(&mut session, 16667, None, &[old_audio]);
+            assert_eq!(
+                packet.actors[0].position[2], 4096,
+                "stale audio completion stopped the new bank"
+            );
+            let frame = apply(
+                prepared.banks[expected as usize].clone(),
+                &prepared.resources,
+                &packet,
+                0,
+                0,
+                0,
+            );
+            assert_eq!(frame.scene.name, if expected == 1 { "B" } else { "A" });
+            assert_eq!(frame.scene.actors.len(), packet.authored_count as usize);
+            assert_eq!(
+                &frame.hud_rgba[..4],
+                if expected == 1 {
+                    &[0, 255, 0, 255]
+                } else {
+                    &[255, 0, 0, 255]
+                }
+            );
+            old_audio = new_audio.unwrap();
+        }
+        for button in [Button::Square, Button::Triangle] {
+            let before = packet.scene_generation;
+            step(&mut session, 16667, Some(button), &[]);
+            for _ in 0..50 {
+                packet = step(&mut session, 16667, None, &[]);
+                if packet.scene_generation == before + 2 && packet.transition_phase == 0 {
+                    break;
+                }
+            }
+            assert_eq!(
+                (packet.scene_bank, packet.scene_generation),
+                (0, before + 2)
+            );
+        }
+        // Stop while a request is queued, then Reset by launching the same artifact.
+        step(&mut session, 16667, Some(Button::Cross), &[]);
+        drop(session);
+        let mut reset = Session::launch(&prepared.exe).unwrap();
+        let first = reset.receive(Duration::from_secs(10)).unwrap();
+        assert_eq!(
+            (
+                first.scene_bank,
+                first.scene_generation,
+                first.actors[0].position[0]
+            ),
+            (0, 0, 4096)
+        );
+        drop(reset);
+        // All included banks participate in the artifact key, including unsaved
+        // inactive maps. The editor's old fast-path artifact must not hide edits.
+        let mut modified = input.clone();
+        modified.native_play_cache = Some(prepared.exe.clone());
+        let path = root.join("assets/scenes/B.epokmap");
+        let mut changed = Scene::load_unresolved(&path).unwrap();
+        changed.actors[1].scale = [2.; 3];
+        modified.editor_override = Some((path, changed));
+        let updated = prepare_input(&root, &modified, &AtomicBool::new(false)).unwrap();
+        assert_ne!(prepared.exe, updated.exe);
+        assert_eq!(updated.banks[1].actors[1].scale, [2.; 3]);
+        assert_eq!(
+            prepare_input(&root, &modified, &AtomicBool::new(false))
+                .unwrap()
+                .exe,
+            updated.exe
+        );
+        fs::remove_dir_all(root).unwrap();
+    }
     #[test]
     fn packet_bounds_are_rejected_before_allocation() {
         let mut bytes = Vec::new();
@@ -879,6 +1404,13 @@ mod tests {
             0,
             0,
             u32::MAX,
+            0,
+            0,
+            0,
+            4096,
+            0xffffff,
+            0,
+            0,
         ] {
             bytes.extend_from_slice(&value.to_le_bytes());
         }
@@ -887,9 +1419,33 @@ mod tests {
     #[test]
     fn actor_animation_state_round_trips_through_the_protocol() {
         let mut bytes = Vec::new();
-        for value in [MAGIC, 7, 0, 1, 1, u32::MAX, 0, 0, 1, 0, 0, 0, 0, 0, 12] {
+        for value in [
+            MAGIC,
+            7,
+            0,
+            1,
+            1,
+            u32::MAX,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+            12,
+            0,
+            0,
+            0,
+            4096,
+            0xffffff,
+            0,
+            0,
+        ] {
             bytes.extend_from_slice(&value.to_le_bytes());
         }
+        bytes.extend_from_slice(&[0u8; 80]); // Four EPN4 motor records.
         for value in [
             1,
             1,
@@ -922,11 +1478,51 @@ mod tests {
         assert!(actor.mirror_x);
         let mut scene = Scene::default();
         scene.actors.truncate(1);
-        let frame = apply(scene, &packet, 0, 0, 0);
+        let frame = apply(scene.clone(), &scene, &packet, 0, 0, 0);
         assert!(frame.scene.actors[0].camera_mirror_x);
         assert_eq!(packet.audio.len(), 1);
         assert_eq!(packet.audio[0].source, 0x0123_4567_89ab_cdef);
         assert!(packet.audio[0].play);
+    }
+    #[test]
+    #[ignore = "requires a native C++ compiler and epok-header-tool"]
+    fn spatial_batches_publish_changes_and_match_individual_queries() {
+        let root =
+            std::env::temp_dir().join(format!("epok-native-spatial-{}", uuid::Uuid::new_v4()));
+        let scripts = root.join("assets/scripts");
+        fs::create_dir_all(&scripts).unwrap();
+        fs::write(
+            scripts.join("SpatialProbe.hpp"),
+            include_bytes!("../tests/fixtures/native-spatial/SpatialProbe.hpp"),
+        )
+        .unwrap();
+        fs::write(
+            scripts.join("SpatialProbe.cpp"),
+            include_bytes!("../tests/fixtures/native-spatial/SpatialProbe.cpp"),
+        )
+        .unwrap();
+        let mut scene = Scene {
+            actors: (0..4)
+                .map(|index| crate::scene::Actor::cube(format!("Actor{index}")))
+                .collect(),
+            ..Default::default()
+        };
+        scene.actors[0]
+            .components
+            .push(crate::actor_document::ComponentInstance::new(
+                uuid::Uuid::new_v4(),
+                crate::actor_document::ClassReference::new(
+                    "SpatialProbe",
+                    "482e4f6b-711a-487b-a3f4-831ba03c757e",
+                ),
+                "SpatialProbe",
+            ));
+        let exe = prepare(&root, scene, false, None, &AtomicBool::new(false)).unwrap();
+        let mut session = Session::launch(&exe).unwrap();
+        let packet = session.receive(Duration::from_secs(10)).unwrap();
+        assert_eq!(packet.actors[0].position[1], 42 * 4096);
+        drop(session);
+        fs::remove_dir_all(root).unwrap();
     }
     #[test]
     #[ignore = "requires EPOK_NATIVE_PROJECT, a native C++ compiler, and project assets"]
@@ -944,6 +1540,24 @@ mod tests {
         if std::env::var_os("EPOK_NATIVE_EXPECT_AUDIO").is_some() {
             assert!(!packet.audio.is_empty(), "initial frame has no audio event");
         }
+        let first_frame = packet.number;
+        let mut last_frame = first_frame;
+        for _ in 0..120 {
+            session
+                .request(16667, [crate::controls::PadState::default(); 4], &[])
+                .unwrap();
+            let packet = session.receive(Duration::from_secs(5)).unwrap();
+            assert!(
+                packet.scene_bank == 0,
+                "project requested a scene transition"
+            );
+            last_frame = packet.number;
+        }
+        assert_eq!(last_frame, first_frame + 120);
+        println!(
+            "Native PC project compiled and advanced 120 frames: {}",
+            root.display()
+        );
     }
     #[test]
     #[ignore = "requires EPOK_NATIVE_PROJECT and an EPOK_NATIVE_SCENE with RailProbe and rail aim"]
@@ -972,6 +1586,9 @@ mod tests {
         let camera = a.camera.unwrap();
         let initial_position = a.actors[camera].position;
         let mut pads = [crate::controls::PadState::default(); 4];
+        for pad in &mut pads {
+            pad.connected = true;
+        }
         pads[0].buttons = (1u16 << crate::controls::Button::R1 as u32)
             | (1u16 << crate::controls::Button::R2 as u32);
         for _ in 0..240 {

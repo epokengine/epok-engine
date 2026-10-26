@@ -65,6 +65,9 @@ private:
     Encounter encounters[6]{};Enemy enemies[3]{};Shot shots[8]{};Effect effects[4]{};
     Door doors[4]{};Pickup health_packs[3]{};
     epok::DataHandle player{},boss{},keycard{},health_bar{},health_label{},key_label{},objective{},boss_bar{},boss_label{},message{},message_panel{},reticle{};
+    epok::DataHandle damage_border{};
+    static constexpr uint32_t damage_flash_duration_us=220000;
+    uint32_t damage_flash_us=0;
     epok::DataHandle sounds[7]{};
     epok::DataHandle music{};
     epok::Fixed music_volume=.35;
@@ -79,6 +82,7 @@ private:
     void initialize();void update_enemies(epok::Fixed dt,epok::SpatialQueryBatch& queries);void update_boss(epok::Fixed dt,epok::SpatialQueryBatch& queries);
     void start_presentation();bool update_presentation(epok::Fixed dt);void publish_presentation();
     void update_visibility();
+    void update_damage_feedback(uint32_t microseconds);void clear_damage_feedback();
     void update_shots(epok::Fixed dt,const epok::SpatialQueryBatch* queries=nullptr);void update_doors(epok::Fixed dt);void update_pickups(epok::Fixed dt);void update_hud();
     bool damage_enemy(epok::ActorData* target,int amount);
     void enemy_fire(epok::ActorData& from,bool fan);

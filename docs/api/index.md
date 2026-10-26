@@ -2,21 +2,21 @@
 
 This reference is generated from the exact C++ headers shipped with Epok. It is the symbol-by-symbol companion to the workflow guides: use those guides to learn a system, then use this section while writing code.
 
-The [web API explorer](https://epokengine.github.io/docs/api/) presents the same snapshot like a scripting reference: browse 690 classes, structs, enums and aliases, 3027 callable overloads and 3582 public fields, constants and enum values. Every item has its own permanent page and usage snippet. The Markdown modules below remain the compact, header-oriented version for offline reading and repository reviews.
+The [web API explorer](https://epokengine.github.io/docs/api/) presents the same snapshot like a scripting reference: browse 715 classes, structs, enums and aliases, 3141 callable overloads and 3726 public fields, constants and enum values. Every item has its own permanent page and usage snippet. The Markdown modules below remain the compact, header-oriented version for offline reading and repository reviews.
 
 ## Choose the right layer
 
 | Layer | Start here | Public callables | Best for |
 | --- | --- | ---: | --- |
-| Epok runtime | [Browse Epok modules](epok.md) | 2083 | Normal game code, engine components and bounded runtime services |
-| PsyQo | [Browse PsyQo modules](psyqo.md) | 944 | Lower-level GPU, GTE, SPU, CD-ROM, pad, task and kernel control |
+| Epok runtime | [Browse Epok modules](epok.md) | 2196 | Normal game code, engine components and bounded runtime services |
+| PsyQo | [Browse PsyQo modules](psyqo.md) | 945 | Lower-level GPU, GTE, SPU, CD-ROM, pad, task and kernel control |
 
 Prefer Epok when both layers solve the same problem. It preserves the editor/runtime contract and its resource accounting. Reach for PsyQo when you need hardware control Epok does not expose. That extra freedom is useful, but it also makes synchronization, packet lifetime and memory budgets your responsibility.
 
 ## Version contract
 
 - Epok declarations come from the runtime headers in this documentation snapshot.
-- PsyQo declarations come from the pinned Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552d`.
+- PsyQo declarations come from the pinned Nugget revision `bfc3f65010efaaf979e10852e4cf203a2eff1b13`.
 - EASTL, the C standard library, OpenBIOS internals and third-party implementation helpers are outside this API reference.
 - “Public callable” means a free function, constructor, destructor, conversion, function template or public method declared in the documented namespaces. Private/protected members and compiler-generated lambda call operators are excluded.
 

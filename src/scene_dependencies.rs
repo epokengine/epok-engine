@@ -87,6 +87,7 @@ pub enum Origin {
     Saved(PathBuf, String),
     Editor(PathBuf, String),
 }
+#[derive(Clone)]
 pub struct Input {
     pub scene: Scene,
     pub origin: Origin,

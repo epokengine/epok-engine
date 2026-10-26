@@ -2,7 +2,7 @@
 
 > **Header:** `"transform_cache.hpp"` · **Tier:** Engine internal · **Source:** [open header](../../../runtime/transform_cache.hpp)
 
-This module covers the transform cache module. It documents 4 public callables declared directly in this header.
+This module covers the transform cache module. It documents 5 public callables declared directly in this header.
 
 ## Declared types
 
@@ -13,6 +13,7 @@ This module covers the transform cache module. It documents 4 public callables d
 - [`epok::TransformCache::clear`](#epok-transformcache-clear-1) — Clears clear as part of the transform cache module.
 - [`epok::TransformCache::revision`](#epok-transformcache-revision-1) — Performs `revision` as part of the transform cache module.
 - [`epok::TransformCache::sync`](#epok-transformcache-sync-1) — Performs `sync` as part of the transform cache module.
+- [`epok::TransformCache::sync_path`](#epok-transformcache-sync-path-1) — A single query needs its target and ancestor path, rather than two full Capacity scans.
 - [`epok::TransformCache::sync_root`](#epok-transformcache-sync-root-1) — Common physics case: an unparented collider.
 
 <a id="epok-transformcache-clear-1"></a>
@@ -102,7 +103,7 @@ auto result = object.revision(index);
 template<class Objects,class Matrices,class MakeLocal> void sync(const Objects& objects,Matrices& world,size_t count,MakeLocal make_local,const bool* selected=nullptr)
 ```
 
-- **Declared at:** [line 44](../../../runtime/transform_cache.hpp#L44)
+- **Declared at:** [line 78](../../../runtime/transform_cache.hpp#L78)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -142,6 +143,61 @@ object.sync<Objects, Matrices, MakeLocal>(objects, world, count, make_local, sel
 **Why choose it.** Template dispatch is resolved at compile time and normally adds no runtime indirection.
 
 **Trade-offs and warnings.** Every instantiated type must satisfy the header's compile-time requirements; extra instantiations can increase code size. This is classified as **Engine internal**. Prefer a higher-level Epok service unless you need this exact control. Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
+
+<a id="epok-transformcache-sync-path-1"></a>
+
+## `epok::TransformCache::sync_path`
+
+**Purpose.** A single query needs its target and ancestor path, rather than two full Capacity scans.
+
+**Details.** Pending descendant changes still reach the next full sync. Unusual dead/invalid/cyclic ancestor chains retain the original path.
+
+**Exact declaration**
+
+```cpp
+template<class Objects,class Matrices,class MakeLocal> bool sync_path(const Objects& objects,Matrices& world,size_t count,size_t index,MakeLocal make_local)
+```
+
+- **Declared at:** [line 47](../../../runtime/transform_cache.hpp#L47)
+- **Kind:** `function template`; qualifiers: `template`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `objects` | `const Objects &` | Input | Value supplied for `objects`. See the exact type and module contract. |
+| `world` | `Matrices &` | Input/output; inspect the function contract | Value supplied for `world`. See the exact type and module contract. |
+| `count` | `size_t` | Input | Value supplied for `count`. See the exact type and module contract. |
+| `index` | `size_t` | Input | Value supplied for `index`. See the exact type and module contract. |
+| `make_local` | `MakeLocal` | Input | Value supplied for `make_local`. See the exact type and module contract. |
+
+**Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
+
+**Use it when.** Pending descendant changes still reach the next full sync. Unusual dead/invalid/cyclic ancestor chains retain the original path.
+
+**Usage pattern**
+
+```cpp
+#include "transform_cache.hpp"
+
+// Replace these template arguments with types or values accepted by the declaration:
+// Objects, Matrices, MakeLocal
+
+// Assume these named values have been initialized with valid data:
+// const Objects & objects
+// Matrices & world
+// size_t count
+// size_t index
+// MakeLocal make_local
+
+epok::TransformCache& object = /* obtain a valid instance */;
+
+auto result = object.sync_path<Objects, Matrices, MakeLocal>(objects, world, count, index, make_local);
+```
+
+**Why choose it.** Template dispatch is resolved at compile time and normally adds no runtime indirection. The boolean result makes success, availability or state explicit without exceptions.
+
+**Trade-offs and warnings.** Every instantiated type must satisfy the header's compile-time requirements; extra instantiations can increase code size. Check the return value; `false` is part of normal control flow for many PSX resource operations. This is classified as **Engine internal**. Prefer a higher-level Epok service unless you need this exact control. Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
 
 <a id="epok-transformcache-sync-root-1"></a>
 

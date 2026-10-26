@@ -2,13 +2,14 @@
 
 > **Header:** `"fixed_math.hpp"` · **Tier:** Epok runtime API · **Source:** [open header](../../../runtime/fixed_math.hpp)
 
-This module covers shared Q12 integer math primitives. It documents 3 public callables declared directly in this header.
+This module covers shared Q12 integer math primitives. It documents 4 public callables declared directly in this header.
 
 ## Callable index
 
 - [`epok::fixed_math::powq`](#epok-fixed-math-powq-1) — `t` raised to `n` in Q12.
 - [`epok::fixed_math::q_sqrt`](#epok-fixed-math-q-sqrt-1) — Square root of a Q12 value, in Q12.
-- [`epok::fixed_math::sqrt64`](#epok-fixed-math-sqrt64-1) — Truncating integer square root.
+- [`epok::fixed_math::sqrt32`](#epok-fixed-math-sqrt32-1) — Truncating integer square root.
+- [`epok::fixed_math::sqrt64`](#epok-fixed-math-sqrt64-1) — Performs `sqrt64` as part of shared Q12 integer math primitives.
 
 <a id="epok-fixed-math-powq-1"></a>
 
@@ -24,7 +25,7 @@ This module covers shared Q12 integer math primitives. It documents 3 public cal
 inline int32_t powq(int32_t t,int n)
 ```
 
-- **Declared at:** [line 12](../../../runtime/fixed_math.hpp#L12)
+- **Declared at:** [line 18](../../../runtime/fixed_math.hpp#L18)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -68,7 +69,7 @@ auto result = epok::fixed_math::powq(t, n);
 inline int32_t q_sqrt(int32_t raw)
 ```
 
-- **Declared at:** [line 14](../../../runtime/fixed_math.hpp#L14)
+- **Declared at:** [line 20](../../../runtime/fixed_math.hpp#L20)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -96,9 +97,9 @@ auto result = epok::fixed_math::q_sqrt(raw);
 
 **Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
 
-<a id="epok-fixed-math-sqrt64-1"></a>
+<a id="epok-fixed-math-sqrt32-1"></a>
 
-## `epok::fixed_math::sqrt64`
+## `epok::fixed_math::sqrt32`
 
 **Purpose.** Truncating integer square root.
 
@@ -107,10 +108,50 @@ auto result = epok::fixed_math::q_sqrt(raw);
 **Exact declaration**
 
 ```cpp
-inline uint32_t sqrt64(uint64_t v)
+inline uint32_t sqrt32(uint32_t v)
 ```
 
 - **Declared at:** [line 9](../../../runtime/fixed_math.hpp#L9)
+- **Kind:** `function decl`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `v` | `uint32_t` | Input | Value supplied for `v`. See the exact type and module contract. |
+
+**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
+
+**Use it when.** Restoring, two bits per step, no floats.
+
+**Usage pattern**
+
+```cpp
+#include "fixed_math.hpp"
+
+// Assume these named values have been initialized with valid data:
+// uint32_t v
+
+auto result = epok::fixed_math::sqrt32(v);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to shared Q12 integer math primitives. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-fixed-math-sqrt64-1"></a>
+
+## `epok::fixed_math::sqrt64`
+
+**Purpose.** Performs `sqrt64` as part of shared Q12 integer math primitives.
+
+**Exact declaration**
+
+```cpp
+inline uint32_t sqrt64(uint64_t v)
+```
+
+- **Declared at:** [line 10](../../../runtime/fixed_math.hpp#L10)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -121,7 +162,7 @@ inline uint32_t sqrt64(uint64_t v)
 
 **Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
 
-**Use it when.** Restoring, two bits per step, no floats.
+**Use it when.** You need shared Q12 integer math primitives and the preconditions in the declaration are already satisfied.
 
 **Usage pattern**
 

@@ -1,10 +1,10 @@
 # PsyQo API: Fixed Point
 
-> **Header:** `"psyqo/fixed-point.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fixed-point.hh)
+> **Header:** `"psyqo/fixed-point.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/fixed-point.hh)
 
 This module covers the fixed point module. It documents 50 public callables declared directly in this header.
 
-PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552d`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
+PsyQo is pinned through Nugget revision `bfc3f65010efaaf979e10852e4cf203a2eff1b13`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
 
 ## Declared types
 
@@ -75,7 +75,7 @@ PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552
 consteval FixedPoint<> operator""_fp(long double value)
 ```
 
-- **Declared at:** [line 515](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fixed-point.hh#L515)
+- **Declared at:** [line 513](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/fixed-point.hh#L513)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -115,7 +115,7 @@ auto result = psyqo::fixed_point_literals::operator""_fp(value);
 constexpr FixedPoint abs() const
 ```
 
-- **Declared at:** [line 284](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fixed-point.hh#L284)
+- **Declared at:** [line 282](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/fixed-point.hh#L282)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `FixedPoint<precisionBits, T, Scale>`. Check the purpose and failure notes before using the value.
@@ -150,7 +150,7 @@ auto result = object.abs();
 template <std::integral U = T> constexpr U ceil() const
 ```
 
-- **Declared at:** [line 252](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fixed-point.hh#L252)
+- **Declared at:** [line 250](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/fixed-point.hh#L250)
 - **Kind:** `function template`; qualifiers: `const, template`
 
 **Returns.** constexpr U The ceiling value of the fixed point number.
@@ -188,7 +188,7 @@ auto result = object.ceil<U>();
 consteval FixedPoint(long double ld)
 ```
 
-- **Declared at:** [line 153](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fixed-point.hh#L153)
+- **Declared at:** [line 151](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/fixed-point.hh#L151)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -226,7 +226,7 @@ psyqo::FixedPoint value(ld);
 constexpr FixedPoint() : value(0)
 ```
 
-- **Declared at:** [line 160](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fixed-point.hh#L160)
+- **Declared at:** [line 158](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/fixed-point.hh#L158)
 - **Kind:** `constructor`
 
 **Use it when.** You need the fixed point module and the preconditions in the declaration are already satisfied.
@@ -255,7 +255,7 @@ psyqo::FixedPoint value();
 constexpr FixedPoint(FixedPoint&&) = default
 ```
 
-- **Declared at:** [line 162](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fixed-point.hh#L162)
+- **Declared at:** [line 160](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/fixed-point.hh#L160)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -293,7 +293,7 @@ psyqo::FixedPoint value(arg1);
 constexpr FixedPoint(T raw, Raw) : value(raw)
 ```
 
-- **Declared at:** [line 166](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fixed-point.hh#L166)
+- **Declared at:** [line 164](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/fixed-point.hh#L164)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -333,7 +333,7 @@ psyqo::FixedPoint value(raw, arg2);
 constexpr FixedPoint(const FixedPoint&) = default
 ```
 
-- **Declared at:** [line 161](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fixed-point.hh#L161)
+- **Declared at:** [line 159](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/fixed-point.hh#L159)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -371,7 +371,7 @@ psyqo::FixedPoint value(arg1);
 explicit constexpr FixedPoint(T integer, T fraction) : value(integer * scale + fraction)
 ```
 
-- **Declared at:** [line 139](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fixed-point.hh#L139)
+- **Declared at:** [line 137](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/fixed-point.hh#L137)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -411,7 +411,7 @@ psyqo::FixedPoint value(integer, fraction);
 template <unsigned otherPrecisionBits = 12, std::integral U = int32_t> explicit FixedPoint(FixedPoint<otherPrecisionBits, U> other)
 ```
 
-- **Declared at:** [line 173](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fixed-point.hh#L173)
+- **Declared at:** [line 171](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/fixed-point.hh#L171)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -458,7 +458,7 @@ object.FixedPoint<precisionBits, T, Scale><otherPrecisionBits, U>(other);
 template <std::integral U = T> constexpr U floor() const
 ```
 
-- **Declared at:** [line 231](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fixed-point.hh#L231)
+- **Declared at:** [line 229](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/fixed-point.hh#L229)
 - **Kind:** `function template`; qualifiers: `const, template`
 
 **Returns.** constexpr U The floor value of the fixed point number.
@@ -496,7 +496,7 @@ auto result = object.floor<U>();
 template <size_t factor = 1> constexpr T integer() const
 ```
 
-- **Declared at:** [line 200](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fixed-point.hh#L200)
+- **Declared at:** [line 198](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/fixed-point.hh#L198)
 - **Kind:** `function template`; qualifiers: `const, template`
 
 **Returns.** constexpr T The integer part of the fixed point number.
@@ -532,7 +532,7 @@ auto result = object.integer<factor>();
 template <std::integral U> constexpr U integer() const
 ```
 
-- **Declared at:** [line 210](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fixed-point.hh#L210)
+- **Declared at:** [line 208](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/fixed-point.hh#L208)
 - **Kind:** `function template`; qualifiers: `const, template`
 
 **Returns.** Returns `U`. Check the purpose and failure notes before using the value.
@@ -568,7 +568,7 @@ auto result = object.integer<U>();
 constexpr bool operator!() const
 ```
 
-- **Declared at:** [line 470](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fixed-point.hh#L470)
+- **Declared at:** [line 468](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/fixed-point.hh#L468)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -601,7 +601,7 @@ auto result = object.operator!();
 constexpr FixedPoint operator*(FixedPoint other) const
 ```
 
-- **Declared at:** [line 320](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fixed-point.hh#L320)
+- **Declared at:** [line 318](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/fixed-point.hh#L318)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -643,7 +643,7 @@ auto result = object.operator*(other);
 template <std::integral U> constexpr FixedPoint operator*(U other) const
 ```
 
-- **Declared at:** [line 330](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fixed-point.hh#L330)
+- **Declared at:** [line 328](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/fixed-point.hh#L328)
 - **Kind:** `function template`; qualifiers: `const, template`
 
 **Parameters**
@@ -688,7 +688,7 @@ auto result = object.operator*<U>(other);
 constexpr FixedPoint& operator*=(FixedPoint other)
 ```
 
-- **Declared at:** [line 388](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fixed-point.hh#L388)
+- **Declared at:** [line 386](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/fixed-point.hh#L386)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -730,7 +730,7 @@ auto result = object.operator*=(other);
 template <std::integral U> constexpr FixedPoint& operator*=(U other)
 ```
 
-- **Declared at:** [line 397](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fixed-point.hh#L397)
+- **Declared at:** [line 395](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/fixed-point.hh#L395)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -775,7 +775,7 @@ auto result = object.operator*=<U>(other);
 constexpr FixedPoint operator+(FixedPoint other) const
 ```
 
-- **Declared at:** [line 294](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fixed-point.hh#L294)
+- **Declared at:** [line 292](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/fixed-point.hh#L292)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -817,7 +817,7 @@ auto result = object.operator+(other);
 template <std::integral U> constexpr FixedPoint operator+(U other) const
 ```
 
-- **Declared at:** [line 301](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fixed-point.hh#L301)
+- **Declared at:** [line 299](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/fixed-point.hh#L299)
 - **Kind:** `function template`; qualifiers: `const, template`
 
 **Parameters**
@@ -862,7 +862,7 @@ auto result = object.operator+<U>(other);
 constexpr FixedPoint operator++()
 ```
 
-- **Declared at:** [line 448](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fixed-point.hh#L448)
+- **Declared at:** [line 446](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/fixed-point.hh#L446)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `FixedPoint<precisionBits, T, Scale>`. Check the purpose and failure notes before using the value.
@@ -895,7 +895,7 @@ auto result = object.operator++();
 constexpr FixedPoint operator++(int)
 ```
 
-- **Declared at:** [line 453](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fixed-point.hh#L453)
+- **Declared at:** [line 451](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/fixed-point.hh#L451)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -937,7 +937,7 @@ auto result = object.operator++(arg1);
 constexpr FixedPoint& operator+=(FixedPoint other)
 ```
 
-- **Declared at:** [line 366](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fixed-point.hh#L366)
+- **Declared at:** [line 364](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/fixed-point.hh#L364)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -979,7 +979,7 @@ auto result = object.operator+=(other);
 template <std::integral U> constexpr FixedPoint& operator+=(U other)
 ```
 
-- **Declared at:** [line 372](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fixed-point.hh#L372)
+- **Declared at:** [line 370](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/fixed-point.hh#L370)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -1024,7 +1024,7 @@ auto result = object.operator+=<U>(other);
 constexpr FixedPoint operator-() const
 ```
 
-- **Declared at:** [line 360](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fixed-point.hh#L360)
+- **Declared at:** [line 358](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/fixed-point.hh#L358)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `FixedPoint<precisionBits, T, Scale>`. Check the purpose and failure notes before using the value.
@@ -1057,7 +1057,7 @@ auto result = object.operator-();
 constexpr FixedPoint operator-(FixedPoint other) const
 ```
 
-- **Declared at:** [line 307](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fixed-point.hh#L307)
+- **Declared at:** [line 305](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/fixed-point.hh#L305)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -1099,7 +1099,7 @@ auto result = object.operator-(other);
 template <std::integral U> constexpr FixedPoint operator-(U other) const
 ```
 
-- **Declared at:** [line 314](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fixed-point.hh#L314)
+- **Declared at:** [line 312](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/fixed-point.hh#L312)
 - **Kind:** `function template`; qualifiers: `const, template`
 
 **Parameters**
@@ -1144,7 +1144,7 @@ auto result = object.operator-<U>(other);
 constexpr FixedPoint operator--()
 ```
 
-- **Declared at:** [line 459](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fixed-point.hh#L459)
+- **Declared at:** [line 457](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/fixed-point.hh#L457)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `FixedPoint<precisionBits, T, Scale>`. Check the purpose and failure notes before using the value.
@@ -1177,7 +1177,7 @@ auto result = object.operator--();
 constexpr FixedPoint operator--(int)
 ```
 
-- **Declared at:** [line 464](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fixed-point.hh#L464)
+- **Declared at:** [line 462](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/fixed-point.hh#L462)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1219,7 +1219,7 @@ auto result = object.operator--(arg1);
 constexpr FixedPoint& operator-=(FixedPoint other)
 ```
 
-- **Declared at:** [line 377](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fixed-point.hh#L377)
+- **Declared at:** [line 375](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/fixed-point.hh#L375)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1261,7 +1261,7 @@ auto result = object.operator-=(other);
 template <std::integral U> constexpr FixedPoint& operator-=(U other)
 ```
 
-- **Declared at:** [line 383](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fixed-point.hh#L383)
+- **Declared at:** [line 381](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/fixed-point.hh#L381)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -1306,7 +1306,7 @@ auto result = object.operator-=<U>(other);
 constexpr FixedPoint operator/(FixedPoint other) const
 ```
 
-- **Declared at:** [line 336](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fixed-point.hh#L336)
+- **Declared at:** [line 334](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/fixed-point.hh#L334)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -1348,7 +1348,7 @@ auto result = object.operator/(other);
 template <std::integral U> constexpr FixedPoint operator/(U other) const
 ```
 
-- **Declared at:** [line 354](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fixed-point.hh#L354)
+- **Declared at:** [line 352](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/fixed-point.hh#L352)
 - **Kind:** `function template`; qualifiers: `const, template`
 
 **Parameters**
@@ -1393,7 +1393,7 @@ auto result = object.operator/<U>(other);
 constexpr FixedPoint& operator/=(FixedPoint other)
 ```
 
-- **Declared at:** [line 402](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fixed-point.hh#L402)
+- **Declared at:** [line 400](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/fixed-point.hh#L400)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1435,7 +1435,7 @@ auto result = object.operator/=(other);
 template <std::integral U> constexpr FixedPoint& operator/=(U other)
 ```
 
-- **Declared at:** [line 419](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fixed-point.hh#L419)
+- **Declared at:** [line 417](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/fixed-point.hh#L417)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -1480,7 +1480,7 @@ auto result = object.operator/=<U>(other);
 constexpr FixedPoint operator<<(unsigned shift) const
 ```
 
-- **Declared at:** [line 426](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fixed-point.hh#L426)
+- **Declared at:** [line 424](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/fixed-point.hh#L424)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -1522,7 +1522,7 @@ auto result = object.operator<<(shift);
 constexpr FixedPoint& operator<<=(unsigned shift)
 ```
 
-- **Declared at:** [line 438](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fixed-point.hh#L438)
+- **Declared at:** [line 436](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/fixed-point.hh#L436)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1564,7 +1564,7 @@ auto result = object.operator<<=(shift);
 auto operator<=>(const FixedPoint& other) const = default
 ```
 
-- **Declared at:** [line 424](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fixed-point.hh#L424)
+- **Declared at:** [line 422](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/fixed-point.hh#L422)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -1606,7 +1606,7 @@ auto result = object.operator<=>(other);
 constexpr FixedPoint& operator=(const FixedPoint&) = default
 ```
 
-- **Declared at:** [line 163](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fixed-point.hh#L163)
+- **Declared at:** [line 161](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/fixed-point.hh#L161)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1648,7 +1648,7 @@ auto result = object.operator=(arg1);
 constexpr FixedPoint operator>>(unsigned shift) const
 ```
 
-- **Declared at:** [line 432](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fixed-point.hh#L432)
+- **Declared at:** [line 430](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/fixed-point.hh#L430)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -1690,7 +1690,7 @@ auto result = object.operator>>(shift);
 constexpr FixedPoint& operator>>=(unsigned shift)
 ```
 
-- **Declared at:** [line 443](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fixed-point.hh#L443)
+- **Declared at:** [line 441](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/fixed-point.hh#L441)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1734,7 +1734,7 @@ auto result = object.operator>>=(shift);
 void print(const eastl::function<void(char)>& charPrinter) const
 ```
 
-- **Declared at:** [line 273](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fixed-point.hh#L273)
+- **Declared at:** [line 271](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/fixed-point.hh#L271)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -1776,7 +1776,7 @@ object.print(charPrinter);
 T raw() const
 ```
 
-- **Declared at:** [line 126](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fixed-point.hh#L126)
+- **Declared at:** [line 124](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/fixed-point.hh#L124)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `T`. Check the purpose and failure notes before using the value.
@@ -1809,7 +1809,7 @@ auto result = object.raw();
 constexpr int32_t dDiv(int32_t a, int32_t b, unsigned scale)
 ```
 
-- **Declared at:** [line 72](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fixed-point.hh#L72)
+- **Declared at:** [line 75](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/fixed-point.hh#L75)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1853,7 +1853,7 @@ auto result = psyqo::FixedPointInternals::dDiv(a, b, scale);
 constexpr uint32_t iDiv(uint64_t rem, uint32_t base, unsigned scale)
 ```
 
-- **Declared at:** [line 42](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fixed-point.hh#L42)
+- **Declared at:** [line 42](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/fixed-point.hh#L42)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1897,7 +1897,7 @@ auto result = psyqo::FixedPointInternals::iDiv(rem, base, scale);
 void printInt(uint32_t value, const eastl::function<void(char)>&, unsigned scale)
 ```
 
-- **Declared at:** [line 40](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fixed-point.hh#L40)
+- **Declared at:** [line 40](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/fixed-point.hh#L40)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1941,7 +1941,7 @@ psyqo::FixedPointInternals::printInt(value, arg2, scale);
 template <unsigned precisionBits = 12, std::integral T = int32_t, unsigned scale = 1 <<precisionBits, std::integral U = int32_t> constexpr FixedPoint<precisionBits, T, scale> operator*(U a, FixedPoint<precisionBits, T, scale> b)
 ```
 
-- **Declared at:** [line 487](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fixed-point.hh#L487)
+- **Declared at:** [line 485](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/fixed-point.hh#L485)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -1986,7 +1986,7 @@ auto result = psyqo::operator*<precisionBits, T, scale, U>(a, b);
 template <unsigned precisionBits = 12, std::integral T = int32_t, unsigned scale = 1 <<precisionBits, std::integral U = int32_t> constexpr FixedPoint<precisionBits, T, scale> operator+(U a, FixedPoint<precisionBits, T, scale> b)
 ```
 
-- **Declared at:** [line 475](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fixed-point.hh#L475)
+- **Declared at:** [line 473](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/fixed-point.hh#L473)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -2031,7 +2031,7 @@ auto result = psyqo::operator+<precisionBits, T, scale, U>(a, b);
 template <unsigned precisionBits = 12, std::integral T = int32_t, unsigned scale = 1 <<precisionBits, std::integral U = int32_t> constexpr FixedPoint<precisionBits, T, scale> operator-(U a, FixedPoint<precisionBits, T, scale> b)
 ```
 
-- **Declared at:** [line 481](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fixed-point.hh#L481)
+- **Declared at:** [line 479](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/fixed-point.hh#L479)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -2076,7 +2076,7 @@ auto result = psyqo::operator-<precisionBits, T, scale, U>(a, b);
 template <unsigned precisionBits = 12, std::integral T = int32_t, unsigned scale = 1 <<precisionBits, std::integral U = int32_t> constexpr FixedPoint<precisionBits, T, scale> operator/(U a, FixedPoint<precisionBits, T, scale> b)
 ```
 
-- **Declared at:** [line 493](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fixed-point.hh#L493)
+- **Declared at:** [line 491](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/fixed-point.hh#L491)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**

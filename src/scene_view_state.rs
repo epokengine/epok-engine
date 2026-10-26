@@ -11,12 +11,14 @@ fn valid(view: &View) -> bool {
             &view.zoom,
             &view.distance,
             &view.fly_speed,
+            &view.camera_speed_scalar,
             &view.phase,
         ])
         .all(|v| v.is_finite())
         && (0.05..=8.).contains(&view.zoom)
         && (1.05..=10000.).contains(&view.distance)
         && (0.01..=1000.).contains(&view.fly_speed)
+        && (1.0..=128.).contains(&view.camera_speed_scalar)
 }
 
 fn preference_path(root: &Path, scene: &Path) -> PathBuf {
@@ -117,9 +119,11 @@ pub fn bounds(scene: &Scene, selected: Option<usize>) -> Option<([f32; 3], [f32;
     low.iter().all(|v| v.is_finite()).then_some((low, high))
 }
 
-pub fn framed(scene: &Scene, panel: [f32; 2], fly_speed: f32) -> View {
+pub fn framed(scene: &Scene, panel: [f32; 2], preferences: &crate::settings::Preferences) -> View {
     let mut view = View {
-        fly_speed,
+        fly_speed: preferences.fly_speed,
+        camera_speed_scalar: preferences.camera_speed_scalar,
+        distance_scaled_speed: preferences.distance_scaled_speed,
         ..Default::default()
     };
     if let Some((low, high)) = bounds(scene, None) {
@@ -144,7 +148,7 @@ mod tests {
         hidden.active = false;
         scene.actors.push(hidden);
         let before = scene.clone();
-        let view = framed(&scene, [960., 600.], 5.);
+        let view = framed(&scene, [960., 600.], &Default::default());
         assert_eq!(view.center, [800., 24., -1200.]);
         assert_eq!(
             bounds(&scene, None),
@@ -154,7 +158,10 @@ mod tests {
         assert!(view.distance > 6. && valid(&view));
         scene.actors.clear();
         assert!(bounds(&scene, None).is_none());
-        assert_eq!(framed(&scene, [960., 600.], 5.).center, [0.; 3]);
+        assert_eq!(
+            framed(&scene, [960., 600.], &Default::default()).center,
+            [0.; 3]
+        );
     }
 
     #[test]
@@ -165,11 +172,18 @@ mod tests {
         let view = View {
             center: [40., 2., -80.],
             lighting: false,
+            fly_speed: 20.,
+            camera_speed_scalar: 2.5,
+            distance_scaled_speed: true,
             ..Default::default()
         };
         save(&root, &a, &view).unwrap();
         assert_eq!(load(&root, &a, false).unwrap().center, view.center);
         assert!(!load(&root, &a, false).unwrap().lighting);
+        let restored = load(&root, &a, false).unwrap();
+        assert_eq!(restored.fly_speed, 20.);
+        assert_eq!(restored.camera_speed_scalar, 2.5);
+        assert!(restored.distance_scaled_speed);
         assert!(load(&root, &b, false).is_none());
         std::fs::write(preference_path(&root, &a), b"broken").unwrap();
         assert!(load(&root, &a, false).is_none());
@@ -188,6 +202,19 @@ mod tests {
             ..view
         };
         assert!(save(&root, &b, &invalid).is_err());
+        for scalar in [f32::NAN, f32::INFINITY, 0., 129.] {
+            assert!(
+                save(
+                    &root,
+                    &b,
+                    &View {
+                        camera_speed_scalar: scalar,
+                        ..view
+                    }
+                )
+                .is_err()
+            );
+        }
         std::fs::remove_dir_all(root).unwrap();
     }
 }

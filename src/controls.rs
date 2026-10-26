@@ -296,17 +296,101 @@ impl Settings {
 pub struct HostInput {
     keys: BTreeSet<String>,
     mouse: BTreeSet<MouseButton>,
-    gamepad: BTreeSet<String>,
-    axes: std::collections::BTreeMap<GamepadAxis, f32>,
+    gamepads: std::collections::BTreeMap<usize, GamepadInput>,
+    devices: std::collections::BTreeMap<usize, Device>,
+    assignments: [Option<usize>; 4],
+    manual_assignment: [bool; 4],
+    identities: [u32; 4],
+    next_identity: u32,
+    pub rumble_test: Option<usize>,
+    pub rumble_panel_port: Option<usize>,
+    pub rumble_allowed: bool,
+    pub rumble_errors: [Option<String>; 4],
     mouse_delta: [f32; 2],
 }
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct PadState {
+    pub connected: bool,
     pub buttons: u16,
     pub analog: bool,
     pub axes: [u8; 4],
+    pub rumble_supported: bool,
+    pub identity: u32,
+    pub rumble_enabled: bool,
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Device {
+    pub id: usize,
+    pub name: String,
+    pub rumble_supported: bool,
+}
+#[derive(Default)]
+struct GamepadInput {
+    buttons: BTreeSet<String>,
+    axes: std::collections::BTreeMap<GamepadAxis, f32>,
 }
 impl HostInput {
+    pub fn identity(&self, slot: usize) -> u32 {
+        self.identities.get(slot).copied().unwrap_or_default()
+    }
+    pub fn devices(&self) -> impl Iterator<Item = &Device> {
+        self.devices.values()
+    }
+    pub fn assignment(&self, slot: usize) -> Option<usize> {
+        self.assignments.get(slot).copied().flatten()
+    }
+    pub fn assign(&mut self, slot: usize, device: Option<usize>) {
+        if slot >= 4 {
+            return;
+        }
+        self.manual_assignment[slot] = true;
+        if let Some(id) = device {
+            for other in 0..4 {
+                if other != slot && self.assignments[other] == Some(id) {
+                    self.replace_assignment(other, None);
+                }
+            }
+        }
+        self.replace_assignment(slot, device);
+    }
+    fn replace_assignment(&mut self, slot: usize, device: Option<usize>) {
+        if self.assignments[slot] != device {
+            self.next_identity = self.next_identity.wrapping_add(1).max(1);
+            self.identities[slot] = self.next_identity;
+            self.assignments[slot] = device;
+        }
+    }
+    pub fn disconnect(&mut self, id: usize) {
+        self.gamepads.remove(&id);
+        self.devices.remove(&id);
+        for slot in 0..4 {
+            if self.assignments[slot] == Some(id) {
+                self.replace_assignment(slot, None);
+            }
+        }
+    }
+    pub fn sync_devices(&mut self, devices: Vec<Device>) {
+        let removed: Vec<_> = self
+            .devices
+            .keys()
+            .copied()
+            .filter(|id| !devices.iter().any(|d| d.id == *id))
+            .collect();
+        for id in removed {
+            self.disconnect(id);
+        }
+        for device in devices {
+            self.devices.insert(device.id, device);
+        }
+        if !self.manual_assignment[0] && self.assignments[0].is_none() {
+            let first = self
+                .devices
+                .keys()
+                .copied()
+                .find(|id| !self.assignments.contains(&Some(*id)));
+            self.replace_assignment(0, first);
+        }
+    }
     pub fn key(&mut self, key: String, down: bool) {
         if down {
             self.keys.insert(key);
@@ -325,15 +409,47 @@ impl HostInput {
         self.mouse_delta[0] += delta[0];
         self.mouse_delta[1] += delta[1];
     }
+    #[cfg(test)]
     pub fn gamepad_button(&mut self, button: String, down: bool) {
+        self.sync_devices(vec![Device {
+            id: 0,
+            name: "Test gamepad".into(),
+            rumble_supported: false,
+        }]);
+        self.gamepad_button_for(0, button, down);
+    }
+    pub fn gamepad_button_for(&mut self, id: usize, button: String, down: bool) {
+        let pad = self.gamepads.entry(id).or_default();
         if down {
-            self.gamepad.insert(button);
+            pad.buttons.insert(button);
         } else {
-            self.gamepad.remove(&button);
+            pad.buttons.remove(&button);
         }
     }
+    #[cfg(test)]
     pub fn gamepad_axis(&mut self, axis: GamepadAxis, value: f32) {
-        self.axes.insert(axis, value.clamp(-1., 1.));
+        self.sync_devices(vec![Device {
+            id: 0,
+            name: "Test gamepad".into(),
+            rumble_supported: false,
+        }]);
+        self.gamepad_axis_for(0, axis, value);
+    }
+    pub fn gamepad_axis_for(&mut self, id: usize, axis: GamepadAxis, value: f32) {
+        self.gamepads.entry(id).or_default().axes.insert(
+            axis,
+            if value.is_finite() {
+                value.clamp(-1., 1.)
+            } else {
+                0.
+            },
+        );
+    }
+    pub fn clear(&mut self) {
+        self.keys.clear();
+        self.mouse.clear();
+        self.gamepads.clear();
+        self.clear_motion();
     }
     pub fn clear_motion(&mut self) {
         self.mouse_delta = [0.; 2];
@@ -350,6 +466,20 @@ impl HostInput {
                 return PadState::default();
             };
             let mut state = PadState {
+                connected: profile.mappings.iter().any(|m| {
+                    matches!(
+                        m.binding,
+                        Binding::Keyboard { .. }
+                            | Binding::MouseButton { .. }
+                            | Binding::MouseAxis { .. }
+                    )
+                }) || self.assignments[slot]
+                    .is_some_and(|id| self.devices.contains_key(&id)),
+                rumble_supported: self.assignments[slot]
+                    .and_then(|id| self.devices.get(&id))
+                    .is_some_and(|d| d.rumble_supported),
+                rumble_enabled: true,
+                identity: self.identities[slot],
                 analog: profile
                     .mappings
                     .iter()
@@ -360,14 +490,22 @@ impl HostInput {
             for m in &profile.mappings {
                 match m.control {
                     Control::Button(button)
-                        if self.active(&m.binding, mouse, settings.mouse_sensitivity) =>
+                        if self.active(
+                            &m.binding,
+                            self.assignments[slot],
+                            mouse,
+                            settings.mouse_sensitivity,
+                        ) =>
                     {
                         state.buttons |= button.bit()
                     }
                     Control::Axis(axis) => {
-                        if let Some(value) =
-                            self.axis(&m.binding, mouse, settings.mouse_sensitivity)
-                        {
+                        if let Some(value) = self.axis(
+                            &m.binding,
+                            self.assignments[slot],
+                            mouse,
+                            settings.mouse_sensitivity,
+                        ) {
                             state.axes[axis as usize] =
                                 (128. + value * 127.).round().clamp(0., 255.) as u8;
                         }
@@ -378,20 +516,32 @@ impl HostInput {
             state
         })
     }
-    fn active(&self, binding: &Binding, _mouse: [f32; 2], _: u16) -> bool {
+    fn active(&self, binding: &Binding, device: Option<usize>, _mouse: [f32; 2], _: u16) -> bool {
         match binding {
             Binding::Keyboard { key } => self.keys.contains(key),
             Binding::MouseButton { button } => self.mouse.contains(button),
-            Binding::GamepadButton { button } => self.gamepad.contains(button),
+            Binding::GamepadButton { button } => device
+                .and_then(|id| self.gamepads.get(&id))
+                .is_some_and(|pad| pad.buttons.contains(button)),
             Binding::GamepadAxis { axis, positive } => {
-                self.axes.get(axis).copied().unwrap_or_default()
+                device
+                    .and_then(|id| self.gamepads.get(&id))
+                    .and_then(|pad| pad.axes.get(axis))
+                    .copied()
+                    .unwrap_or_default()
                     * (if *positive { 1. } else { -1. })
                     > 0.5
             }
             Binding::MouseAxis { .. } => false,
         }
     }
-    fn axis(&self, binding: &Binding, mouse: [f32; 2], sensitivity: u16) -> Option<f32> {
+    fn axis(
+        &self,
+        binding: &Binding,
+        device: Option<usize>,
+        mouse: [f32; 2],
+        sensitivity: u16,
+    ) -> Option<f32> {
         match binding {
             Binding::MouseAxis { axis } => Some(
                 (if *axis == MouseAxis::X {
@@ -406,9 +556,13 @@ impl HostInput {
             // A stick is signed. Capturing it while pushed either way must not
             // discard the other half of its travel. `positive` still matters
             // when an axis is deliberately bound to a digital button.
-            Binding::GamepadAxis { axis, .. } => {
-                Some(self.axes.get(axis).copied().unwrap_or_default())
-            }
+            Binding::GamepadAxis { axis, .. } => Some(
+                device
+                    .and_then(|id| self.gamepads.get(&id))
+                    .and_then(|pad| pad.axes.get(axis))
+                    .copied()
+                    .unwrap_or_default(),
+            ),
             _ => None,
         }
     }

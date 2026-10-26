@@ -366,13 +366,21 @@ pub fn compile(scene: &Scene) -> (Vec<Command>, [u32; 6]) {
 }
 
 pub fn render(scene: &Scene, commands: &[Command], seconds: f32, fade: u8) -> Vec<u8> {
-    render_with_background(scene, commands, seconds, fade, true)
+    render_with_background(scene, scene, commands, seconds, fade, true)
 }
 
 /// Transparent HUD layer for Native PC Play. Geometry is rendered by the host
 /// scene backend; this layer contains only console-quantized HUD pixels and fade.
-pub fn render_overlay(scene: &Scene, commands: &[Command], seconds: f32, fade: u8) -> Vec<u8> {
-    render_with_background(scene, commands, seconds, fade, false)
+/// Commands from resident scene banks use global resource indices; palette
+/// animation and display state belong to the active scene only.
+pub fn render_overlay_with_resources(
+    scene: &Scene,
+    resources: &Scene,
+    commands: &[Command],
+    seconds: f32,
+    fade: u8,
+) -> Vec<u8> {
+    render_with_background(scene, resources, commands, seconds, fade, false)
 }
 
 /// Texture ids at and above this one name a SubViewport2D picture drawn this frame.
@@ -380,6 +388,7 @@ pub const PICTURE_BASE: i32 = 0x10000;
 
 fn render_with_background(
     scene: &Scene,
+    resources: &Scene,
     commands: &[Command],
     seconds: f32,
     fade: u8,
@@ -391,19 +400,19 @@ fn render_with_background(
     } else {
         [0, 0, 0, fade].repeat(width * height)
     };
-    let ids = crate::texture::ids(scene);
+    let ids = crate::texture::ids(resources);
     let textures: Vec<_> = ids
         .iter()
         .map(|id| {
-            scene
+            resources
                 .textures
                 .get(id)
                 .map(|t| (t, crate::palette::preview_rgba(scene, *id, seconds, t)))
         })
         .collect();
-    let fonts: Vec<_> = hud::font_ids(scene)
+    let fonts: Vec<_> = hud::font_ids(resources)
         .iter()
-        .map(|id| scene.fonts.get(id).cloned())
+        .map(|id| resources.fonts.get(id).cloned())
         .collect();
     // Font -1 draws from the built-in atlas, whose cell the source texels name;
     // an authored font is 4bpp, so a texel is one nibble through its CLUT.

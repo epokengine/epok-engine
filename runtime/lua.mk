@@ -34,6 +34,14 @@ LUA_OBJ_DIR := lua/$(LUA_VARIANT)
 LUA_ARCHIVE := lua/liblua-epok-$(LUA_VARIANT).a
 LUA_OBJS := $(patsubst %,$(LUA_OBJ_DIR)/%.o,$(LUA_UNITS))
 
+# The bundled Windows make uses cmd.exe, where `mkdir -p lua/parser` is not a
+# valid command. Keep standalone exports and editor builds on the same recipe.
+ifeq ($(OS),Windows_NT)
+LUA_MKDIR = powershell.exe -NoProfile -Command "New-Item -ItemType Directory -Force -Path '$(1)' | Out-Null"
+else
+LUA_MKDIR = mkdir -p "$(1)"
+endif
+
 # Upstream's psx target flags. -Os matches the archive the feasibility harness
 # measured; ARCHFLAGS comes from Nugget so the ABI cannot drift from the rest
 # of the executable.
@@ -42,7 +50,7 @@ LUA_CFLAGS = -DLUA_TARGET_PSX -DLUA_COMPAT_ALL -Os -g -Wall -Wno-attributes \
 	-fno-builtin -fno-strict-aliasing -I$(LUA_SRC_DIR) $(ARCHFLAGS)
 
 $(LUA_OBJ_DIR)/%.o: $(LUA_SRC_DIR)/%.c
-	mkdir -p $(LUA_OBJ_DIR)
+	$(call LUA_MKDIR,$(LUA_OBJ_DIR))
 	$(CC) $(LUA_CFLAGS) -c -o $@ $<
 
 # `D` is deterministic mode: zeroed member timestamps, uid and gid. The host
@@ -51,7 +59,7 @@ $(LUA_OBJ_DIR)/%.o: $(LUA_SRC_DIR)/%.c
 # objects would produce different bytes each time and the build would be
 # rejected as "inputs changed during compilation".
 $(LUA_ARCHIVE): $(LUA_OBJS)
-	mkdir -p $(dir $(LUA_ARCHIVE))
+	$(call LUA_MKDIR,$(dir $(LUA_ARCHIVE)))
 	$(AR) rcsD $@ $(LUA_OBJS)
 
 LIBRARIES += $(LUA_ARCHIVE)

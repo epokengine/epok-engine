@@ -2,7 +2,7 @@
 
 > **Header:** `"affine.hpp"` · **Tier:** Epok runtime API · **Source:** [open header](../../../runtime/affine.hpp)
 
-This module covers fixed-point affine transforms and matrix composition. It documents 7 public callables declared directly in this header.
+This module covers fixed-point affine transforms and matrix composition. It documents 8 public callables declared directly in this header.
 
 ## Declared types
 
@@ -12,6 +12,7 @@ This module covers fixed-point affine transforms and matrix composition. It docu
 
 - [`epok::Affine::compose`](#epok-affine-compose-1) — Performs `compose` as part of fixed-point affine transforms and matrix composition.
 - [`epok::Affine::identity`](#epok-affine-identity-1) — Performs `identity` as part of fixed-point affine transforms and matrix composition.
+- [`epok::Affine::identity_basis`](#epok-affine-identity-basis-1) — Performs `identity basis` as part of fixed-point affine transforms and matrix composition.
 - [`epok::Affine::point`](#epok-affine-point-1) — Performs `point` as part of fixed-point affine transforms and matrix composition.
 - [`epok::Affine::rotate_rows`](#epok-affine-rotate-rows-1) — Rotate all basis columns with one already-resolved sine/cosine pair.
 - [`epok::Affine::translated`](#epok-affine-translated-1) — Right-compose a translation without multiplying the unchanged basis by an identity matrix.
@@ -27,10 +28,10 @@ This module covers fixed-point affine transforms and matrix composition. It docu
 **Exact declaration**
 
 ```cpp
-Affine compose(const Affine& b) const
+__attribute__((noinline,optimize("O3"))) #endif Affine compose(const Affine& b) const
 ```
 
-- **Declared at:** [line 38](../../../runtime/affine.hpp#L38)
+- **Declared at:** [line 47](../../../runtime/affine.hpp#L47)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -72,7 +73,7 @@ auto result = object.compose(b);
 static Affine identity()
 ```
 
-- **Declared at:** [line 8](../../../runtime/affine.hpp#L8)
+- **Declared at:** [line 9](../../../runtime/affine.hpp#L9)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Returns.** Returns `Affine<Number>`. Check the purpose and failure notes before using the value.
@@ -91,6 +92,39 @@ auto result = epok::Affine::identity();
 
 **Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
 
+<a id="epok-affine-identity-basis-1"></a>
+
+## `epok::Affine::identity_basis`
+
+**Purpose.** Performs `identity basis` as part of fixed-point affine transforms and matrix composition.
+
+**Exact declaration**
+
+```cpp
+bool identity_basis() const
+```
+
+- **Declared at:** [line 14](../../../runtime/affine.hpp#L14)
+- **Kind:** `cxx method`; qualifiers: `const`
+
+**Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need fixed-point affine transforms and matrix composition and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "affine.hpp"
+
+epok::Affine& object = /* obtain a valid instance */;
+
+auto result = object.identity_basis();
+```
+
+**Why choose it.** The method is `const`, so it does not mutate the object through this API surface. The boolean result makes success, availability or state explicit without exceptions.
+
+**Trade-offs and warnings.** Check the return value; `false` is part of normal control flow for many PSX resource operations.
+
 <a id="epok-affine-point-1"></a>
 
 ## `epok::Affine::point`
@@ -103,7 +137,7 @@ auto result = epok::Affine::identity();
 void point(const Number* in, Number* out) const
 ```
 
-- **Declared at:** [line 24](../../../runtime/affine.hpp#L24)
+- **Declared at:** [line 30](../../../runtime/affine.hpp#L30)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -149,7 +183,7 @@ object.point(in, out);
 void rotate_rows(int axis,Number sine,Number cosine,int columns=3)
 ```
 
-- **Declared at:** [line 16](../../../runtime/affine.hpp#L16)
+- **Declared at:** [line 22](../../../runtime/affine.hpp#L22)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -199,7 +233,7 @@ object.rotate_rows(axis, sine, cosine, columns);
 Affine translated(const Number* offset) const
 ```
 
-- **Declared at:** [line 32](../../../runtime/affine.hpp#L32)
+- **Declared at:** [line 38](../../../runtime/affine.hpp#L38)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -241,7 +275,7 @@ auto result = object.translated(offset);
 Affine<Number> compose(const Affine<Number>& world) const
 ```
 
-- **Declared at:** [line 107](../../../runtime/affine.hpp#L107)
+- **Declared at:** [line 142](../../../runtime/affine.hpp#L142)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -283,7 +317,7 @@ auto result = object.compose(world);
 void point(const Number* in,Number* out) const
 ```
 
-- **Declared at:** [line 67](../../../runtime/affine.hpp#L67)
+- **Declared at:** [line 102](../../../runtime/affine.hpp#L102)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**

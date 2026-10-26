@@ -213,6 +213,7 @@ pub struct Editor {
     pub focus_scene: bool,
     pub focus_project: bool,
     pub last_error: Option<String>,
+    pub runtime_error: Option<String>,
     pub game_frame: Option<std::sync::Arc<crate::bridge::Frame>>,
     pub native_frame: Option<std::sync::Arc<crate::native_play::Frame>>,
     pub game_error: Option<String>,
@@ -230,6 +231,7 @@ pub struct Editor {
     /// platform layer has built the font atlas.
     pub inspector_font: Option<imgui::FontId>,
     pub drag_axis: Option<usize>,
+    pub scene_orientation: crate::gizmo::OrientationState,
     pub scene_click: crate::picking::ClickGesture,
     pub scene_panel_size: [f32; 2],
     pub reveal_selected: bool,
@@ -315,10 +317,13 @@ impl Editor {
         }
         if let Some(bridge) = self.job.as_ref().and_then(|j| j.native.as_ref()) {
             bridge.pads.lock().unwrap()[0].buttons = buttons;
+            if buttons!=0 { bridge.pads.lock().unwrap()[0].connected=true; }
         }
     }
     pub fn set_controls(&self, mut pads: [crate::controls::PadState; 4]) {
+        for pad in &mut pads { pad.rumble_enabled &= self.preferences.rumble_enabled && self.game_capture && !self.paused; }
         pads[0].buttons |= self.mcp.buttons;
+        pads[0].connected |= self.mcp.buttons!=0;
         if let Some(bridge) = self.job.as_ref().and_then(|job| job.bridge.as_ref()) {
             bridge
                 .buttons
@@ -362,16 +367,16 @@ impl Editor {
         }
         self.controls.mouse_motion(delta);
     }
-    pub fn input_gamepad_button(&mut self, button: String, down: bool) {
+    pub fn input_gamepad_button(&mut self, id: usize, button: String, down: bool) {
         if down {
             self.settings
                 .capture_binding(crate::controls::Binding::GamepadButton {
                     button: button.clone(),
                 });
         }
-        self.controls.gamepad_button(button, down);
+        self.controls.gamepad_button_for(id, button, down);
     }
-    pub fn input_gamepad_axis(&mut self, axis: crate::controls::GamepadAxis, value: f32) {
+    pub fn input_gamepad_axis(&mut self, id: usize, axis: crate::controls::GamepadAxis, value: f32) {
         if value.abs() > 0.5 {
             self.settings
                 .capture_binding(crate::controls::Binding::GamepadAxis {
@@ -379,7 +384,7 @@ impl Editor {
                     positive: value > 0.,
                 });
         }
-        self.controls.gamepad_axis(axis, value);
+        self.controls.gamepad_axis_for(id, axis, value);
     }
     pub fn sample_controls(&mut self) -> [crate::controls::PadState; 4] {
         let settings = self
@@ -664,6 +669,8 @@ impl Editor {
         preferences.save()?;
         self.grid = preferences.show_grid;
         self.view.fly_speed = preferences.fly_speed;
+        self.view.camera_speed_scalar = preferences.camera_speed_scalar;
+        self.view.distance_scaled_speed = preferences.distance_scaled_speed;
         self.preferences = preferences;
         self.view_dirty = true;
         Ok(())
@@ -773,6 +780,8 @@ impl Editor {
             dirty,
             view: viewport::View {
                 fly_speed: preferences.fly_speed,
+                camera_speed_scalar: preferences.camera_speed_scalar,
+                distance_scaled_speed: preferences.distance_scaled_speed,
                 ..Default::default()
             },
             view_dirty: true,
@@ -813,6 +822,7 @@ impl Editor {
             focus_scene: true,
             focus_project: true,
             last_error: None,
+            runtime_error: None,
             game_frame: None,
             native_frame: None,
             native_play_cache: None,
@@ -832,6 +842,7 @@ impl Editor {
             asset_inspector: Default::default(),
             inspector_font: None,
             drag_axis: None,
+            scene_orientation: Default::default(),
             scene_click: Default::default(),
             scene_panel_size: [960., 600.],
             reveal_selected: false,
@@ -885,13 +896,19 @@ impl Editor {
                 crate::scene_view_state::framed(
                     &editor.scene,
                     editor.scene_panel_size,
-                    editor.preferences.fly_speed,
+                    &editor.preferences,
                 )
             });
         editor
     }
     pub fn log(&mut self, s: impl Into<String>) {
         self.log_message(crate::scene_loading::Message::new(s));
+    }
+    fn log_error(&mut self, message: impl Into<String>) {
+        let message = message.into();
+        self.console.error = Some(message.clone());
+        self.focus_console = true;
+        self.log(format!("ERROR: {message}"));
     }
     pub(crate) fn log_message(&mut self, message: crate::scene_loading::Message) {
         self.reconcile_log_times();
@@ -916,6 +933,7 @@ impl Editor {
     pub(crate) fn clear_logs(&mut self) {
         self.logs.clear();
         self.log_times.clear();
+        self.console.error = None;
     }
     pub fn scene_path(&self) -> PathBuf {
         self.scene_file.clone()
@@ -1031,7 +1049,7 @@ impl Editor {
                 crate::scene_view_state::framed(
                     &self.scene,
                     self.scene_panel_size,
-                    self.preferences.fly_speed,
+                    &self.preferences,
                 )
             });
         self.reset_instance_baseline();
@@ -1101,6 +1119,7 @@ impl Editor {
         self.hud_drag = None;
         self.drag_axis = None;
         self.scene_click = Default::default();
+        self.scene_orientation.cancel();
     }
     pub fn changed(&mut self) {
         self.apply_change();
@@ -2573,7 +2592,9 @@ impl Editor {
             self.game_frame = None;
             self.native_frame = None;
             self.game_error = None;
+            self.runtime_error = None;
         }
+        self.console.error = None;
         self.last_error = None;
         self.focus_console = true;
         self.pending_since = None;
@@ -2588,7 +2609,7 @@ impl Editor {
             Err(error) => {
                 self.job_target = None;
                 self.last_error = Some(error.clone());
-                self.log(error);
+                self.log_error(error);
                 return;
             }
         };
@@ -3112,6 +3133,12 @@ impl Editor {
                 }
             }
             "serial-reset" | "serial-pause" | "serial-resume" => {
+                if action == "serial-reset" {
+                    if let Err(error) = self.reset_psx() {
+                        self.log_error(error);
+                    }
+                    return;
+                }
                 if self.playing
                     && self.active_play_runtime == crate::play::Runtime::PlayStation
                     && self.active_play_target == crate::play::Target::Serial
@@ -3119,7 +3146,6 @@ impl Editor {
                     && let Some(job) = &self.job
                 {
                     job.control(match action {
-                        "serial-reset" => Control::Reset,
                         "serial-pause" => Control::Pause,
                         _ => Control::Resume,
                     });
@@ -3183,7 +3209,13 @@ impl Editor {
                 }
             }
             "reset-view" => {
-                self.view = viewport::View::default();
+                // Reset the pose without discarding the author's navigation speed.
+                self.view = viewport::View {
+                    fly_speed: self.view.fly_speed,
+                    camera_speed_scalar: self.view.camera_speed_scalar,
+                    distance_scaled_speed: self.view.distance_scaled_speed,
+                    ..Default::default()
+                };
                 self.view_dirty = true;
             }
             "export" => match crate::export::export_project(
@@ -3199,8 +3231,16 @@ impl Editor {
     /// Shared toolbar/MCP Stop. Keep the job until its worker acknowledges it,
     /// but do not accept late frames/errors from the connection we are closing.
     pub fn stop_play(&mut self) {
+        if let Some(bridge) = self.job.as_ref().and_then(|job| job.native.as_ref()) { bridge.state.lock().unwrap().rumble = None; bridge.output_enabled.store(false,std::sync::atomic::Ordering::Relaxed); }
+        if let Some(bridge) = self.job.as_ref().and_then(|job| job.bridge.as_ref()) { bridge.rumble_enabled.store(false,std::sync::atomic::Ordering::Relaxed); }
         if let Some(job) = &self.job {
-            job.control(Control::Stop);
+            if job.stopping() {
+                return;
+            }
+            let reset = self.playing
+                && self.active_play_runtime == crate::play::Runtime::PlayStation
+                && self.active_play_target == crate::play::Target::Serial;
+            job.control(if reset { Control::StopAndReset } else { Control::Stop });
             self.restart_target = None;
             self.job_target = None;
             self.game_capture = false;
@@ -3208,9 +3248,31 @@ impl Editor {
             self.focus_game = false;
             self.focus_console = false;
             self.focus_scene = true;
-            self.log("Stopping...");
-            self.job_stage = "Cancelling operation...".into();
+            self.log(if reset { "Stopping PSX and requesting a console reset..." } else { "Stopping..." });
+            self.job_stage = if reset { "Resetting PSX before disconnecting..." } else { "Cancelling operation..." }.into();
         }
+    }
+    /// Reset through the owned monitor, or reconnect when an earlier session ended.
+    pub fn reset_psx(&mut self) -> Result<(), String> {
+        if self.serial_ui.command_pending {
+            return Err("Waiting for the previous PSX command".into());
+        }
+        if let Some(job) = &self.job {
+            if !self.playing || job.stopping()
+                || self.active_play_runtime != crate::play::Runtime::PlayStation
+                || self.active_play_target != crate::play::Target::Serial
+            {
+                return Err("Wait for the current operation before resetting the PSX".into());
+            }
+            job.control(Control::Reset);
+            self.serial_ui.command_pending = true;
+        } else {
+            if self.scene_loading.is_some() || self.dependencies.busy() || self.assets.busy || self.bake_job.is_some() {
+                return Err("Wait for the current operation before reconnecting to the PSX".into());
+            }
+            crate::serial_ui::start(self, crate::serial_ui::Action::Reset);
+        }
+        Ok(())
     }
     pub fn tick(&mut self) {
         if self.playing
@@ -3348,8 +3410,9 @@ impl Editor {
                 }
                 Event::SerialIssue(s) => {
                     self.serial_ui.open = true;
-                    self.serial_ui.error = Some(s);
+                    self.serial_ui.error = Some(s.clone());
                     self.serial_ui.tools_ready = crate::serial_support::tools_installed();
+                    self.log_error(s);
                 }
                 Event::LightingBaked(bake) => {
                     if bake.fingerprint == crate::lighting::fingerprint(&self.scene) {
@@ -3407,10 +3470,20 @@ impl Editor {
                     self.playing = true;
                     self.paused = false;
                     self.focus_console = true;
-                    self.log("PSX runtime and resident handler connected. Pause / Continue and Reset PSX are available. Stop only disconnects the PC session.");
+                    self.log("PSX runtime and resident handler connected. Pause / Continue and Reset PSX are available. Stop requests a PSX reset before disconnecting.");
                 }
                 Event::SerialCommandPending(pending) => {
                     self.serial_ui.command_pending = pending;
+                }
+                Event::RuntimeIssue { message, halted } => {
+                    self.runtime_error = Some(message.clone());
+                    if halted && !self.job_stale && !self.job.as_ref().is_some_and(pipeline::Job::stopping) {
+                        self.playing = true;
+                        self.paused = true;
+                        self.game_capture = false;
+                        self.focus_game = false;
+                    }
+                    self.log_error(message);
                 }
                 Event::Paused(p) => {
                     self.paused = p;
@@ -3472,8 +3545,7 @@ impl Editor {
                                 // into a silent build-only recovery.
                                 self.restart_target = target.filter(|(run, _)| *run);
                                 self.last_error = Some(e.clone());
-                                self.focus_console = true;
-                                self.log(e);
+                                self.log_error(e);
                             }
                         }
                     }
@@ -3483,6 +3555,7 @@ impl Editor {
                 }
             }
         }
+        let mut capture_error = None;
         if !self.job_stale
             && let Some(bridge) = self
                 .job
@@ -3502,7 +3575,7 @@ impl Editor {
                 self.game_frame = Some(frame.clone());
             }
             if let Some(error) = &state.error {
-                self.game_error = Some(error.clone());
+                capture_error = Some(error.clone());
                 self.game_capture = false;
                 if let Some(pid) = self.emulator_pid {
                     crate::native::emulator_window(pid, true);
@@ -3510,6 +3583,8 @@ impl Editor {
                 }
             }
         }
+        let rumble_warning=self.job.as_ref().and_then(|job|job.bridge.as_ref()).and_then(|bridge|bridge.state.lock().unwrap().rumble_warning.take());
+        if let Some(warning)=rumble_warning{self.log(warning);}
         if !self.job_stale
             && let Some(native) = self
                 .job
@@ -3522,15 +3597,23 @@ impl Editor {
                 self.native_frame = Some(frame.clone());
             }
             if let Some(error) = &state.error {
-                self.game_error = Some(error.clone());
+                capture_error = Some(error.clone());
                 self.game_capture = false;
             }
+        }
+        if let Some(error) = capture_error {
+            if self.game_error.as_ref() != Some(&error) {
+                self.log_error(error.clone());
+            }
+            self.game_error = Some(error);
         }
         // Camera navigation and gizmo drags must stay responsive. Process events,
         // but defer idle dependency publication until the drag ends so graph
         // maintenance cannot consume a camera frame. Build/Play still validates
         // its own inputs and active jobs continue observing live edits normally.
-        if (self.scene_navigation || self.drag_axis.is_some()) && self.job.is_none() {
+        if (self.scene_navigation || self.drag_axis.is_some() || self.scene_orientation.is_active())
+            && self.job.is_none()
+        {
             return;
         }
         self.observe_external_sources();
@@ -3791,7 +3874,7 @@ impl Drop for Editor {
 #[cfg(test)]
 mod tests {
     #[test]
-    fn serial_controls_wait_for_confirmation_and_stop_still_disconnects() {
+    fn serial_controls_wait_for_confirmation_and_stop_requests_reset() {
         let root =
             std::env::temp_dir().join(format!("epok-serial-controls-{}", uuid::Uuid::new_v4()));
         let mut editor = super::Editor::new(root.clone());
@@ -3832,7 +3915,7 @@ mod tests {
         editor.action("play");
         assert!(matches!(
             controls.try_recv(),
-            Ok(crate::pipeline::Control::Stop)
+            Ok(crate::pipeline::Control::StopAndReset)
         ));
         events
             .send(crate::pipeline::Event::Finished(Ok(())))

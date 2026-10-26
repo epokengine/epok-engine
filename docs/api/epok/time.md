@@ -31,7 +31,7 @@ This module covers fixed-step simulation time and frame timing. It documents 8 p
 unsigned advance(uint32_t now)
 ```
 
-- **Declared at:** [line 19](../../../runtime/time.hpp#L19)
+- **Declared at:** [line 20](../../../runtime/time.hpp#L20)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -73,7 +73,7 @@ auto result = object.advance(now);
 void begin_tick()
 ```
 
-- **Declared at:** [line 29](../../../runtime/time.hpp#L29)
+- **Declared at:** [line 30](../../../runtime/time.hpp#L30)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -106,7 +106,7 @@ object.begin_tick();
 uint32_t interpolation_raw() const
 ```
 
-- **Declared at:** [line 31](../../../runtime/time.hpp#L31)
+- **Declared at:** [line 32](../../../runtime/time.hpp#L32)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
@@ -139,7 +139,7 @@ auto result = object.interpolation_raw();
 uint32_t interpolation_thousandths() const
 ```
 
-- **Declared at:** [line 30](../../../runtime/time.hpp#L30)
+- **Declared at:** [line 31](../../../runtime/time.hpp#L31)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
@@ -172,7 +172,7 @@ auto result = object.interpolation_thousandths();
 bool paused() const
 ```
 
-- **Declared at:** [line 14](../../../runtime/time.hpp#L14)
+- **Declared at:** [line 15](../../../runtime/time.hpp#L15)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -205,7 +205,7 @@ auto result = object.paused();
 void reset(uint32_t now)
 ```
 
-- **Declared at:** [line 16](../../../runtime/time.hpp#L16)
+- **Declared at:** [line 17](../../../runtime/time.hpp#L17)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -247,7 +247,7 @@ object.reset(now);
 void set_paused(bool value)
 ```
 
-- **Declared at:** [line 15](../../../runtime/time.hpp#L15)
+- **Declared at:** [line 16](../../../runtime/time.hpp#L16)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -289,7 +289,7 @@ object.set_paused(value);
 void synchronize(uint32_t now)
 ```
 
-- **Declared at:** [line 18](../../../runtime/time.hpp#L18)
+- **Declared at:** [line 19](../../../runtime/time.hpp#L19)
 - **Kind:** `cxx method`
 
 **Parameters**

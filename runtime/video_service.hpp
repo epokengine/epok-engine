@@ -478,9 +478,10 @@ inline void start_stream() {
 
 // Runs the player for one display frame. True while it owns the screen; the
 // game's simulation and rendering are skipped for that frame.
-inline bool frame(psyqo::GPU &gpu, const psyqo::AdvancedPad &pad) {
+template<class PadReader> inline bool frame(psyqo::GPU &gpu, const PadReader &pad) {
   if (video_stats.state == VideoState::Idle)
     return false;
+  rumble.suspend();
   take_display(gpu);
   switch (video_stats.state) {
   case VideoState::Waiting:

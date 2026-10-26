@@ -44,6 +44,7 @@ DISPOSITIONS = {
 # These headers implement compiler/runtime machinery rather than game-authored
 # behavior.  They remain explicit inventory rows; none is silently skipped.
 INTERNAL_MODULES = {
+    "rumble",
     "actor-tables",
     "baked-draw-types",
     "baked-packet",
@@ -92,6 +93,7 @@ INTERNAL_MODULES = {
 }
 
 HARDWARE_MODULES = {
+    "controller-pad",
     "spu-transfer",
 }
 

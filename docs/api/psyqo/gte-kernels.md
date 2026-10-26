@@ -1,10 +1,10 @@
 # PsyQo API: Gte Kernels
 
-> **Header:** `"psyqo/gte-kernels.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh)
+> **Header:** `"psyqo/gte-kernels.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh)
 
 This module covers Geometry Transformation Engine math and register operations. It documents 74 public callables declared directly in this header.
 
-PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552d`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
+PsyQo is pinned through Nugget revision `bfc3f65010efaaf979e10852e4cf203a2eff1b13`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
 
 ## Declared types
 
@@ -99,7 +99,7 @@ PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552
 static inline void avsz3()
 ```
 
-- **Declared at:** [line 248](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L248)
+- **Declared at:** [line 248](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L248)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -130,7 +130,7 @@ psyqo::GTE::Kernels::avsz3();
 static inline void avsz4()
 ```
 
-- **Declared at:** [line 257](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L257)
+- **Declared at:** [line 257](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L257)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -161,7 +161,7 @@ psyqo::GTE::Kernels::avsz4();
 static inline void cc()
 ```
 
-- **Declared at:** [line 225](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L225)
+- **Declared at:** [line 225](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L225)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -192,7 +192,7 @@ psyqo::GTE::Kernels::cc();
 static inline void cdp()
 ```
 
-- **Declared at:** [line 215](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L215)
+- **Declared at:** [line 215](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L215)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -223,7 +223,7 @@ psyqo::GTE::Kernels::cdp();
 template <SF sf = Shifted> static inline void cp()
 ```
 
-- **Declared at:** [line 269](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L269)
+- **Declared at:** [line 269](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L269)
 - **Kind:** `function template`; qualifiers: `static, template`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -257,7 +257,7 @@ psyqo::GTE::Kernels::cp<sf>();
 static inline void dpcl()
 ```
 
-- **Declared at:** [line 80](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L80)
+- **Declared at:** [line 80](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L80)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -288,7 +288,7 @@ psyqo::GTE::Kernels::dpcl();
 static inline void dpcs()
 ```
 
-- **Declared at:** [line 89](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L89)
+- **Declared at:** [line 89](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L89)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -319,7 +319,7 @@ psyqo::GTE::Kernels::dpcs();
 static inline void dpct()
 ```
 
-- **Declared at:** [line 100](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L100)
+- **Declared at:** [line 100](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L100)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -350,7 +350,7 @@ psyqo::GTE::Kernels::dpct();
 template <SF sf = Shifted> static inline void gpf()
 ```
 
-- **Declared at:** [line 285](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L285)
+- **Declared at:** [line 285](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L285)
 - **Kind:** `function template`; qualifiers: `static, template`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -384,7 +384,7 @@ psyqo::GTE::Kernels::gpf<sf>();
 template <SF sf = Shifted> static inline void gpl()
 ```
 
-- **Declared at:** [line 299](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L299)
+- **Declared at:** [line 299](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L299)
 - **Kind:** `function template`; qualifiers: `static, template`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -418,7 +418,7 @@ psyqo::GTE::Kernels::gpl<sf>();
 static inline void intpl()
 ```
 
-- **Declared at:** [line 109](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L109)
+- **Declared at:** [line 109](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L109)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -449,7 +449,7 @@ psyqo::GTE::Kernels::intpl();
 static inline void lc()
 ```
 
-- **Declared at:** [line 339](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L339)
+- **Declared at:** [line 339](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L339)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -480,7 +480,7 @@ psyqo::GTE::Kernels::lc();
 static inline void lcir()
 ```
 
-- **Declared at:** [line 415](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L415)
+- **Declared at:** [line 415](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L415)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -511,7 +511,7 @@ psyqo::GTE::Kernels::lcir();
 static inline void lcirbk()
 ```
 
-- **Declared at:** [line 431](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L431)
+- **Declared at:** [line 431](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L431)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -542,7 +542,7 @@ psyqo::GTE::Kernels::lcirbk();
 static inline void lcirfc()
 ```
 
-- **Declared at:** [line 439](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L439)
+- **Declared at:** [line 439](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L439)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -573,7 +573,7 @@ psyqo::GTE::Kernels::lcirfc();
 static inline void lcirtr()
 ```
 
-- **Declared at:** [line 423](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L423)
+- **Declared at:** [line 423](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L423)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -604,7 +604,7 @@ psyqo::GTE::Kernels::lcirtr();
 static inline void lcv0()
 ```
 
-- **Declared at:** [line 409](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L409)
+- **Declared at:** [line 409](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L409)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -635,7 +635,7 @@ psyqo::GTE::Kernels::lcv0();
 static inline void lcv0bk()
 ```
 
-- **Declared at:** [line 425](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L425)
+- **Declared at:** [line 425](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L425)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -666,7 +666,7 @@ psyqo::GTE::Kernels::lcv0bk();
 static inline void lcv0fc()
 ```
 
-- **Declared at:** [line 433](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L433)
+- **Declared at:** [line 433](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L433)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -697,7 +697,7 @@ psyqo::GTE::Kernels::lcv0fc();
 static inline void lcv0tr()
 ```
 
-- **Declared at:** [line 417](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L417)
+- **Declared at:** [line 417](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L417)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -728,7 +728,7 @@ psyqo::GTE::Kernels::lcv0tr();
 static inline void lcv1()
 ```
 
-- **Declared at:** [line 411](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L411)
+- **Declared at:** [line 411](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L411)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -759,7 +759,7 @@ psyqo::GTE::Kernels::lcv1();
 static inline void lcv1bk()
 ```
 
-- **Declared at:** [line 427](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L427)
+- **Declared at:** [line 427](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L427)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -790,7 +790,7 @@ psyqo::GTE::Kernels::lcv1bk();
 static inline void lcv1fc()
 ```
 
-- **Declared at:** [line 435](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L435)
+- **Declared at:** [line 435](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L435)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -821,7 +821,7 @@ psyqo::GTE::Kernels::lcv1fc();
 static inline void lcv1tr()
 ```
 
-- **Declared at:** [line 419](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L419)
+- **Declared at:** [line 419](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L419)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -852,7 +852,7 @@ psyqo::GTE::Kernels::lcv1tr();
 static inline void lcv2()
 ```
 
-- **Declared at:** [line 413](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L413)
+- **Declared at:** [line 413](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L413)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -883,7 +883,7 @@ psyqo::GTE::Kernels::lcv2();
 static inline void lcv2bk()
 ```
 
-- **Declared at:** [line 429](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L429)
+- **Declared at:** [line 429](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L429)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -914,7 +914,7 @@ psyqo::GTE::Kernels::lcv2bk();
 static inline void lcv2fc()
 ```
 
-- **Declared at:** [line 437](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L437)
+- **Declared at:** [line 437](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L437)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -945,7 +945,7 @@ psyqo::GTE::Kernels::lcv2fc();
 static inline void lcv2tr()
 ```
 
-- **Declared at:** [line 421](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L421)
+- **Declared at:** [line 421](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L421)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -976,7 +976,7 @@ psyqo::GTE::Kernels::lcv2tr();
 static inline void ll()
 ```
 
-- **Declared at:** [line 337](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L337)
+- **Declared at:** [line 337](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L337)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1007,7 +1007,7 @@ psyqo::GTE::Kernels::ll();
 static inline void llir()
 ```
 
-- **Declared at:** [line 383](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L383)
+- **Declared at:** [line 383](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L383)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1038,7 +1038,7 @@ psyqo::GTE::Kernels::llir();
 static inline void llirbk()
 ```
 
-- **Declared at:** [line 399](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L399)
+- **Declared at:** [line 399](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L399)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1069,7 +1069,7 @@ psyqo::GTE::Kernels::llirbk();
 static inline void llirfc()
 ```
 
-- **Declared at:** [line 407](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L407)
+- **Declared at:** [line 407](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L407)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1100,7 +1100,7 @@ psyqo::GTE::Kernels::llirfc();
 static inline void llirtr()
 ```
 
-- **Declared at:** [line 391](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L391)
+- **Declared at:** [line 391](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L391)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1131,7 +1131,7 @@ psyqo::GTE::Kernels::llirtr();
 static inline void llv0()
 ```
 
-- **Declared at:** [line 377](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L377)
+- **Declared at:** [line 377](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L377)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1162,7 +1162,7 @@ psyqo::GTE::Kernels::llv0();
 static inline void llv0bk()
 ```
 
-- **Declared at:** [line 393](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L393)
+- **Declared at:** [line 393](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L393)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1193,7 +1193,7 @@ psyqo::GTE::Kernels::llv0bk();
 static inline void llv0fc()
 ```
 
-- **Declared at:** [line 401](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L401)
+- **Declared at:** [line 401](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L401)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1224,7 +1224,7 @@ psyqo::GTE::Kernels::llv0fc();
 static inline void llv0tr()
 ```
 
-- **Declared at:** [line 385](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L385)
+- **Declared at:** [line 385](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L385)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1255,7 +1255,7 @@ psyqo::GTE::Kernels::llv0tr();
 static inline void llv1()
 ```
 
-- **Declared at:** [line 379](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L379)
+- **Declared at:** [line 379](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L379)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1286,7 +1286,7 @@ psyqo::GTE::Kernels::llv1();
 static inline void llv1bk()
 ```
 
-- **Declared at:** [line 395](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L395)
+- **Declared at:** [line 395](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L395)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1317,7 +1317,7 @@ psyqo::GTE::Kernels::llv1bk();
 static inline void llv1fc()
 ```
 
-- **Declared at:** [line 403](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L403)
+- **Declared at:** [line 403](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L403)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1348,7 +1348,7 @@ psyqo::GTE::Kernels::llv1fc();
 static inline void llv1tr()
 ```
 
-- **Declared at:** [line 387](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L387)
+- **Declared at:** [line 387](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L387)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1379,7 +1379,7 @@ psyqo::GTE::Kernels::llv1tr();
 static inline void llv2()
 ```
 
-- **Declared at:** [line 381](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L381)
+- **Declared at:** [line 381](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L381)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1410,7 +1410,7 @@ psyqo::GTE::Kernels::llv2();
 static inline void llv2bk()
 ```
 
-- **Declared at:** [line 397](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L397)
+- **Declared at:** [line 397](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L397)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1441,7 +1441,7 @@ psyqo::GTE::Kernels::llv2bk();
 static inline void llv2fc()
 ```
 
-- **Declared at:** [line 405](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L405)
+- **Declared at:** [line 405](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L405)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1472,7 +1472,7 @@ psyqo::GTE::Kernels::llv2fc();
 static inline void llv2tr()
 ```
 
-- **Declared at:** [line 389](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L389)
+- **Declared at:** [line 389](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L389)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1503,7 +1503,7 @@ psyqo::GTE::Kernels::llv2tr();
 template <MX mx, MV v, TV cv = TV::Zero, SF sf = Shifted, LM lm = Unlimited> void mvmva()
 ```
 
-- **Declared at:** [line 325](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L325)
+- **Declared at:** [line 325](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L325)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1539,7 +1539,7 @@ object.mvmva<mx, v, cv, sf, lm>();
 static inline void nccs()
 ```
 
-- **Declared at:** [line 188](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L188)
+- **Declared at:** [line 188](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L188)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1570,7 +1570,7 @@ psyqo::GTE::Kernels::nccs();
 static inline void ncct()
 ```
 
-- **Declared at:** [line 205](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L205)
+- **Declared at:** [line 205](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L205)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1601,7 +1601,7 @@ psyqo::GTE::Kernels::ncct();
 static inline void ncds()
 ```
 
-- **Declared at:** [line 160](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L160)
+- **Declared at:** [line 160](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L160)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1632,7 +1632,7 @@ psyqo::GTE::Kernels::ncds();
 static inline void ncdt()
 ```
 
-- **Declared at:** [line 177](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L177)
+- **Declared at:** [line 177](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L177)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1663,7 +1663,7 @@ psyqo::GTE::Kernels::ncdt();
 static inline void nclip()
 ```
 
-- **Declared at:** [line 237](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L237)
+- **Declared at:** [line 237](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L237)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1694,7 +1694,7 @@ psyqo::GTE::Kernels::nclip();
 static inline void ncs()
 ```
 
-- **Declared at:** [line 135](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L135)
+- **Declared at:** [line 135](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L135)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1725,7 +1725,7 @@ psyqo::GTE::Kernels::ncs();
 static inline void nct()
 ```
 
-- **Declared at:** [line 149](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L149)
+- **Declared at:** [line 149](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L149)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1756,7 +1756,7 @@ psyqo::GTE::Kernels::nct();
 static inline void rt()
 ```
 
-- **Declared at:** [line 335](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L335)
+- **Declared at:** [line 335](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L335)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1787,7 +1787,7 @@ psyqo::GTE::Kernels::rt();
 static inline void rtir()
 ```
 
-- **Declared at:** [line 351](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L351)
+- **Declared at:** [line 351](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L351)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1818,7 +1818,7 @@ psyqo::GTE::Kernels::rtir();
 static inline void rtir_sf0()
 ```
 
-- **Declared at:** [line 341](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L341)
+- **Declared at:** [line 341](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L341)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1849,7 +1849,7 @@ psyqo::GTE::Kernels::rtir_sf0();
 static inline void rtirbk()
 ```
 
-- **Declared at:** [line 367](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L367)
+- **Declared at:** [line 367](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L367)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1880,7 +1880,7 @@ psyqo::GTE::Kernels::rtirbk();
 static inline void rtirfc()
 ```
 
-- **Declared at:** [line 375](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L375)
+- **Declared at:** [line 375](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L375)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1911,7 +1911,7 @@ psyqo::GTE::Kernels::rtirfc();
 static inline void rtirtr()
 ```
 
-- **Declared at:** [line 359](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L359)
+- **Declared at:** [line 359](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L359)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1942,7 +1942,7 @@ psyqo::GTE::Kernels::rtirtr();
 static inline void rtps()
 ```
 
-- **Declared at:** [line 58](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L58)
+- **Declared at:** [line 58](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L58)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1973,7 +1973,7 @@ psyqo::GTE::Kernels::rtps();
 static inline void rtpt()
 ```
 
-- **Declared at:** [line 69](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L69)
+- **Declared at:** [line 69](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L69)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -2004,7 +2004,7 @@ psyqo::GTE::Kernels::rtpt();
 static inline void rtv0()
 ```
 
-- **Declared at:** [line 345](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L345)
+- **Declared at:** [line 345](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L345)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -2035,7 +2035,7 @@ psyqo::GTE::Kernels::rtv0();
 static inline void rtv0bk()
 ```
 
-- **Declared at:** [line 361](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L361)
+- **Declared at:** [line 361](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L361)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -2066,7 +2066,7 @@ psyqo::GTE::Kernels::rtv0bk();
 static inline void rtv0fc()
 ```
 
-- **Declared at:** [line 369](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L369)
+- **Declared at:** [line 369](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L369)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -2097,7 +2097,7 @@ psyqo::GTE::Kernels::rtv0fc();
 static inline void rtv0tr()
 ```
 
-- **Declared at:** [line 353](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L353)
+- **Declared at:** [line 353](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L353)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -2128,7 +2128,7 @@ psyqo::GTE::Kernels::rtv0tr();
 static inline void rtv1()
 ```
 
-- **Declared at:** [line 347](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L347)
+- **Declared at:** [line 347](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L347)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -2159,7 +2159,7 @@ psyqo::GTE::Kernels::rtv1();
 static inline void rtv1bk()
 ```
 
-- **Declared at:** [line 363](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L363)
+- **Declared at:** [line 363](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L363)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -2190,7 +2190,7 @@ psyqo::GTE::Kernels::rtv1bk();
 static inline void rtv1fc()
 ```
 
-- **Declared at:** [line 371](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L371)
+- **Declared at:** [line 371](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L371)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -2221,7 +2221,7 @@ psyqo::GTE::Kernels::rtv1fc();
 static inline void rtv1tr()
 ```
 
-- **Declared at:** [line 355](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L355)
+- **Declared at:** [line 355](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L355)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -2252,7 +2252,7 @@ psyqo::GTE::Kernels::rtv1tr();
 static inline void rtv2()
 ```
 
-- **Declared at:** [line 349](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L349)
+- **Declared at:** [line 349](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L349)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -2283,7 +2283,7 @@ psyqo::GTE::Kernels::rtv2();
 static inline void rtv2bk()
 ```
 
-- **Declared at:** [line 365](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L365)
+- **Declared at:** [line 365](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L365)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -2314,7 +2314,7 @@ psyqo::GTE::Kernels::rtv2bk();
 static inline void rtv2fc()
 ```
 
-- **Declared at:** [line 373](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L373)
+- **Declared at:** [line 373](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L373)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -2345,7 +2345,7 @@ psyqo::GTE::Kernels::rtv2fc();
 static inline void rtv2tr()
 ```
 
-- **Declared at:** [line 357](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L357)
+- **Declared at:** [line 357](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L357)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -2376,7 +2376,7 @@ psyqo::GTE::Kernels::rtv2tr();
 template <SF sf = Shifted> static inline void sqr()
 ```
 
-- **Declared at:** [line 119](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gte-kernels.hh#L119)
+- **Declared at:** [line 119](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-kernels.hh#L119)
 - **Kind:** `function template`; qualifiers: `static, template`
 
 **Returns.** No value is returned; observe the documented state change or callback.

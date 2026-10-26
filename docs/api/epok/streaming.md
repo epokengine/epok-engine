@@ -68,7 +68,7 @@ This module covers bounded CD or PC geometry-page streaming. It documents 45 pub
 inline const uint8_t *streaming_acquire(uint32_t page, psyqo::GPU &gpu)
 ```
 
-- **Declared at:** [line 412](../../../runtime/streaming.hpp#L412)
+- **Declared at:** [line 421](../../../runtime/streaming.hpp#L421)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -110,7 +110,7 @@ auto result = epok::streaming_acquire(page, gpu);
 inline int streaming_acquire_slot(uint32_t page, psyqo::GPU &gpu)
 ```
 
-- **Declared at:** [line 406](../../../runtime/streaming.hpp#L406)
+- **Declared at:** [line 415](../../../runtime/streaming.hpp#L415)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -152,7 +152,7 @@ auto result = epok::streaming_acquire_slot(page, gpu);
 __attribute__((noinline)) #endif inline int streaming_acquire_slot_slow(uint32_t page, psyqo::GPU &gpu)
 ```
 
-- **Declared at:** [line 366](../../../runtime/streaming.hpp#L366)
+- **Declared at:** [line 375](../../../runtime/streaming.hpp#L375)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -196,7 +196,7 @@ auto result = epok::streaming_acquire_slot_slow(page, gpu);
 template <size_t Capacity> inline void streaming_begin_working_set(const StreamPageWorkingSet<Capacity>& pages, int (&pins)[Capacity])
 ```
 
-- **Declared at:** [line 228](../../../runtime/streaming.hpp#L228)
+- **Declared at:** [line 237](../../../runtime/streaming.hpp#L237)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -241,7 +241,7 @@ epok::streaming_begin_working_set<Capacity>(pages, pins);
 __attribute__((noinline)) #endif inline bool streaming_bind_chain(const MeshGeometry *root, StreamObjectBinding &binding, psyqo::GPU &gpu)
 ```
 
-- **Declared at:** [line 575](../../../runtime/streaming.hpp#L575)
+- **Declared at:** [line 587](../../../runtime/streaming.hpp#L587)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -285,7 +285,7 @@ auto result = epok::streaming_bind_chain(root, binding, gpu);
 inline bool streaming_bind_object(const MeshGeometry *root, StreamObjectBinding &binding, psyqo::GPU &gpu)
 ```
 
-- **Declared at:** [line 593](../../../runtime/streaming.hpp#L593)
+- **Declared at:** [line 605](../../../runtime/streaming.hpp#L605)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -331,7 +331,7 @@ auto result = epok::streaming_bind_object(root, binding, gpu);
 constexpr bool streaming_descriptor_valid(const MeshGeometry &mesh)
 ```
 
-- **Declared at:** [line 81](../../../runtime/streaming.hpp#L81)
+- **Declared at:** [line 84](../../../runtime/streaming.hpp#L84)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -371,7 +371,7 @@ auto result = epok::streaming_descriptor_valid(mesh);
 template <size_t Capacity> inline void streaming_end_working_set(const StreamPageWorkingSet<Capacity>& pages, const int (&pins)[Capacity])
 ```
 
-- **Declared at:** [line 245](../../../runtime/streaming.hpp#L245)
+- **Declared at:** [line 254](../../../runtime/streaming.hpp#L254)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -416,7 +416,7 @@ epok::streaming_end_working_set<Capacity>(pages, pins);
 inline void streaming_finish_read(int slot, uint32_t page, bool ok, bool record_error = true)
 ```
 
-- **Declared at:** [line 97](../../../runtime/streaming.hpp#L97)
+- **Declared at:** [line 100](../../../runtime/streaming.hpp#L100)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -462,7 +462,7 @@ epok::streaming_finish_read(slot, page, ok, record_error);
 inline uint32_t streaming_hash_slice(uint32_t hash, const uint8_t* data, uint32_t bytes)
 ```
 
-- **Declared at:** [line 52](../../../runtime/streaming.hpp#L52)
+- **Declared at:** [line 55](../../../runtime/streaming.hpp#L55)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -506,7 +506,7 @@ auto result = epok::streaming_hash_slice(hash, data, bytes);
 inline void streaming_lookup()
 ```
 
-- **Declared at:** [line 164](../../../runtime/streaming.hpp#L164)
+- **Declared at:** [line 167](../../../runtime/streaming.hpp#L167)
 - **Kind:** `function decl`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -539,7 +539,7 @@ epok::streaming_lookup();
 inline bool streaming_prefetch(uint32_t page)
 ```
 
-- **Declared at:** [line 344](../../../runtime/streaming.hpp#L344)
+- **Declared at:** [line 353](../../../runtime/streaming.hpp#L353)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -579,7 +579,7 @@ auto result = epok::streaming_prefetch(page);
 inline bool streaming_prefetch_needed()
 ```
 
-- **Declared at:** [line 87](../../../runtime/streaming.hpp#L87)
+- **Declared at:** [line 90](../../../runtime/streaming.hpp#L90)
 - **Kind:** `function decl`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -610,7 +610,7 @@ auto result = epok::streaming_prefetch_needed();
 inline void streaming_prepare()
 ```
 
-- **Declared at:** [line 91](../../../runtime/streaming.hpp#L91)
+- **Declared at:** [line 94](../../../runtime/streaming.hpp#L94)
 - **Kind:** `function decl`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -641,7 +641,7 @@ epok::streaming_prepare();
 inline void streaming_release(uint32_t page)
 ```
 
-- **Declared at:** [line 415](../../../runtime/streaming.hpp#L415)
+- **Declared at:** [line 424](../../../runtime/streaming.hpp#L424)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -683,7 +683,7 @@ epok::streaming_release(page);
 inline bool streaming_request_page(uint32_t page)
 ```
 
-- **Declared at:** [line 261](../../../runtime/streaming.hpp#L261)
+- **Declared at:** [line 270](../../../runtime/streaming.hpp#L270)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -725,7 +725,7 @@ auto result = epok::streaming_request_page(page);
 inline bool streaming_required_page_ready(uint32_t page,bool& serviced)
 ```
 
-- **Declared at:** [line 155](../../../runtime/streaming.hpp#L155)
+- **Declared at:** [line 158](../../../runtime/streaming.hpp#L158)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -767,7 +767,7 @@ auto result = epok::streaming_required_page_ready(page, serviced);
 __attribute__((noinline)) #endif inline StreamMeshView streaming_resolve_archive_mesh(const MeshGeometry &mesh, psyqo::GPU &gpu, bool metadata_validated)
 ```
 
-- **Declared at:** [line 548](../../../runtime/streaming.hpp#L548)
+- **Declared at:** [line 560](../../../runtime/streaming.hpp#L560)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -813,7 +813,7 @@ auto result = epok::streaming_resolve_archive_mesh(mesh, gpu, metadata_validated
 inline const uint8_t *streaming_resolve_stable(uint32_t page, psyqo::GPU &gpu)
 ```
 
-- **Declared at:** [line 433](../../../runtime/streaming.hpp#L433)
+- **Declared at:** [line 445](../../../runtime/streaming.hpp#L445)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -857,7 +857,7 @@ auto result = epok::streaming_resolve_stable(page, gpu);
 inline bool streaming_retry()
 ```
 
-- **Declared at:** [line 419](../../../runtime/streaming.hpp#L419)
+- **Declared at:** [line 428](../../../runtime/streaming.hpp#L428)
 - **Kind:** `function decl`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -888,7 +888,7 @@ auto result = epok::streaming_retry();
 inline void streaming_scene_changed()
 ```
 
-- **Declared at:** [line 86](../../../runtime/streaming.hpp#L86)
+- **Declared at:** [line 89](../../../runtime/streaming.hpp#L89)
 - **Kind:** `function decl`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -919,7 +919,7 @@ epok::streaming_scene_changed();
 inline void streaming_service_gameplay_requests()
 ```
 
-- **Declared at:** [line 273](../../../runtime/streaming.hpp#L273)
+- **Declared at:** [line 282](../../../runtime/streaming.hpp#L282)
 - **Kind:** `function decl`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -950,7 +950,7 @@ epok::streaming_service_gameplay_requests();
 inline bool streaming_start_read(uint32_t page)
 ```
 
-- **Declared at:** [line 188](../../../runtime/streaming.hpp#L188)
+- **Declared at:** [line 194](../../../runtime/streaming.hpp#L194)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -992,7 +992,7 @@ auto result = epok::streaming_start_read(page);
 inline void streaming_tick()
 ```
 
-- **Declared at:** [line 144](../../../runtime/streaming.hpp#L144)
+- **Declared at:** [line 147](../../../runtime/streaming.hpp#L147)
 - **Kind:** `function decl`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1023,7 +1023,7 @@ epok::streaming_tick();
 inline uint16_t streaming_verify_clock()
 ```
 
-- **Declared at:** [line 45](../../../runtime/streaming.hpp#L45)
+- **Declared at:** [line 48](../../../runtime/streaming.hpp#L48)
 - **Kind:** `function decl`
 
 **Returns.** Returns `uint16_t`. Check the purpose and failure notes before using the value.
@@ -1054,7 +1054,7 @@ auto result = epok::streaming_verify_clock();
 inline void streaming_verify_slice()
 ```
 
-- **Declared at:** [line 110](../../../runtime/streaming.hpp#L110)
+- **Declared at:** [line 113](../../../runtime/streaming.hpp#L113)
 - **Kind:** `function decl`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1087,7 +1087,7 @@ epok::streaming_verify_slice();
 inline bool streaming_warmup(const uint32_t *pages, size_t count, psyqo::GPU &gpu)
 ```
 
-- **Declared at:** [line 454](../../../runtime/streaming.hpp#L454)
+- **Declared at:** [line 466](../../../runtime/streaming.hpp#L466)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1133,7 +1133,7 @@ auto result = epok::streaming_warmup(pages, count, gpu);
 template <class ActorData, class Active> inline bool streaming_warmup_scene(const ActorData *objects, size_t count, Active &&active, psyqo::GPU &gpu)
 ```
 
-- **Declared at:** [line 496](../../../runtime/streaming.hpp#L496)
+- **Declared at:** [line 508](../../../runtime/streaming.hpp#L508)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -1182,7 +1182,7 @@ auto result = epok::streaming_warmup_scene<ActorData, Active>(objects, count, ac
 template <size_t Capacity> inline bool streaming_working_page_ready(const StreamPageWorkingSet<Capacity>& pages, uint32_t page)
 ```
 
-- **Declared at:** [line 252](../../../runtime/streaming.hpp#L252)
+- **Declared at:** [line 261](../../../runtime/streaming.hpp#L261)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -1229,7 +1229,7 @@ auto result = epok::streaming_working_page_ready<Capacity>(pages, page);
 const MeshGeometry *geometry() const
 ```
 
-- **Declared at:** [line 725](../../../runtime/streaming.hpp#L725)
+- **Declared at:** [line 737](../../../runtime/streaming.hpp#L737)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `const MeshGeometry *`. Check the purpose and failure notes before using the value.
@@ -1262,7 +1262,7 @@ auto result = object.geometry();
 StreamMeshLease &operator=(const StreamMeshLease &) = delete
 ```
 
-- **Declared at:** [line 714](../../../runtime/streaming.hpp#L714)
+- **Declared at:** [line 726](../../../runtime/streaming.hpp#L726)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1304,7 +1304,7 @@ auto result = object.operator=(arg1);
 const MeshQuad *quads() const
 ```
 
-- **Declared at:** [line 719](../../../runtime/streaming.hpp#L719)
+- **Declared at:** [line 731](../../../runtime/streaming.hpp#L731)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `const MeshQuad *`. Check the purpose and failure notes before using the value.
@@ -1337,7 +1337,7 @@ auto result = object.quads();
 StreamMeshLease(const MeshGeometry &mesh, psyqo::GPU &gpu, StreamPageCursor *cursor = nullptr, bool metadata_validated = false)
 ```
 
-- **Declared at:** [line 677](../../../runtime/streaming.hpp#L677)
+- **Declared at:** [line 689](../../../runtime/streaming.hpp#L689)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -1381,7 +1381,7 @@ epok::StreamMeshLease value(mesh, gpu, cursor, metadata_validated);
 StreamMeshLease(const StreamMeshLease &) = delete
 ```
 
-- **Declared at:** [line 713](../../../runtime/streaming.hpp#L713)
+- **Declared at:** [line 725](../../../runtime/streaming.hpp#L725)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -1419,7 +1419,7 @@ epok::StreamMeshLease value(arg1);
 bool valid() const
 ```
 
-- **Declared at:** [line 715](../../../runtime/streaming.hpp#L715)
+- **Declared at:** [line 727](../../../runtime/streaming.hpp#L727)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -1452,7 +1452,7 @@ auto result = object.valid();
 MeshVertices vertices() const
 ```
 
-- **Declared at:** [line 716](../../../runtime/streaming.hpp#L716)
+- **Declared at:** [line 728](../../../runtime/streaming.hpp#L728)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `MeshVertices`. Check the purpose and failure notes before using the value.
@@ -1485,7 +1485,7 @@ auto result = object.vertices();
 ~StreamMeshLease()
 ```
 
-- **Declared at:** [line 707](../../../runtime/streaming.hpp#L707)
+- **Declared at:** [line 719](../../../runtime/streaming.hpp#L719)
 - **Kind:** `destructor`
 
 **Use it when.** You need bounded CD or PC geometry-page streaming and the preconditions in the declaration are already satisfied.
@@ -1514,7 +1514,7 @@ auto result = object.vertices();
 const uint8_t *borrow(uint32_t page, psyqo::GPU &gpu)
 ```
 
-- **Declared at:** [line 631](../../../runtime/streaming.hpp#L631)
+- **Declared at:** [line 643](../../../runtime/streaming.hpp#L643)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1558,7 +1558,7 @@ auto result = object.borrow(page, gpu);
 StreamPageCursor &operator=(const StreamPageCursor &) = delete
 ```
 
-- **Declared at:** [line 620](../../../runtime/streaming.hpp#L620)
+- **Declared at:** [line 632](../../../runtime/streaming.hpp#L632)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1600,7 +1600,7 @@ auto result = object.operator=(arg1);
 bool release()
 ```
 
-- **Declared at:** [line 625](../../../runtime/streaming.hpp#L625)
+- **Declared at:** [line 637](../../../runtime/streaming.hpp#L637)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -1633,7 +1633,7 @@ auto result = object.release();
 bool release_borrow(uint32_t page)
 ```
 
-- **Declared at:** [line 636](../../../runtime/streaming.hpp#L636)
+- **Declared at:** [line 648](../../../runtime/streaming.hpp#L648)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1677,7 +1677,7 @@ auto result = object.release_borrow(page);
 StreamMeshView resolve(const MeshGeometry &mesh, psyqo::GPU &gpu, bool metadata_validated = false)
 ```
 
-- **Declared at:** [line 645](../../../runtime/streaming.hpp#L645)
+- **Declared at:** [line 657](../../../runtime/streaming.hpp#L657)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1723,7 +1723,7 @@ auto result = object.resolve(mesh, gpu, metadata_validated);
 StreamPageCursor() = default
 ```
 
-- **Declared at:** [line 618](../../../runtime/streaming.hpp#L618)
+- **Declared at:** [line 630](../../../runtime/streaming.hpp#L630)
 - **Kind:** `constructor`
 
 **Use it when.** You need bounded CD or PC geometry-page streaming and the preconditions in the declaration are already satisfied.
@@ -1752,7 +1752,7 @@ epok::StreamPageCursor value();
 StreamPageCursor(const StreamPageCursor &) = delete
 ```
 
-- **Declared at:** [line 619](../../../runtime/streaming.hpp#L619)
+- **Declared at:** [line 631](../../../runtime/streaming.hpp#L631)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -1790,7 +1790,7 @@ epok::StreamPageCursor value(arg1);
 ~StreamPageCursor()
 ```
 
-- **Declared at:** [line 621](../../../runtime/streaming.hpp#L621)
+- **Declared at:** [line 633](../../../runtime/streaming.hpp#L633)
 - **Kind:** `destructor`
 
 **Use it when.** You need bounded CD or PC geometry-page streaming and the preconditions in the declaration are already satisfied.

@@ -62,6 +62,50 @@ holds for [videos](video.md), which In executable and PC on demand reject and
 Serial builds skip. Choosing
 CD without external data still runs the EXE without creating an empty data disc.
 
+## Native PC Play
+
+The **Runtime** choice in Play options selects **Native PC** or **PlayStation**.
+Native PC runs the generated C++ gameplay in a separate host process with the
+same fixed 60 Hz simulation clock. Actor and HUD snapshots return to the editor
+renderer. The PlayStation runner and data-source choices are retained for the
+next PlayStation session; Native PC does not use PCDrv or CD loading.
+
+Native PC prepares every included scene using the same scene-bank generator and
+portable lifecycle as PlayStation. **Current scene**, **Whole game** and
+**Selected scenes** honor the initial scene and included unsaved edits. Requests
+by name or bank index return false for excluded or invalid destinations.
+Scene banks stay resident in the native process; the PlayStation data-source
+setting does not change that behavior.
+
+Transitions apply project defaults and `TransitionOptions`: fade out, present a
+loading screen with text and an optional RGB555 image, change scene, then fade
+in. Audio gain follows the fade without modifying authored volume. Outgoing
+actors receive end-play, old handles are invalidated, scene services reset, and
+the new bank receives begin-play. Requests from these callbacks are queued for
+the next transition. Session state, including native memory-card files, survives
+scene changes.
+
+Pause freezes both gameplay and transitions. Reset restarts at the selected
+initial bank; Stop closes the native session, including a pending transition.
+The native artifact key includes all banks and their generated resources, so
+editing an inactive included map invalidates the cached executable. Visibility
+camera recording stays with bank zero, skips transition frames, and includes
+the scene name and generation in each recorded sample.
+
+Native spatial queries include `SpatialQueryBatch`: notify it of direct edits
+with `sync`/`changed`, and movement publishes updated collider bounds for later
+queries in that batch. `prewarm_geometry` returns false on Native PC because the
+editor renderer has no PSX retained-packet cache; meshes still draw normally.
+Native PC performance is not a measurement of PlayStation hardware timing.
+
+Controller rumble uses the physical gamepad assigned to that logical pad in
+**Project Settings > Controls**. Native PC supports device-reported force
+feedback on Windows/Linux; its current macOS backend reports unsupported.
+The **Rumble** preference under Play mutes output globally. Pausing, stopping,
+resetting or losing Game capture cancels the pulse. The native protocol carries
+device identity and finite output deadlines, so stale frames cannot extend an
+effect indefinitely. See [controller rumble](input-collision.md#controller-rumble).
+
 ## Repeated Play and embedded startup
 
 Stop releases Game input and returns focus to Scene. Once Play has stopped,
@@ -193,20 +237,57 @@ changes only after a handler acknowledgement. Unsupported commands or a five-sec
 reply timeout are reported in Console. After a timeout, a fresh `PING`/`PONG`
 resynchronizes the session before Continue or Reset can be retried; if that fails,
 Epok disconnects with an error. A reset acknowledgement ends the session.
-A reboot without an acknowledgement remains unconfirmed; Stop releases that
-session. Reset does not automatically reload the game or guarantee a return to
+A reboot without an acknowledgement remains unconfirmed. Reset does not
+automatically reload the game or guarantee a return to
 Unirom: wait for the loader before the next Play. MCP exposes these controls as
 `editor_control` actions `pause`, `resume`, and `reset_psx`, with
 `serial.command_pending` in `editor_state`.
 
+During a connected serial Play session, **Stop** requests a PSX reset before
+disconnecting. It waits for an existing command to finish, preserves the
+PING/PONG resynchronization barrier after a timeout, and allows at most twelve
+seconds for recovery. A rejected or unacknowledged reset produces a red error;
+closing the PC connection alone is not reported as stopping the console. Stop
+during compilation/startup cancels that operation without a console reset.
+Editor shutdown still releases its owned process without issuing a reset.
+
+**Reset PSX** is also available with Play stopped: use **R** in the toolbar when
+Serial is selected, **Game > Reset PSX**, or the button in **PSX connection**.
+It reconnects to the selected adapter and requests `/reset` with an eight-second
+transport deadline, without installing a handler or uploading an executable.
+MCP `editor_control` action `reset_psx` supports the same recovery. The handler
+must still respond; otherwise use the console's physical reset. A PONG proves
+handler responsiveness, not that the old game's frame loop is progressing or
+that the loader is ready. Play still starts from the Unirom loader; it does not
+silently reset and overwrite an unknown previous execution.
+
+Console opens with a red error message when the resident monitor reports an
+unexpected halt. Epok keeps the monitor connected and marks the PSX as paused so
+**Continue PSX** and **Reset PSX** can still be requested. The pinned NOTPSXSerial
+monitor automatically attempts a register dump after its halt notice; when that
+dump reports a CPU exception, the Console message includes its type. Register
+values remain in the selectable serial log. A manual Pause and its register dump
+do not produce an exception alert. Command rejection, missing acknowledgements,
+transport failure, PsyQo `Abort at ...` messages and Lua callback errors also
+produce red diagnostics with distinct descriptions.
+
+These diagnostics require a report from the console or transport. Silence alone
+does not prove an exception, and an infinite loop or disabled/corrupted resident
+handler can prevent both fault reporting and serial recovery. No automatic reset,
+resume or additional polling is sent on a runtime fault. MCP exposes the last
+reported runtime issue as `runtime_error` and the visible Console message as
+`console_error` in `editor_state`; `logs_read` includes the `ERROR:` entries.
+Clear dismisses the Console message; a new Play also clears the runtime issue.
+
 Video and controller input stay on the console. Frame stepping and Blueprint
-debugging are emulator features. Stop terminates only this session's nops process;
-it does not halt, resume or reset the PSX. PC data requires the monitor to remain connected.
+debugging are emulator features. PC data requires the monitor to remain connected.
 A BIOS PCDrv call can remain blocked after transport disconnection; a host timeout
 cannot unwind it. Hardware validation is separate from emulator/process tests.
 
 Protocol references: [NOTPSXSerial](https://github.com/JonathanDotCel/NOTPSXSerial)
 and its [PCDrv handler](https://github.com/JonathanDotCel/NOTPSXSerial/blob/master/PCDrv.cs).
+Halt reporting follows the pinned [monitor](https://github.com/JonathanDotCel/NOTPSXSerial/blob/7c6afdd911281485f05a8e56ff9e2165599544f0/Bridge.cs#L367)
+and [register dump](https://github.com/JonathanDotCel/NOTPSXSerial/blob/7c6afdd911281485f05a8e56ff9e2165599544f0/CPU.cs#L327).
 
 ## Critical operations
 

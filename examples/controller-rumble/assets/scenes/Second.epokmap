@@ -1,0 +1,956 @@
+version: 6
+name: Second
+actors:
+- id: 91c94317-5ae8-5709-af67-f4720f02c9cf
+  class: &id001
+    class_id: b09bd2fa-8b09-4c0f-a33a-c3ca08b21d8f
+    name: epok::UIActor
+  name: Canvas
+  active: true
+  overrides: []
+  properties: {}
+  components:
+  - id: 3148db1f-6059-5331-8157-fd7fc47432d2
+    class: &id002
+      class_id: dc805165-6c65-48dc-8ff8-4a638a5d21df
+      name: epok::RectTransformComponent
+    name: Canvas Rect
+    root: true
+    overrides:
+    - rect
+    properties:
+      rect:
+        anchor_min:
+        - 0.0
+        - 1.0
+        anchor_max:
+        - 0.0
+        - 1.0
+        pivot:
+        - 0.0
+        - 1.0
+        position:
+        - 0.0
+        - 0.0
+        size:
+        - 320.0
+        - 240.0
+        rotation: 0.0
+  - id: 8e167978-9db0-5a8f-9d2b-3c4b678c5023
+    class:
+      class_id: f2cfb26b-af53-4a46-9d91-1debea72e01b
+      name: epok::CanvasComponent
+    name: Canvas Component
+    root: false
+    overrides:
+    - canvas
+    properties:
+      canvas:
+        enabled: true
+        focused: -1
+- id: 54ea4440-f429-5fbc-ba9b-0f178779da03
+  class: *id001
+  name: Instructions 0
+  active: true
+  logical_parent: 91c94317-5ae8-5709-af67-f4720f02c9cf
+  attach:
+    actor: 91c94317-5ae8-5709-af67-f4720f02c9cf
+  overrides: []
+  properties: {}
+  components:
+  - id: f028105e-3ff4-501e-b7c3-213f2319ec7d
+    class: *id002
+    name: Instructions 0 Rect
+    root: true
+    overrides:
+    - rect
+    properties:
+      rect:
+        anchor_min:
+        - 0.0
+        - 1.0
+        anchor_max:
+        - 0.0
+        - 1.0
+        pivot:
+        - 0.0
+        - 1.0
+        position:
+        - 8.0
+        - -8.0
+        size:
+        - 300.0
+        - 16.0
+        rotation: 0.0
+  - id: 6f63cf13-4165-5ac2-881d-67218e3bcf06
+    class: &id003
+      class_id: fd7f11d1-7ccf-40e8-a7ea-56d89deb3f34
+      name: epok::TextComponent
+    name: Instructions 0 Text
+    root: false
+    overrides:
+    - text
+    properties:
+      text:
+        enabled: true
+        text: SELECT pad / START pause
+        align: left
+        wrap: false
+        color:
+        - 0.9
+        - 0.95
+        - 1.0
+- id: 3db2a83a-7a0c-5c33-b978-acdee08a72b1
+  class: *id001
+  name: Instructions 1
+  active: true
+  logical_parent: 91c94317-5ae8-5709-af67-f4720f02c9cf
+  attach:
+    actor: 91c94317-5ae8-5709-af67-f4720f02c9cf
+  overrides: []
+  properties: {}
+  components:
+  - id: 196fb32b-3370-509e-b7a1-f5429e4a0373
+    class: *id002
+    name: Instructions 1 Rect
+    root: true
+    overrides:
+    - rect
+    properties:
+      rect:
+        anchor_min:
+        - 0.0
+        - 1.0
+        anchor_max:
+        - 0.0
+        - 1.0
+        pivot:
+        - 0.0
+        - 1.0
+        position:
+        - 8.0
+        - -24.0
+        size:
+        - 300.0
+        - 16.0
+        rotation: 0.0
+  - id: fe06378c-16a1-5677-a6b0-fd89b65673c6
+    class: *id003
+    name: Instructions 1 Text
+    root: false
+    overrides:
+    - text
+    properties:
+      text:
+        enabled: true
+        text: CROSS large / CIRCLE small
+        align: left
+        wrap: false
+        color:
+        - 0.9
+        - 0.95
+        - 1.0
+- id: b6b1d6eb-e445-5d5f-9c5c-abcb6f6a39f7
+  class: *id001
+  name: Instructions 2
+  active: true
+  logical_parent: 91c94317-5ae8-5709-af67-f4720f02c9cf
+  attach:
+    actor: 91c94317-5ae8-5709-af67-f4720f02c9cf
+  overrides: []
+  properties: {}
+  components:
+  - id: 9e3a5b8d-7e9b-5b16-bbf5-9be201ee595e
+    class: *id002
+    name: Instructions 2 Rect
+    root: true
+    overrides:
+    - rect
+    properties:
+      rect:
+        anchor_min:
+        - 0.0
+        - 1.0
+        anchor_max:
+        - 0.0
+        - 1.0
+        pivot:
+        - 0.0
+        - 1.0
+        position:
+        - 8.0
+        - -40.0
+        size:
+        - 300.0
+        - 16.0
+        rotation: 0.0
+  - id: 4630d96e-4dba-564a-96ed-09c904ef270a
+    class: *id003
+    name: Instructions 2 Text
+    root: false
+    overrides:
+    - text
+    properties:
+      text:
+        enabled: true
+        text: SQUARE both / TRIANGLE 2 seconds
+        align: left
+        wrap: false
+        color:
+        - 0.9
+        - 0.95
+        - 1.0
+- id: f8a12f8e-115e-5be6-b90d-0b0862bc2e06
+  class: *id001
+  name: Instructions 3
+  active: true
+  logical_parent: 91c94317-5ae8-5709-af67-f4720f02c9cf
+  attach:
+    actor: 91c94317-5ae8-5709-af67-f4720f02c9cf
+  overrides: []
+  properties: {}
+  components:
+  - id: 25b4fd85-6905-58ae-b605-fced47150bc8
+    class: *id002
+    name: Instructions 3 Rect
+    root: true
+    overrides:
+    - rect
+    properties:
+      rect:
+        anchor_min:
+        - 0.0
+        - 1.0
+        anchor_max:
+        - 0.0
+        - 1.0
+        pivot:
+        - 0.0
+        - 1.0
+        position:
+        - 8.0
+        - -56.0
+        size:
+        - 300.0
+        - 16.0
+        rotation: 0.0
+  - id: 88c2daf3-a2b7-5824-a580-648451823055
+    class: *id003
+    name: Instructions 3 Text
+    root: false
+    overrides:
+    - text
+    properties:
+      text:
+        enabled: true
+        text: L1 stop / R1 enable / R2 scene
+        align: left
+        wrap: false
+        color:
+        - 0.9
+        - 0.95
+        - 1.0
+- id: 3afd79b5-eaeb-5311-b3bf-480a2bf04de1
+  class: *id001
+  name: Pad title
+  active: true
+  logical_parent: 91c94317-5ae8-5709-af67-f4720f02c9cf
+  attach:
+    actor: 91c94317-5ae8-5709-af67-f4720f02c9cf
+  overrides: []
+  properties: {}
+  components:
+  - id: f506a89f-b714-5118-9490-6e6004c41c20
+    class: *id002
+    name: Pad title Rect
+    root: true
+    overrides:
+    - rect
+    properties:
+      rect:
+        anchor_min:
+        - 0.0
+        - 1.0
+        anchor_max:
+        - 0.0
+        - 1.0
+        pivot:
+        - 0.0
+        - 1.0
+        position:
+        - 8.0
+        - -88.0
+        size:
+        - 300.0
+        - 16.0
+        rotation: 0.0
+  - id: f6a29f1a-3ffb-56ef-afe0-dd3da8574f93
+    class: *id003
+    name: Pad title Text
+    root: false
+    overrides:
+    - text
+    properties:
+      text:
+        enabled: true
+        text: 'Pad:'
+        align: left
+        wrap: false
+        color:
+        - 0.9
+        - 0.95
+        - 1.0
+- id: 2f16decf-1a5b-579f-9092-ad6da44c6341
+  class: *id001
+  name: State title
+  active: true
+  logical_parent: 91c94317-5ae8-5709-af67-f4720f02c9cf
+  attach:
+    actor: 91c94317-5ae8-5709-af67-f4720f02c9cf
+  overrides: []
+  properties: {}
+  components:
+  - id: 2da3d975-0757-5cc4-8e8b-6f78199974f8
+    class: *id002
+    name: State title Rect
+    root: true
+    overrides:
+    - rect
+    properties:
+      rect:
+        anchor_min:
+        - 0.0
+        - 1.0
+        anchor_max:
+        - 0.0
+        - 1.0
+        pivot:
+        - 0.0
+        - 1.0
+        position:
+        - 8.0
+        - -112.0
+        size:
+        - 300.0
+        - 16.0
+        rotation: 0.0
+  - id: 4cd7ffce-1509-597f-8b25-66f9113caffb
+    class: *id003
+    name: State title Text
+    root: false
+    overrides:
+    - text
+    properties:
+      text:
+        enabled: true
+        text: 'State:'
+        align: left
+        wrap: false
+        color:
+        - 0.9
+        - 0.95
+        - 1.0
+- id: f018dcc0-d361-5493-bdff-d19d4f782dac
+  class: *id001
+  name: Request title
+  active: true
+  logical_parent: 91c94317-5ae8-5709-af67-f4720f02c9cf
+  attach:
+    actor: 91c94317-5ae8-5709-af67-f4720f02c9cf
+  overrides: []
+  properties: {}
+  components:
+  - id: 482e1eac-3639-5b1e-84d8-1af26d1f8900
+    class: *id002
+    name: Request title Rect
+    root: true
+    overrides:
+    - rect
+    properties:
+      rect:
+        anchor_min:
+        - 0.0
+        - 1.0
+        anchor_max:
+        - 0.0
+        - 1.0
+        pivot:
+        - 0.0
+        - 1.0
+        position:
+        - 8.0
+        - -136.0
+        size:
+        - 300.0
+        - 16.0
+        rotation: 0.0
+  - id: cb3bc0a4-9f4c-53d3-aba5-7acf27e58fa2
+    class: *id003
+    name: Request title Text
+    root: false
+    overrides:
+    - text
+    properties:
+      text:
+        enabled: true
+        text: 'Request:'
+        align: left
+        wrap: false
+        color:
+        - 0.9
+        - 0.95
+        - 1.0
+- id: db029136-7e9b-52c6-91c1-8589e680f939
+  class: *id001
+  name: States 1
+  active: true
+  logical_parent: 91c94317-5ae8-5709-af67-f4720f02c9cf
+  attach:
+    actor: 91c94317-5ae8-5709-af67-f4720f02c9cf
+  overrides: []
+  properties: {}
+  components:
+  - id: 8660d23d-0d28-52dc-b935-f1def6efe232
+    class: *id002
+    name: States 1 Rect
+    root: true
+    overrides:
+    - rect
+    properties:
+      rect:
+        anchor_min:
+        - 0.0
+        - 1.0
+        anchor_max:
+        - 0.0
+        - 1.0
+        pivot:
+        - 0.0
+        - 1.0
+        position:
+        - 8.0
+        - -160.0
+        size:
+        - 300.0
+        - 16.0
+        rotation: 0.0
+  - id: 0eb81e89-6b74-56c8-9d73-9e0a4cac4712
+    class: *id003
+    name: States 1 Text
+    root: false
+    overrides:
+    - text
+    properties:
+      text:
+        enabled: true
+        text: 0 no input / 1 unsupported / 2 probing
+        align: left
+        wrap: false
+        color:
+        - 0.9
+        - 0.95
+        - 1.0
+- id: 100f3323-90be-5f8e-a1dc-77957cd48cdd
+  class: *id001
+  name: States 2
+  active: true
+  logical_parent: 91c94317-5ae8-5709-af67-f4720f02c9cf
+  attach:
+    actor: 91c94317-5ae8-5709-af67-f4720f02c9cf
+  overrides: []
+  properties: {}
+  components:
+  - id: f8cb4a8a-9ffe-59b1-8587-f96d157d9d34
+    class: *id002
+    name: States 2 Rect
+    root: true
+    overrides:
+    - rect
+    properties:
+      rect:
+        anchor_min:
+        - 0.0
+        - 1.0
+        anchor_max:
+        - 0.0
+        - 1.0
+        pivot:
+        - 0.0
+        - 1.0
+        position:
+        - 8.0
+        - -176.0
+        size:
+        - 300.0
+        - 16.0
+        rotation: 0.0
+  - id: 40411069-606f-5d16-840e-e655d4640b3d
+    class: *id003
+    name: States 2 Text
+    root: false
+    overrides:
+    - text
+    properties:
+      text:
+        enabled: true
+        text: 3 disabled / 4 ready / 5 active
+        align: left
+        wrap: false
+        color:
+        - 0.9
+        - 0.95
+        - 1.0
+- id: 62c7a1d7-d40a-589a-a14e-fab6d4f2ddc0
+  class: *id001
+  name: States 3
+  active: true
+  logical_parent: 91c94317-5ae8-5709-af67-f4720f02c9cf
+  attach:
+    actor: 91c94317-5ae8-5709-af67-f4720f02c9cf
+  overrides: []
+  properties: {}
+  components:
+  - id: eccc9e4c-ea37-5889-9d82-0aaa73109d6e
+    class: *id002
+    name: States 3 Rect
+    root: true
+    overrides:
+    - rect
+    properties:
+      rect:
+        anchor_min:
+        - 0.0
+        - 1.0
+        anchor_max:
+        - 0.0
+        - 1.0
+        pivot:
+        - 0.0
+        - 1.0
+        position:
+        - 8.0
+        - -192.0
+        size:
+        - 300.0
+        - 16.0
+        rotation: 0.0
+  - id: 1d0aaee2-ae89-5ba9-9345-df7e1fbf5ab7
+    class: *id003
+    name: States 3 Text
+    root: false
+    overrides:
+    - text
+    properties:
+      text:
+        enabled: true
+        text: 6 paused
+        align: left
+        wrap: false
+        color:
+        - 0.9
+        - 0.95
+        - 1.0
+- id: f9345eb5-3346-50ed-be87-83a255617b3c
+  class: *id001
+  name: Results
+  active: true
+  logical_parent: 91c94317-5ae8-5709-af67-f4720f02c9cf
+  attach:
+    actor: 91c94317-5ae8-5709-af67-f4720f02c9cf
+  overrides: []
+  properties: {}
+  components:
+  - id: 04cda8a9-a0a4-55f9-b9f6-bc6bdc3489fb
+    class: *id002
+    name: Results Rect
+    root: true
+    overrides:
+    - rect
+    properties:
+      rect:
+        anchor_min:
+        - 0.0
+        - 1.0
+        anchor_max:
+        - 0.0
+        - 1.0
+        pivot:
+        - 0.0
+        - 1.0
+        position:
+        - 8.0
+        - -208.0
+        size:
+        - 300.0
+        - 16.0
+        rotation: 0.0
+  - id: f589d878-7b43-514e-948d-cfc8c9e5bcdd
+    class: *id003
+    name: Results Text
+    root: false
+    overrides:
+    - text
+    properties:
+      text:
+        enabled: true
+        text: Request 0 none / 1 OK / 2 rejected
+        align: left
+        wrap: false
+        color:
+        - 0.9
+        - 0.95
+        - 1.0
+- id: 9404164a-6e67-56e5-859e-b1bcf5770af9
+  class: *id001
+  name: Scene
+  active: true
+  logical_parent: 91c94317-5ae8-5709-af67-f4720f02c9cf
+  attach:
+    actor: 91c94317-5ae8-5709-af67-f4720f02c9cf
+  overrides: []
+  properties: {}
+  components:
+  - id: ce803461-d8b8-5710-a24e-771b7322a43f
+    class: *id002
+    name: Scene Rect
+    root: true
+    overrides:
+    - rect
+    properties:
+      rect:
+        anchor_min:
+        - 0.0
+        - 1.0
+        anchor_max:
+        - 0.0
+        - 1.0
+        pivot:
+        - 0.0
+        - 1.0
+        position:
+        - 8.0
+        - -224.0
+        size:
+        - 300.0
+        - 16.0
+        rotation: 0.0
+  - id: 61fd41fd-bc4c-5a02-8490-fe78e71e7aec
+    class: *id003
+    name: Scene Text
+    root: false
+    overrides:
+    - text
+    properties:
+      text:
+        enabled: true
+        text: Scene B
+        align: left
+        wrap: false
+        color:
+        - 0.9
+        - 0.95
+        - 1.0
+- id: a0eca1fd-cafe-59dd-bee4-06f11d50c5b9
+  class: *id001
+  name: Port
+  active: true
+  logical_parent: 91c94317-5ae8-5709-af67-f4720f02c9cf
+  attach:
+    actor: 91c94317-5ae8-5709-af67-f4720f02c9cf
+  overrides: []
+  properties: {}
+  components:
+  - id: 42abc831-05ed-5600-b83f-f3e52d42eef2
+    class: *id002
+    name: Port Rect
+    root: true
+    overrides:
+    - rect
+    properties:
+      rect:
+        anchor_min:
+        - 0.0
+        - 1.0
+        anchor_max:
+        - 0.0
+        - 1.0
+        pivot:
+        - 0.0
+        - 1.0
+        position:
+        - 80.0
+        - -88.0
+        size:
+        - 32.0
+        - 16.0
+        rotation: 0.0
+  - id: a9c4900e-56f9-5267-b490-202a8a7e3953
+    class: *id003
+    name: Port Text
+    root: false
+    overrides:
+    - text
+    properties:
+      text:
+        enabled: true
+        text: '0'
+        align: left
+        wrap: false
+        color:
+        - 0.9
+        - 0.95
+        - 1.0
+- id: f1b50d3d-9284-57a1-af91-553ef2e38047
+  class: *id001
+  name: State
+  active: true
+  logical_parent: 91c94317-5ae8-5709-af67-f4720f02c9cf
+  attach:
+    actor: 91c94317-5ae8-5709-af67-f4720f02c9cf
+  overrides: []
+  properties: {}
+  components:
+  - id: c3556b12-7761-563f-934c-ee211354ff36
+    class: *id002
+    name: State Rect
+    root: true
+    overrides:
+    - rect
+    properties:
+      rect:
+        anchor_min:
+        - 0.0
+        - 1.0
+        anchor_max:
+        - 0.0
+        - 1.0
+        pivot:
+        - 0.0
+        - 1.0
+        position:
+        - 80.0
+        - -112.0
+        size:
+        - 32.0
+        - 16.0
+        rotation: 0.0
+  - id: 697c7ccc-77d0-58fe-a29d-a0453c363dcc
+    class: *id003
+    name: State Text
+    root: false
+    overrides:
+    - text
+    properties:
+      text:
+        enabled: true
+        text: '0'
+        align: left
+        wrap: false
+        color:
+        - 0.9
+        - 0.95
+        - 1.0
+- id: 5ae2bf58-a79f-5af9-b796-28b9d9e359e8
+  class: *id001
+  name: Result
+  active: true
+  logical_parent: 91c94317-5ae8-5709-af67-f4720f02c9cf
+  attach:
+    actor: 91c94317-5ae8-5709-af67-f4720f02c9cf
+  overrides: []
+  properties: {}
+  components:
+  - id: 22e414a0-20ec-524e-9d92-756a9053b943
+    class: *id002
+    name: Result Rect
+    root: true
+    overrides:
+    - rect
+    properties:
+      rect:
+        anchor_min:
+        - 0.0
+        - 1.0
+        anchor_max:
+        - 0.0
+        - 1.0
+        pivot:
+        - 0.0
+        - 1.0
+        position:
+        - 80.0
+        - -136.0
+        size:
+        - 32.0
+        - 16.0
+        rotation: 0.0
+  - id: e943271e-b37c-5ba4-b495-13041c0caf8a
+    class: *id003
+    name: Result Text
+    root: false
+    overrides:
+    - text
+    properties:
+      text:
+        enabled: true
+        text: '0'
+        align: left
+        wrap: false
+        color:
+        - 0.9
+        - 0.95
+        - 1.0
+- id: edd70477-d2f7-5ba2-ba7c-10f863992090
+  class:
+    class_id: c564a2c2-5081-47cd-8f36-d9c33541e3a8
+    name: RumbleDemo
+  name: Rumble Demo
+  active: true
+  overrides:
+  - next_scene
+  - port_label
+  - state_label
+  - result_label
+  - frame_label
+  properties:
+    next_scene: 0
+    port_label: a9c4900e-56f9-5267-b490-202a8a7e3953
+    state_label: 697c7ccc-77d0-58fe-a29d-a0453c363dcc
+    result_label: e943271e-b37c-5ba4-b495-13041c0caf8a
+    frame_label: 2ac3d5d3-42cd-545b-987e-a779a9a68c3e
+  components:
+  - id: f325cc69-7134-5584-8413-3d8b73a511c4
+    class:
+      class_id: ed73d249-b6cb-4a3c-a0e8-696de55e286f
+      name: epok::SceneComponent3D
+    name: Transform
+    root: true
+    overrides:
+    - position
+    - rotation
+    - scale
+    properties:
+      position:
+      - 0.0
+      - 0.0
+      - 0.0
+      rotation:
+      - 0.0
+      - 0.0
+      - 0.0
+      scale:
+      - 1.0
+      - 1.0
+      - 1.0
+- id: 6eb58af3-c884-5964-a074-41de4da09715
+  class:
+    class_id: b09bd2fa-8b09-4c0f-a33a-c3ca08b21d8f
+    name: epok::UIActor
+  name: Frame title
+  active: true
+  logical_parent: 91c94317-5ae8-5709-af67-f4720f02c9cf
+  attach:
+    actor: 91c94317-5ae8-5709-af67-f4720f02c9cf
+  overrides: []
+  properties: {}
+  components:
+  - id: 26d302f2-f384-5fc7-8e20-683f9a2d03ca
+    class:
+      class_id: dc805165-6c65-48dc-8ff8-4a638a5d21df
+      name: epok::RectTransformComponent
+    name: State title Rect
+    root: true
+    overrides:
+    - rect
+    properties:
+      rect:
+        anchor_min:
+        - 0.0
+        - 1.0
+        anchor_max:
+        - 0.0
+        - 1.0
+        pivot:
+        - 0.0
+        - 1.0
+        position:
+        - 8.0
+        - -72.0
+        size:
+        - 300.0
+        - 16.0
+        rotation: 0.0
+  - id: 6e82d05b-4657-5ace-afc9-9e61c7889708
+    class:
+      class_id: fd7f11d1-7ccf-40e8-a7ea-56d89deb3f34
+      name: epok::TextComponent
+    name: State title Text
+    root: false
+    overrides:
+    - text
+    properties:
+      text:
+        enabled: true
+        text: 'Frames:'
+        align: left
+        wrap: false
+        color:
+        - 0.9
+        - 0.95
+        - 1.0
+- id: 96104f8a-ebde-5f09-aa15-fc8b6eeb5f88
+  class:
+    class_id: b09bd2fa-8b09-4c0f-a33a-c3ca08b21d8f
+    name: epok::UIActor
+  name: Frame counter
+  active: true
+  logical_parent: 91c94317-5ae8-5709-af67-f4720f02c9cf
+  attach:
+    actor: 91c94317-5ae8-5709-af67-f4720f02c9cf
+  overrides: []
+  properties: {}
+  components:
+  - id: 75f5dfa4-d908-5f3a-9e1b-fa5b6b0a2f16
+    class:
+      class_id: dc805165-6c65-48dc-8ff8-4a638a5d21df
+      name: epok::RectTransformComponent
+    name: Port Rect
+    root: true
+    overrides:
+    - rect
+    properties:
+      rect:
+        anchor_min:
+        - 0.0
+        - 1.0
+        anchor_max:
+        - 0.0
+        - 1.0
+        pivot:
+        - 0.0
+        - 1.0
+        position:
+        - 80.0
+        - -72.0
+        size:
+        - 160.0
+        - 16.0
+        rotation: 0.0
+  - id: 2ac3d5d3-42cd-545b-987e-a779a9a68c3e
+    class:
+      class_id: fd7f11d1-7ccf-40e8-a7ea-56d89deb3f34
+      name: epok::TextComponent
+    name: Port Text
+    root: false
+    overrides:
+    - text
+    properties:
+      text:
+        enabled: true
+        text: '0'
+        align: left
+        wrap: false
+        color:
+        - 0.9
+        - 0.95
+        - 1.0

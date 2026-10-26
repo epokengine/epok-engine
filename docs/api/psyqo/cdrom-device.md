@@ -1,10 +1,10 @@
 # PsyQo API: Cdrom Device
 
-> **Header:** `"psyqo/cdrom-device.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-device.hh)
+> **Header:** `"psyqo/cdrom-device.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-device.hh)
 
 This module covers the cdrom device module. It documents 64 public callables declared directly in this header.
 
-PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552d`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
+PsyQo is pinned through Nugget revision `bfc3f65010efaaf979e10852e4cf203a2eff1b13`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
 
 ## Declared types
 
@@ -89,7 +89,7 @@ PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552
 GetPlaybackLocationAwaiter getPlaybackLocation()
 ```
 
-- **Declared at:** [line 392](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-device.hh#L392)
+- **Declared at:** [line 392](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-device.hh#L392)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `GetPlaybackLocationAwaiter`. Check the purpose and failure notes before using the value.
@@ -124,7 +124,7 @@ auto result = object.getPlaybackLocation();
 void getPlaybackLocation(PlaybackLocation *location, eastl::function<void(PlaybackLocation *)> &&callback)
 ```
 
-- **Declared at:** [line 389](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-device.hh#L389)
+- **Declared at:** [line 389](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-device.hh#L389)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -168,7 +168,7 @@ object.getPlaybackLocation(location, callback);
 void getPlaybackLocation(eastl::function<void(PlaybackLocation *)> &&callback)
 ```
 
-- **Declared at:** [line 390](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-device.hh#L390)
+- **Declared at:** [line 390](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-device.hh#L390)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -210,7 +210,7 @@ object.getPlaybackLocation(callback);
 bool await_ready() const
 ```
 
-- **Declared at:** [line 180](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-device.hh#L180)
+- **Declared at:** [line 180](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-device.hh#L180)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -243,7 +243,7 @@ auto result = object.await_ready();
 PlaybackLocation *await_resume()
 ```
 
-- **Declared at:** [line 188](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-device.hh#L188)
+- **Declared at:** [line 188](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-device.hh#L188)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `PlaybackLocation *`. Check the purpose and failure notes before using the value.
@@ -276,7 +276,7 @@ auto result = object.await_resume();
 template <typename U> void await_suspend(std::coroutine_handle<U> handle)
 ```
 
-- **Declared at:** [line 182](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-device.hh#L182)
+- **Declared at:** [line 182](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-device.hh#L182)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -321,7 +321,7 @@ object.await_suspend<U>(handle);
 GetPlaybackLocationAwaiter(CDRomDevice &device) : m_dev
 ```
 
-- **Declared at:** [line 179](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-device.hh#L179)
+- **Declared at:** [line 179](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-device.hh#L179)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -359,7 +359,7 @@ psyqo::CDRomDevice::GetPlaybackLocationAwaiter value(device);
 GetTOCSizeAwaiter getTOCSize()
 ```
 
-- **Declared at:** [line 279](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-device.hh#L279)
+- **Declared at:** [line 279](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-device.hh#L279)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `GetTOCSizeAwaiter`. Check the purpose and failure notes before using the value.
@@ -392,7 +392,7 @@ auto result = object.getTOCSize();
 void getTOCSize(unsigned *size, eastl::function<void(bool)> &&callback)
 ```
 
-- **Declared at:** [line 276](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-device.hh#L276)
+- **Declared at:** [line 276](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-device.hh#L276)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -436,7 +436,7 @@ object.getTOCSize(size, callback);
 bool await_ready() const
 ```
 
-- **Declared at:** [line 109](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-device.hh#L109)
+- **Declared at:** [line 109](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-device.hh#L109)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -469,7 +469,7 @@ auto result = object.await_ready();
 unsigned await_resume()
 ```
 
-- **Declared at:** [line 117](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-device.hh#L117)
+- **Declared at:** [line 117](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-device.hh#L117)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `unsigned int`. Check the purpose and failure notes before using the value.
@@ -502,7 +502,7 @@ auto result = object.await_resume();
 template <typename U> void await_suspend(std::coroutine_handle<U> handle)
 ```
 
-- **Declared at:** [line 111](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-device.hh#L111)
+- **Declared at:** [line 111](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-device.hh#L111)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -547,7 +547,7 @@ object.await_suspend<U>(handle);
 GetTOCSizeAwaiter(CDRomDevice &device) : m_dev
 ```
 
-- **Declared at:** [line 108](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-device.hh#L108)
+- **Declared at:** [line 108](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-device.hh#L108)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -585,7 +585,7 @@ psyqo::CDRomDevice::GetTOCSizeAwaiter value(device);
 unsigned getTOCSizeBlocking(GPU &)
 ```
 
-- **Declared at:** [line 278](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-device.hh#L278)
+- **Declared at:** [line 278](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-device.hh#L278)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -627,7 +627,7 @@ auto result = object.getTOCSizeBlocking(arg1);
 bool isIdle() const
 ```
 
-- **Declared at:** [line 452](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-device.hh#L452)
+- **Declared at:** [line 452](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-device.hh#L452)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -660,7 +660,7 @@ auto result = object.isIdle();
 MuteAwaiter mute()
 ```
 
-- **Declared at:** [line 311](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-device.hh#L311)
+- **Declared at:** [line 311](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-device.hh#L311)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `MuteAwaiter`. Check the purpose and failure notes before using the value.
@@ -693,7 +693,7 @@ auto result = object.mute();
 void mute(eastl::function<void(bool)> &&callback)
 ```
 
-- **Declared at:** [line 308](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-device.hh#L308)
+- **Declared at:** [line 308](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-device.hh#L308)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -735,7 +735,7 @@ object.mute(callback);
 bool await_ready() const
 ```
 
-- **Declared at:** [line 146](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-device.hh#L146)
+- **Declared at:** [line 146](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-device.hh#L146)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -768,7 +768,7 @@ auto result = object.await_ready();
 bool await_resume()
 ```
 
-- **Declared at:** [line 154](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-device.hh#L154)
+- **Declared at:** [line 154](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-device.hh#L154)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -801,7 +801,7 @@ auto result = object.await_resume();
 template <typename U> void await_suspend(std::coroutine_handle<U> handle)
 ```
 
-- **Declared at:** [line 148](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-device.hh#L148)
+- **Declared at:** [line 148](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-device.hh#L148)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -846,7 +846,7 @@ object.await_suspend<U>(handle);
 MuteAwaiter(CDRomDevice &device) : m_dev
 ```
 
-- **Declared at:** [line 145](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-device.hh#L145)
+- **Declared at:** [line 145](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-device.hh#L145)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -884,7 +884,7 @@ psyqo::CDRomDevice::MuteAwaiter value(device);
 void muteBlocking(GPU &)
 ```
 
-- **Declared at:** [line 310](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-device.hh#L310)
+- **Declared at:** [line 310](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-device.hh#L310)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -928,7 +928,7 @@ object.muteBlocking(arg1);
 void pauseCDDA()
 ```
 
-- **Declared at:** [line 364](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-device.hh#L364)
+- **Declared at:** [line 364](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-device.hh#L364)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -961,7 +961,7 @@ object.pauseCDDA();
 void playCDDADisc(MSF start, eastl::function<void(bool)> &&callback)
 ```
 
-- **Declared at:** [line 348](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-device.hh#L348)
+- **Declared at:** [line 348](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-device.hh#L348)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1005,7 +1005,7 @@ object.playCDDADisc(start, callback);
 void playCDDADisc(unsigned track, eastl::function<void(bool)> &&callback)
 ```
 
-- **Declared at:** [line 349](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-device.hh#L349)
+- **Declared at:** [line 349](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-device.hh#L349)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1051,7 +1051,7 @@ object.playCDDADisc(track, callback);
 void playCDDATrack(MSF start, eastl::function<void(bool)> &&callback)
 ```
 
-- **Declared at:** [line 346](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-device.hh#L346)
+- **Declared at:** [line 346](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-device.hh#L346)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1095,7 +1095,7 @@ object.playCDDATrack(start, callback);
 void playCDDATrack(unsigned track, eastl::function<void(bool)> &&callback)
 ```
 
-- **Declared at:** [line 347](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-device.hh#L347)
+- **Declared at:** [line 347](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-device.hh#L347)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1141,7 +1141,7 @@ object.playCDDATrack(track, callback);
 void prepare()
 ```
 
-- **Declared at:** [line 232](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-device.hh#L232)
+- **Declared at:** [line 232](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-device.hh#L232)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1176,7 +1176,7 @@ object.prepare();
 void readSectors(uint32_t sector, uint32_t count, void *buffer, eastl::function<void(bool)> &&callback) override
 ```
 
-- **Declared at:** [line 264](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-device.hh#L264)
+- **Declared at:** [line 264](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-device.hh#L264)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1224,7 +1224,7 @@ object.readSectors(sector, count, buffer, callback);
 bool readSectorsBlocking(uint32_t sector, uint32_t count, void *buffer, GPU &)
 ```
 
-- **Declared at:** [line 265](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-device.hh#L265)
+- **Declared at:** [line 265](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-device.hh#L265)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1272,7 +1272,7 @@ auto result = object.readSectorsBlocking(sector, count, buffer, arg4);
 ReadTOCAwaiter readTOC(MSF *toc, unsigned size)
 ```
 
-- **Declared at:** [line 301](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-device.hh#L301)
+- **Declared at:** [line 301](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-device.hh#L301)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1318,7 +1318,7 @@ auto result = object.readTOC(toc, size);
 void readTOC(MSF *toc, unsigned size, eastl::function<void(bool)> &&callback)
 ```
 
-- **Declared at:** [line 298](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-device.hh#L298)
+- **Declared at:** [line 298](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-device.hh#L298)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1364,7 +1364,7 @@ object.readTOC(toc, size, callback);
 bool await_ready() const
 ```
 
-- **Declared at:** [line 127](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-device.hh#L127)
+- **Declared at:** [line 127](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-device.hh#L127)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -1397,7 +1397,7 @@ auto result = object.await_ready();
 bool await_resume()
 ```
 
-- **Declared at:** [line 135](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-device.hh#L135)
+- **Declared at:** [line 135](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-device.hh#L135)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -1430,7 +1430,7 @@ auto result = object.await_resume();
 template <typename U> void await_suspend(std::coroutine_handle<U> handle)
 ```
 
-- **Declared at:** [line 129](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-device.hh#L129)
+- **Declared at:** [line 129](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-device.hh#L129)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -1475,7 +1475,7 @@ object.await_suspend<U>(handle);
 ReadTOCAwaiter(CDRomDevice &device, MSF *toc, unsigned size) : m_dev
 ```
 
-- **Declared at:** [line 126](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-device.hh#L126)
+- **Declared at:** [line 126](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-device.hh#L126)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -1517,7 +1517,7 @@ psyqo::CDRomDevice::ReadTOCAwaiter value(device, toc, size);
 bool readTOCBlocking(MSF *toc, unsigned size, GPU &)
 ```
 
-- **Declared at:** [line 300](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-device.hh#L300)
+- **Declared at:** [line 300](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-device.hh#L300)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1563,7 +1563,7 @@ auto result = object.readTOCBlocking(toc, size, arg3);
 ResetAwaiter reset()
 ```
 
-- **Declared at:** [line 246](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-device.hh#L246)
+- **Declared at:** [line 246](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-device.hh#L246)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `ResetAwaiter`. Check the purpose and failure notes before using the value.
@@ -1598,7 +1598,7 @@ auto result = object.reset();
 void reset(eastl::function<void(bool)> &&callback)
 ```
 
-- **Declared at:** [line 243](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-device.hh#L243)
+- **Declared at:** [line 243](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-device.hh#L243)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1640,7 +1640,7 @@ object.reset(callback);
 bool await_ready() const
 ```
 
-- **Declared at:** [line 92](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-device.hh#L92)
+- **Declared at:** [line 92](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-device.hh#L92)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -1673,7 +1673,7 @@ auto result = object.await_ready();
 bool await_resume()
 ```
 
-- **Declared at:** [line 100](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-device.hh#L100)
+- **Declared at:** [line 100](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-device.hh#L100)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -1706,7 +1706,7 @@ auto result = object.await_resume();
 template <typename U> void await_suspend(std::coroutine_handle<U> handle)
 ```
 
-- **Declared at:** [line 94](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-device.hh#L94)
+- **Declared at:** [line 94](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-device.hh#L94)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -1751,7 +1751,7 @@ object.await_suspend<U>(handle);
 ResetAwaiter(CDRomDevice &device) : m_dev
 ```
 
-- **Declared at:** [line 91](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-device.hh#L91)
+- **Declared at:** [line 91](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-device.hh#L91)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -1789,7 +1789,7 @@ psyqo::CDRomDevice::ResetAwaiter value(device);
 bool resetBlocking(GPU &)
 ```
 
-- **Declared at:** [line 245](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-device.hh#L245)
+- **Declared at:** [line 245](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-device.hh#L245)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1831,7 +1831,7 @@ auto result = object.resetBlocking(arg1);
 void resumeCDDA(eastl::function<void(bool)> &&callback)
 ```
 
-- **Declared at:** [line 350](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-device.hh#L350)
+- **Declared at:** [line 350](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-device.hh#L350)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1873,7 +1873,7 @@ object.resumeCDDA(callback);
 TaskQueue::Task scheduleGetPlaybackLocation(PlaybackLocation *location)
 ```
 
-- **Declared at:** [line 391](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-device.hh#L391)
+- **Declared at:** [line 391](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-device.hh#L391)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1915,7 +1915,7 @@ auto result = object.scheduleGetPlaybackLocation(location);
 TaskQueue::Task scheduleGetTOCSize(unsigned *size)
 ```
 
-- **Declared at:** [line 277](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-device.hh#L277)
+- **Declared at:** [line 277](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-device.hh#L277)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1957,7 +1957,7 @@ auto result = object.scheduleGetTOCSize(size);
 TaskQueue::Task scheduleMute()
 ```
 
-- **Declared at:** [line 309](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-device.hh#L309)
+- **Declared at:** [line 309](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-device.hh#L309)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `TaskQueue::Task`. Check the purpose and failure notes before using the value.
@@ -1990,7 +1990,7 @@ auto result = object.scheduleMute();
 TaskQueue::Task scheduleReadTOC(MSF *toc, unsigned size)
 ```
 
-- **Declared at:** [line 299](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-device.hh#L299)
+- **Declared at:** [line 299](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-device.hh#L299)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -2034,7 +2034,7 @@ auto result = object.scheduleReadTOC(toc, size);
 TaskQueue::Task scheduleReset()
 ```
 
-- **Declared at:** [line 244](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-device.hh#L244)
+- **Declared at:** [line 244](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-device.hh#L244)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `TaskQueue::Task`. Check the purpose and failure notes before using the value.
@@ -2067,7 +2067,7 @@ auto result = object.scheduleReset();
 TaskQueue::Task scheduleTest(const psyqo::Hardware::CDRom::CDRomCommandBuffer &commandBuffer)
 ```
 
-- **Declared at:** [line 422](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-device.hh#L422)
+- **Declared at:** [line 422](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-device.hh#L422)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -2109,7 +2109,7 @@ auto result = object.scheduleTest(commandBuffer);
 TaskQueue::Task scheduleUnmute()
 ```
 
-- **Declared at:** [line 319](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-device.hh#L319)
+- **Declared at:** [line 319](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-device.hh#L319)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `TaskQueue::Task`. Check the purpose and failure notes before using the value.
@@ -2144,7 +2144,7 @@ auto result = object.scheduleUnmute();
 void setVolume(uint8_t leftToLeft, uint8_t rightToLeft, uint8_t leftToRight, uint8_t rightToRight)
 ```
 
-- **Declared at:** [line 414](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-device.hh#L414)
+- **Declared at:** [line 414](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-device.hh#L414)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -2194,7 +2194,7 @@ object.setVolume(leftToLeft, rightToLeft, leftToRight, rightToRight);
 void stopCDDA()
 ```
 
-- **Declared at:** [line 374](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-device.hh#L374)
+- **Declared at:** [line 374](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-device.hh#L374)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -2227,7 +2227,7 @@ object.stopCDDA();
 void test(const psyqo::Hardware::CDRom::CDRomCommandBuffer &commandBuffer, eastl::function<void(bool)> &&callback)
 ```
 
-- **Declared at:** [line 421](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-device.hh#L421)
+- **Declared at:** [line 421](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-device.hh#L421)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -2271,7 +2271,7 @@ object.test(commandBuffer, callback);
 void testBlocking(GPU &, const psyqo::Hardware::CDRom::CDRomCommandBuffer &commandBuffer)
 ```
 
-- **Declared at:** [line 423](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-device.hh#L423)
+- **Declared at:** [line 423](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-device.hh#L423)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -2315,7 +2315,7 @@ object.testBlocking(arg1, commandBuffer);
 UnmuteAwaiter unmute()
 ```
 
-- **Declared at:** [line 321](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-device.hh#L321)
+- **Declared at:** [line 321](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-device.hh#L321)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `UnmuteAwaiter`. Check the purpose and failure notes before using the value.
@@ -2348,7 +2348,7 @@ auto result = object.unmute();
 void unmute(eastl::function<void(bool)> &&callback)
 ```
 
-- **Declared at:** [line 318](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-device.hh#L318)
+- **Declared at:** [line 318](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-device.hh#L318)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -2390,7 +2390,7 @@ object.unmute(callback);
 bool await_ready() const
 ```
 
-- **Declared at:** [line 163](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-device.hh#L163)
+- **Declared at:** [line 163](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-device.hh#L163)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -2423,7 +2423,7 @@ auto result = object.await_ready();
 bool await_resume()
 ```
 
-- **Declared at:** [line 171](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-device.hh#L171)
+- **Declared at:** [line 171](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-device.hh#L171)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -2456,7 +2456,7 @@ auto result = object.await_resume();
 template <typename U> void await_suspend(std::coroutine_handle<U> handle)
 ```
 
-- **Declared at:** [line 165](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-device.hh#L165)
+- **Declared at:** [line 165](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-device.hh#L165)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -2501,7 +2501,7 @@ object.await_suspend<U>(handle);
 UnmuteAwaiter(CDRomDevice &device) : m_dev
 ```
 
-- **Declared at:** [line 162](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-device.hh#L162)
+- **Declared at:** [line 162](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-device.hh#L162)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -2539,7 +2539,7 @@ psyqo::CDRomDevice::UnmuteAwaiter value(device);
 void unmuteBlocking(GPU &)
 ```
 
-- **Declared at:** [line 320](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-device.hh#L320)
+- **Declared at:** [line 320](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-device.hh#L320)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -2581,7 +2581,7 @@ object.unmuteBlocking(arg1);
 virtual ~CDRomDevice()
 ```
 
-- **Declared at:** [line 222](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom-device.hh#L222)
+- **Declared at:** [line 222](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/cdrom-device.hh#L222)
 - **Kind:** `destructor`; qualifiers: `virtual`
 
 **Use it when.** You need the cdrom device module and the preconditions in the declaration are already satisfied.

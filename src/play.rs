@@ -317,6 +317,18 @@ impl Transition {
         build: &Path,
         index: &crate::assets::Index,
     ) -> Result<crate::playback_staging::ResourceOutput, String> {
+        let (header, inputs) = self.image_header(index)?;
+        crate::project::write_changed(&build.join("loading-image.hh"), header.as_bytes())?;
+        Ok(crate::playback_staging::ResourceOutput {
+            path: "loading-image.hh".into(),
+            signature: crate::assets::hash(header.as_bytes()),
+            inputs,
+        })
+    }
+    pub fn image_header(
+        &self,
+        index: &crate::assets::Index,
+    ) -> Result<(String, std::collections::BTreeMap<String, String>), String> {
         let mut inputs = std::collections::BTreeMap::from([(
             "scene-transition-settings".into(),
             crate::scene_dependencies::hash(self),
@@ -363,12 +375,7 @@ impl Transition {
             header += "inline constexpr LoadingImage default_loading_image{};\n";
         }
         header += "}\n";
-        crate::project::write_changed(&build.join("loading-image.hh"), header.as_bytes())?;
-        Ok(crate::playback_staging::ResourceOutput {
-            path: "loading-image.hh".into(),
-            signature: crate::assets::hash(header.as_bytes()),
-            inputs,
-        })
+        Ok((header, inputs))
     }
 }
 

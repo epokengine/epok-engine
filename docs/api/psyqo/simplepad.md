@@ -1,10 +1,10 @@
 # PsyQo API: Simplepad
 
-> **Header:** `"psyqo/simplepad.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/simplepad.hh)
+> **Header:** `"psyqo/simplepad.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/simplepad.hh)
 
 This module covers the simplepad module. It documents 4 public callables declared directly in this header.
 
-PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552d`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
+PsyQo is pinned through Nugget revision `bfc3f65010efaaf979e10852e4cf203a2eff1b13`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
 
 ## Declared types
 
@@ -31,7 +31,7 @@ PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552
 void initialize()
 ```
 
-- **Declared at:** [line 86](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/simplepad.hh#L86)
+- **Declared at:** [line 86](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/simplepad.hh#L86)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -66,7 +66,7 @@ object.initialize();
 bool isButtonPressed(Pad pad, Button button) const
 ```
 
-- **Declared at:** [line 129](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/simplepad.hh#L129)
+- **Declared at:** [line 129](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/simplepad.hh#L129)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -112,7 +112,7 @@ auto result = object.isButtonPressed(pad, button);
 bool isPadConnected(Pad pad) const
 ```
 
-- **Declared at:** [line 117](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/simplepad.hh#L117)
+- **Declared at:** [line 117](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/simplepad.hh#L117)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -156,7 +156,7 @@ auto result = object.isPadConnected(pad);
 void setOnEvent(eastl::function<void(Event)>&& callback)
 ```
 
-- **Declared at:** [line 106](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/simplepad.hh#L106)
+- **Declared at:** [line 106](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/simplepad.hh#L106)
 - **Kind:** `cxx method`
 
 **Parameters**

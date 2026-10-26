@@ -15,7 +15,9 @@ extern "C" __declspec(dllimport) unsigned long __stdcall SetErrorMode(unsigned l
 #else
 #include <unistd.h>
 #endif
+#include "transition-config.hh"
 #include "scene.hh"
+#include "loading-image.hh"
 #include "data_table_service.hpp"
 #include "hud_commands.hpp"
 #include "fonts.hh"
@@ -24,34 +26,29 @@ extern "C" __declspec(dllimport) unsigned long __stdcall SetErrorMode(unsigned l
 #include "native_play_protocol.h"
 #include "transform_cache.hpp"
 #include "track_camera_pose.hpp"
+static uint32_t rumble_identities[4]={};
 
 namespace epok {
 MusicStats music_stats; PerformanceStats performance_stats; LightingEnvironment lighting_environment;
 LightingStats lighting_stats; MeshStats mesh_stats;
 AudioSource* music_active=nullptr; AudioSource* music_requested=nullptr;
-static std::string requested_scene;
-static std::map<const AudioSource*,bool> audio_playing;
-struct HostAudioEvent{uintptr_t source;uint32_t action;int32_t clip,volume,pitch;};
+struct AudioPlayback {bool playing=false;uint64_t token=0;};
+static std::map<const AudioSource*,AudioPlayback> audio_playing;
+static uint64_t next_audio_token=0;
+struct HostAudioEvent{uint64_t source;uint32_t action;int32_t clip,volume,pitch;};
 static std::vector<HostAudioEvent> audio_events;
 static void audio_event(const AudioSource* source,uint32_t action){
-    if(audio_events.size()<EPOK_NATIVE_PLAY_AUDIO_LIMIT)audio_events.push_back({uintptr_t(source),action,source->clip,source->volume.raw(),source->pitch.raw()});
+    if(audio_events.size()<EPOK_NATIVE_PLAY_AUDIO_LIMIT)audio_events.push_back({audio_playing[source].token,action,source->clip,source->volume.raw(),source->pitch.raw()});
 }
-void AudioSource::play(){if(!enabled||clip<0)return;audio_playing[this]=true;audio_event(this,1);}
-void AudioSource::stop(){auto i=audio_playing.find(this);if(i!=audio_playing.end()&&i->second)audio_event(this,0);audio_playing[this]=false;}
-bool AudioSource::is_playing() const {auto i=audio_playing.find(this);return i!=audio_playing.end()&&i->second;}
-void remove_runtime_owner(size_t){}
-void reset_runtime_services(){}
-bool request_scene(const char* name){if(!name||!*name||!requested_scene.empty())return false;requested_scene=name;return true;}
-bool request_scene(size_t index){return request_scene(std::to_string(index).c_str());}
-bool request_scene(const char* name,const TransitionOptions&){return request_scene(name);}
-bool request_scene(size_t index,const TransitionOptions&){return request_scene(index);}
-bool scene_loading(){return !requested_scene.empty();}
-size_t current_scene(){return 0;}
-uint32_t scene_transition_count(){return requested_scene.empty()?0u:1u;}
-uint32_t scene_rejected_count(){return 0;}
-bool scene_waiting(){return false;}
+void AudioSource::play(){if(!enabled||clip<0)return;stop();audio_playing[this]={true,++next_audio_token};audio_event(this,1);}
+void AudioSource::stop(){auto i=audio_playing.find(this);if(i!=audio_playing.end()&&i->second.playing){audio_event(this,0);i->second.playing=false;}}
+bool AudioSource::is_playing() const {auto i=audio_playing.find(this);return i!=audio_playing.end()&&i->second.playing;}
+void remove_runtime_owner(size_t index){objects[index].audio.stop();}
+void activate_texture_bank(const Texture* textures){texture_assets=textures;}
+
 }
 #include "lifecycle.hpp"
+#include "scene_lifecycle.hpp"
 #ifdef EPOK_WORLD2D
 #include "world2d_service.hpp"
 #endif
@@ -112,7 +109,35 @@ void dispatch_trigger(const epok::TriggerEvent& event){
 }
 
 namespace epok {
+bool scene_loading(){return pending_scene>=0||transition.busy();}
+void reset_runtime_services(){
+    rumble.suspend();
+    transform_cache.clear();collision_world.clear();camera_override={};
+    input.discard_edges();time=Time{};world3d_visible=true;
+    audio_playing.clear();audio_events.clear();music_active=music_requested=nullptr;
+#ifdef EPOK_BLUEPRINTS
+    ++blueprint_scene_generation;if(!blueprint_scene_generation)blueprint_scene_generation=1;
+#endif
+#ifdef EPOK_WORLD2D
+    world2d::service.reset();
+#endif
+}
+// Resident banks share the console lifecycle. The host must present Loading
+// before retiring the old scene, even when both fade durations are zero.
+static void scene_tick(uint32_t now){
+    transition.advance(now);
+    if(transition.phase==TransitionPhase::Idle&&pending_scene>=0)
+        transition.begin(pending_transition.options,now);
+    if(transition.phase==TransitionPhase::Loading&&transition.presented&&pending_scene>=0){
+        scene_stop_audio();const auto next=scene_retire_bank();scene_start_bank(next);
+        time.synchronize(now);transition.loaded(now);
+    }
+    scene_stats.waiting=scene_loading();
+}
 void reset_motion_interpolation(){}
+// Native Play renders through the editor, without the PSX retained-packet cache.
+// Report that no warmup was queued; normal drawing remains available.
+bool prewarm_geometry(ActorData*){return false;}
 bool set_active_camera(ActorData* camera){
     if(!camera){camera_override={};return true;}
     if(entity_index(camera)<0||!is_active(camera)||(!camera->camera&&!camera->camera_settings.enabled))return false;
@@ -136,8 +161,8 @@ void raycast_batch(const RaycastQuery* queries,SpatialHit* results,size_t count,
 size_t overlap(const Aabb& box,DataHandle* output,size_t capacity,uint32_t mask,const ActorData* ignore,bool triggers){refresh_collisions();uint16_t found[objects.size()];auto count=collision_world.overlap(box,found,objects.size(),mask,entity_index(ignore),triggers);if(output)for(size_t i=0;i<count&&i<capacity;++i)output[i]=handle(&objects[found[i]]);return count;}
 bool collider_aabb(const ActorData& entity,Aabb& output){refresh_collisions();const int i=entity_index(&entity);auto* box=i<0?nullptr:collision_world.bounds(size_t(i));if(!box)return false;output=*box;return true;}
 SpatialHit query_ground(const ActorData& entity,Fixed distance,uint32_t mask){refresh_collisions();const int i=entity_index(&entity);auto* box=i<0?nullptr:collision_world.bounds(size_t(i));return box?collision_world.ground(*box,distance,mask&entity.collider.mask,i):SpatialHit{};}
-MoveResult move_and_slide(ActorData& entity,const Fixed* delta,uint32_t mask){
-    refresh_collisions();const int i=entity_index(&entity);auto* box=i<0?nullptr:collision_world.bounds(size_t(i));
+static MoveResult move_actor_synced(ActorData& entity,const Fixed* delta,uint32_t mask){
+    const int i=entity_index(&entity);auto* box=i<0?nullptr:collision_world.bounds(size_t(i));
     if(!box){MoveResult result;result.unresolved_overlap=true;return result;}
     auto result=collision_world.move_and_slide(*box,delta,mask&entity.collider.mask,i);
     if(entity.parent<0){for(int r=0;r<3;++r)entity.transform.position[r]+=result.displacement[r];return result;}
@@ -145,6 +170,30 @@ MoveResult move_and_slide(ActorData& entity,const Fixed* delta,uint32_t mask){
     while(parent>=0&&size_t(parent)<object_count&&depth++<32){inverse=inverse.compose(inverse_local(objects[parent].transform));parent=objects[parent].parent;}
     if(parent>=0){result=MoveResult{};result.unresolved_overlap=true;return result;}
     for(int r=0;r<3;++r)for(int c=0;c<3;++c)entity.transform.position[r]+=inverse.values[r][c]*result.displacement[c];return result;
+}
+MoveResult move_and_slide(ActorData& entity,const Fixed* delta,uint32_t mask){
+    refresh_collisions();return move_actor_synced(entity,delta,mask);
+}
+void SpatialQueryBatch::ensure() const {if(!ready){refresh_collisions();ready=true;}}
+void SpatialQueryBatch::sync(ActorData& entity){
+    if(!ready){ensure();return;}
+    const int index=entity_index(&entity);if(index<0)return;
+    if(entity.parent<0)transform_cache.sync_root(entity,world[index],size_t(index),::local_matrix);
+    else if(!transform_cache.sync_path(objects,world,object_count,size_t(index),::local_matrix))refresh_world();
+    collision_world.set(size_t(index),entity.collider,world[index],is_active(&entity),entity.generation);
+}
+SpatialHit SpatialQueryBatch::raycast(const Fixed* origin,const Fixed* delta,uint32_t mask,const ActorData* ignore,bool triggers) const {
+    ensure();return collision_world.raycast(origin,delta,mask,entity_index(ignore),triggers);
+}
+void SpatialQueryBatch::raycast_batch(const RaycastQuery* queries,SpatialHit* results,size_t count,uint32_t mask,const ActorData* ignore,bool triggers) const {
+    if(!queries||!results||!count)return;ensure();
+    collision_world.raycast_batch(queries,results,count,mask,entity_index(ignore),triggers);
+}
+MoveResult SpatialQueryBatch::move_and_slide(ActorData& entity,const Fixed* delta,uint32_t mask){
+    sync(entity);auto result=move_actor_synced(entity,delta,mask);
+    if(entity.parent<0){const int index=entity_index(&entity);if(index>=0)collision_world.translate(size_t(index),result.displacement);}
+    else sync(entity);
+    return result;
 }
 bool skeletal_world_point(const ActorData& entity,const Fixed* model,Fixed* output){const int i=entity_index(&entity);if(i<0||!model||!output)return false;refresh_world();world[i].point(model,output);return true;}
 WorldAffineSample gameplay_world_affine(const ActorData* entity){WorldAffineSample result;const int i=entity_index(entity);if(i<0)return result;refresh_world();result.success=true;for(int r=0;r<3;++r){result.basis_x[r]=world[i].values[r][0];result.basis_y[r]=world[i].values[r][1];result.basis_z[r]=world[i].values[r][2];result.position[r]=world[i].values[r][3];}return result;}
@@ -273,19 +322,32 @@ static void frame(){
         epok::world2d::render_pass=RenderPass{};
     }
 #endif
-    epok::hud_focus_update(epok::objects.data(),epok::object_count,epok::hud_focus_edges());
+    if(!epok::scene_loading())epok::hud_focus_update(epok::objects.data(),epok::object_count,epok::hud_focus_edges());
     epok::hud_core::Compiler compiler(sink,epok::display_width,epok::display_height,{epok::hud_layout_budget,epok::hud_rectangle_budget,epok::hud_text_budget,epok::hud_glyph_budget,epok::hud_rotated_budget});
     int first[epok::objects.size()],next[epok::objects.size()];epok::Fixed measured[epok::objects.size()][2];epok::hud_core::Rect rects[epok::objects.size()];epok::hud_core::Affine2 transforms[epok::objects.size()];compiler.draw(epok::objects.data(),epok::object_count,first,next,measured,rects,transforms);auto s=compiler.stats;
-    write32(EPOK_NATIVE_PLAY_MAGIC);write32(epok::performance_stats.frame);write32(epok::screen_fade);
+    write32(EPOK_NATIVE_PLAY_MAGIC);write32(epok::performance_stats.frame);write32(std::max(epok::screen_fade,epok::transition.opacity));
     write32(uint32_t(epok::object_count));write32(uint32_t(epok::authored_count));const auto camera=epok::active_camera();write32(camera?camera.index:0xffffffffu);
-    write32(uint32_t(sink.commands.size()));write32(uint32_t(epok::requested_scene.size()));write32(uint32_t(epok::audio_events.size()));
+    const bool loading=epok::transition.loading();
+    const char* text=loading?epok::transition.text:"";
+    const auto* picture=loading?(epok::transition.options.loading.image?epok::transition.options.loading.image:&epok::default_loading_image):nullptr;
+    const bool valid_picture=picture&&picture->pixels&&picture->width&&picture->height&&picture->width<=64&&picture->height<=64&&!(picture->width&1);
+    write32(uint32_t(sink.commands.size()));write32(uint32_t(strlen(text)));write32(uint32_t(epok::audio_events.size()));
     write32(s.rectangles);write32(s.glyphs);write32(s.texts);write32(s.images);write32(s.dropped);
     // The visibility track sample whose list the console would draw this frame.
     write32(epok::active_visibility_track&&epok::visibility_track_started?uint32_t(epok::visibility_page_selection.current):0xffffffffu);
+    write32(uint32_t(epok::current_scene()));write32(epok::scene_transition_count());
+    write32(uint32_t(epok::transition.phase));write32(epok::transition.audio_gain);
+    const auto* color=epok::transition.options.loading.color;
+    write32(uint32_t(color[0])|(uint32_t(color[1])<<8)|(uint32_t(color[2])<<16));
+    write32(valid_picture?picture->width:0);write32(valid_picture?picture->height:0);
+    for(unsigned p=0;p<4;++p){const auto out=epok::rumble.output(p);write32(rumble_identities[p]);write32(out.revision);write32(out.large);write32(out.small);write32(out.remaining_us);}
     for(size_t i=0;i<epok::object_count;++i){const auto& o=epok::objects[i];write32(o.alive);write32(o.active);write32(uint32_t(o.parent));for(auto v:o.transform.position)write32(uint32_t(v.raw()));for(auto v:o.transform.rotation)write32(uint32_t(v.raw()));for(auto v:o.transform.scale)write32(uint32_t(v.raw()));write32(uint32_t(o.camera_settings.field_of_view.raw()));write32(uint32_t(o.animator.ticks));write32(uint32_t(o.animator.clip));write32((o.animator.enabled?1u:0u)|(o.animator.playing?2u:0u)|(o.animator.looping?4u:0u)|(o.camera_settings.mirror_x?8u:0u));}
     for(const auto& command:sink.commands)for(auto value:command.v)write32(uint32_t(value));
     for(const auto& event:epok::audio_events){write32(uint32_t(event.source));write32(uint32_t(uint64_t(event.source)>>32));write32(event.action);write32(uint32_t(event.clip));write32(uint32_t(event.volume));write32(uint32_t(event.pitch));}
-    fwrite(epok::requested_scene.data(),1,epok::requested_scene.size(),frames);fflush(frames);epok::audio_events.clear();
+    fwrite(text,1,strlen(text),frames);
+    if(valid_picture)for(size_t i=0;i<size_t(picture->width)*picture->height;++i){const uint16_t pixel=picture->pixels[i];fputc(pixel&255,frames);fputc(pixel>>8,frames);}
+    fflush(frames);epok::audio_events.clear();
+    if(loading)epok::transition.presented=true;
 }
 int main(){
 #ifdef _WIN32
@@ -299,12 +361,18 @@ int main(){
 #ifdef EPOK_WORLD2D
     epok::world2d::install();
 #endif
-    epok::initialize_components();if(epok::load_actor_bank(epok::actor_table,epok::objects.data(),epok::object_count)!=epok::actor_table.count)return 4;
+    // Startup calls may queue one finite pulse before the first device sample.
+    for(unsigned p=0;p<4;++p)epok::rumble.device(p,true,false,true);
+    epok::scene_start_bank(0);
     for(auto& object:epok::objects)if(epok::is_active(&object)&&object.audio.enabled&&object.audio.play_on_start&&!object.audio.is_playing())object.audio.play();advance_camera_track(0);frame();
-    uint32_t now=0,elapsed=0;uint32_t buttons[4]={},analog[4]={},axes[4]={};
-    while(read32(elapsed)){for(unsigned p=0;p<4;++p)if(!read32(buttons[p])||!read32(analog[p])||!read32(axes[p])||buttons[p]>65535||analog[p]>1)return 3;uint32_t completed=0;if(!read32(completed)||elapsed>100000||completed>EPOK_NATIVE_PLAY_AUDIO_LIMIT)return 3;
-        for(uint32_t i=0;i<completed;++i){uint32_t low=0,high=0;if(!read32(low)||!read32(high))return 3;const auto* source=reinterpret_cast<const epok::AudioSource*>(uintptr_t(uint64_t(low)|(uint64_t(high)<<32)));auto found=epok::audio_playing.find(source);if(found!=epok::audio_playing.end())found->second=false;}
-        if(epok::requested_scene.empty()){now+=elapsed;for(unsigned p=0;p<4;++p)epok::input.sample(p,true,uint16_t(buttons[p]),analog[p],uint8_t(axes[p]),uint8_t(axes[p]>>8),uint8_t(axes[p]>>16),uint8_t(axes[p]>>24));const auto steps=epok::time.advance(now);epok::level.frame_update(epok::time.frame_microseconds);
+    uint32_t now=0,elapsed=0,magic=0;uint32_t buttons[4]={},analog[4]={},axes[4]={},flags[4]={};
+    while(read32(magic)){if(magic!=EPOK_NATIVE_PLAY_MAGIC||!read32(elapsed))return 3;for(unsigned p=0;p<4;++p)if(!read32(buttons[p])||!read32(analog[p])||!read32(axes[p])||!read32(flags[p])||!read32(rumble_identities[p])||buttons[p]>65535||analog[p]>1||flags[p]>7)return 3;uint32_t completed=0;if(!read32(completed)||elapsed>100000||completed>EPOK_NATIVE_PLAY_AUDIO_LIMIT)return 3;
+        for(uint32_t i=0;i<completed;++i){uint32_t low=0,high=0;if(!read32(low)||!read32(high))return 3;const uint64_t token=uint64_t(low)|(uint64_t(high)<<32);for(auto& entry:epok::audio_playing)if(entry.second.token==token)entry.second.playing=false;}
+        now+=elapsed;
+        epok::rumble.begin_frame(now,!elapsed||epok::time.paused()||epok::scene_loading());
+        for(unsigned p=0;p<4;++p)epok::rumble.device(p,flags[p]&1,flags[p]&2,false,flags[p]&4,rumble_identities[p]);
+        if(elapsed){epok::scene_tick(now);}
+        if(elapsed&&!epok::scene_loading()){for(unsigned p=0;p<4;++p)epok::input.sample(p,flags[p]&1,uint16_t(buttons[p]),analog[p],uint8_t(axes[p]),uint8_t(axes[p]>>8),uint8_t(axes[p]>>16),uint8_t(axes[p]>>24));const auto steps=epok::time.advance(now);epok::level.frame_update(epok::time.frame_microseconds);
             if(epok::time.paused())epok::input.discard_edges();if(!epok::time.paused())epok::nav::world.tick();
             for(unsigned step=0;step<steps&&!epok::time.paused();++step){epok::time.begin_tick();epok::input.begin_tick();const Fixed dt(epok::time.delta_raw,Fixed::RAW);epok::level.tick(dt);
 #ifdef EPOK_WORLD2D
@@ -313,7 +381,9 @@ int main(){
 
                 bool triggers=collision_world.has_trigger_pairs();for(size_t i=0;i<epok::object_count&&!triggers;++i)triggers=epok::objects[i].collider.enabled&&epok::objects[i].collider.trigger&&epok::is_active_slot(i);
                 if(triggers){refresh_collisions();collision_world.update_triggers(dispatch_trigger);}for(size_t i=0;i<epok::object_count;++i)if(epok::is_active_slot(i)){epok::objects[i].animator.advance();epok::objects[i].sprite_animator.advance(dt,epok::objects[i].sprite);epok::objects[i].palette_animator.advance(dt);}epok::input.end_tick();}
-            advance_camera_track(epok::time.frame_microseconds);cards.pump();epok::level.refresh_stats();++epok::performance_stats.frame;
-        }frame();
+            advance_camera_track(epok::time.frame_microseconds);epok::level.refresh_stats();
+        }else {epok::time.synchronize(now);epok::input.discard_edges();}
+        if(epok::time.paused()||epok::scene_loading()||!elapsed)epok::rumble.suspend();
+        if(elapsed){cards.pump();++epok::performance_stats.frame;}frame();
     }
 }

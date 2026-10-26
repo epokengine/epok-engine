@@ -1,10 +1,10 @@
 # PsyQo API: Primitives / Misc
 
-> **Header:** `"psyqo/primitives/misc.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/misc.hh)
+> **Header:** `"psyqo/primitives/misc.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/misc.hh)
 
 This module covers typed PlayStation GPU primitives. It documents 4 public callables declared directly in this header.
 
-PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552d`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
+PsyQo is pinned through Nugget revision `bfc3f65010efaaf979e10852e4cf203a2eff1b13`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
 
 ## Declared types
 
@@ -29,7 +29,7 @@ PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552
 FastFill() : c
 ```
 
-- **Declared at:** [line 64](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/misc.hh#L64)
+- **Declared at:** [line 64](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/misc.hh#L64)
 - **Kind:** `constructor`
 
 **Use it when.** You need typed PlayStation GPU primitives and the preconditions in the declaration are already satisfied.
@@ -58,7 +58,7 @@ psyqo::Prim::FastFill value();
 FastFill(Color c) : c
 ```
 
-- **Declared at:** [line 65](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/misc.hh#L65)
+- **Declared at:** [line 65](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/misc.hh#L65)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -96,7 +96,7 @@ psyqo::Prim::FastFill value(c);
 FastFill& setColor(Color c)
 ```
 
-- **Declared at:** [line 66](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/misc.hh#L66)
+- **Declared at:** [line 66](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/misc.hh#L66)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -138,7 +138,7 @@ auto result = object.setColor(c);
 FlushCache() : c
 ```
 
-- **Declared at:** [line 46](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/misc.hh#L46)
+- **Declared at:** [line 46](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/misc.hh#L46)
 - **Kind:** `constructor`
 
 **Use it when.** You need typed PlayStation GPU primitives and the preconditions in the declaration are already satisfied.

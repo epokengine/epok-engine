@@ -1,0 +1,155 @@
+auto_build: false
+build:
+  generate_asset_report: true
+controls:
+  mouse_sensitivity: 16
+  pads:
+  - enabled: true
+    profile: 1a34952d-c463-43d7-bfa6-133277bb471e
+  - enabled: false
+    profile: null
+  - enabled: false
+    profile: null
+  - enabled: false
+    profile: null
+  profiles:
+  - id: 1a34952d-c463-43d7-bfa6-133277bb471e
+    mappings:
+    - binding:
+        device: keyboard
+        key: KeyW
+      control:
+        kind: button
+        value: up
+    - binding:
+        device: keyboard
+        key: KeyA
+      control:
+        kind: button
+        value: left
+    - binding:
+        device: keyboard
+        key: KeyS
+      control:
+        kind: button
+        value: down
+    - binding:
+        device: keyboard
+        key: KeyD
+      control:
+        kind: button
+        value: right
+    - binding:
+        device: keyboard
+        key: KeyK
+      control:
+        kind: button
+        value: cross
+    - binding:
+        device: keyboard
+        key: KeyL
+      control:
+        kind: button
+        value: circle
+    - binding:
+        device: keyboard
+        key: KeyJ
+      control:
+        kind: button
+        value: square
+    - binding:
+        device: keyboard
+        key: KeyI
+      control:
+        kind: button
+        value: triangle
+    - binding:
+        device: keyboard
+        key: KeyQ
+      control:
+        kind: button
+        value: l1
+    - binding:
+        device: keyboard
+        key: KeyE
+      control:
+        kind: button
+        value: r1
+    - binding:
+        device: keyboard
+        key: Digit1
+      control:
+        kind: button
+        value: l2
+    - binding:
+        device: keyboard
+        key: Digit3
+      control:
+        kind: button
+        value: r2
+    - binding:
+        device: keyboard
+        key: Enter
+      control:
+        kind: button
+        value: start
+    - binding:
+        device: keyboard
+        key: Backspace
+      control:
+        kind: button
+        value: select
+    - binding:
+        axis: x
+        device: mouse_axis
+      control:
+        kind: axis
+        value: right_x
+    - binding:
+        axis: y
+        device: mouse_axis
+      control:
+        kind: axis
+        value: right_y
+    name: Keyboard & Mouse
+debug:
+  cpu: false
+  fps: false
+  gpu: false
+  gte: false
+  spu_ram: false
+default_scene_script_parent: null
+default_sound_bank: null
+editor_version: 0.8.0
+format_version: 1
+lua_execution: native_cpp
+lua_profile: gameplay_v2
+name: Controller Rumble
+play:
+  content: whole_game
+  data: executable
+  initial_scene: null
+  runtime: play_station
+  selected_scenes: []
+  target: serial
+rendering:
+  dither_3d: false
+  exact_near_clipping: true
+  geometry_draw_distance: 128
+  gte_depth_average: true
+  height: 480
+  motion_interpolation: true
+  precomputed_visibility: false
+  retained_geometry: true
+  sprite_triangle_budget: 2048
+  streaming_geometry: false
+  streaming_pool_pages: 4
+  streaming_prefetch: true
+  streaming_triangle_budget: 4096
+  width: 640
+startup_scene: assets/scenes/Main.epokmap
+transition:
+  fade_in_ms: 300
+  fade_out_ms: 300
+  image: null
+  text: Now loading...

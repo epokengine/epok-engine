@@ -36,7 +36,8 @@ The table only matters when Play reads data from outside the executable:
 | CD on demand | Load from the CD image, through the same drive as XA music and geometry pages. |
 | PC on demand | Load through PCDrv from the build folder (Play) or the package folder (Export PS-EXE). |
 
-Native PC Play always keeps every scene in memory. **Export PS-EXE...** uses
+Native PC Play supports transitions between resident scene banks; it does not
+read external scene files. **Export PS-EXE...** uses
 the table too and adds each scene file to the ZIP beside `epok.ps-exe`.
 **Export PsyQo Project** keeps every scene inside its executable.
 

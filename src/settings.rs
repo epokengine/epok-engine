@@ -260,7 +260,10 @@ impl Rendering {
         (640, 480),
     ];
     pub fn validate(self) -> Result<(), String> {
-        if self.mesh_triangle_budget.is_some_and(|value| !(512..=8192).contains(&value)) {
+        if self
+            .mesh_triangle_budget
+            .is_some_and(|value| !(512..=8192).contains(&value))
+        {
             return Err("Mesh triangle budget must be between 512 and 8192, or Automatic.".into());
         }
         if !(64..=2048).contains(&self.sprite_triangle_budget) {
@@ -339,10 +342,14 @@ pub struct Preferences {
     pub mcp: Mcp,
     pub show_grid: bool,
     pub fly_speed: f32,
+    pub camera_speed_scalar: f32,
+    pub distance_scaled_speed: bool,
     /// Legacy preference accepted for old files; game_scale owns presentation.
     pub integer_scale: bool,
     pub game_scale: GameScale,
     pub emulator_linear_filter: bool,
+    /// Machine-local output policy, independent of a game's accessibility setting.
+    pub rumble_enabled: bool,
 }
 impl Default for Preferences {
     fn default() -> Self {
@@ -351,9 +358,12 @@ impl Default for Preferences {
             serial: Default::default(),
             show_grid: true,
             fly_speed: 5.,
+            camera_speed_scalar: 1.,
+            distance_scaled_speed: false,
             integer_scale: true,
             game_scale: GameScale::default(),
             emulator_linear_filter: false,
+            rumble_enabled: true,
         }
     }
 }
@@ -452,6 +462,11 @@ impl Preferences {
         if !self.fly_speed.is_finite() || !(0.01..=1000.).contains(&self.fly_speed) {
             return Err("Camera speed must be between 0.01 and 1000.".into());
         }
+        if !self.camera_speed_scalar.is_finite()
+            || !(1.0..=128.).contains(&self.camera_speed_scalar)
+        {
+            return Err("Camera speed scalar must be between 1 and 128.".into());
+        }
         Ok(())
     }
     pub fn save(&self) -> Result<(), String> {
@@ -508,11 +523,17 @@ mod tests {
     fn mesh_packet_budget_keeps_legacy_automatic_and_validates_limits() {
         let mut config: super::Rendering = serde_json::from_str("{}").unwrap();
         assert_eq!(config.mesh_triangle_budget, None);
-        assert!(serde_json::to_value(config).unwrap().get("mesh_triangle_budget").is_none());
+        assert!(
+            serde_json::to_value(config)
+                .unwrap()
+                .get("mesh_triangle_budget")
+                .is_none()
+        );
         for valid in [512, 1024, 8192] {
             config.mesh_triangle_budget = Some(valid);
             assert!(config.validate().is_ok());
-            let decoded: super::Rendering = serde_json::from_value(serde_json::to_value(config).unwrap()).unwrap();
+            let decoded: super::Rendering =
+                serde_json::from_value(serde_json::to_value(config).unwrap()).unwrap();
             assert_eq!(decoded, config);
         }
         for invalid in [0, 511, 8193] {
@@ -916,6 +937,8 @@ mod tests {
         let path = root.join("Editor.epokprefs");
         let preferences = Preferences {
             fly_speed: 12.,
+            camera_speed_scalar: 4.,
+            distance_scaled_speed: true,
             integer_scale: false,
             ..Default::default()
         };

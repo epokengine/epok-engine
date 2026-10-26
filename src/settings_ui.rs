@@ -369,6 +369,7 @@ fn matches(query: &str, text: &str) -> bool {
     query.trim().is_empty() || text.to_lowercase().contains(&query.trim().to_lowercase())
 }
 pub fn windows(ui: &imgui::Ui, e: &mut Editor) {
+    e.controls.rumble_panel_port=None;
     e.dependencies.poll();
     if e.dependencies.warning_ui(ui) {
         open_dependencies(e);
@@ -412,7 +413,7 @@ pub fn windows(ui: &imgui::Ui, e: &mut Editor) {
             let height=(available[1]-60.).max(200.);
             ui.child_window(format!("nav-{title}")).size([215.,height]).build(||{
                 ui.text_disabled(if preferences{"GENERAL"}else{"PROJECT"});
-                let pages: &[(&str,&str)]=if preferences{&[("Viewports","grid camera speed navigation"),("Play","game integer scale filter emulator serial NOTPSXSerial nops COM fast"),("Integrations / MCP","server integrations mcp connection port key"),("Dependencies","tools paths install repair make MIPS Nugget PCSX psxavenc mkpsxiso libclang")]}else{&[("Description","name project scripting lua execution native VM bytecode source interpreter"),("Maps & Build","startup scene scenes table EXE external disc file build compilation asset report generate play target content data transition fade loading text image"),("Rendering","resolution display video NTSC interlaced progressive pixels dithering RGB555 banding retained packets visibility geometry static movement position interpolation smoothing camera experimental FPS performance"),("Streaming","geometry pool pages memory CD disc music XA triangle budget preload nearby prefetch experimental FPS performance"),("Debug","HUD overlay FPS CPU GTE GPU DMA SPU audio bars runtime performance"),("Controls","controller pad multitap keyboard mouse gamepad analog profile mapping input") ]};
+                let pages: &[(&str,&str)]=if preferences{&[("Viewports","grid camera speed navigation"),("Play","game integer scale filter emulator serial NOTPSXSerial nops COM fast controller rumble vibration"),("Integrations / MCP","server integrations mcp connection port key"),("Dependencies","tools paths install repair make MIPS Nugget PCSX psxavenc mkpsxiso libclang")]}else{&[("Description","name project scripting lua execution native VM bytecode source interpreter"),("Maps & Build","startup scene scenes table EXE external disc file build compilation asset report generate play target content data transition fade loading text image"),("Rendering","resolution display video NTSC interlaced progressive pixels dithering RGB555 banding retained packets visibility geometry static movement position interpolation smoothing camera experimental FPS performance"),("Streaming","geometry pool pages memory CD disc music XA triangle budget preload nearby prefetch experimental FPS performance"),("Debug","HUD overlay FPS CPU GTE GPU DMA SPU audio bars runtime performance"),("Controls","controller pad multitap keyboard mouse gamepad analog profile mapping input rumble vibration assignment device") ]};
                 let page=if preferences{&mut state.preferences_page}else{&mut state.project_page};
                 let query=if preferences{&state.preferences_search}else{&state.project_search};
                 for (i,(label,keywords)) in pages.iter().enumerate(){
@@ -430,7 +431,7 @@ pub fn windows(ui: &imgui::Ui, e: &mut Editor) {
                 ui.set_next_item_width(-1.);ui.input_text("##search",query).hint("Search settings...").build();
                 ui.spacing();
                 let q=query.clone();
-                let keywords=if preferences{"Viewports grid camera speed navigation Play game integer scale filter emulator serial NOTPSXSerial nops COM fast Integrations MCP server connection port key Dependencies tools paths install repair make MIPS Nugget PCSX psxavenc mkpsxiso libclang"}else{"Description name project scripting lua execution native VM bytecode source interpreter Maps Build startup scene scenes table EXE external disc file build compilation asset report generate play target content data transition fade loading text image Rendering resolution display video NTSC interlaced progressive pixels dithering RGB555 banding retained packets visibility geometry static movement position interpolation smoothing camera Streaming pool pages memory CD disc music XA triangle budget preload nearby prefetch experimental FPS performance Debug HUD overlay FPS CPU GTE GPU DMA SPU audio bars runtime Controls controller pad multitap keyboard mouse gamepad analog profile mapping input"};
+                let keywords=if preferences{"Viewports grid camera speed navigation Play game integer scale filter emulator serial NOTPSXSerial nops COM fast controller rumble vibration Integrations MCP server connection port key Dependencies tools paths install repair make MIPS Nugget PCSX psxavenc mkpsxiso libclang"}else{"Description name project scripting lua execution native VM bytecode source interpreter Maps Build startup scene scenes table EXE external disc file build compilation asset report generate play target content data transition fade loading text image Rendering resolution display video NTSC interlaced progressive pixels dithering RGB555 banding retained packets visibility geometry static movement position interpolation smoothing camera Streaming pool pages memory CD disc music XA triangle budget preload nearby prefetch experimental FPS performance Debug HUD overlay FPS CPU GTE GPU DMA SPU audio bars runtime Controls controller pad multitap keyboard mouse gamepad analog profile mapping input rumble vibration assignment device"};
                 if !matches(&q,keywords){ui.text_disabled("No settings match your search.");}
                 if preferences {
                     if (state.preferences_page==3 && q.is_empty()) || (!q.is_empty() && matches(&q,"Dependencies tools paths install repair make MIPS Nugget PCSX psxavenc mkpsxiso libclang")) { ui.text("General  >  Dependencies"); e.dependencies.page(ui, e.job.is_some() || e.assets.busy || e.bake_job.is_some()); }
@@ -440,11 +441,15 @@ pub fn windows(ui: &imgui::Ui, e: &mut Editor) {
                         ui.text("General  >  Viewports");
                         section(ui,"Viewport Options",||{
                             row(ui,"Show Grid","Default for scenes without a saved template view.",||{ui.checkbox("##grid",&mut p.show_grid);});
-                            row(ui,"Camera Speed","Default free-flight navigation speed.",||{crate::gui::Drag::new("##speed").speed(0.1).range(0.01,1000.).build(ui,&mut p.fly_speed);});
+                            row(ui,"Camera Movement","Default navigation settings. The Scene camera dropdown overrides them for the current map.",||{
+                                let mut view=crate::viewport::View{fly_speed:p.fly_speed,camera_speed_scalar:p.camera_speed_scalar,distance_scaled_speed:p.distance_scaled_speed,..Default::default()};
+                                if crate::gui::camera_speed_controls(ui,&mut view){p.fly_speed=view.fly_speed;p.camera_speed_scalar=view.camera_speed_scalar;p.distance_scaled_speed=view.distance_scaled_speed;}
+                            });
                         });
                     }
-                    if (state.preferences_page==1 && q.is_empty()) || (!q.is_empty() && matches(&q,"Play game integer scale filter emulator serial NOTPSXSerial nops COM fast")) {
+                    if (state.preferences_page==1 && q.is_empty()) || (!q.is_empty() && matches(&q,"Play game integer scale filter emulator serial NOTPSXSerial nops COM fast controller rumble vibration")) {
                         ui.text("General  >  Play");
+                        section(ui,"Controllers",||{row(ui,"Rumble","Allow controller vibration during Play and explicit controller tests. Games can also disable it in their own menus.",||{ui.checkbox("##rumble-enabled",&mut p.rumble_enabled);});});
                         section(ui,"Game View",||{row(ui,"Scaling","Fit fills the width or height while keeping 4:3. Stretch fills both axes. Integer uses whole scale steps when possible. This affects display only; it does not rebuild the game.",||{
                             if let Some(_combo)=ui.begin_combo("##game-scale-setting",p.game_scale.label()) {
                                 for mode in crate::settings::GameScale::ALL {if ui.selectable_config(mode.label()).selected(p.game_scale==mode).build(){p.game_scale=mode;}}
@@ -636,8 +641,8 @@ pub fn windows(ui: &imgui::Ui, e: &mut Editor) {
                             });
                         });
                     }
-                    if (state.project_page==5 && q.is_empty()) || (!q.is_empty() && matches(&q,"Controls controller pad multitap keyboard mouse gamepad analog profile mapping input")) {
-                        crate::controls_ui::page(ui,&mut m.controls,&mut state.controls,&mut state.capture);
+                    if (state.project_page==5 && q.is_empty()) || (!q.is_empty() && matches(&q,"Controls controller pad multitap keyboard mouse gamepad analog profile mapping input rumble vibration assignment device")) {
+                        crate::controls_ui::live_page(ui,&mut m.controls,&mut state.controls,&mut state.capture,&mut e.controls,e.playing);
                     }
                 }
             });

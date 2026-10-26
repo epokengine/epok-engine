@@ -157,10 +157,12 @@ fn snapshot(e: &Editor) -> Value {
     let native_frame = e.native_frame.as_ref().map(|f| {
         json!({
             "sequence": f.number, "width": f.hud_size[0], "height": f.hud_size[1],
-            "buttons": f.buttons, "actors": f.actor_count, "camera": f.camera
+            "buttons": f.buttons, "actors": f.actor_count, "camera": f.camera,
+            "scene": f.scene.name, "scene_bank": f.scene_bank,
+            "scene_generation": f.scene_generation, "transition_phase": f.transition_phase
         })
     });
-    json!({"project":e.project_name(),"root":e.root,"scene_path":assets::path_string(&e.root,&e.scene_path()),"revision":revision(&e.scene),"dirty":e.dirty,"actors":e.scene.actors.len(),"selected":e.selected,"playing":e.playing,"paused":e.paused,"play_profile":profile,"serial":serial,"build_or_play_active":e.job.is_some(),"stopping":e.job.as_ref().is_some_and(crate::pipeline::Job::stopping),"scene_loading":e.scene_loading.is_some(),"editing_locked":e.critical_busy(),"installation_active":e.dependencies.busy(),"operation":operation,"import_active":e.assets.busy,"import_error":e.assets.error,"bake_active":e.bake_job.is_some(),"last_error":e.last_error,"game_error":e.game_error,"native_frame":native_frame,"game_frame":e.game_frame.as_ref().map(|f|json!({"sequence":f.sequence,"width":f.width,"height":f.height,"buttons":f.buttons,"vsyncs":f.vsyncs,"cycles":f.cycles})),"view":e.view,"scene_2d":e.scene_2d(),"view_mode":e.scene_view_mode.key(),"grid":e.grid,"wire":e.wire,"baked_preview":{"enabled":e.baked_preview.enabled,"streaming":e.baked_preview.streaming,"sample":e.baked_preview.sample,"committed":e.baked_preview.committed,"resident_pages":e.baked_preview.resident,"requested_pages":e.baked_preview.requested,"error":e.baked_preview.error}})
+    json!({"project":e.project_name(),"root":e.root,"scene_path":assets::path_string(&e.root,&e.scene_path()),"revision":revision(&e.scene),"dirty":e.dirty,"actors":e.scene.actors.len(),"selected":e.selected,"playing":e.playing,"paused":e.paused,"play_profile":profile,"serial":serial,"build_or_play_active":e.job.is_some(),"stopping":e.job.as_ref().is_some_and(crate::pipeline::Job::stopping),"scene_loading":e.scene_loading.is_some(),"editing_locked":e.critical_busy(),"installation_active":e.dependencies.busy(),"operation":operation,"import_active":e.assets.busy,"import_error":e.assets.error,"bake_active":e.bake_job.is_some(),"last_error":e.last_error,"runtime_error":e.runtime_error,"console_error":e.console.error,"game_error":e.game_error,"native_frame":native_frame,"game_frame":e.game_frame.as_ref().map(|f|json!({"sequence":f.sequence,"width":f.width,"height":f.height,"buttons":f.buttons,"vsyncs":f.vsyncs,"cycles":f.cycles})),"view":e.view,"scene_2d":e.scene_2d(),"view_mode":e.scene_view_mode.key(),"grid":e.grid,"wire":e.wire,"baked_preview":{"enabled":e.baked_preview.enabled,"streaming":e.baked_preview.streaming,"sample":e.baked_preview.sample,"committed":e.baked_preview.committed,"resident_pages":e.baked_preview.resident,"requested_pages":e.baked_preview.requested,"error":e.baked_preview.error}})
 }
 
 /// Resolved Object/Actor/Component model for the editor's current catalog. `None` when
@@ -746,14 +748,16 @@ pub fn execute(e: &mut Editor, state: &mut State, name: &str, a: Value) -> Resul
                         &view.zoom,
                         &view.distance,
                         &view.fly_speed,
+                        &view.camera_speed_scalar,
                         &view.phase,
                     ])
                     .all(|v| v.is_finite() && v.abs() <= 1e6)
                     || !(0.05..=8.).contains(&view.zoom)
                     || !(1.05..=10000.).contains(&view.distance)
                     || !(0.01..=1000.).contains(&view.fly_speed)
+                    || !(1.0..=128.).contains(&view.camera_speed_scalar)
                 {
-                    return Err("Invalid camera values: zoom 0.05..8, distance 1.05..10000, fly_speed 0.01..1000, finite coordinates.".into());
+                    return Err("Invalid camera values: zoom 0.05..8, distance 1.05..10000, fly_speed 0.01..1000, camera_speed_scalar 1..128, finite coordinates.".into());
                 }
                 e.view = view;
             }
@@ -882,24 +886,18 @@ pub fn execute(e: &mut Editor, state: &mut State, name: &str, a: Value) -> Resul
                         .step
                         .store(true, std::sync::atomic::Ordering::Relaxed);
                 }
-                "pause" | "resume" | "reset_psx" => {
+                "reset_psx" => e.reset_psx()?,
+                "pause" | "resume" => {
                     if !e.playing {
                         return Err("Play is not running".into());
                     }
                     if e.serial_ui.command_pending {
                         return Err("Waiting for the previous PSX command".into());
                     }
-                    if a["action"] == "reset_psx"
-                        && e.active_play_target != crate::play::Target::Serial
-                    {
-                        return Err("Reset PSX requires an active physical PSX session".into());
-                    }
                     e.job
                         .as_ref()
                         .ok_or("No Play job")?
-                        .control(if a["action"] == "reset_psx" {
-                            crate::pipeline::Control::Reset
-                        } else if a["action"] == "pause" {
+                        .control(if a["action"] == "pause" {
                             crate::pipeline::Control::Pause
                         } else {
                             crate::pipeline::Control::Resume
@@ -1542,14 +1540,14 @@ pub fn catalog() -> Vec<rmcp::model::Tool> {
         ),
         (
             "editor_view",
-            "Read/change Scene camera, grid, wireframe and the authoring domain. view_mode is \"3d\", \"2d\" or \"ui\"; the legacy scene_2d boolean still works (true = ui, false = 3d) and view_mode wins when both are sent. view fields: yaw, pitch, center[3] (orbit pivot), distance (eye to pivot), zoom (lens), fly_speed, phase.",
+            "Read/change Scene camera, grid, wireframe and the authoring domain. view_mode is \"3d\", \"2d\" or \"ui\"; the legacy scene_2d boolean still works (true = ui, false = 3d) and view_mode wins when both are sent. view fields: yaw, pitch, center[3] (orbit pivot), distance (eye to pivot), zoom (lens), fly_speed (base world units/s), camera_speed_scalar (1..128), distance_scaled_speed (boolean), phase.",
             json!({"view":o,"grid":b,"wire":b,"scene_2d":b,"view_mode":{"enum":["3d","2d","ui"]}}),
             vec![],
             false,
         ),
         (
             "editor_control",
-            "Build, play, stop, pause, resume, reset_psx, step, bake, export, frame selection or open settings/imports. reset_psx reboots an active physical console; step requires the emulator. Jobs return immediately; poll editor_state and logs_read for confirmation.",
+            "Build, play, stop, pause, resume, reset_psx, step, bake, export, frame selection or open settings/imports. stop requests reset before disconnecting an active physical PSX session. reset_psx also reconnects to the selected adapter without Play; its resident handler must respond. step requires the emulator. Jobs return immediately; poll editor_state and logs_read for confirmation.",
             json!({"action":{"enum":["build","play","stop","pause","resume","reset_psx","step","bake","export","reset_layout","project_settings","editor_preferences","serial_connection","serial_prepare","imports","camera_path","bake_visibility","frame_selected"]}}),
             vec!["action"],
             false,

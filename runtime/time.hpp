@@ -1,5 +1,6 @@
 #pragma once
 #include <stdint.h>
+#include "rumble.hpp"
 
 namespace epok {
 // Elapsed microseconds come from GPU::now(). Unsigned subtraction handles wrap.
@@ -12,7 +13,7 @@ public:
     uint32_t ticks=0,dropped_steps=0,frame_microseconds=0;
     int32_t delta_raw=68; // Q12 seconds, 68/69 alternating without cumulative drift.
     bool paused() const { return paused_; }
-    void set_paused(bool value) { if(value!=paused_)accumulated=0;paused_=value; }
+    void set_paused(bool value) { const bool was=paused_;if(value!=paused_)accumulated=0;paused_=value;if(value)rumble.suspend();else if(was)rumble.suspend(false); }
     void reset(uint32_t now) { previous=now;accumulated=delta_remainder=0;initialized=true;ticks=dropped_steps=frame_microseconds=0;delta_raw=68; }
     // Explicit loading time is excluded without erasing gameplay counters or pause state.
     void synchronize(uint32_t now) { previous=now;accumulated=0;initialized=true;frame_microseconds=0; }

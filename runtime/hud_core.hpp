@@ -142,7 +142,23 @@ template<class Sink> class Compiler {
     }
     void picture(Rect r,const Image& image){
         int texture_width=0,texture_height=0;
-        if(!sink.texture_size(image.texture,texture_width,texture_height)){fill(r,image.color);return;}
+        if(!sink.texture_size(image.texture,texture_width,texture_height)){
+            // An untextured Image can be a hollow frame. Emit only its edges,
+            // sharing the normal clipping, rotation, tint and packet budgets.
+            if(image.borders[0]||image.borders[1]||image.borders[2]||image.borders[3]){
+                if(r.w.raw()<=0||r.h.raw()<=0)return;
+                Fixed left=Fixed(int32_t(image.borders[0])*4096,Fixed::RAW),top=Fixed(int32_t(image.borders[1])*4096,Fixed::RAW);
+                Fixed right=Fixed(int32_t(image.borders[2])*4096,Fixed::RAW),bottom=Fixed(int32_t(image.borders[3])*4096,Fixed::RAW);
+                if(left+right>r.w){left=left*r.w/(left+right);right=r.w-left;}
+                if(top+bottom>r.h){top=top*r.h/(top+bottom);bottom=r.h-top;}
+                fill({r.x,r.y+r.h-top,r.w,top},image.color);
+                fill({r.x,r.y,r.w,bottom},image.color);
+                const Fixed middle=r.h-top-bottom;
+                fill({r.x,r.y+bottom,left,middle},image.color);
+                fill({r.x+r.w-right,r.y+bottom,right,middle},image.color);
+            }else fill(r,image.color);
+            return;
+        }
         int x=pixel(r.x),y=height-pixel(r.y+r.h),w=pixel(r.w),h=pixel(r.h);
         if(w<=0||h<=0)return;
         int x0=clamp(x,width),x1=clamp(x+w,width),y0=clamp(y,height),y1=clamp(y+h,height);

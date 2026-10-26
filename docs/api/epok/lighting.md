@@ -164,7 +164,7 @@ auto result = epok::lighting_detail::face_normal(m, face);
 inline Vector mesh_normal(const Affine<Fixed>& m,const int16_t* normal)
 ```
 
-- **Declared at:** [line 62](../../../runtime/lighting.hpp#L62)
+- **Declared at:** [line 63](../../../runtime/lighting.hpp#L63)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -206,7 +206,7 @@ auto result = epok::lighting_detail::mesh_normal(m, normal);
 inline psyqo::Color mesh_shade(const Affine<Fixed> &world, const MeshQuad &face, const Material &tint, bool enabled,MeshNormalTransform* transform=nullptr)
 ```
 
-- **Declared at:** [line 85](../../../runtime/lighting.hpp#L85)
+- **Declared at:** [line 86](../../../runtime/lighting.hpp#L86)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -256,7 +256,7 @@ auto result = epok::lighting_detail::mesh_shade(world, face, tint, enabled, tran
 inline psyqo::Color mesh_shade_local(const int16_t* normal, const Material& face_material, const Material& tint)
 ```
 
-- **Declared at:** [line 91](../../../runtime/lighting.hpp#L91)
+- **Declared at:** [line 92](../../../runtime/lighting.hpp#L92)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -302,7 +302,7 @@ auto result = epok::lighting_detail::mesh_shade_local(normal, face_material, tin
 inline psyqo::Color mesh_shade_normal(const Affine<Fixed> &world, const int16_t* normal, const Material& face_material, const Material &tint, bool enabled,MeshNormalTransform* transform=nullptr)
 ```
 
-- **Declared at:** [line 67](../../../runtime/lighting.hpp#L67)
+- **Declared at:** [line 68](../../../runtime/lighting.hpp#L68)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -352,7 +352,7 @@ auto result = epok::lighting_detail::mesh_shade_normal(world, normal, face_mater
 Vector apply(const Affine<Fixed>& m,const int16_t* normal)
 ```
 
-- **Declared at:** [line 30](../../../runtime/lighting.hpp#L30)
+- **Declared at:** [line 31](../../../runtime/lighting.hpp#L31)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -436,7 +436,7 @@ auto result = epok::lighting_detail::normalize(in);
 inline uint32_t pair(int32_t a,int32_t b)
 ```
 
-- **Declared at:** [line 101](../../../runtime/lighting.hpp#L101)
+- **Declared at:** [line 102](../../../runtime/lighting.hpp#L102)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -478,7 +478,7 @@ auto result = epok::lighting_detail::pair(a, b);
 void clear()
 ```
 
-- **Declared at:** [line 125](../../../runtime/lighting.hpp#L125)
+- **Declared at:** [line 133](../../../runtime/lighting.hpp#L133)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -513,7 +513,7 @@ object.clear();
 bool localize(const Affine<Fixed>& world)
 ```
 
-- **Declared at:** [line 181](../../../runtime/lighting.hpp#L181)
+- **Declared at:** [line 210](../../../runtime/lighting.hpp#L210)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -555,7 +555,7 @@ auto result = object.localize(world);
 void prepare(const std::array<ActorData,N>& objects,const std::array<Affine<Fixed>,N>& world,size_t object_count)
 ```
 
-- **Declared at:** [line 129](../../../runtime/lighting.hpp#L129)
+- **Declared at:** [line 137](../../../runtime/lighting.hpp#L137)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -601,7 +601,7 @@ object.prepare(objects, world, object_count);
 void reset_owner(size_t index)
 ```
 
-- **Declared at:** [line 121](../../../runtime/lighting.hpp#L121)
+- **Declared at:** [line 129](../../../runtime/lighting.hpp#L129)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -643,7 +643,7 @@ object.reset_owner(index);
 std::array<psyqo::Color,6> shade(size_t object,const std::array<ActorData,N>& objects,const std::array<Affine<Fixed>,N>& world,bool generic=false)
 ```
 
-- **Declared at:** [line 135](../../../runtime/lighting.hpp#L135)
+- **Declared at:** [line 149](../../../runtime/lighting.hpp#L149)
 - **Kind:** `cxx method`
 
 **Parameters**

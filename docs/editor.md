@@ -16,6 +16,13 @@ Delete cannot change the output or edit scene objects while the console text is
 active. Click a compiler diagnostic, then **Open source** to navigate to its file
 and line; **Clear** empties the log. New output preserves the selection when appended.
 
+Build, Play and connection failures open Console with a persistent red error
+message above the selectable output. The log also records an `ERROR:` entry with
+the event time. **Clear** dismisses the message; starting a new build/Play clears
+the previous message. Serial runtime reports include unexpected Unirom halts,
+reported CPU exceptions, PsyQo aborts and Lua callback errors. A requested pause
+is not an error. See [physical PSX diagnostics](play.md#physical-psx).
+
 ## Scene navigation
 
 The Hierarchy, Scene, Game, Code, Inspector, Project and Console panels can be docked inside the editor window. **Window > Code Editor** opens the integrated [Lua/C++ workspace](code-editor.md) with a script tree, tabs and language service setup. Layout is stored in the selected project's `UserSettings/editor-layout-v2.ini`. Use Layout > Default or Window > Reset Layout to restore the initial arrangement. Use File > Projects to save/close the current project and create or open another.
@@ -33,7 +40,7 @@ Editor panels and tool windows share a charcoal theme with blue selection and fo
 | Shift during flight | Increase speed |
 | Alt + left mouse drag | Orbit around the focus point |
 | Wheel | Move the camera forward/backward along its viewing direction, using Speed, without a zoom limit or field-of-view change |
-| Right mouse held + wheel | Adjust flight speed (also available as Speed in Scene) |
+| Right mouse held + wheel | Adjust Camera Speed (also available from the camera dropdown in Scene) |
 | Escape | Release camera capture |
 | 1 / 2 / 3 in Blockout | Faces / edges / vertices |
 | E / Q in Blockout, without right mouse | Extrude / push inward; Q bevels selected edges |
@@ -41,19 +48,38 @@ Editor panels and tool windows share a charcoal theme with blue selection and fo
 
 Gizmo shortcuts are suppressed during flight. Click a mesh to select the nearest visible hit, or click the background to clear selection. Camera and gizmo drags do not change selection. Use Hierarchy to select empty entities and cameras without selectable Scene icons.
 
+The camera button at the upper-right of the Scene toolbar opens **Camera Speed**,
+following [Unreal's camera speed controls](https://dev.epicgames.com/documentation/en-us/unreal-engine/viewport-toolbar?application_version=5.6#camera-speed-options).
+Its slider runs from **1 to 8**, with **4** retaining Epok's default of five world
+units per second. Each level doubles the speed; fractional values allow finer
+adjustment. **Camera Speed Scalar** multiplies it by **1 to 128**.
+**Distance Based Camera Speed** optionally scales movement by the eye-to-pivot
+distance, relative to the default 12-unit distance. The menu displays the resulting
+world units per second; Shift temporarily multiplies that by four.
+RMB + wheel updates the same speed without moving the camera. Wheel dolly uses
+the selected speed too. These choices are saved locally per map and survive
+**Reset View**; **Reset Speed** restores navigation defaults. Set defaults for new
+views under **Edit > Editor Preferences > Viewports**. Saved views from older
+versions preserve their existing movement speed.
+
 The top **Build** menu contains **Build Project**, **Build Lighting**, packaging
 and export actions, and **Lighting Settings**. Scene edits retain baked shadows;
 an amber warning indicates when to run **Build Lighting** again.
 
 ### Orientation control
 
-The upper-right **VIEW** control is the Scene camera orientation widget. Its
-colored X, Y and Z rows mirror the transform-axis colors; choose `+` or `-` to
-look toward the pivot from that signed world axis. The control preserves the
-current pivot and distance, keeps a tiny pole offset for a stable orbit basis,
-and marks the local Scene view as changed without editing authored scene data.
-`Persp` identifies the current perspective authoring view; orthographic camera
-snapping is not implemented yet.
+The upper-right Scene camera orientation widget shows colored X, Y and Z
+endpoints. Click an endpoint to look toward the pivot from that signed world
+axis, or click the central cube to return to a three-quarter view. Hovering the
+widget reveals a translucent circular area: hold the left mouse button and drag
+anywhere inside it to orbit freely around the current pivot. Dragging an endpoint
+or the cube also orbits; alignment happens only on a click without dragging.
+The drag continues outside the widget until release. Escape cancels the gesture
+and restores its starting orientation; losing focus stops it.
+
+The control preserves the current pivot, distance and lens, keeps a tiny pole
+offset for a stable orbit basis, and saves only the local Scene view without
+editing authored scene data. Orthographic camera snapping is not implemented yet.
 
 Entering camera navigation releases an active text field. Releasing the right mouse button, pressing Escape, or losing application focus releases cursor capture. Geometry shortcuts are suppressed while flying or entering text. See [Blockout](blockout.md) for bevel requirements and editing shortcuts.
 
@@ -161,7 +187,10 @@ Click Game to give it keyboard focus. Escape, a tab change or loss of focus rele
 | 1 / 3 | L2 / R2 |
 | Enter / Backspace | Start / Select |
 
-The bridge delivers these inputs to the emulated controller. The sample Spinner does not use them, and an Epok C++ input API is not implemented yet.
+The bridge delivers these inputs to the emulated controller. Gameplay can read
+buttons and axes and request finite motor pulses through the C++, Blueprint and
+Lua [Input API](input-collision.md). Native PC device assignment and the short
+rumble test are under Project Settings > Controls.
 
 Pause/Resume controls execution. Step advances one VBlank and pauses the CPU again. A game that renders across several VBlanks may need several steps before its image changes. The emulated image uses nearest filtering and integer scale when space permits.
 

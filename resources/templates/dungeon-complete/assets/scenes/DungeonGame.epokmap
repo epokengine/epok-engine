@@ -4075,21 +4075,21 @@ actors:
     properties:
       rect:
         anchor_max:
-        - 0.0
+        - 1.0
         - 1.0
         anchor_min:
         - 0.0
-        - 1.0
+        - 0.0
         pivot:
         - 0.0
-        - 1.0
+        - 0.0
         position:
         - 0.0
         - 0.0
         rotation: 0.0
         size:
-        - 320.0
-        - 240.0
+        - 0.0
+        - 0.0
     root: true
   - class:
       class_id: f2cfb26b-af53-4a46-9d91-1debea72e01b
@@ -4102,6 +4102,21 @@ actors:
       canvas:
         enabled: true
         focused: -1
+  - class:
+      class_id: d04c78d6-23bd-40d7-88f1-b1afc1b05b5b
+      name: epok::ImageComponent
+    id: 02e5e497-b501-4468-af78-34f46bc694a2
+    name: Damage Border
+    overrides:
+    - image
+    properties:
+      image:
+        borders: [6, 6, 6, 6]
+        color: [0.88, 0.063, 0.078]
+        enabled: false
+        region: [0, 0, 0, 0]
+        texture: null
+        tiling: none
   id: 3735c331-4a51-5f1b-9274-09d5884aeee2
   name: Combat HUD
   overrides: []

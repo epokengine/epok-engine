@@ -24,6 +24,13 @@ serial and PC on demand; configure the adapter in the editor's local settings.
 | Close menu | Circle | L |
 | Retry / restart | Start | Enter |
 
+Taking damage briefly flashes a thin red border around the screen and requests
+a 120 ms vibration on Pad 1. The border narrows and dims over 220 ms, leaving the
+center of the screen clear. Only a hit that reduces health triggers the feedback;
+the existing invulnerability period prevents repeated pulses from blocked hits.
+The border also works without a rumble-capable controller. Restart and scene
+exit clear both effects. The settings live in `DungeonGame.cpp`.
+
 ## PocketStation and trading
 
 Interact with the floating PocketStation, choose the card slot, and select
@@ -59,6 +66,10 @@ item or complete a purchase. New template projects contain no saved games.
   Only the song's three presets remain; their samples and synthesis settings
   are preserved. The native SPU conversion retains its 40 KiB instrument budget.
 - `assets/UI`: gauge, combat sprites and bitmap font.
+
+Combat HUD also carries the initially disabled Damage Border Image. Its
+untextured frame uses four HUD rectangles and no additional actors or textures,
+so the level keeps its 64-actor pool. The Canvas stretches to the viewport edges.
 
 The game begins with music, waits one second, fades in and unlocks controls two
 seconds later. Death locks input, waits two seconds, fades audio and picture out,

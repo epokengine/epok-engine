@@ -1,10 +1,10 @@
 # PsyQo API: Memory Card
 
-> **Header:** `"psyqo/memory-card.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/memory-card.hh)
+> **Header:** `"psyqo/memory-card.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/memory-card.hh)
 
-This module covers asynchronous Memory Card access and files. It documents 23 public callables declared directly in this header.
+This module covers asynchronous Memory Card access and files. It documents 24 public callables declared directly in this header.
 
-PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552d`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
+PsyQo is pinned through Nugget revision `bfc3f65010efaaf979e10852e4cf203a2eff1b13`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
 
 ## Declared types
 
@@ -28,6 +28,7 @@ PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552
 - [`psyqo::MemoryCard::scheduleWriteSector`](#psyqo-memorycard-schedulewritesector-1) — Performs `schedule write sector` as part of asynchronous Memory Card access and files.
 - [`psyqo::MemoryCard::sectorCount`](#psyqo-memorycard-sectorcount-1) — Performs `sector count` as part of asynchronous Memory Card access and files.
 - [`psyqo::MemoryCard::sectorSize`](#psyqo-memorycard-sectorsize-1) — Performs `sector size` as part of asynchronous Memory Card access and files.
+- [`psyqo::MemoryCard::useAsyncRecovery`](#psyqo-memorycard-useasyncrecovery-1) — Optional for callback transfers: keep the recovery window deselected using a GPU timer instead of spinning on the main thread.
 - [`psyqo::MemoryCard::writeSector`](#psyqo-memorycard-writesector-1) — Writes sector as part of asynchronous Memory Card access and files.
 - [`psyqo::MemoryCard::writeSector`](#psyqo-memorycard-writesector-2) — Writes sector as part of asynchronous Memory Card access and files.
 - [`psyqo::MemoryCard::WriteSectorAwaiter::await_ready`](#psyqo-memorycard-writesectorawaiter-await-ready-1) — Performs `await ready` as part of asynchronous Memory Card access and files.
@@ -48,7 +49,7 @@ PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552
 static constexpr uint32_t blockCount()
 ```
 
-- **Declared at:** [line 110](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/memory-card.hh#L110)
+- **Declared at:** [line 110](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/memory-card.hh#L110)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
@@ -79,7 +80,7 @@ auto result = psyqo::MemoryCard::blockCount();
 static constexpr uint32_t blockSize()
 ```
 
-- **Declared at:** [line 109](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/memory-card.hh#L109)
+- **Declared at:** [line 109](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/memory-card.hh#L109)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
@@ -110,7 +111,7 @@ auto result = psyqo::MemoryCard::blockSize();
 static const char *errorMessage(Error error)
 ```
 
-- **Declared at:** [line 115](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/memory-card.hh#L115)
+- **Declared at:** [line 115](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/memory-card.hh#L115)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**
@@ -152,7 +153,7 @@ auto result = psyqo::MemoryCard::errorMessage(error);
 void prepare()
 ```
 
-- **Declared at:** [line 124](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/memory-card.hh#L124)
+- **Declared at:** [line 124](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/memory-card.hh#L124)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -185,7 +186,7 @@ object.prepare();
 Error probeBlocking(Port port)
 ```
 
-- **Declared at:** [line 152](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/memory-card.hh#L152)
+- **Declared at:** [line 156](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/memory-card.hh#L156)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -227,7 +228,7 @@ auto result = object.probeBlocking(port);
 ReadSectorAwaiter readSector(Port port, uint16_t sector, void *buffer)
 ```
 
-- **Declared at:** [line 205](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/memory-card.hh#L205)
+- **Declared at:** [line 209](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/memory-card.hh#L209)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -273,7 +274,7 @@ auto result = object.readSector(port, sector, buffer);
 void readSector(Port port, uint16_t sector, void *buffer, eastl::function<void(Error)> &&callback)
 ```
 
-- **Declared at:** [line 155](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/memory-card.hh#L155)
+- **Declared at:** [line 159](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/memory-card.hh#L159)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -321,7 +322,7 @@ object.readSector(port, sector, buffer, callback);
 bool await_ready() const
 ```
 
-- **Declared at:** [line 166](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/memory-card.hh#L166)
+- **Declared at:** [line 170](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/memory-card.hh#L170)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -354,7 +355,7 @@ auto result = object.await_ready();
 Error await_resume()
 ```
 
-- **Declared at:** [line 174](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/memory-card.hh#L174)
+- **Declared at:** [line 178](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/memory-card.hh#L178)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `Error`. Check the purpose and failure notes before using the value.
@@ -387,7 +388,7 @@ auto result = object.await_resume();
 template <typename U> void await_suspend(std::coroutine_handle<U> handle)
 ```
 
-- **Declared at:** [line 168](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/memory-card.hh#L168)
+- **Declared at:** [line 172](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/memory-card.hh#L172)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -432,7 +433,7 @@ object.await_suspend<U>(handle);
 ReadSectorAwaiter(MemoryCard &device, Port port, uint16_t sector, void *buffer)
 ```
 
-- **Declared at:** [line 164](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/memory-card.hh#L164)
+- **Declared at:** [line 168](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/memory-card.hh#L168)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -476,7 +477,7 @@ psyqo::MemoryCard::ReadSectorAwaiter value(device, port, sector, buffer);
 Error readSectorBlocking(Port port, uint16_t sector, void *buffer)
 ```
 
-- **Declared at:** [line 134](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/memory-card.hh#L134)
+- **Declared at:** [line 138](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/memory-card.hh#L138)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -522,7 +523,7 @@ auto result = object.readSectorBlocking(port, sector, buffer);
 TaskQueue::Task scheduleReadSector(Port port, uint16_t sector, void *buffer, Error *resultOut)
 ```
 
-- **Declared at:** [line 159](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/memory-card.hh#L159)
+- **Declared at:** [line 163](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/memory-card.hh#L163)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -570,7 +571,7 @@ auto result = object.scheduleReadSector(port, sector, buffer, resultOut);
 TaskQueue::Task scheduleWriteSector(Port port, uint16_t sector, const void *buffer, Error *resultOut)
 ```
 
-- **Declared at:** [line 160](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/memory-card.hh#L160)
+- **Declared at:** [line 164](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/memory-card.hh#L164)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -618,7 +619,7 @@ auto result = object.scheduleWriteSector(port, sector, buffer, resultOut);
 static constexpr uint32_t sectorCount()
 ```
 
-- **Declared at:** [line 108](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/memory-card.hh#L108)
+- **Declared at:** [line 108](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/memory-card.hh#L108)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
@@ -649,7 +650,7 @@ auto result = psyqo::MemoryCard::sectorCount();
 static constexpr uint32_t sectorSize()
 ```
 
-- **Declared at:** [line 107](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/memory-card.hh#L107)
+- **Declared at:** [line 107](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/memory-card.hh#L107)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
@@ -668,6 +669,50 @@ auto result = psyqo::MemoryCard::sectorSize();
 
 **Trade-offs and warnings.** Treat device absence, busy state and I/O failure as expected outcomes; do not block the frame loop waiting for hardware.
 
+<a id="psyqo-memorycard-useasyncrecovery-1"></a>
+
+## `psyqo::MemoryCard::useAsyncRecovery`
+
+**Purpose.** Optional for callback transfers: keep the recovery window deselected using a GPU timer instead of spinning on the main thread.
+
+**Details.** The GPU and this singleton must outlive all outstanding card operations.
+
+**Exact declaration**
+
+```cpp
+void useAsyncRecovery(GPU& gpu)
+```
+
+- **Declared at:** [line 128](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/memory-card.hh#L128)
+- **Kind:** `cxx method`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `gpu` | `GPU &` | Input/output; inspect the function contract | Value supplied for `gpu`. See the exact type and module contract. |
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** The GPU and this singleton must outlive all outstanding card operations.
+
+**Usage pattern**
+
+```cpp
+#include "psyqo/memory-card.hh"
+
+// Assume these named values have been initialized with valid data:
+// GPU & gpu
+
+psyqo::MemoryCard& object = /* obtain a valid instance */;
+
+object.useAsyncRecovery(gpu);
+```
+
+**Why choose it.** The asynchronous shape lets the frame loop continue while hardware or queued work completes. The API exposes the hardware service without hiding latency or bounded memory.
+
+**Trade-offs and warnings.** Captured data and buffers must remain valid until the callback or task has completed. Treat device absence, busy state and I/O failure as expected outcomes; do not block the frame loop waiting for hardware. Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
+
 <a id="psyqo-memorycard-writesector-1"></a>
 
 ## `psyqo::MemoryCard::writeSector`
@@ -680,7 +725,7 @@ auto result = psyqo::MemoryCard::sectorSize();
 WriteSectorAwaiter writeSector(Port port, uint16_t sector, const void *buffer)
 ```
 
-- **Declared at:** [line 206](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/memory-card.hh#L206)
+- **Declared at:** [line 210](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/memory-card.hh#L210)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -726,7 +771,7 @@ auto result = object.writeSector(port, sector, buffer);
 void writeSector(Port port, uint16_t sector, const void *buffer, eastl::function<void(Error)> &&callback)
 ```
 
-- **Declared at:** [line 156](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/memory-card.hh#L156)
+- **Declared at:** [line 160](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/memory-card.hh#L160)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -774,7 +819,7 @@ object.writeSector(port, sector, buffer, callback);
 bool await_ready() const
 ```
 
-- **Declared at:** [line 187](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/memory-card.hh#L187)
+- **Declared at:** [line 191](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/memory-card.hh#L191)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -807,7 +852,7 @@ auto result = object.await_ready();
 Error await_resume()
 ```
 
-- **Declared at:** [line 195](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/memory-card.hh#L195)
+- **Declared at:** [line 199](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/memory-card.hh#L199)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `Error`. Check the purpose and failure notes before using the value.
@@ -840,7 +885,7 @@ auto result = object.await_resume();
 template <typename U> void await_suspend(std::coroutine_handle<U> handle)
 ```
 
-- **Declared at:** [line 189](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/memory-card.hh#L189)
+- **Declared at:** [line 193](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/memory-card.hh#L193)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -885,7 +930,7 @@ object.await_suspend<U>(handle);
 WriteSectorAwaiter(MemoryCard &device, Port port, uint16_t sector, const void *buffer)
 ```
 
-- **Declared at:** [line 185](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/memory-card.hh#L185)
+- **Declared at:** [line 189](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/memory-card.hh#L189)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -929,7 +974,7 @@ psyqo::MemoryCard::WriteSectorAwaiter value(device, port, sector, buffer);
 Error writeSectorBlocking(Port port, uint16_t sector, const void *buffer)
 ```
 
-- **Declared at:** [line 144](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/memory-card.hh#L144)
+- **Declared at:** [line 148](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/memory-card.hh#L148)
 - **Kind:** `cxx method`
 
 **Parameters**

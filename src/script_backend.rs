@@ -162,6 +162,12 @@ fn native_requirements(source: &str) -> Result<BTreeSet<String>, String> {
         ("sample_mesh_vertex", "mesh-streaming"),
         ("PlaybackLibrary::play_sequence", "timeline"),
         ("PlaybackLibrary::play_effect", "effect"),
+        ("rumble", "rumble"),
+        ("stop_rumble", "rumble"),
+        ("rumble_supported", "rumble"),
+        ("set_rumble_enabled", "rumble"),
+        ("rumble_snapshot", "rumble"),
+        ("rumble.play", "rumble"),
     ] {
         if identifier_calls(&code, name) {
             requirements.insert(capability.to_string());

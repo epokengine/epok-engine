@@ -129,7 +129,7 @@ Imported PNGs compile into 8-bit PSX palettes and texture banks. Transparent tex
 
 ## Input, world queries and scene lifetime
 
-`input` exposes held/pressed/released states on both physical controller ports. AdvancedPad shares the bus safely with the Memory Card service. Collider queries include overlap, segment raycast, ground and swept kinematic movement, plus trigger enter/stay/exit callbacks.
+`input` exposes held/pressed/released states for the first physical port's direct controller or four multitap sockets. Epok's `ControllerPad` shares PsyQo's bus arbiter with Memory Card and PocketStation operations. The reflected Input library adds finite DualShock motor pulses; its driver and service are included in standalone exports. Collider queries include overlap, segment raycast, ground and swept kinematic movement, plus trigger enter/stay/exit callbacks.
 
 `request_scene(name)` or `request_scene(size_t(index))` queues one of the exported scene banks. A switch stops outgoing audio, waits for XA callbacks, invalidates handles, clears simulation pools and initializes incoming components/scripts. Banks share one reusable object pool and immutable resources. Their metadata and nonstreamed resources remain prelinked and must fit main RAM. With geometry streaming enabled, immutable editable-mesh payloads use CD pages with build-global IDs; the page cache survives bank changes. Textures, collision data, scripts and other resources keep their existing storage paths.
 

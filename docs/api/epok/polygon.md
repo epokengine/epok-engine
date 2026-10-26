@@ -2,7 +2,7 @@
 
 > **Header:** `"polygon.hpp"` · **Tier:** Epok runtime API · **Source:** [open header](../../../runtime/polygon.hpp)
 
-This module covers PSX polygon preparation, clipping and submission. It documents 18 public callables declared directly in this header.
+This module covers PSX polygon preparation, clipping and submission. It documents 21 public callables declared directly in this header.
 
 ## Declared types
 
@@ -15,7 +15,10 @@ This module covers PSX polygon preparation, clipping and submission. It document
 - [`epok::CameraUnits::bucket`](#epok-cameraunits-bucket-1) — Ordering table bucket from three depths: (za+zb+zc) / (3 << DepthShift), exact for the frustum range without an integer division.
 - [`epok::CameraUnits::outcode`](#epok-cameraunits-outcode-1) — Performs `outcode` as part of PSX polygon preparation, clipping and submission.
 - [`epok::clip_fraction16`](#epok-clip-fraction16-1) — Performs `clip fraction16` as part of PSX polygon preparation, clipping and submission.
-- [`epok::clip_polygon`](#epok-clip-polygon-1) — Sutherland-Hodgman against the frustum planes named by `planes` (bit i = plane i of frustum_outcode).
+- [`epok::clip_polygon`](#epok-clip-polygon-1) — Performs `clip polygon` as part of PSX polygon preparation, clipping and submission.
+- [`epok::clip_polygon_distances`](#epok-clip-polygon-distances-1) — Sutherland-Hodgman against the frustum planes named by `planes` (bit i = plane i of frustum_outcode).
+- [`epok::compact_gpu_safe`](#epok-compact-gpu-safe-1) — Screen/depth-only projection is also sufficient for off-screen chunks when every vertex is depth-valid and the complete packet span fits the GPU.
+- [`epok::compact_mesh_gpu_safe`](#epok-compact-mesh-gpu-safe-1) — Unrelated faces in one spatial chunk can span more than the GPU limit even though every submitted triangle fits.
 - [`epok::CompactProjectedVertex::Depth::operator[]`](#epok-compactprojectedvertex-depth-operator-1) — Performs `operator []` as part of PSX polygon preparation, clipping and submission.
 - [`epok::floor_div`](#epok-floor-div-1) — Floor division for a positive divisor, matching the GTE's arithmetic shift.
 - [`epok::fog_amount`](#epok-fog-amount-1) — Linear fog: 0 before start, 4096 at or beyond end.
@@ -41,7 +44,7 @@ This module covers PSX polygon preparation, clipping and submission. It document
 inline uint32_t blend_fog(uint32_t packed, uint32_t amount, const uint8_t* fog)
 ```
 
-- **Declared at:** [line 79](../../../runtime/polygon.hpp#L79)
+- **Declared at:** [line 120](../../../runtime/polygon.hpp#L120)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -85,7 +88,7 @@ auto result = epok::blend_fog(packed, amount, fog);
 inline uint32_t blend_vertex_fog(uint32_t packed, uint32_t amount, const uint8_t* fog, bool textured_gpu_colors)
 ```
 
-- **Declared at:** [line 87](../../../runtime/polygon.hpp#L87)
+- **Declared at:** [line 128](../../../runtime/polygon.hpp#L128)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -131,7 +134,7 @@ auto result = epok::blend_vertex_fog(packed, amount, fog, textured_gpu_colors);
 static int bucket(int32_t za, int32_t zb, int32_t zc)
 ```
 
-- **Declared at:** [line 47](../../../runtime/polygon.hpp#L47)
+- **Declared at:** [line 88](../../../runtime/polygon.hpp#L88)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**
@@ -175,7 +178,7 @@ auto result = epok::CameraUnits::bucket(za, zb, zc);
 static uint8_t outcode(int32_t x,int32_t y,int32_t z)
 ```
 
-- **Declared at:** [line 44](../../../runtime/polygon.hpp#L44)
+- **Declared at:** [line 85](../../../runtime/polygon.hpp#L85)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**
@@ -219,7 +222,7 @@ auto result = epok::CameraUnits::outcode(x, y, z);
 inline uint32_t clip_fraction16(uint32_t numerator,uint32_t denominator)
 ```
 
-- **Declared at:** [line 136](../../../runtime/polygon.hpp#L136)
+- **Declared at:** [line 177](../../../runtime/polygon.hpp#L177)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -253,9 +256,7 @@ auto result = epok::clip_fraction16(numerator, denominator);
 
 ## `epok::clip_polygon`
 
-**Purpose.** Sutherland-Hodgman against the frustum planes named by `planes` (bit i = plane i of frustum_outcode).
-
-**Details.** Returns the vertex count in buffers[from].
+**Purpose.** Performs `clip polygon` as part of PSX polygon preparation, clipping and submission.
 
 **Exact declaration**
 
@@ -263,7 +264,7 @@ auto result = epok::clip_fraction16(numerator, denominator);
 template<class Units> inline int clip_polygon(ClipVertex (&buffers)[2][12], int count, uint8_t planes, int& from)
 ```
 
-- **Declared at:** [line 146](../../../runtime/polygon.hpp#L146)
+- **Declared at:** [line 236](../../../runtime/polygon.hpp#L236)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -277,7 +278,7 @@ template<class Units> inline int clip_polygon(ClipVertex (&buffers)[2][12], int 
 
 **Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
-**Use it when.** Returns the vertex count in buffers[from].
+**Use it when.** You need PSX polygon preparation, clipping and submission and the preconditions in the declaration are already satisfied.
 
 **Usage pattern**
 
@@ -300,6 +301,160 @@ auto result = epok::clip_polygon<Units>(buffers, count, planes, from);
 
 **Trade-offs and warnings.** Every instantiated type must satisfy the header's compile-time requirements; extra instantiations can increase code size. Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
 
+<a id="epok-clip-polygon-distances-1"></a>
+
+## `epok::clip_polygon_distances`
+
+**Purpose.** Sutherland-Hodgman against the frustum planes named by `planes` (bit i = plane i of frustum_outcode).
+
+**Details.** Returns the vertex count in buffers[from].
+
+**Exact declaration**
+
+```cpp
+template<class Units,class Distance=int64_t> #if defined(__GNUC__) && !defined(__clang__) __attribute__((noinline,optimize("O3"))) #endif int clip_polygon_distances(ClipVertex (&buffers)[2][12], int count, uint8_t planes, int& from)
+```
+
+- **Declared at:** [line 191](../../../runtime/polygon.hpp#L191)
+- **Kind:** `function template`; qualifiers: `template`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `buffers` | `ClipVertex (&)[2][12]` | Input/output; inspect the function contract | Value supplied for `buffers`. See the exact type and module contract. |
+| `count` | `int` | Input | Value supplied for `count`. See the exact type and module contract. |
+| `planes` | `uint8_t` | Input | Value supplied for `planes`. See the exact type and module contract. |
+| `from` | `int &` | Input/output; inspect the function contract | Value supplied for `from`. See the exact type and module contract. |
+
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+
+**Use it when.** Returns the vertex count in buffers[from].
+
+**Usage pattern**
+
+```cpp
+#include "polygon.hpp"
+
+// Replace these template arguments with types or values accepted by the declaration:
+// Units, Distance
+
+// Assume these named values have been initialized with valid data:
+// ClipVertex (&)[2][12] buffers
+// int count
+// uint8_t planes
+// int & from
+
+auto result = epok::clip_polygon_distances<Units, Distance>(buffers, count, planes, from);
+```
+
+**Why choose it.** Template dispatch is resolved at compile time and normally adds no runtime indirection.
+
+**Trade-offs and warnings.** Every instantiated type must satisfy the header's compile-time requirements; extra instantiations can increase code size. Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
+
+<a id="epok-compact-gpu-safe-1"></a>
+
+## `epok::compact_gpu_safe`
+
+**Purpose.** Screen/depth-only projection is also sufficient for off-screen chunks when every vertex is depth-valid and the complete packet span fits the GPU.
+
+**Details.** The drawing-area scissor clips pixels; near/far and oversized primitives still use the full camera-space clipper.
+
+**Exact declaration**
+
+```cpp
+inline bool compact_gpu_safe(const CompactProjectedVertex* vertices,size_t count,int32_t near,int32_t far)
+```
+
+- **Declared at:** [line 33](../../../runtime/polygon.hpp#L33)
+- **Kind:** `function decl`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `vertices` | `const CompactProjectedVertex *` | Input | Value supplied for `vertices`. See the exact type and module contract. |
+| `count` | `size_t` | Input | Value supplied for `count`. See the exact type and module contract. |
+| `near` | `int32_t` | Input | Value supplied for `near`. See the exact type and module contract. |
+| `far` | `int32_t` | Input | Value supplied for `far`. See the exact type and module contract. |
+
+**Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
+
+**Use it when.** The drawing-area scissor clips pixels; near/far and oversized primitives still use the full camera-space clipper.
+
+**Usage pattern**
+
+```cpp
+#include "polygon.hpp"
+
+// Assume these named values have been initialized with valid data:
+// const CompactProjectedVertex * vertices
+// size_t count
+// int32_t near
+// int32_t far
+
+auto result = epok::compact_gpu_safe(vertices, count, near, far);
+```
+
+**Why choose it.** The boolean result makes success, availability or state explicit without exceptions. The API maps closely to PSX GPU work, giving predictable ordering and low overhead.
+
+**Trade-offs and warnings.** Check the return value; `false` is part of normal control flow for many PSX resource operations. Respect packet lifetime, ordering-table direction and per-frame GPU/VRAM budgets; submission is not a desktop immediate-mode draw call. Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
+
+<a id="epok-compact-mesh-gpu-safe-1"></a>
+
+## `epok::compact_mesh_gpu_safe`
+
+**Purpose.** Unrelated faces in one spatial chunk can span more than the GPU limit even though every submitted triangle fits.
+
+**Details.** Check those primitives before falling back to full camera coordinates and software clipping for the entire chunk.
+
+**Exact declaration**
+
+```cpp
+template<class Quad> inline bool compact_mesh_gpu_safe(const CompactProjectedVertex* vertices,size_t count, const Quad* quads,size_t faces,int32_t near,int32_t far)
+```
+
+- **Declared at:** [line 48](../../../runtime/polygon.hpp#L48)
+- **Kind:** `function template`; qualifiers: `template`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `vertices` | `const CompactProjectedVertex *` | Input | Value supplied for `vertices`. See the exact type and module contract. |
+| `count` | `size_t` | Input | Value supplied for `count`. See the exact type and module contract. |
+| `quads` | `const Quad *` | Input | Value supplied for `quads`. See the exact type and module contract. |
+| `faces` | `size_t` | Input | Value supplied for `faces`. See the exact type and module contract. |
+| `near` | `int32_t` | Input | Value supplied for `near`. See the exact type and module contract. |
+| `far` | `int32_t` | Input | Value supplied for `far`. See the exact type and module contract. |
+
+**Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
+
+**Use it when.** Check those primitives before falling back to full camera coordinates and software clipping for the entire chunk.
+
+**Usage pattern**
+
+```cpp
+#include "polygon.hpp"
+
+// Replace these template arguments with types or values accepted by the declaration:
+// Quad
+
+// Assume these named values have been initialized with valid data:
+// const CompactProjectedVertex * vertices
+// size_t count
+// const Quad * quads
+// size_t faces
+// int32_t near
+// int32_t far
+
+auto result = epok::compact_mesh_gpu_safe<Quad>(vertices, count, quads, faces, near, far);
+```
+
+**Why choose it.** Template dispatch is resolved at compile time and normally adds no runtime indirection. The boolean result makes success, availability or state explicit without exceptions. The API maps closely to PSX GPU work, giving predictable ordering and low overhead.
+
+**Trade-offs and warnings.** Every instantiated type must satisfy the header's compile-time requirements; extra instantiations can increase code size. Check the return value; `false` is part of normal control flow for many PSX resource operations. Respect packet lifetime, ordering-table direction and per-frame GPU/VRAM budgets; submission is not a desktop immediate-mode draw call. Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
+
 <a id="epok-compactprojectedvertex-depth-operator-1"></a>
 
 ## `epok::CompactProjectedVertex::Depth::operator[]`
@@ -312,7 +467,7 @@ auto result = epok::clip_polygon<Units>(buffers, count, planes, from);
 int32_t operator[](size_t axis) const
 ```
 
-- **Declared at:** [line 24](../../../runtime/polygon.hpp#L24)
+- **Declared at:** [line 25](../../../runtime/polygon.hpp#L25)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -354,7 +509,7 @@ auto result = object.operator[](axis);
 inline int32_t floor_div(int64_t numerator, int32_t divisor)
 ```
 
-- **Declared at:** [line 101](../../../runtime/polygon.hpp#L101)
+- **Declared at:** [line 142](../../../runtime/polygon.hpp#L142)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -398,7 +553,7 @@ auto result = epok::floor_div(numerator, divisor);
 inline uint16_t fog_amount(int32_t depth, int32_t start, int32_t end)
 ```
 
-- **Declared at:** [line 74](../../../runtime/polygon.hpp#L74)
+- **Declared at:** [line 115](../../../runtime/polygon.hpp#L115)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -442,7 +597,7 @@ auto result = epok::fog_amount(depth, start, end);
 inline uint32_t modulate_channel(uint32_t c)
 ```
 
-- **Declared at:** [line 58](../../../runtime/polygon.hpp#L58)
+- **Declared at:** [line 99](../../../runtime/polygon.hpp#L99)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -482,7 +637,7 @@ auto result = epok::modulate_channel(c);
 inline uint32_t modulate_color(uint32_t packed)
 ```
 
-- **Declared at:** [line 59](../../../runtime/polygon.hpp#L59)
+- **Declared at:** [line 100](../../../runtime/polygon.hpp#L100)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -522,7 +677,7 @@ auto result = epok::modulate_color(packed);
 inline uint32_t pack_color(uint32_t r, uint32_t g, uint32_t b)
 ```
 
-- **Declared at:** [line 56](../../../runtime/polygon.hpp#L56)
+- **Declared at:** [line 97](../../../runtime/polygon.hpp#L97)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -566,7 +721,7 @@ auto result = epok::pack_color(r, g, b);
 inline uint32_t packet_color(uint32_t color, bool textured, bool gpu_colors)
 ```
 
-- **Declared at:** [line 69](../../../runtime/polygon.hpp#L69)
+- **Declared at:** [line 110](../../../runtime/polygon.hpp#L110)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -612,7 +767,7 @@ auto result = epok::packet_color(color, textured, gpu_colors);
 template<class Units, int Width, int Height> inline void project_cpu(ProjectedVertex& point)
 ```
 
-- **Declared at:** [line 113](../../../runtime/polygon.hpp#L113)
+- **Declared at:** [line 154](../../../runtime/polygon.hpp#L154)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -655,7 +810,7 @@ epok::project_cpu<Units, Width, Height>(point);
 inline uint32_t scale_channel(uint32_t a, uint32_t b)
 ```
 
-- **Declared at:** [line 63](../../../runtime/polygon.hpp#L63)
+- **Declared at:** [line 104](../../../runtime/polygon.hpp#L104)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -697,7 +852,7 @@ auto result = epok::scale_channel(a, b);
 template<class Vertex> inline int32_t screen_area(const Vertex& a, const Vertex& b, const Vertex& c)
 ```
 
-- **Declared at:** [line 96](../../../runtime/polygon.hpp#L96)
+- **Declared at:** [line 137](../../../runtime/polygon.hpp#L137)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -744,7 +899,7 @@ auto result = epok::screen_area<Vertex>(a, b, c);
 inline bool screen_backface(int32_t area, bool mirror_x)
 ```
 
-- **Declared at:** [line 93](../../../runtime/polygon.hpp#L93)
+- **Declared at:** [line 134](../../../runtime/polygon.hpp#L134)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -786,7 +941,7 @@ auto result = epok::screen_backface(area, mirror_x);
 inline uint32_t tint_color(uint32_t color, uint32_t shade)
 ```
 
-- **Declared at:** [line 64](../../../runtime/polygon.hpp#L64)
+- **Declared at:** [line 105](../../../runtime/polygon.hpp#L105)
 - **Kind:** `function decl`
 
 **Parameters**

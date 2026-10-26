@@ -42,12 +42,14 @@ pub struct State {
     pub error: Option<String>,
     pub pocket_requests: std::collections::VecDeque<PocketRequest>,
     pub pocket_replies: std::collections::VecDeque<PocketReply>,
+    pub rumble_warning: Option<String>,
 }
 pub struct Bridge {
     pub script: PathBuf,
     pub state: Arc<Mutex<State>>,
     pub buttons: Arc<AtomicU16>,
     pub step: Arc<AtomicBool>,
+    pub rumble_enabled: Arc<AtomicBool>,
     pub debug: Arc<Mutex<crate::blueprint_debug::State>>,
     stop: Arc<AtomicBool>,
     worker: Option<thread::JoinHandle<()>>,
@@ -69,13 +71,14 @@ impl Bridge {
         std::fs::write(
             &script,
             format!(
-                "EPOK_PORT={}\nEPOK_TOKEN={token:?}\nEPOK_DEBUG_CONFIG={:?}\nEPOK_POCKET_CONFIG={:?}\nEPOK_ANALOG_CONTROLLER={}\n{}",
+                "EPOK_PORT={}\nEPOK_TOKEN={token:?}\nEPOK_DEBUG_CONFIG={:?}\nEPOK_POCKET_CONFIG={:?}\nEPOK_ANALOG_CONTROLLER={}\nEPOK_RUMBLE_CONFIG={:?}\n{}",
                 listener.local_addr().unwrap().port(),
                 root.join(".epok/emulator/blueprint-debug.lua")
                     .to_string_lossy(),
                 root.join(".epok/emulator/pocketstation.lua")
                     .to_string_lossy(),
                 crate::play::Profile::load(root)?.analog_controller,
+                root.join(".epok/emulator/rumble.lua").to_string_lossy(),
                 include_str!("../integrations/pcsx-redux/bridge.lua")
             ),
         )
@@ -83,17 +86,26 @@ impl Bridge {
         let state = Arc::new(Mutex::new(State::default()));
         let buttons = Arc::new(AtomicU16::new(0));
         let step = Arc::new(AtomicBool::new(false));
+        let rumble_enabled = Arc::new(AtomicBool::new(false));
         let debug = Arc::new(Mutex::new(crate::blueprint_debug::State::default()));
         let stop = Arc::new(AtomicBool::new(false));
         let (shared, input, stopping) = (state.clone(), buttons.clone(), stop.clone());
         let stepping = step.clone();
         let debugging = debug.clone();
+        let output_enabled = rumble_enabled.clone();
         let worker = thread::spawn(move || {
             while !stopping.load(Ordering::Relaxed) {
                 match listener.accept() {
                     Ok((stream, _)) => {
                         let result = receive(
-                            stream, &token, &shared, &input, &stopping, &stepping, &debugging,
+                            stream,
+                            &token,
+                            &shared,
+                            &input,
+                            &stopping,
+                            &stepping,
+                            &debugging,
+                            &output_enabled,
                         );
                         let mut state = shared.lock().unwrap();
                         state.connected = false;
@@ -117,6 +129,7 @@ impl Bridge {
             state,
             buttons,
             step,
+            rumble_enabled,
             debug,
             stop,
             worker: Some(worker),
@@ -143,6 +156,7 @@ fn line(reader: &mut BufReader<TcpStream>) -> Result<String, String> {
     }
     Ok(text)
 }
+#[allow(clippy::too_many_arguments)]
 fn receive(
     stream: TcpStream,
     token: &str,
@@ -151,6 +165,7 @@ fn receive(
     stop: &AtomicBool,
     step: &AtomicBool,
     debug: &Mutex<crate::blueprint_debug::State>,
+    rumble_enabled: &AtomicBool,
 ) -> Result<(), String> {
     stream.set_nonblocking(false).map_err(|e| e.to_string())?;
     stream
@@ -184,23 +199,33 @@ fn receive(
         }
         writeln!(
             reader.get_mut(),
-            "{} {}",
+            "{} {} {}",
             if step.swap(false, Ordering::Relaxed) {
                 "S"
             } else {
                 "F"
             },
-            buttons.load(Ordering::Relaxed)
+            buttons.load(Ordering::Relaxed),
+            u8::from(rumble_enabled.load(Ordering::Relaxed))
         )
         .map_err(|e| e.to_string())?;
         let mut header = line(&mut reader)?;
-        if header.starts_with("EPKD1 ") {
-            receive_debug(&mut reader, &header, debug)?;
-            header = line(&mut reader)?;
-        }
-        while header.starts_with("EPKP1 ") {
-            let request = receive_pocket(&mut reader, &header)?;
-            state.lock().unwrap().pocket_requests.push_back(request);
+        while header.starts_with("EPKD1 ")
+            || header.starts_with("EPKP1 ")
+            || header.starts_with("EPKR1 ")
+        {
+            if header.starts_with("EPKD1 ") {
+                receive_debug(&mut reader, &header, debug)?;
+            } else if header.trim() == "EPKR1 0" {
+                state.lock().unwrap().rumble_warning = Some("This PCSX-Redux build has no controller rumble output. Install / Repair PCSX-Redux in Editor Preferences > Dependencies, or choose a newer custom emulator.".into());
+            } else if header.trim() == "EPKR1 1" {
+                // Protocol support is distinct from a selected physical actuator.
+            } else if header.starts_with("EPKP1 ") {
+                let request = receive_pocket(&mut reader, &header)?;
+                state.lock().unwrap().pocket_requests.push_back(request);
+            } else {
+                return Err("Invalid controller rumble capability header".into());
+            }
             header = line(&mut reader)?;
         }
         if header.trim() == "EPKF0" {

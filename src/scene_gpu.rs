@@ -176,6 +176,7 @@ pub struct SceneGpu {
     grid: Vertices,
     cached_scene: Option<Scene>,
     cached_revision: Option<u64>,
+    cached_native_bank: Option<(u32, u32)>,
     cached_bake_revision: u64,
     cached_textures: Option<Vec<(uuid::Uuid, usize, usize)>>,
     static_draw_ranges: Vec<DrawRange>,
@@ -594,6 +595,7 @@ impl SceneGpu {
             grid,
             cached_scene: None,
             cached_revision: None,
+            cached_native_bank: None,
             cached_bake_revision: 0,
             cached_textures: None,
             static_draw_ranges: vec![],
@@ -662,6 +664,18 @@ impl SceneGpu {
         target: &wgpu::TextureView,
         frame: &crate::native_play::Frame,
     ) {
+        let bank = (frame.scene_bank, frame.scene_generation);
+        if self.cached_native_bank != Some(bank)
+            || self
+                .cached_revision
+                .is_none_or(|number| frame.number < number)
+        {
+            // Static actors are cached across frames, but the shared runtime
+            // pool can replace every actor at a scene boundary or Reset.
+            self.static_mask = None;
+            self.cached_revision = None;
+        }
+        self.cached_native_bank = Some(bank);
         let view = frame.view();
         self.render_input(
             device,
@@ -2035,6 +2049,9 @@ mod tests {
                 ..Default::default()
             },
             number: 0,
+            scene_bank: 0,
+            scene_generation: 0,
+            transition_phase: 0,
             buttons: 0,
             actor_count: 1,
             camera: Some(0),
@@ -2064,6 +2081,101 @@ mod tests {
                 assert_eq!(view.center, [0., 0., 1.]);
                 assert_eq!(view.distance, 1.);
             }
+        }
+    }
+
+    #[test]
+    #[ignore = "requires a graphics adapter; no window or desktop capture"]
+    fn native_scene_changes_replace_static_geometry_and_reset_caches() {
+        use super::*;
+        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
+            backends: if cfg!(windows) {
+                wgpu::Backends::DX12
+            } else {
+                wgpu::Backends::PRIMARY
+            },
+            ..Default::default()
+        });
+        let adapter = pollster::block_on(instance.request_adapter(&Default::default())).unwrap();
+        let (device, queue) =
+            pollster::block_on(adapter.request_device(&Default::default())).unwrap();
+        let size = wgpu::Extent3d {
+            width: 320,
+            height: 240,
+            depth_or_array_layers: 1,
+        };
+        let texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Native scene transition regression"),
+            size,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: FORMAT,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+            view_formats: &[],
+        });
+        let target = texture.create_view(&Default::default());
+        let mut renderer = SceneGpu::new_with_size(&device, &queue, size);
+        let mut frame = projection_frame([320, 240]);
+        let mut marker = crate::scene::Actor::cube("Static scene marker".into());
+        marker.kind = "Mesh".into();
+        marker.position = [0.; 3];
+        marker.lighting.static_geometry = true;
+        frame.scene.actors.push(marker);
+        frame.actor_count = 2;
+        for (bank, generation, number, color) in [
+            (0, 0, 0, [1., 0., 0.]),
+            (0, 0, 1, [1., 0., 0.]),
+            (1, 1, 2, [0., 1., 0.]),
+            (0, 2, 3, [1., 0., 0.]),
+            (0, 0, 0, [0., 0., 1.]),
+            (0, 0, 1, [0., 0., 1.]),
+            (0, 0, 0, [1., 1., 0.]),
+        ] {
+            frame.scene_bank = bank;
+            frame.scene_generation = generation;
+            frame.number = number;
+            let mut doc = crate::mesh::Document::default();
+            doc.materials[0].material.color = color;
+            doc.materials[0].material.unlit = true;
+            doc.add_face(
+                [
+                    [1., 0.5, 16.],
+                    [1., 1.5, 16.],
+                    [3., 1.5, 16.],
+                    [3., 0.5, 16.],
+                ],
+                doc.groups[0].id,
+                doc.materials[0].id,
+            );
+            frame.scene.actors[1].editable_mesh = Some(crate::mesh::Component {
+                document: Some(std::sync::Arc::new(doc)),
+                ..crate::mesh::Component::new(uuid::Uuid::new_v4())
+            });
+            let mut encoder = device.create_command_encoder(&Default::default());
+            renderer.render_game(&device, &queue, &mut encoder, &target, &frame);
+            queue.submit(Some(encoder.finish()));
+            assert!(renderer.static_mask.as_ref().unwrap()[1]);
+            let png = crate::platform::capture_png(&device, &queue, &texture).unwrap();
+            let mut reader = png::Decoder::new(std::io::Cursor::new(png))
+                .read_info()
+                .unwrap();
+            let mut pixels = vec![0; reader.output_buffer_size()];
+            reader.next_frame(&mut pixels).unwrap();
+            let mut visible = 0;
+            for pixel in pixels
+                .chunks_exact(4)
+                .filter(|p| p[..3].iter().any(|c| *c > 150))
+            {
+                for c in 0..3 {
+                    assert!(
+                        (f32::from(pixel[c]) - color[c] * 255.).abs() < 20.,
+                        "stale static geometry at bank {bank}, generation {generation}, frame {number}: {pixel:?}"
+                    );
+                }
+                visible += 1;
+            }
+            assert!(visible > 20, "new bank geometry did not render");
         }
     }
 
@@ -2849,7 +2961,9 @@ mod tests {
         let mut view = std::env::var("EPOK_PREVIEW_VIEW")
             .ok()
             .map(|v| serde_json::from_str::<crate::viewport::View>(&v).unwrap())
-            .unwrap_or_else(|| crate::scene_view_state::framed(&scene, [960., 600.], 5.));
+            .unwrap_or_else(|| {
+                crate::scene_view_state::framed(&scene, [960., 600.], &Default::default())
+            });
         if let Ok(sample) = std::env::var("EPOK_PREVIEW_CAMERA_SAMPLE") {
             let sample =
                 &scene.visibility_track.as_ref().unwrap().samples[sample.parse::<usize>().unwrap()];

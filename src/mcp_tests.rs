@@ -23,6 +23,9 @@ fn editor_state_exposes_native_frames_without_emulator_counters() {
     let before = mcp_tools::execute(&mut e, &mut state, "editor_state", json!({})).unwrap();
     assert!(before["native_frame"].is_null());
     e.native_frame = Some(std::sync::Arc::new(crate::native_play::Frame {
+        scene_bank: 0,
+        scene_generation: 0,
+        transition_phase: 0,
         scene: e.scene.clone(),
         number: 37,
         buttons: 2048,
@@ -40,7 +43,8 @@ fn editor_state_exposes_native_frames_without_emulator_counters() {
     assert_eq!(
         reply["native_frame"],
         json!({"sequence":37,"width":512,"height":240,
-        "buttons":2048,"actors":46,"camera":3})
+        "buttons":2048,"actors":46,"camera":3,"scene":e.scene.name,
+        "scene_bank":0,"scene_generation":0,"transition_phase":0})
     );
     drop(e);
     fs::remove_dir_all(root).unwrap();
@@ -228,7 +232,7 @@ fn serial_controls_report_pending_and_guard_reset_target() {
     .unwrap();
     assert!(matches!(
         controls.try_recv(),
-        Ok(crate::pipeline::Control::Stop)
+        Ok(crate::pipeline::Control::StopAndReset)
     ));
     let root = e.root.clone();
     drop(e);

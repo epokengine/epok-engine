@@ -13,6 +13,7 @@
 #include "display.hh"
 #include "text.hpp"
 #include "input.hpp"
+#include "rumble.hpp"
 #include "memory_card.hpp"
 #include "time.hpp"
 #include "collision.hpp"

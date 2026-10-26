@@ -57,6 +57,7 @@ void DungeonGame::begin_play(){
 }
 void DungeonGame::on_frame(uint32_t microseconds){
     if(!microseconds)return;
+    update_damage_feedback(microseconds);
 #ifdef __mips__
     dungeon_completed_profile=dungeon_profile;
     const bool combat=state==BossFight||combat_telemetry.active;
@@ -82,7 +83,7 @@ void DungeonGame::on_frame(uint32_t microseconds){
         (state==BossFight||combat_telemetry.active)?fps.combat_max:fps.explore_max;
     if(microseconds>maximum)maximum=microseconds;
 }
-void DungeonGame::end_play(EndPlayReason){if(current==this){if(auto* d=music.get())d->audio.stop();current=nullptr;set_world3d_visible(true);SceneLibrary::set_screen_fade(0);}}
+void DungeonGame::end_play(EndPlayReason){if(current==this){clear_damage_feedback();if(auto* d=music.get())d->audio.stop();current=nullptr;set_world3d_visible(true);SceneLibrary::set_screen_fade(0);}}
 void DungeonGame::start_presentation(){
     flow.begin();SceneLibrary::set_screen_fade(255);
     if(auto* d=music.get()){d->audio.stop();d->audio.volume=music_volume;d->audio.play();++dungeon_flow_telemetry.starts;}
@@ -148,6 +149,7 @@ void DungeonGame::initialize(){
     for(int i=0;i<5;++i)room_geometry[i]=named(rooms[i]);
     health_bar=named("Energy Bar");health_label=named("Energy Label");key_label=named("Key Status");objective=named("Objective");
     boss_bar=named("Boss Bar");boss_label=named("Boss Label");message=named("Game Message");message_panel=named("Message Panel");reticle=named("Aim Reticle");
+    damage_border=named("Combat HUD");
     initialized=true;reset_run();economy.initialize();
     for(const auto& room:room_geometry)prewarm_geometry(room.get());
     for(const auto& enemy:enemies)prewarm_geometry(enemy.data.get());
@@ -160,6 +162,7 @@ void DungeonGame::unload(Enemy& e){
 }
 void DungeonGame::reset_run(){
     if(!initialized)return;
+    clear_damage_feedback();
     ++spatial_revision;++structural_revision;
     queries=SpatialQueryBatch{};
     const unsigned runs=dungeon_telemetry.restarts+1;dungeon_telemetry={};dungeon_telemetry.restarts=runs;combat_telemetry={};
@@ -207,7 +210,29 @@ bool DungeonGame::line_of_sight(const ActorData& from,const ActorData& to,const 
 void DungeonGame::damage_player(int amount){
     if(!controls_enabled()||amount<=0||invulnerable.raw()>0)return;
     health-=amount;if(health<0)health=0;invulnerable=.7;hud_dirty=true;++dungeon_telemetry.damage;sound(DungeonSound::PlayerDamage);
+    damage_flash_us=damage_flash_duration_us;update_damage_feedback(0);
+    InputLibrary::rumble(160,true,120,0);
     if(!health){state=Defeat;aiming=false;flow.die();publish_presentation();for(auto& s:shots){s.life=0.0;if(auto* d=s.data.get())d->sprite.enabled=false;}}
+}
+void DungeonGame::update_damage_feedback(uint32_t microseconds){
+    // Presentation follows rendered time, including death holds and menus.
+    // Keep a visible frame at least one pixel wide until it is disabled: zero
+    // borders intentionally mean a filled Image, not an empty one.
+    damage_flash_us=microseconds>=damage_flash_us?0:damage_flash_us-microseconds;
+    if(auto* d=damage_border.get()){
+        d->image.enabled=damage_flash_us!=0;
+        if(d->image.enabled){
+            const uint16_t width=uint16_t((6*damage_flash_us+damage_flash_duration_us-1)/damage_flash_duration_us);
+            for(auto& edge:d->image.borders)edge=width;
+            d->image.color[0]=uint8_t(96+128*damage_flash_us/damage_flash_duration_us);
+            d->image.color[1]=16;d->image.color[2]=20;
+        }
+    }
+}
+void DungeonGame::clear_damage_feedback(){
+    damage_flash_us=0;
+    if(auto* d=damage_border.get())d->image.enabled=false;
+    InputLibrary::stop_rumble(0);
 }
 void DungeonGame::effect(const Fixed* point,uint16_t kind){
     for(auto& f:effects)if(!f.playing)if(auto* d=f.data.get()){

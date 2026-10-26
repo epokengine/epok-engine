@@ -8,6 +8,7 @@ local pending = ''
 local sequence = 0
 local vsyncs = 0
 local ffi = require('ffi')
+local rumble_control = function() end
 local debug_available, debug_paused, debug_at_node = false, false, false
 local debug_latest, debug_hook, debug_return, debug_return_pc
 local debug_points, debug_traces, debug_dropped = {}, {}, 0
@@ -55,6 +56,7 @@ if config_ok and type(debug_config) == 'table' and debug_config.version == 1 the
             if stop then
                 debug_stop_next = false
                 debug_paused, debug_at_node = true, true
+                rumble_control(false)
                 debug_return_pc = tonumber(PCSX.getRegisters().GPR.n.ra)
                 PCSX.pauseEmulator()
             end
@@ -193,8 +195,30 @@ local function debug_frame()
 end
 EPOK_VSYNC_LISTENER = PCSX.Events.createEventListener('GPU::Vsync', function() vsyncs = vsyncs + 1 end)
 local pad = PCSX.SIO0.slots[1].pads[1]
+local rumble_ok, rumble_config = pcall(dofile, EPOK_RUMBLE_CONFIG or '')
+local rumble_required = rumble_ok and type(rumble_config) == 'table' and rumble_config.version == 1 and rumble_config.required == true
+local rumble_offset = rumble_required and ram_offset(rumble_config.mailbox, 12) or nil
+local rumble_capable = false
+if rumble_required then
+    local ok, value = pcall(function() return PCSX.settings.pads[1].Rumble end)
+    rumble_capable = ok and type(value) == 'boolean'
+end
+local rumble_last_enabled
+local rumble_reported = false
+rumble_control = function(enabled)
+    enabled = enabled == true and rumble_capable
+    if enabled == rumble_last_enabled then return end
+    rumble_last_enabled = enabled
+    if rumble_offset then
+        local words = ffi.cast('uint32_t*', PCSX.getMemPtr() + rumble_offset)
+        words[0] = 0x4550524d
+        words[1] = enabled and 1 or 0
+        words[2] = (tonumber(words[2]) + 1) % 4294967296
+    end
+    if rumble_capable then PCSX.settings.pads[1].Rumble = enabled end
+end
 -- An explicit project Play option. Existing pad bindings and other projects stay unchanged.
-if EPOK_ANALOG_CONTROLLER then
+if EPOK_ANALOG_CONTROLLER or rumble_required then
     PCSX.settings.pads[1].DeviceType = 'Analog'
     PCSX.settings.pads[1].Connected = true
     pad.map()
@@ -209,12 +233,18 @@ local function release()
     end
 end
 local function close()
+    rumble_control(false)
     release()
     if debug_hook then debug_hook:remove(); debug_hook = nil end
     if debug_return then debug_return:remove(); debug_return = nil end
     if not client:is_closing() then client:close() end
 end
-local function frame(mask)
+local function frame(mask, output_enabled)
+    rumble_control(output_enabled and not debug_paused)
+    if rumble_required and not rumble_reported then
+        client:write(rumble_capable and 'EPKR1 1\n' or 'EPKR1 0\n')
+        rumble_reported = true
+    end
     debug_frame()
     pocket_poll()
     for i, name in ipairs(buttons) do
@@ -247,7 +277,8 @@ client:connect('127.0.0.1', port, function(err)
             end)
             return
         end
-        local command, value = line:match('^([FS]) (%d+)$')
+        local command, value, output = line:match('^([FS]) (%d+) ([01])$')
+        if not command then command, value = line:match('^([FS]) (%d+)$') end
         if not command then
             PCSX.nextTick(function()
                 local ok, accepted = pcall(debug_command, line)
@@ -259,6 +290,7 @@ client:connect('127.0.0.1', port, function(err)
         if not mask or mask > 65535 then close(); return end
         PCSX.nextTick(function()
             if command == 'S' then
+                rumble_control(false)
                 EPOK_STEP_LISTENER = PCSX.Events.createEventListener('GPU::Vsync', function()
                     PCSX.pauseEmulator()
                     EPOK_STEP_LISTENER:remove()
@@ -266,7 +298,7 @@ client:connect('127.0.0.1', port, function(err)
                 end)
                 PCSX.resumeEmulator()
             end
-            local ok, why = pcall(frame, mask)
+            local ok, why = pcall(frame, mask, command ~= 'S' and output == '1')
             if not ok then printError('Epok bridge: ' .. tostring(why)); close() end
         end)
     end

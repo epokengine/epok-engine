@@ -1,10 +1,10 @@
 # PsyQo API: Task
 
-> **Header:** `"psyqo/task.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/task.hh)
+> **Header:** `"psyqo/task.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/task.hh)
 
 This module covers cooperative asynchronous tasks and callbacks. It documents 19 public callables declared directly in this header.
 
-PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552d`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
+PsyQo is pinned through Nugget revision `bfc3f65010efaaf979e10852e4cf203a2eff1b13`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
 
 ## Declared types
 
@@ -46,7 +46,7 @@ PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552
 TaskQueue &butCatch(eastl::function<void(TaskQueue *)> &&)
 ```
 
-- **Declared at:** [line 91](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/task.hh#L91)
+- **Declared at:** [line 91](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/task.hh#L91)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -90,7 +90,7 @@ auto result = object.butCatch(arg1);
 static Task DelayedTask(uint32_t delay, GPU &)
 ```
 
-- **Declared at:** [line 205](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/task.hh#L205)
+- **Declared at:** [line 205](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/task.hh#L205)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**
@@ -134,7 +134,7 @@ auto result = psyqo::TaskQueue::DelayedTask(delay, arg2);
 TaskQueue &finally(eastl::function<void(TaskQueue *)> &&)
 ```
 
-- **Declared at:** [line 103](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/task.hh#L103)
+- **Declared at:** [line 103](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/task.hh#L103)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -176,7 +176,7 @@ auto result = object.finally(arg1);
 bool isRunning() const
 ```
 
-- **Declared at:** [line 130](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/task.hh#L130)
+- **Declared at:** [line 130](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/task.hh#L130)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** true if the queue is running, false otherwise.
@@ -211,7 +211,7 @@ auto result = object.isRunning();
 void reset()
 ```
 
-- **Declared at:** [line 56](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/task.hh#L56)
+- **Declared at:** [line 56](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/task.hh#L56)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -246,7 +246,7 @@ object.reset();
 void run()
 ```
 
-- **Declared at:** [line 115](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/task.hh#L115)
+- **Declared at:** [line 115](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/task.hh#L115)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -281,7 +281,7 @@ object.run();
 Task schedule()
 ```
 
-- **Declared at:** [line 123](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/task.hh#L123)
+- **Declared at:** [line 123](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/task.hh#L123)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `Task`. Check the purpose and failure notes before using the value.
@@ -316,7 +316,7 @@ auto result = object.schedule();
 TaskQueue &startWith(Task &&)
 ```
 
-- **Declared at:** [line 68](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/task.hh#L68)
+- **Declared at:** [line 68](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/task.hh#L68)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -358,7 +358,7 @@ auto result = object.startWith(arg1);
 TaskQueue &startWith(eastl::function<void(Task *)> &&fun)
 ```
 
-- **Declared at:** [line 69](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/task.hh#L69)
+- **Declared at:** [line 69](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/task.hh#L69)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -402,7 +402,7 @@ auto result = object.startWith(fun);
 void complete(bool success)
 ```
 
-- **Declared at:** [line 183](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/task.hh#L183)
+- **Declared at:** [line 183](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/task.hh#L183)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -444,7 +444,7 @@ object.complete(success);
 Task &operator=(Task &&) = default
 ```
 
-- **Declared at:** [line 151](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/task.hh#L151)
+- **Declared at:** [line 151](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/task.hh#L151)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -486,7 +486,7 @@ auto result = object.operator=(arg1);
 Task &operator=(const Task &) = delete
 ```
 
-- **Declared at:** [line 152](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/task.hh#L152)
+- **Declared at:** [line 152](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/task.hh#L152)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -530,7 +530,7 @@ auto result = object.operator=(arg1);
 void reject()
 ```
 
-- **Declared at:** [line 172](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/task.hh#L172)
+- **Declared at:** [line 172](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/task.hh#L172)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -565,7 +565,7 @@ object.reject();
 void resolve()
 ```
 
-- **Declared at:** [line 162](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/task.hh#L162)
+- **Declared at:** [line 162](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/task.hh#L162)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -598,7 +598,7 @@ object.resolve();
 Task(Task &&) = default
 ```
 
-- **Declared at:** [line 149](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/task.hh#L149)
+- **Declared at:** [line 149](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/task.hh#L149)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -636,7 +636,7 @@ psyqo::TaskQueue::Task value(arg1);
 Task(const Task &) = delete
 ```
 
-- **Declared at:** [line 150](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/task.hh#L150)
+- **Declared at:** [line 150](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/task.hh#L150)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -674,7 +674,7 @@ psyqo::TaskQueue::Task value(arg1);
 explicit Task(eastl::function<void(Task *)> &&fun) : m_run
 ```
 
-- **Declared at:** [line 148](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/task.hh#L148)
+- **Declared at:** [line 148](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/task.hh#L148)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -714,7 +714,7 @@ psyqo::TaskQueue::Task value(fun);
 TaskQueue &then(Task &&)
 ```
 
-- **Declared at:** [line 78](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/task.hh#L78)
+- **Declared at:** [line 78](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/task.hh#L78)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -756,7 +756,7 @@ auto result = object.then(arg1);
 TaskQueue &then(eastl::function<void(Task *)> &&fun)
 ```
 
-- **Declared at:** [line 79](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/task.hh#L79)
+- **Declared at:** [line 79](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/task.hh#L79)
 - **Kind:** `cxx method`
 
 **Parameters**

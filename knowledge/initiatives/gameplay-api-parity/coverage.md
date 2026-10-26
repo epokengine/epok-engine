@@ -2,7 +2,7 @@
 
 Generated from `coverage.json` by `tools/gameplay_api_parity.py`; do not edit by hand.
 
-Baseline commit: `7e848a7a9011c344efeebfac90ace0d64f38604e`. Frozen semantic candidate rows: **5060**.
+Baseline commit: `9d20d0f56a45122dd668749c0c31308327687dd0`. Frozen semantic candidate rows: **5326**.
 
 A classified row is not necessarily implemented. The strict checker fails until every public gameplay row has executable support, tests, examples, and cost evidence on all five surfaces.
 
@@ -10,10 +10,10 @@ A classified row is not necessarily implemented. The strict checker fails until 
 
 | Disposition | Rows |
 | --- | ---: |
-| `compatibility_alias` | 49 |
-| `hardware_backend` | 6 |
-| `internal_implementation` | 4397 |
-| `public_gameplay` | 608 |
+| `compatibility_alias` | 48 |
+| `hardware_backend` | 23 |
+| `internal_implementation` | 4633 |
+| `public_gameplay` | 622 |
 
 ## Public gameplay gaps
 
@@ -29,26 +29,26 @@ A classified row is not necessarily implemented. The strict checker fails until 
 
 | Category | Rows |
 | --- | ---: |
-| `audio_music` | 272 |
-| `cameras_scenes` | 48 |
-| `collision_3d` | 57 |
+| `audio_music` | 281 |
+| `cameras_scenes` | 52 |
+| `collision_3d` | 69 |
 | `components_hierarchy` | 7 |
 | `gameplay_2d` | 103 |
-| `implementation_support` | 2217 |
+| `implementation_support` | 2387 |
 | `input_time` | 51 |
-| `language_adapter` | 135 |
+| `language_adapter` | 134 |
 | `materials_visuals` | 61 |
-| `math_values` | 10 |
-| `memory_card` | 144 |
-| `objects_actors` | 591 |
+| `math_values` | 11 |
+| `memory_card` | 146 |
+| `objects_actors` | 607 |
 | `particles_effects` | 169 |
-| `resources_diagnostics` | 58 |
-| `runtime_facade` | 687 |
-| `skeletal_animation` | 24 |
+| `resources_diagnostics` | 60 |
+| `runtime_facade` | 719 |
+| `skeletal_animation` | 34 |
 | `sprites_palettes` | 72 |
 | `static_editable_meshes` | 96 |
 | `timelines_sequences` | 72 |
-| `ui_text` | 67 |
+| `ui_text` | 76 |
 | `utilities_events` | 119 |
 
 ## Public gameplay rows
@@ -185,6 +185,11 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `epok::InputLibrary::held` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::InputLibrary::pressed` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::InputLibrary::released` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::InputLibrary::rumble` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::InputLibrary::rumble_snapshot` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::InputLibrary::rumble_supported` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::InputLibrary::set_rumble_enabled` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::InputLibrary::stop_rumble` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::LayoutContainerComponent::columns` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::LayoutContainerComponent::enabled` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::LayoutContainerComponent::kind` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
@@ -598,6 +603,15 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `epok::ResourceSnapshot::slot_capacity` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::ResourceSnapshot::sprite_triangles` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::ResourceSnapshot::textures` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::RumbleSnapshot::active` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::RumbleSnapshot::connected` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::RumbleSnapshot::enabled` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::RumbleSnapshot::large` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::RumbleSnapshot::probing` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::RumbleSnapshot::remaining_ms` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::RumbleSnapshot::revision` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::RumbleSnapshot::small` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::RumbleSnapshot::supported` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::SavePayload8::word0` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::SavePayload8::word1` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::SavePayload8::word2` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |

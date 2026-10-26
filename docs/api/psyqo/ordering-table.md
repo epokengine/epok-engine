@@ -1,10 +1,10 @@
 # PsyQo API: Ordering Table
 
-> **Header:** `"psyqo/ordering-table.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/ordering-table.hh)
+> **Header:** `"psyqo/ordering-table.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/ordering-table.hh)
 
 This module covers GPU ordering tables and packet ordering. It documents 4 public callables declared directly in this header.
 
-PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552d`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
+PsyQo is pinned through Nugget revision `bfc3f65010efaaf979e10852e4cf203a2eff1b13`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
 
 ## Declared types
 
@@ -31,7 +31,7 @@ PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552
 void clear()
 ```
 
-- **Declared at:** [line 72](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/ordering-table.hh#L72)
+- **Declared at:** [line 72](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/ordering-table.hh#L72)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -66,7 +66,7 @@ object.clear();
 template <Fragment Frag> void insert(Frag& frag, int32_t z)
 ```
 
-- **Declared at:** [line 86](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/ordering-table.hh#L86)
+- **Declared at:** [line 86](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/ordering-table.hh#L86)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -113,7 +113,7 @@ object.insert<Frag>(frag, z);
 OrderingTable()
 ```
 
-- **Declared at:** [line 62](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/ordering-table.hh#L62)
+- **Declared at:** [line 62](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/ordering-table.hh#L62)
 - **Kind:** `constructor`
 
 **Use it when.** You need GPU ordering tables and packet ordering and the preconditions in the declaration are already satisfied.
@@ -142,7 +142,7 @@ psyqo::OrderingTable value();
 static void clear(psyqo::Fragments::ChainEntry* table, size_t size)
 ```
 
-- **Declared at:** [line 42](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/ordering-table.hh#L42)
+- **Declared at:** [line 42](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/ordering-table.hh#L42)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**

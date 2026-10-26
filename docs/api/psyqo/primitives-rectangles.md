@@ -1,10 +1,10 @@
 # PsyQo API: Primitives / Rectangles
 
-> **Header:** `"psyqo/primitives/rectangles.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/rectangles.hh)
+> **Header:** `"psyqo/primitives/rectangles.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/rectangles.hh)
 
 This module covers typed PlayStation GPU primitives. It documents 20 public callables declared directly in this header.
 
-PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552d`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
+PsyQo is pinned through Nugget revision `bfc3f65010efaaf979e10852e4cf203a2eff1b13`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
 
 ## Declared types
 
@@ -45,7 +45,7 @@ PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552
 Pixel() : c
 ```
 
-- **Declared at:** [line 83](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/rectangles.hh#L83)
+- **Declared at:** [line 83](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/rectangles.hh#L83)
 - **Kind:** `constructor`
 
 **Use it when.** You need typed PlayStation GPU primitives and the preconditions in the declaration are already satisfied.
@@ -74,7 +74,7 @@ psyqo::Prim::Pixel value();
 Pixel(Color c) : c
 ```
 
-- **Declared at:** [line 84](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/rectangles.hh#L84)
+- **Declared at:** [line 84](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/rectangles.hh#L84)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -112,7 +112,7 @@ psyqo::Prim::Pixel value(c);
 Pixel& setColor(Color c)
 ```
 
-- **Declared at:** [line 85](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/rectangles.hh#L85)
+- **Declared at:** [line 85](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/rectangles.hh#L85)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -154,7 +154,7 @@ auto result = object.setColor(c);
 Pixel& setOpaque()
 ```
 
-- **Declared at:** [line 90](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/rectangles.hh#L90)
+- **Declared at:** [line 90](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/rectangles.hh#L90)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `Pixel &`. Check the purpose and failure notes before using the value.
@@ -187,7 +187,7 @@ auto result = object.setOpaque();
 Pixel& setSemiTrans()
 ```
 
-- **Declared at:** [line 94](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/rectangles.hh#L94)
+- **Declared at:** [line 94](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/rectangles.hh#L94)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `Pixel &`. Check the purpose and failure notes before using the value.
@@ -220,7 +220,7 @@ auto result = object.setSemiTrans();
 Rectangle16x16() : c
 ```
 
-- **Declared at:** [line 151](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/rectangles.hh#L151)
+- **Declared at:** [line 151](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/rectangles.hh#L151)
 - **Kind:** `constructor`
 
 **Use it when.** You need typed PlayStation GPU primitives and the preconditions in the declaration are already satisfied.
@@ -249,7 +249,7 @@ psyqo::Prim::Rectangle16x16 value();
 Rectangle16x16(Color c) : c
 ```
 
-- **Declared at:** [line 152](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/rectangles.hh#L152)
+- **Declared at:** [line 152](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/rectangles.hh#L152)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -287,7 +287,7 @@ psyqo::Prim::Rectangle16x16 value(c);
 Rectangle16x16& setColor(Color c)
 ```
 
-- **Declared at:** [line 153](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/rectangles.hh#L153)
+- **Declared at:** [line 153](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/rectangles.hh#L153)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -329,7 +329,7 @@ auto result = object.setColor(c);
 Rectangle16x16& setOpaque()
 ```
 
-- **Declared at:** [line 158](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/rectangles.hh#L158)
+- **Declared at:** [line 158](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/rectangles.hh#L158)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `Rectangle16x16 &`. Check the purpose and failure notes before using the value.
@@ -362,7 +362,7 @@ auto result = object.setOpaque();
 Rectangle16x16& setSemiTrans()
 ```
 
-- **Declared at:** [line 162](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/rectangles.hh#L162)
+- **Declared at:** [line 162](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/rectangles.hh#L162)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `Rectangle16x16 &`. Check the purpose and failure notes before using the value.
@@ -395,7 +395,7 @@ auto result = object.setSemiTrans();
 Rectangle8x8() : c
 ```
 
-- **Declared at:** [line 117](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/rectangles.hh#L117)
+- **Declared at:** [line 117](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/rectangles.hh#L117)
 - **Kind:** `constructor`
 
 **Use it when.** You need typed PlayStation GPU primitives and the preconditions in the declaration are already satisfied.
@@ -424,7 +424,7 @@ psyqo::Prim::Rectangle8x8 value();
 Rectangle8x8(Color c) : c
 ```
 
-- **Declared at:** [line 118](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/rectangles.hh#L118)
+- **Declared at:** [line 118](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/rectangles.hh#L118)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -462,7 +462,7 @@ psyqo::Prim::Rectangle8x8 value(c);
 Rectangle8x8& setColor(Color c)
 ```
 
-- **Declared at:** [line 119](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/rectangles.hh#L119)
+- **Declared at:** [line 119](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/rectangles.hh#L119)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -504,7 +504,7 @@ auto result = object.setColor(c);
 Rectangle8x8& setOpaque()
 ```
 
-- **Declared at:** [line 124](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/rectangles.hh#L124)
+- **Declared at:** [line 124](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/rectangles.hh#L124)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `Rectangle8x8 &`. Check the purpose and failure notes before using the value.
@@ -537,7 +537,7 @@ auto result = object.setOpaque();
 Rectangle8x8& setSemiTrans()
 ```
 
-- **Declared at:** [line 128](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/rectangles.hh#L128)
+- **Declared at:** [line 128](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/rectangles.hh#L128)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `Rectangle8x8 &`. Check the purpose and failure notes before using the value.
@@ -570,7 +570,7 @@ auto result = object.setSemiTrans();
 Rectangle() : c
 ```
 
-- **Declared at:** [line 48](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/rectangles.hh#L48)
+- **Declared at:** [line 48](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/rectangles.hh#L48)
 - **Kind:** `constructor`
 
 **Use it when.** You need typed PlayStation GPU primitives and the preconditions in the declaration are already satisfied.
@@ -599,7 +599,7 @@ psyqo::Prim::Rectangle value();
 Rectangle(Color c) : c
 ```
 
-- **Declared at:** [line 49](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/rectangles.hh#L49)
+- **Declared at:** [line 49](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/rectangles.hh#L49)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -637,7 +637,7 @@ psyqo::Prim::Rectangle value(c);
 Rectangle& setColor(Color c)
 ```
 
-- **Declared at:** [line 50](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/rectangles.hh#L50)
+- **Declared at:** [line 50](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/rectangles.hh#L50)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -679,7 +679,7 @@ auto result = object.setColor(c);
 Rectangle& setOpaque()
 ```
 
-- **Declared at:** [line 55](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/rectangles.hh#L55)
+- **Declared at:** [line 55](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/rectangles.hh#L55)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `Rectangle &`. Check the purpose and failure notes before using the value.
@@ -712,7 +712,7 @@ auto result = object.setOpaque();
 Rectangle& setSemiTrans()
 ```
 
-- **Declared at:** [line 59](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/rectangles.hh#L59)
+- **Declared at:** [line 59](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/rectangles.hh#L59)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `Rectangle &`. Check the purpose and failure notes before using the value.

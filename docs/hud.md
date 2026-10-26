@@ -124,6 +124,13 @@ Add RectTransform before graphics, beneath a Canvas or another RectTransform. Us
 
 Image supports an imported Texture UUID and an atlas rectangle in pixels. Zero width/height selects the remaining texture from the specified origin. Transparent texels reveal previously drawn content. Optional left/top/right/bottom nine-slice borders preserve corner sizes while stretching the center; small destination rectangles shrink borders proportionally.
 
+Without a texture, nonzero **Frame borders (px)** draw a hollow colored frame
+around the RectTransform: left, top, right and bottom. The center stays clear,
+and each visible edge consumes one HUD rectangle. Opposing borders shrink
+proportionally when they exceed the rect size. All four widths at zero draw the
+usual filled panel. PSX, Native PC and the HUD preview use the same compiler.
+Dungeon Complete uses this on its Canvas for the brief red damage border.
+
 Text accepts up to 511 UTF-8 bytes, explicit newlines and optional character wrapping, with the built-in bitmap or an imported font (see **Fonts** above). Wrapping breaks before the first glyph whose advance would cross the right edge; without wrapping that glyph is dropped rather than moved. Text clips to its own rect and the screen. ProgressBar retains its fill/background colors.
 
 The scene's `hud_budget` configures layouts, rectangles, text components and glyphs. Defaults are 128 / 256 / 64 / 1024; maximums are 128 / 512 / 64 / 2048. Edit them in **Map Settings**, opened by clicking the map root at the top of the Hierarchy; Project Settings > Rendering keeps the heading and a button that opens it. Nine-slice images budget nine rectangles. The editor rejects authored over-budget scenes; dynamic excess is omitted and counted in `hud_stats.dropped`. Standalone builds reserve the maximum requested by their registered scenes.

@@ -2,7 +2,7 @@
 
 > **Header:** `"blueprint_api.hpp"` · **Tier:** Epok runtime API · **Source:** [open header](../../../runtime/blueprint_api.hpp)
 
-This module covers compiled Blueprint execution and object interaction. It documents 51 public callables declared directly in this header.
+This module covers compiled Blueprint execution and object interaction. It documents 50 public callables declared directly in this header.
 
 ## Callable index
 
@@ -56,7 +56,6 @@ This module covers compiled Blueprint execution and object interaction. It docum
 - [`epok::bp::api::transform`](#epok-bp-api-transform-1) — Performs `transform` as part of compiled Blueprint execution and object interaction.
 - [`epok::bp::api::valid`](#epok-bp-api-valid-1) — Performs `valid` as part of compiled Blueprint execution and object interaction.
 - [`epok::bp::api::video_playing`](#epok-bp-api-video-playing-1) — Performs `video playing` as part of compiled Blueprint execution and object interaction.
-- [`epok::bp::asset_index`](#epok-bp-asset-index-1) — Performs `asset index` as part of compiled Blueprint execution and object interaction.
 
 <a id="epok-bp-api-burst-effect-1"></a>
 
@@ -2091,45 +2090,3 @@ auto result = epok::bp::api::video_playing();
 **Why choose it.** The boolean result makes success, availability or state explicit without exceptions.
 
 **Trade-offs and warnings.** Check the return value; `false` is part of normal control flow for many PSX resource operations.
-
-<a id="epok-bp-asset-index-1"></a>
-
-## `epok::bp::asset_index`
-
-**Purpose.** Performs `asset index` as part of compiled Blueprint execution and object interaction.
-
-**Exact declaration**
-
-```cpp
-int asset_index(uint64_t asset,uint32_t kind)
-```
-
-- **Declared at:** [line 6](../../../runtime/blueprint_api.hpp#L6)
-- **Kind:** `function decl`
-
-**Parameters**
-
-| Name | Type | Role | Meaning |
-| --- | --- | --- | --- |
-| `asset` | `uint64_t` | Input | Value supplied for `asset`. See the exact type and module contract. |
-| `kind` | `uint32_t` | Input | Value supplied for `kind`. See the exact type and module contract. |
-
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
-
-**Use it when.** You need compiled Blueprint execution and object interaction and the preconditions in the declaration are already satisfied.
-
-**Usage pattern**
-
-```cpp
-#include "blueprint_api.hpp"
-
-// Assume these named values have been initialized with valid data:
-// uint64_t asset
-// uint32_t kind
-
-auto result = epok::bp::asset_index(asset, kind);
-```
-
-**Why choose it.** It provides direct, allocation-conscious access to compiled Blueprint execution and object interaction. No exception-based error path is implied by the signature.
-
-**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.

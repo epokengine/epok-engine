@@ -16,6 +16,9 @@ pub struct View {
     pub distance: f32,
     pub phase: f32,
     pub fly_speed: f32,
+    /// Editor navigation only; old saved views retain their original speed.
+    pub camera_speed_scalar: f32,
+    pub distance_scaled_speed: bool,
     pub mirror_x: bool,
     /// Authoring preview only; never changes materials or the Game view.
     pub lighting: bool,
@@ -30,6 +33,8 @@ impl Default for View {
             distance: 12.,
             phase: 0.,
             fly_speed: 5.,
+            camera_speed_scalar: 1.,
+            distance_scaled_speed: false,
             mirror_x: false,
             lighting: true,
         }
@@ -37,11 +42,31 @@ impl Default for View {
 }
 
 impl View {
+    /// The familiar 1..8 camera control, calibrated to Epok world units.
+    /// Level 4 keeps the existing default of five world units per second.
+    pub fn camera_speed_level(&self) -> f32 {
+        4. + (self.fly_speed / 5.).log2()
+    }
+    pub fn set_camera_speed_level(&mut self, level: f32) {
+        self.fly_speed = 5. * 2_f32.powf(level.clamp(1., 8.) - 4.);
+    }
+    pub fn adjust_camera_speed(&mut self, wheel: f32) {
+        self.set_camera_speed_level(self.camera_speed_level() + wheel);
+    }
+    pub fn navigation_speed(&self) -> f32 {
+        self.fly_speed
+            * self.camera_speed_scalar
+            * if self.distance_scaled_speed {
+                self.distance / 12.
+            } else {
+                1.
+            }
+    }
     pub fn dolly(&mut self, steps: f32) {
         // Move the eye and its orbit pivot together, so the wheel can travel
         // past the old pivot without changing the lens or hitting a zoom limit.
         let forward = self.basis()[2];
-        let travel = steps * self.fly_speed * 0.2;
+        let travel = steps * self.navigation_speed() * 0.2;
         for (center, direction) in self.center.iter_mut().zip(forward) {
             *center += direction * travel;
         }
@@ -122,7 +147,10 @@ impl View {
     pub fn look(&mut self, delta: [f32; 2], orbit: bool) {
         let previous = self.basis()[2];
         self.yaw = (self.yaw + delta[0] * 0.003).rem_euclid(std::f32::consts::TAU);
-        self.pitch = (self.pitch + delta[1] * 0.003).clamp(-1.54, 1.54);
+        // Match axis snapping's pole offset, so a horizontal drag from Top or
+        // Bottom does not first jump away from the aligned view.
+        let pitch_limit = std::f32::consts::FRAC_PI_2 - 0.001;
+        self.pitch = (self.pitch + delta[1] * 0.003).clamp(-pitch_limit, pitch_limit);
         if !orbit {
             let next = self.basis()[2];
             for i in 0..3 {
@@ -133,7 +161,8 @@ impl View {
     pub fn fly(&mut self, axes: [f32; 3], dt: f32, fast: bool) {
         let [right, _, forward] = self.basis();
         let length = axes.iter().map(|v| v * v).sum::<f32>().sqrt().max(1.);
-        let step = dt.clamp(0., 0.1) * self.fly_speed * if fast { 4. } else { 1. } / length;
+        let step =
+            dt.clamp(0., 0.1) * self.navigation_speed() * if fast { 4. } else { 1. } / length;
         for i in 0..3 {
             self.center[i] +=
                 (right[i] * axes[0] + forward[i] * axes[2] + if i == 1 { axes[1] } else { 0. })
@@ -429,6 +458,43 @@ pub fn render(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn camera_speed_changes_travel_without_affecting_the_lens_or_orbit() {
+        let legacy: View = serde_json::from_str(r#"{"fly_speed":12,"distance":24}"#).unwrap();
+        assert_eq!(legacy.navigation_speed(), 12.);
+        let mut view = View {
+            yaw: 0.,
+            pitch: 0.,
+            ..Default::default()
+        };
+        assert_eq!(view.camera_speed_level(), 4.);
+        view.set_camera_speed_level(5.);
+        view.camera_speed_scalar = 3.;
+        view.fly([0., 0., 1.], 0.1, false);
+        assert_eq!(view.center, [0., 0., 3.]);
+        view.fly([0., 1., 0.], 0.1, true);
+        assert_eq!(view.center, [0., 12., 3.]);
+        view.distance = 24.;
+        view.distance_scaled_speed = true;
+        view.fly([1., 0., 0.], 0.1, false);
+        assert_eq!(view.center, [6., 12., 3.]);
+        view.dolly(0.5);
+        assert_eq!(view.center, [6., 12., 9.]);
+        assert_eq!(view.distance, 24.);
+        assert_eq!(view.zoom, View::default().zoom);
+        let before = view.center;
+        view.adjust_camera_speed(100.);
+        assert_eq!(view.camera_speed_level(), 8.);
+        view.adjust_camera_speed(-100.);
+        assert_eq!(view.camera_speed_level(), 1.);
+        view.adjust_camera_speed(0.5);
+        assert!((view.camera_speed_level() - 1.5).abs() < 0.00001);
+        assert_eq!(
+            view.center, before,
+            "Changing speed must not move the camera"
+        );
+    }
     #[test]
     fn dolly_moves_along_the_view_past_the_pivot_without_changing_the_lens() {
         let mut view = View {
@@ -566,6 +632,8 @@ mod tests {
             distance: 42.,
             phase: 0.25,
             fly_speed: 12.,
+            camera_speed_scalar: 1.,
+            distance_scaled_speed: false,
             mirror_x: false,
             lighting: true,
         };

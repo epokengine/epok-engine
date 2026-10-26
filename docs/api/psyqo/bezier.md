@@ -1,10 +1,10 @@
 # PsyQo API: Bezier
 
-> **Header:** `"psyqo/bezier.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/bezier.hh)
+> **Header:** `"psyqo/bezier.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/bezier.hh)
 
 This module covers the bezier module. It documents 2 public callables declared directly in this header.
 
-PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552d`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
+PsyQo is pinned through Nugget revision `bfc3f65010efaaf979e10852e4cf203a2eff1b13`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
 
 ## Callable index
 
@@ -23,7 +23,7 @@ PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552
 Vec2 cubic(const Vec2& a, const Vec2& b, const Vec2& c, const Vec2& d, FixedPoint<> t)
 ```
 
-- **Declared at:** [line 45](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/bezier.hh#L45)
+- **Declared at:** [line 45](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/bezier.hh#L45)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -71,7 +71,7 @@ auto result = psyqo::Bezier::cubic(a, b, c, d, t);
 Vec3 cubic(const Vec3& a, const Vec3& b, const Vec3& c, const Vec3& d, FixedPoint<> t)
 ```
 
-- **Declared at:** [line 46](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/bezier.hh#L46)
+- **Declared at:** [line 46](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/bezier.hh#L46)
 - **Kind:** `function decl`
 
 **Parameters**

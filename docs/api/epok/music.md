@@ -33,7 +33,7 @@ This module covers XA music streaming and playback state. It documents 10 public
 inline void music_error(uint32_t code)
 ```
 
-- **Declared at:** [line 180](../../../runtime/music.hpp#L180)
+- **Declared at:** [line 182](../../../runtime/music.hpp#L182)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -73,7 +73,7 @@ epok::music_error(code);
 inline void music_prepare(bool require_data = false)
 ```
 
-- **Declared at:** [line 143](../../../runtime/music.hpp#L143)
+- **Declared at:** [line 145](../../../runtime/music.hpp#L145)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -113,7 +113,7 @@ epok::music_prepare(require_data);
 inline void music_tick()
 ```
 
-- **Declared at:** [line 189](../../../runtime/music.hpp#L189)
+- **Declared at:** [line 191](../../../runtime/music.hpp#L191)
 - **Kind:** `function decl`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -144,7 +144,7 @@ epok::music_tick();
 bool acknowledge(const psyqo::CDRomDevice::Response &) override
 ```
 
-- **Declared at:** [line 65](../../../runtime/music.hpp#L65)
+- **Declared at:** [line 67](../../../runtime/music.hpp#L67)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -186,7 +186,7 @@ auto result = object.acknowledge(arg1);
 bool complete(const psyqo::CDRomDevice::Response &) override
 ```
 
-- **Declared at:** [line 132](../../../runtime/music.hpp#L132)
+- **Declared at:** [line 134](../../../runtime/music.hpp#L134)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -228,7 +228,7 @@ auto result = object.complete(arg1);
 bool dataReady(const psyqo::CDRomDevice::Response &) override
 ```
 
-- **Declared at:** [line 103](../../../runtime/music.hpp#L103)
+- **Declared at:** [line 105](../../../runtime/music.hpp#L105)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -270,7 +270,7 @@ auto result = object.dataReady(arg1);
 bool end(const psyqo::CDRomDevice::Response &) override
 ```
 
-- **Declared at:** [line 136](../../../runtime/music.hpp#L136)
+- **Declared at:** [line 138](../../../runtime/music.hpp#L138)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -312,7 +312,7 @@ auto result = object.end(arg1);
 void start(uint32_t sector, eastl::function<void(bool)> &&callback)
 ```
 
-- **Declared at:** [line 49](../../../runtime/music.hpp#L49)
+- **Declared at:** [line 51](../../../runtime/music.hpp#L51)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -356,7 +356,7 @@ object.start(sector, callback);
 void stop()
 ```
 
-- **Declared at:** [line 60](../../../runtime/music.hpp#L60)
+- **Declared at:** [line 62](../../../runtime/music.hpp#L62)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -389,7 +389,7 @@ object.stop();
 XAAction() :
 ```
 
-- **Declared at:** [line 48](../../../runtime/music.hpp#L48)
+- **Declared at:** [line 50](../../../runtime/music.hpp#L50)
 - **Kind:** `constructor`
 
 **Use it when.** You need XA music streaming and playback state and the preconditions in the declaration are already satisfied.

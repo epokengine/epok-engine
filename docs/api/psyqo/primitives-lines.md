@@ -1,10 +1,10 @@
 # PsyQo API: Primitives / Lines
 
-> **Header:** `"psyqo/primitives/lines.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/lines.hh)
+> **Header:** `"psyqo/primitives/lines.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/lines.hh)
 
 This module covers typed PlayStation GPU primitives. It documents 23 public callables declared directly in this header.
 
-PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552d`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
+PsyQo is pinned through Nugget revision `bfc3f65010efaaf979e10852e4cf203a2eff1b13`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
 
 ## Declared types
 
@@ -50,7 +50,7 @@ PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552
 uint32_t getCommandWord() const
 ```
 
-- **Declared at:** [line 102](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/lines.hh#L102)
+- **Declared at:** [line 102](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/lines.hh#L102)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
@@ -83,7 +83,7 @@ auto result = object.getCommandWord();
 GouraudLine() : c
 ```
 
-- **Declared at:** [line 80](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/lines.hh#L80)
+- **Declared at:** [line 80](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/lines.hh#L80)
 - **Kind:** `constructor`
 
 **Use it when.** You need typed PlayStation GPU primitives and the preconditions in the declaration are already satisfied.
@@ -112,7 +112,7 @@ psyqo::Prim::GouraudLine value();
 GouraudLine(Color c) : c
 ```
 
-- **Declared at:** [line 81](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/lines.hh#L81)
+- **Declared at:** [line 81](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/lines.hh#L81)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -150,7 +150,7 @@ psyqo::Prim::GouraudLine value(c);
 GouraudLine& setColorA(Color c)
 ```
 
-- **Declared at:** [line 82](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/lines.hh#L82)
+- **Declared at:** [line 82](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/lines.hh#L82)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -194,7 +194,7 @@ auto result = object.setColorA(c);
 GouraudLine& setColorAPacked(uint32_t packed)
 ```
 
-- **Declared at:** [line 110](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/lines.hh#L110)
+- **Declared at:** [line 110](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/lines.hh#L110)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -236,7 +236,7 @@ auto result = object.setColorAPacked(packed);
 GouraudLine& setColorB(Color c)
 ```
 
-- **Declared at:** [line 87](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/lines.hh#L87)
+- **Declared at:** [line 87](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/lines.hh#L87)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -278,7 +278,7 @@ auto result = object.setColorB(c);
 GouraudLine& setOpaque()
 ```
 
-- **Declared at:** [line 91](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/lines.hh#L91)
+- **Declared at:** [line 91](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/lines.hh#L91)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `GouraudLine &`. Check the purpose and failure notes before using the value.
@@ -311,7 +311,7 @@ auto result = object.setOpaque();
 GouraudLine& setSemiTrans()
 ```
 
-- **Declared at:** [line 114](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/lines.hh#L114)
+- **Declared at:** [line 114](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/lines.hh#L114)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `GouraudLine &`. Check the purpose and failure notes before using the value.
@@ -344,7 +344,7 @@ auto result = object.setSemiTrans();
 Line() : c
 ```
 
-- **Declared at:** [line 45](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/lines.hh#L45)
+- **Declared at:** [line 45](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/lines.hh#L45)
 - **Kind:** `constructor`
 
 **Use it when.** You need typed PlayStation GPU primitives and the preconditions in the declaration are already satisfied.
@@ -373,7 +373,7 @@ psyqo::Prim::Line value();
 Line(Color c) : c
 ```
 
-- **Declared at:** [line 46](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/lines.hh#L46)
+- **Declared at:** [line 46](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/lines.hh#L46)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -411,7 +411,7 @@ psyqo::Prim::Line value(c);
 Line& setColor(Color c)
 ```
 
-- **Declared at:** [line 47](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/lines.hh#L47)
+- **Declared at:** [line 47](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/lines.hh#L47)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -453,7 +453,7 @@ auto result = object.setColor(c);
 Line& setOpaque()
 ```
 
-- **Declared at:** [line 52](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/lines.hh#L52)
+- **Declared at:** [line 52](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/lines.hh#L52)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `Line &`. Check the purpose and failure notes before using the value.
@@ -486,7 +486,7 @@ auto result = object.setOpaque();
 Line& setSemiTrans()
 ```
 
-- **Declared at:** [line 56](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/lines.hh#L56)
+- **Declared at:** [line 56](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/lines.hh#L56)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `Line &`. Check the purpose and failure notes before using the value.
@@ -519,7 +519,7 @@ auto result = object.setSemiTrans();
 PolyLine() : c
 ```
 
-- **Declared at:** [line 184](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/lines.hh#L184)
+- **Declared at:** [line 184](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/lines.hh#L184)
 - **Kind:** `constructor`
 
 **Use it when.** You need typed PlayStation GPU primitives and the preconditions in the declaration are already satisfied.
@@ -548,7 +548,7 @@ psyqo::Prim::PolyLine value();
 PolyLine(Color c) : c
 ```
 
-- **Declared at:** [line 185](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/lines.hh#L185)
+- **Declared at:** [line 185](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/lines.hh#L185)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -586,7 +586,7 @@ psyqo::Prim::PolyLine value(c);
 PolyLine& setColor(Color c)
 ```
 
-- **Declared at:** [line 186](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/lines.hh#L186)
+- **Declared at:** [line 186](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/lines.hh#L186)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -628,7 +628,7 @@ auto result = object.setColor(c);
 PolyLine& setOpaque()
 ```
 
-- **Declared at:** [line 191](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/lines.hh#L191)
+- **Declared at:** [line 191](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/lines.hh#L191)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `PolyLine<N> &`. Check the purpose and failure notes before using the value.
@@ -661,7 +661,7 @@ auto result = object.setOpaque();
 PolyLine& setSemiTrans()
 ```
 
-- **Declared at:** [line 195](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/lines.hh#L195)
+- **Declared at:** [line 195](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/lines.hh#L195)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `PolyLine<N> &`. Check the purpose and failure notes before using the value.
@@ -694,7 +694,7 @@ auto result = object.setSemiTrans();
 PolyLineBegin() : c
 ```
 
-- **Declared at:** [line 143](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/lines.hh#L143)
+- **Declared at:** [line 143](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/lines.hh#L143)
 - **Kind:** `constructor`
 
 **Use it when.** You need typed PlayStation GPU primitives and the preconditions in the declaration are already satisfied.
@@ -723,7 +723,7 @@ psyqo::Prim::PolyLineBegin value();
 PolyLineBegin(Color c) : c
 ```
 
-- **Declared at:** [line 144](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/lines.hh#L144)
+- **Declared at:** [line 144](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/lines.hh#L144)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -761,7 +761,7 @@ psyqo::Prim::PolyLineBegin value(c);
 PolyLineBegin& setColor(Color c)
 ```
 
-- **Declared at:** [line 145](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/lines.hh#L145)
+- **Declared at:** [line 145](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/lines.hh#L145)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -803,7 +803,7 @@ auto result = object.setColor(c);
 PolyLineBegin& setOpaque()
 ```
 
-- **Declared at:** [line 150](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/lines.hh#L150)
+- **Declared at:** [line 150](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/lines.hh#L150)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `PolyLineBegin &`. Check the purpose and failure notes before using the value.
@@ -836,7 +836,7 @@ auto result = object.setOpaque();
 PolyLineBegin& setSemiTrans()
 ```
 
-- **Declared at:** [line 154](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/lines.hh#L154)
+- **Declared at:** [line 154](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/lines.hh#L154)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `PolyLineBegin &`. Check the purpose and failure notes before using the value.

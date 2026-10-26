@@ -580,6 +580,13 @@ Start with [Your first Blueprint](blueprints-tutorial.md), then use the
   embedded Game view owns focus and releases buttons when focus is lost. An
   opt-in analog-controller mode adds signed Q12 stick axes for both sticks with
   an exact center and no dead zone.
+- **Controller rumble.** The reflected Input library requests finite DualShock
+  large/small motor pulses from C++, Blueprint and Lua Gameplay profile 2.
+  PSX uses the shared SIO0 owner; Native PC uses individually assigned devices
+  and bounded host effects. Controls exposes device support and a short rumble
+  test, while Play preferences and in-game settings can mute output. See
+  [controller rumble](input-collision.md#controller-rumble) for platform limits
+  and the acceptance status.
 - **Measured fixed step.** Host frame time feeds a fixed 60 Hz simulation with
   bounded catch-up, pause, single-step, tick counters and interpolation data.
 - **AABB collision.** Collider layers/masks, solid and trigger modes, overlap,

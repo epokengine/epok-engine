@@ -133,7 +133,7 @@ impl Task<'_> {
     pub fn check(&self) -> Result<(), String> {
         if matches!(
             self.rx.try_recv(),
-            Ok(Control::Stop) | Err(mpsc::TryRecvError::Disconnected)
+            Ok(Control::Stop | Control::StopAndReset) | Err(mpsc::TryRecvError::Disconnected)
         ) {
             Err("Serial preparation cancelled.".into())
         } else {
@@ -523,6 +523,30 @@ pub fn probe(settings: &Serial, task: &Task<'_>) -> Result<(), String> {
         return Err("Unirom did not confirm the optional ping. Direct Play can still work; return to the Unirom loader and try Play.".into());
     }
     task.log("Unirom responded. The PSX is ready.");
+    Ok(())
+}
+/// Reconnect to the selected handler without installing one or uploading a game.
+pub fn reset(settings: &Serial, task: &Task<'_>) -> Result<(), String> {
+    settings.validate()?;
+    check_port(settings)?;
+    task.stage(&format!("Requesting PSX reset on {}...", settings.port));
+    let mut command = launcher(settings)?;
+    command
+        .current_dir(session_directory()?)
+        .args(["/dest", &settings.port, "/reset"]);
+    if settings.fast {
+        command.arg("/fast");
+    }
+    let output = task.terminal(command, Duration::from_secs(8)).map_err(|error| format!(
+        "PSX reset was not confirmed on {}. The handler may be unresponsive; use the console's physical reset and return to Unirom before Play. {error}", settings.port))?;
+    task.log(output.trim());
+    if !(confirmed_record(&output, "Response: True")
+        || confirmed_record(&output, "Got response: OKAY"))
+        || output.to_lowercase().contains("response: false")
+    {
+        return Err("PSX reset was not acknowledged. No game was uploaded. Use the console's physical reset if its resident handler is no longer responsive.".into());
+    }
+    task.log("PSX acknowledged reset. Returning to Unirom depends on the console's boot setup; wait for the loader before Play.");
     Ok(())
 }
 pub fn check_port(settings: &Serial) -> Result<(), String> {

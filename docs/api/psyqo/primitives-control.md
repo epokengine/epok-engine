@@ -1,10 +1,10 @@
 # PsyQo API: Primitives / Control
 
-> **Header:** `"psyqo/primitives/control.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/control.hh)
+> **Header:** `"psyqo/primitives/control.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/control.hh)
 
 This module covers typed PlayStation GPU primitives. It documents 14 public callables declared directly in this header.
 
-PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552d`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
+PsyQo is pinned through Nugget revision `bfc3f65010efaaf979e10852e4cf203a2eff1b13`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
 
 ## Declared types
 
@@ -39,7 +39,7 @@ PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552
 DrawingAreaEnd(Vertex p) : c
 ```
 
-- **Declared at:** [line 75](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/control.hh#L75)
+- **Declared at:** [line 75](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/control.hh#L75)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -77,7 +77,7 @@ psyqo::Prim::DrawingAreaEnd value(p);
 DrawingAreaStart(Vertex p) : c
 ```
 
-- **Declared at:** [line 57](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/control.hh#L57)
+- **Declared at:** [line 57](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/control.hh#L57)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -115,7 +115,7 @@ psyqo::Prim::DrawingAreaStart value(p);
 DrawingOffset(Vertex p) : c
 ```
 
-- **Declared at:** [line 93](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/control.hh#L93)
+- **Declared at:** [line 93](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/control.hh#L93)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -153,7 +153,7 @@ psyqo::Prim::DrawingOffset value(p);
 MaskControl() : c
 ```
 
-- **Declared at:** [line 123](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/control.hh#L123)
+- **Declared at:** [line 123](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/control.hh#L123)
 - **Kind:** `constructor`
 
 **Use it when.** You need typed PlayStation GPU primitives and the preconditions in the declaration are already satisfied.
@@ -182,7 +182,7 @@ psyqo::Prim::MaskControl value();
 MaskControl(Set set) : M
 ```
 
-- **Declared at:** [line 126](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/control.hh#L126)
+- **Declared at:** [line 126](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/control.hh#L126)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -220,7 +220,7 @@ psyqo::Prim::MaskControl value(set);
 MaskControl(Set set, Test test) : c
 ```
 
-- **Declared at:** [line 124](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/control.hh#L124)
+- **Declared at:** [line 124](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/control.hh#L124)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -260,7 +260,7 @@ psyqo::Prim::MaskControl value(set, test);
 MaskControl(Test test) : M
 ```
 
-- **Declared at:** [line 127](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/control.hh#L127)
+- **Declared at:** [line 127](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/control.hh#L127)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -298,7 +298,7 @@ psyqo::Prim::MaskControl value(test);
 MaskControl(Test test, Set set) : M
 ```
 
-- **Declared at:** [line 125](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/control.hh#L125)
+- **Declared at:** [line 125](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/control.hh#L125)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -338,7 +338,7 @@ psyqo::Prim::MaskControl value(test, set);
 MaskControl &set(Set set)
 ```
 
-- **Declared at:** [line 128](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/control.hh#L128)
+- **Declared at:** [line 128](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/control.hh#L128)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -380,7 +380,7 @@ auto result = object.set(set);
 MaskControl &set(Set set, Test test)
 ```
 
-- **Declared at:** [line 138](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/control.hh#L138)
+- **Declared at:** [line 138](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/control.hh#L138)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -424,7 +424,7 @@ auto result = object.set(set, test);
 MaskControl &set(Test test)
 ```
 
-- **Declared at:** [line 133](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/control.hh#L133)
+- **Declared at:** [line 133](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/control.hh#L133)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -466,7 +466,7 @@ auto result = object.set(test);
 MaskControl &set(Test test, Set set)
 ```
 
-- **Declared at:** [line 139](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/control.hh#L139)
+- **Declared at:** [line 139](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/control.hh#L139)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -510,7 +510,7 @@ auto result = object.set(test, set);
 TPage() : c
 ```
 
-- **Declared at:** [line 38](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/control.hh#L38)
+- **Declared at:** [line 38](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/control.hh#L38)
 - **Kind:** `constructor`
 
 **Use it when.** You need typed PlayStation GPU primitives and the preconditions in the declaration are already satisfied.
@@ -539,7 +539,7 @@ psyqo::Prim::TPage value();
 VRAMUpload() : c
 ```
 
-- **Declared at:** [line 169](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/control.hh#L169)
+- **Declared at:** [line 169](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/control.hh#L169)
 - **Kind:** `constructor`
 
 **Use it when.** You need typed PlayStation GPU primitives and the preconditions in the declaration are already satisfied.

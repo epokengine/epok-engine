@@ -1,10 +1,10 @@
 # PsyQo API: Hardware / Cdrom
 
-> **Header:** `"psyqo/hardware/cdrom.hh"` · **Tier:** PsyQo low-level API · **Source:** [open header](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/hardware/cdrom.hh)
+> **Header:** `"psyqo/hardware/cdrom.hh"` · **Tier:** PsyQo low-level API · **Source:** [open header](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/hardware/cdrom.hh)
 
 This module covers the hardware/cdrom module. It documents 4 public callables declared directly in this header.
 
-PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552d`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
+PsyQo is pinned through Nugget revision `bfc3f65010efaaf979e10852e4cf203a2eff1b13`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
 
 ## Declared types
 
@@ -29,7 +29,7 @@ PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552
 static volatile uint8_t& access(int index = 0)
 ```
 
-- **Declared at:** [line 80](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/hardware/cdrom.hh#L80)
+- **Declared at:** [line 80](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/hardware/cdrom.hh#L80)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**
@@ -69,7 +69,7 @@ auto result = psyqo::Hardware::CDRom::Access::access(index);
 template <typename... Args> void send(CDL cmd, Args... args)
 ```
 
-- **Declared at:** [line 99](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/hardware/cdrom.hh#L99)
+- **Declared at:** [line 99](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/hardware/cdrom.hh#L99)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -116,7 +116,7 @@ object.send<Args>(cmd, args);
 void send(CDL cmd)
 ```
 
-- **Declared at:** [line 94](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/hardware/cdrom.hh#L94)
+- **Declared at:** [line 94](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/hardware/cdrom.hh#L94)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -158,7 +158,7 @@ object.send(cmd);
 void send(CDL cmd, const CDRomCommandBuffer& commandBuffer)
 ```
 
-- **Declared at:** [line 87](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/hardware/cdrom.hh#L87)
+- **Declared at:** [line 87](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/hardware/cdrom.hh#L87)
 - **Kind:** `cxx method`
 
 **Parameters**

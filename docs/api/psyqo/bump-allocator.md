@@ -1,10 +1,10 @@
 # PsyQo API: Bump Allocator
 
-> **Header:** `"psyqo/bump-allocator.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/bump-allocator.hh)
+> **Header:** `"psyqo/bump-allocator.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/bump-allocator.hh)
 
 This module covers the bump allocator module. It documents 5 public callables declared directly in this header.
 
-PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552d`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
+PsyQo is pinned through Nugget revision `bfc3f65010efaaf979e10852e4cf203a2eff1b13`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
 
 ## Declared types
 
@@ -30,7 +30,7 @@ PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552
 template <typename T, typename... Args> T &allocate(Args &&...args)
 ```
 
-- **Declared at:** [line 69](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/bump-allocator.hh#L69)
+- **Declared at:** [line 69](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/bump-allocator.hh#L69)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -75,7 +75,7 @@ auto result = object.allocate<T, Args>(args);
 template <Primitive P, typename... Args> Fragments::SimpleFragment<P> &allocateFragment(Args &&...args)
 ```
 
-- **Declared at:** [line 59](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/bump-allocator.hh#L59)
+- **Declared at:** [line 59](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/bump-allocator.hh#L59)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -120,7 +120,7 @@ auto result = object.allocateFragment<P, Args>(args);
 size_t remaining() const
 ```
 
-- **Declared at:** [line 85](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/bump-allocator.hh#L85)
+- **Declared at:** [line 85](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/bump-allocator.hh#L85)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `size_t`. Check the purpose and failure notes before using the value.
@@ -153,7 +153,7 @@ auto result = object.remaining();
 void reset()
 ```
 
-- **Declared at:** [line 84](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/bump-allocator.hh#L84)
+- **Declared at:** [line 84](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/bump-allocator.hh#L84)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -186,7 +186,7 @@ object.reset();
 size_t used() const
 ```
 
-- **Declared at:** [line 86](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/bump-allocator.hh#L86)
+- **Declared at:** [line 86](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/bump-allocator.hh#L86)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `size_t`. Check the purpose and failure notes before using the value.

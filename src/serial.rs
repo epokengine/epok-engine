@@ -139,6 +139,117 @@ impl Pending {
     }
 }
 
+/// Interpret the pinned nops monitor's reports, rather than treating ordinary
+/// TTY silence as proof of a CPU exception. Both markers and lines span PTY reads.
+#[derive(Default)]
+struct MonitorReports {
+    tail: String,
+    line: String,
+    manual_pause: bool,
+    halted: bool,
+    exception_reported: bool,
+    abort_reported: bool,
+    last_script_error: String,
+}
+impl MonitorReports {
+    fn resumed(&mut self) {
+        self.manual_pause = false;
+        self.halted = false;
+        self.exception_reported = false;
+        self.abort_reported = false;
+        self.tail.clear();
+        self.line.clear();
+    }
+    fn observe(&mut self, chunk: &str) -> Vec<Event> {
+        const HALT: &str = "PSX may have halted (<8.0.I)!";
+        let mut events = Vec::new();
+        for c in chunk.chars() {
+            self.tail.push(c);
+            if self.tail.ends_with(HALT) && !self.halted {
+                self.halted = true;
+                if !self.manual_pause {
+                    events.push(Event::RuntimeIssue {
+                        message: "PSX stopped unexpectedly: Unirom reported a halt. The monitor is still connected; register/exception details follow when the handler can provide them. Continue PSX and Reset PSX remain available.".into(),
+                        halted: true,
+                    });
+                }
+            }
+            if self.tail.len() > 128 {
+                let mut start = self.tail.len() - 64;
+                while !self.tail.is_char_boundary(start) {
+                    start += 1;
+                }
+                self.tail.drain(..start);
+            }
+            if c == '\r' || c == '\n' {
+                if let Some(event) = self.report_line() {
+                    events.push(event);
+                }
+                self.line.clear();
+            } else if self.line.len() < 4096 {
+                self.line.push(c);
+            }
+        }
+        events
+    }
+    fn report_line(&mut self) -> Option<Event> {
+        let line = self.line.trim();
+        // A manual HALT also produces a register dump. Its saved Cause can be
+        // stale, so that dump must not turn the user's Pause into an exception.
+        if self.halted
+            && !self.manual_pause
+            && !self.exception_reported
+            && [
+                "AdEL - Data Load or instr fetch (0x",
+                "AdES - Data Store (unaligned?) (0x",
+                "IBE - Bus Error on instr fetch (0x",
+                "DBE - Bus Error on data load/store (0x",
+                "SYS - Unconditional Syscall (0x",
+                "BP - Break! (0x",
+                "RI - Reserved Instruction (0x",
+                "CpU - Coprocessor unavailable (0x",
+                "Ov - Arithmetic overflow (0x",
+            ]
+            .iter()
+            .any(|prefix| line.starts_with(prefix))
+        {
+            self.exception_reported = true;
+            return Some(Event::RuntimeIssue {
+                message: format!(
+                    "PSX exception reported by Unirom: {line}. Register values are in the serial output; the monitor remains connected."
+                ),
+                halted: true,
+            });
+        }
+        if let Some(start) = line.find("EPOK: Lua error in ") {
+            let message = &line[start..];
+            if self.last_script_error != message {
+                self.last_script_error = message.to_owned();
+                return Some(Event::RuntimeIssue {
+                    message: message.to_owned(),
+                    halted: false,
+                });
+            }
+        }
+        if !self.abort_reported
+            && let Some(start) = ["Abort at ", "Unhandled break: ", "Unhandled psyqo break: "]
+                .iter()
+                .filter_map(|marker| line.find(marker))
+                .min()
+        {
+            self.abort_reported = true;
+            return Some(Event::RuntimeIssue {
+                message: format!(
+                    "PSX runtime failure: {}. No resident halt acknowledgement has been received; serial recovery depends on whether the handler is still responsive.",
+                    &line[start..]
+                ),
+                halted: false,
+            });
+        }
+        None
+    }
+}
+
 fn execute(
     command: Command,
     mode: Mode,
@@ -164,6 +275,8 @@ fn execute(
     let mut startup_ready = mode != Mode::MonitorHostData;
     let mut monitor_ready = false;
     let mut startup_reads = StartupReads::default();
+    let mut reports = MonitorReports::default();
+    let mut stop_requested: Option<Instant> = None;
     let result = loop {
         match terminal.poll() {
             Ok(status) => exited = status.or(exited),
@@ -188,6 +301,26 @@ fn execute(
             monitor_ready |= transcript.contains("2-way Serial monitor active");
             if let Some(request) = pending.as_mut() {
                 response = response.or(request.observe(&chunk));
+            }
+            if mode != Mode::Setup {
+                for event in reports.observe(&chunk) {
+                    if matches!(event, Event::RuntimeIssue { halted: true, .. }) {
+                        // A startup exception can halt before the runtime-ready
+                        // message. The resident notice itself makes recovery
+                        // controls available without sending another probe.
+                        ready = true;
+                        probing = true;
+                        if pending
+                            .as_ref()
+                            .is_some_and(|p| p.request == Request::Probe)
+                        {
+                            pending = None;
+                            response = None;
+                            let _ = tx.send(Event::SerialCommandPending(false));
+                        }
+                    }
+                    let _ = tx.send(event);
+                }
             }
             if transcript.len() > 16384 {
                 let mut n = transcript.len() - 8192;
@@ -218,15 +351,23 @@ fn execute(
                     let _ = tx.send(Event::SerialConnected);
                 }
             } else if !accepted {
-                let _ = tx.send(Event::Log(format!(
-                    "Unirom rejected {request:?} in the current console state."
-                )));
+                if stop_requested.is_some() && request == Request::Reset {
+                    break Err("Stop disconnected the session, but Unirom rejected the PSX reset. The game may still be running or blocked; return the console to Unirom before Play.".into());
+                }
+                if request == Request::Pause {
+                    reports.manual_pause = false;
+                }
+                let _ = tx.send(Event::RuntimeIssue {
+                    message: format!("Unirom rejected {request:?} in the current console state. No state change was confirmed."),
+                    halted: false,
+                });
             } else {
                 match request {
                     Request::Pause => {
                         let _ = tx.send(Event::Paused(true));
                     }
                     Request::Resume => {
+                        reports.resumed();
                         let _ = tx.send(Event::Paused(false));
                     }
                     Request::Reset => {
@@ -303,13 +444,19 @@ fn execute(
             .is_some_and(|p| p.since.elapsed() > Duration::from_secs(5))
         {
             let request = pending.take().unwrap().request;
+            if stop_requested.is_some() && request == Request::Reset {
+                break Err("Stop disconnected the session, but the PSX reset was not acknowledged. The console may still be running or blocked; use its physical reset if the handler no longer responds.".into());
+            }
             if request == Request::Probe {
                 if ready {
                     break Err("The PSX resident handler stopped responding. The last command's outcome is unknown; the console may have rebooted or lost its handler. Return to the Unirom loader before Play.".into());
                 }
                 break Err("The executable was sent, but the resident Unirom handler did not answer after runtime startup. Check the console, SIO interrupt state and kernel compatibility; return to the loader before retrying.".into());
             }
-            let _ = tx.send(Event::Log(format!("{request:?} was not confirmed by Unirom. Console state is unknown; checking the handler before accepting another command.")));
+            let _ = tx.send(Event::RuntimeIssue {
+                message: format!("{request:?} was not confirmed by Unirom. Console state is unknown; checking the handler before accepting another command. This does not confirm a CPU exception."),
+                halted: false,
+            });
             // The protocol has no request IDs. A delayed OKAY must not acknowledge
             // a later Continue/Reset: first fence it with a distinct PING/PONG.
             terminal.write(Request::Probe.bytes())?;
@@ -322,6 +469,11 @@ fn execute(
                         .into(),
                 );
             }
+            Ok(Control::StopAndReset) => {
+                stop_requested.get_or_insert_with(Instant::now);
+                let _ = tx.send(Event::Stage("Stopping PSX: requesting reset".into()));
+                let _ = tx.send(Event::Log("Stop requested. Waiting for any pending command, then resetting the PSX before disconnecting.".into()));
+            }
             Ok(control) if ready => {
                 if pending.is_some() {
                     let _ = tx.send(Event::Log(
@@ -333,9 +485,12 @@ fn execute(
                         Control::Pause => Request::Pause,
                         Control::Resume => Request::Resume,
                         Control::Reset => Request::Reset,
-                        Control::Stop => unreachable!(),
+                        Control::Stop | Control::StopAndReset => unreachable!(),
                     };
                     terminal.write(request.bytes())?;
+                    if request == Request::Pause {
+                        reports.manual_pause = true;
+                    }
                     pending = Some(Pending::new(request));
                     let _ = tx.send(Event::SerialCommandPending(true));
                     let _ = tx.send(Event::Log(format!(
@@ -344,6 +499,22 @@ fn execute(
                 }
             }
             Ok(_) | Err(mpsc::TryRecvError::Empty) => {}
+        }
+        if let Some(since) = stop_requested {
+            if since.elapsed() > Duration::from_secs(12) {
+                break Err("Stop disconnected the session after waiting for the PSX. Reset remains unconfirmed; the resident handler may no longer be responsive.".into());
+            }
+            if pending.is_none() {
+                if !ready {
+                    break Err("Stop disconnected before the resident handler was ready. No PSX reset was confirmed; use Reset PSX to reconnect or reset the console physically.".into());
+                }
+                terminal.write(Request::Reset.bytes())?;
+                pending = Some(Pending::new(Request::Reset));
+                let _ = tx.send(Event::SerialCommandPending(true));
+                let _ = tx.send(Event::Log(
+                    "PSX reset requested by Stop; waiting for Unirom.".into(),
+                ));
+            }
         }
         if !ready
             && start.elapsed() > Duration::from_secs(if mode == Mode::Setup { 20 } else { 300 })

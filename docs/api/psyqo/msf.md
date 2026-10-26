@@ -1,10 +1,10 @@
 # PsyQo API: Msf
 
-> **Header:** `"psyqo/msf.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/msf.hh)
+> **Header:** `"psyqo/msf.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/msf.hh)
 
 This module covers the msf module. It documents 13 public callables declared directly in this header.
 
-PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552d`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
+PsyQo is pinned through Nugget revision `bfc3f65010efaaf979e10852e4cf203a2eff1b13`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
 
 ## Declared types
 
@@ -38,7 +38,7 @@ PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552
 constexpr uint8_t btoi(uint8_t b)
 ```
 
-- **Declared at:** [line 35](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/msf.hh#L35)
+- **Declared at:** [line 35](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/msf.hh#L35)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -78,7 +78,7 @@ auto result = psyqo::btoi(b);
 constexpr uint8_t itob(uint8_t i)
 ```
 
-- **Declared at:** [line 36](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/msf.hh#L36)
+- **Declared at:** [line 36](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/msf.hh#L36)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -118,7 +118,7 @@ auto result = psyqo::itob(i);
 constexpr void fromBCD(const uint8_t *src)
 ```
 
-- **Declared at:** [line 56](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/msf.hh#L56)
+- **Declared at:** [line 56](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/msf.hh#L56)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -160,7 +160,7 @@ object.fromBCD(src);
 MSF() : m
 ```
 
-- **Declared at:** [line 39](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/msf.hh#L39)
+- **Declared at:** [line 39](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/msf.hh#L39)
 - **Kind:** `constructor`
 
 **Use it when.** You need the msf module and the preconditions in the declaration are already satisfied.
@@ -189,7 +189,7 @@ psyqo::MSF value();
 MSF(uint8_t m, uint8_t s, uint8_t f) : m
 ```
 
-- **Declared at:** [line 40](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/msf.hh#L40)
+- **Declared at:** [line 40](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/msf.hh#L40)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -231,7 +231,7 @@ psyqo::MSF value(m, s, f);
 explicit MSF(uint32_t lba)
 ```
 
-- **Declared at:** [line 41](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/msf.hh#L41)
+- **Declared at:** [line 41](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/msf.hh#L41)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -269,7 +269,7 @@ psyqo::MSF value(lba);
 MSF &operator++()
 ```
 
-- **Declared at:** [line 44](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/msf.hh#L44)
+- **Declared at:** [line 44](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/msf.hh#L44)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `MSF &`. Check the purpose and failure notes before using the value.
@@ -302,7 +302,7 @@ auto result = object.operator++();
 MSF operator++(int)
 ```
 
-- **Declared at:** [line 45](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/msf.hh#L45)
+- **Declared at:** [line 45](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/msf.hh#L45)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -344,7 +344,7 @@ auto result = object.operator++(arg1);
 auto operator<=>(const MSF &other) const
 ```
 
-- **Declared at:** [line 42](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/msf.hh#L42)
+- **Declared at:** [line 42](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/msf.hh#L42)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -386,7 +386,7 @@ auto result = object.operator<=>(other);
 bool operator==(const MSF &other) const
 ```
 
-- **Declared at:** [line 43](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/msf.hh#L43)
+- **Declared at:** [line 43](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/msf.hh#L43)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -428,7 +428,7 @@ auto result = object.operator==(other);
 void reset()
 ```
 
-- **Declared at:** [line 61](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/msf.hh#L61)
+- **Declared at:** [line 61](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/msf.hh#L61)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -461,7 +461,7 @@ object.reset();
 constexpr void toBCD(uint8_t *dst) const
 ```
 
-- **Declared at:** [line 51](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/msf.hh#L51)
+- **Declared at:** [line 51](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/msf.hh#L51)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -503,7 +503,7 @@ object.toBCD(dst);
 constexpr uint32_t toLBA() const
 ```
 
-- **Declared at:** [line 50](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/msf.hh#L50)
+- **Declared at:** [line 50](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/msf.hh#L50)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.

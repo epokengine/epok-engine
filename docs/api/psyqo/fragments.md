@@ -1,10 +1,10 @@
 # PsyQo API: Fragments
 
-> **Header:** `"psyqo/fragments.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fragments.hh)
+> **Header:** `"psyqo/fragments.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/fragments.hh)
 
 This module covers the fragments module. It documents 16 public callables declared directly in this header.
 
-PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552d`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
+PsyQo is pinned through Nugget revision `bfc3f65010efaaf979e10852e4cf203a2eff1b13`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
 
 ## Declared types
 
@@ -41,7 +41,7 @@ PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552
 void set(ChainEntry* next_, unsigned size_)
 ```
 
-- **Declared at:** [line 82](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fragments.hh#L82)
+- **Declared at:** [line 82](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/fragments.hh#L82)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -85,7 +85,7 @@ object.set(next_, size_);
 void setEndMarker()
 ```
 
-- **Declared at:** [line 78](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fragments.hh#L78)
+- **Declared at:** [line 78](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/fragments.hh#L78)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -118,7 +118,7 @@ object.setEndMarker();
 void set(ChainEntryPS1* next, unsigned size)
 ```
 
-- **Declared at:** [line 93](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fragments.hh#L93)
+- **Declared at:** [line 93](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/fragments.hh#L93)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -162,7 +162,7 @@ object.set(next, size);
 void setEndMarker()
 ```
 
-- **Declared at:** [line 90](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fragments.hh#L90)
+- **Declared at:** [line 90](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/fragments.hh#L90)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -195,7 +195,7 @@ object.setEndMarker();
 FixedFragment()
 ```
 
-- **Declared at:** [line 127](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fragments.hh#L127)
+- **Declared at:** [line 127](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/fragments.hh#L127)
 - **Kind:** `constructor`
 
 **Use it when.** You need the fragments module and the preconditions in the declaration are already satisfied.
@@ -224,7 +224,7 @@ psyqo::Fragments::FixedFragment value();
 explicit FixedFragment(const FixedFragment &) = default
 ```
 
-- **Declared at:** [line 133](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fragments.hh#L133)
+- **Declared at:** [line 133](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/fragments.hh#L133)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -262,7 +262,7 @@ psyqo::Fragments::FixedFragment value(arg1);
 size_t getActualFragmentSize() const
 ```
 
-- **Declared at:** [line 135](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fragments.hh#L135)
+- **Declared at:** [line 135](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/fragments.hh#L135)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `size_t`. Check the purpose and failure notes before using the value.
@@ -295,7 +295,7 @@ auto result = object.getActualFragmentSize();
 constexpr size_t maxSize() const
 ```
 
-- **Declared at:** [line 126](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fragments.hh#L126)
+- **Declared at:** [line 126](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/fragments.hh#L126)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `size_t`. Check the purpose and failure notes before using the value.
@@ -328,7 +328,7 @@ auto result = object.maxSize();
 FixedFragmentWithPrologue()
 ```
 
-- **Declared at:** [line 157](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fragments.hh#L157)
+- **Declared at:** [line 157](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/fragments.hh#L157)
 - **Kind:** `constructor`
 
 **Use it when.** You need the fragments module and the preconditions in the declaration are already satisfied.
@@ -357,7 +357,7 @@ psyqo::Fragments::FixedFragmentWithPrologue value();
 explicit FixedFragmentWithPrologue(const FixedFragmentWithPrologue &) = default
 ```
 
-- **Declared at:** [line 163](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fragments.hh#L163)
+- **Declared at:** [line 163](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/fragments.hh#L163)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -395,7 +395,7 @@ psyqo::Fragments::FixedFragmentWithPrologue value(arg1);
 size_t getActualFragmentSize() const
 ```
 
-- **Declared at:** [line 165](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fragments.hh#L165)
+- **Declared at:** [line 165](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/fragments.hh#L165)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `size_t`. Check the purpose and failure notes before using the value.
@@ -428,7 +428,7 @@ auto result = object.getActualFragmentSize();
 constexpr size_t maxSize() const
 ```
 
-- **Declared at:** [line 156](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fragments.hh#L156)
+- **Declared at:** [line 156](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/fragments.hh#L156)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `size_t`. Check the purpose and failure notes before using the value.
@@ -461,7 +461,7 @@ auto result = object.maxSize();
 constexpr size_t getActualFragmentSize() const
 ```
 
-- **Declared at:** [line 109](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fragments.hh#L109)
+- **Declared at:** [line 109](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/fragments.hh#L109)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `size_t`. Check the purpose and failure notes before using the value.
@@ -494,7 +494,7 @@ auto result = object.getActualFragmentSize();
 constexpr size_t maxSize() const
 ```
 
-- **Declared at:** [line 100](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fragments.hh#L100)
+- **Declared at:** [line 100](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/fragments.hh#L100)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `size_t`. Check the purpose and failure notes before using the value.
@@ -527,7 +527,7 @@ auto result = object.maxSize();
 explicit SimpleFragment(const SimpleFragment &) = default
 ```
 
-- **Declared at:** [line 107](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fragments.hh#L107)
+- **Declared at:** [line 107](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/fragments.hh#L107)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -565,7 +565,7 @@ psyqo::Fragments::SimpleFragment value(arg1);
 template <typename... Args> SimpleFragment(Args &&...args)
 ```
 
-- **Declared at:** [line 102](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fragments.hh#L102)
+- **Declared at:** [line 102](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/fragments.hh#L102)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**

@@ -1,10 +1,10 @@
 # PsyQo API: Coroutine
 
-> **Header:** `"psyqo/coroutine.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/coroutine.hh)
+> **Header:** `"psyqo/coroutine.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/coroutine.hh)
 
 This module covers the coroutine module. It documents 34 public callables declared directly in this header.
 
-PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552d`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
+PsyQo is pinned through Nugget revision `bfc3f65010efaaf979e10852e4cf203a2eff1b13`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
 
 ## Declared types
 
@@ -61,7 +61,7 @@ PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552
 Awaiter awaiter() &
 ```
 
-- **Declared at:** [line 131](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/coroutine.hh#L131)
+- **Declared at:** [line 131](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/coroutine.hh#L131)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `Awaiter`. Check the purpose and failure notes before using the value.
@@ -94,7 +94,7 @@ auto result = object.awaiter();
 constexpr bool await_ready() const noexcept
 ```
 
-- **Declared at:** [line 111](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/coroutine.hh#L111)
+- **Declared at:** [line 111](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/coroutine.hh#L111)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -127,7 +127,7 @@ auto result = object.await_ready();
 constexpr void await_resume() const noexcept
 ```
 
-- **Declared at:** [line 117](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/coroutine.hh#L117)
+- **Declared at:** [line 117](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/coroutine.hh#L117)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -160,7 +160,7 @@ object.await_resume();
 constexpr void await_suspend(std::coroutine_handle<> h)
 ```
 
-- **Declared at:** [line 116](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/coroutine.hh#L116)
+- **Declared at:** [line 116](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/coroutine.hh#L116)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -202,7 +202,7 @@ object.await_suspend(h);
 Awaiter(Awaiter &&other) = default
 ```
 
-- **Declared at:** [line 107](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/coroutine.hh#L107)
+- **Declared at:** [line 107](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/coroutine.hh#L107)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -240,7 +240,7 @@ psyqo::Coroutine::Awaiter value(other);
 Awaiter(Awaiter const &) = default
 ```
 
-- **Declared at:** [line 109](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/coroutine.hh#L109)
+- **Declared at:** [line 109](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/coroutine.hh#L109)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -278,7 +278,7 @@ psyqo::Coroutine::Awaiter value(arg1);
 Awaiter &operator=(Awaiter &&other) = default
 ```
 
-- **Declared at:** [line 108](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/coroutine.hh#L108)
+- **Declared at:** [line 108](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/coroutine.hh#L108)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -320,7 +320,7 @@ auto result = object.operator=(other);
 Awaiter &operator=(Awaiter const &) = default
 ```
 
-- **Declared at:** [line 110](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/coroutine.hh#L110)
+- **Declared at:** [line 110](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/coroutine.hh#L110)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -362,7 +362,7 @@ auto result = object.operator=(arg1);
 constexpr bool await_ready()
 ```
 
-- **Declared at:** [line 256](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/coroutine.hh#L256)
+- **Declared at:** [line 256](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/coroutine.hh#L256)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -395,7 +395,7 @@ auto result = object.await_ready();
 constexpr T await_resume()
 ```
 
-- **Declared at:** [line 263](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/coroutine.hh#L263)
+- **Declared at:** [line 263](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/coroutine.hh#L263)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `T`. Check the purpose and failure notes before using the value.
@@ -428,7 +428,7 @@ auto result = object.await_resume();
 void await_suspend(std::coroutine_handle<> h)
 ```
 
-- **Declared at:** [line 258](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/coroutine.hh#L258)
+- **Declared at:** [line 258](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/coroutine.hh#L258)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -470,7 +470,7 @@ object.await_suspend(h);
 ChainAwaiter(ChainAwaiter &&other) : handl
 ```
 
-- **Declared at:** [line 251](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/coroutine.hh#L251)
+- **Declared at:** [line 251](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/coroutine.hh#L251)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -508,7 +508,7 @@ psyqo::Coroutine::ChainAwaiter value(other);
 ChainAwaiter(const ChainAwaiter &) = delete
 ```
 
-- **Declared at:** [line 253](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/coroutine.hh#L253)
+- **Declared at:** [line 253](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/coroutine.hh#L253)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -546,7 +546,7 @@ psyqo::Coroutine::ChainAwaiter value(arg1);
 explicit ChainAwaiter(std::coroutine_handle<Promise> h) : handl
 ```
 
-- **Declared at:** [line 246](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/coroutine.hh#L246)
+- **Declared at:** [line 246](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/coroutine.hh#L246)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -584,7 +584,7 @@ psyqo::Coroutine::ChainAwaiter value(h);
 ChainAwaiter &operator=(ChainAwaiter &&) = delete
 ```
 
-- **Declared at:** [line 252](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/coroutine.hh#L252)
+- **Declared at:** [line 252](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/coroutine.hh#L252)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -626,7 +626,7 @@ auto result = object.operator=(arg1);
 ChainAwaiter &operator=(const ChainAwaiter &) = delete
 ```
 
-- **Declared at:** [line 254](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/coroutine.hh#L254)
+- **Declared at:** [line 254](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/coroutine.hh#L254)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -668,7 +668,7 @@ auto result = object.operator=(arg1);
 ~ChainAwaiter()
 ```
 
-- **Declared at:** [line 247](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/coroutine.hh#L247)
+- **Declared at:** [line 247](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/coroutine.hh#L247)
 - **Kind:** `destructor`
 
 **Use it when.** You need the coroutine module and the preconditions in the declaration are already satisfied.
@@ -697,7 +697,7 @@ auto result = object.operator=(arg1);
 Coroutine() = default
 ```
 
-- **Declared at:** [line 58](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/coroutine.hh#L58)
+- **Declared at:** [line 58](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/coroutine.hh#L58)
 - **Kind:** `constructor`
 
 **Use it when.** You need the coroutine module and the preconditions in the declaration are already satisfied.
@@ -726,7 +726,7 @@ psyqo::Coroutine value();
 Coroutine(Coroutine &&other)
 ```
 
-- **Declared at:** [line 60](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/coroutine.hh#L60)
+- **Declared at:** [line 60](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/coroutine.hh#L60)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -764,7 +764,7 @@ psyqo::Coroutine value(other);
 Coroutine(Coroutine const &) = delete
 ```
 
-- **Declared at:** [line 91](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/coroutine.hh#L91)
+- **Declared at:** [line 91](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/coroutine.hh#L91)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -804,7 +804,7 @@ psyqo::Coroutine value(arg1);
 bool done()
 ```
 
-- **Declared at:** [line 161](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/coroutine.hh#L161)
+- **Declared at:** [line 161](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/coroutine.hh#L161)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -837,7 +837,7 @@ auto result = object.done();
 ChainAwaiter operator co_await() &&
 ```
 
-- **Declared at:** [line 277](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/coroutine.hh#L277)
+- **Declared at:** [line 277](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/coroutine.hh#L277)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `ChainAwaiter`. Check the purpose and failure notes before using the value.
@@ -870,7 +870,7 @@ auto result = object.operator co_await();
 Coroutine &operator=(Coroutine &&other)
 ```
 
-- **Declared at:** [line 74](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/coroutine.hh#L74)
+- **Declared at:** [line 74](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/coroutine.hh#L74)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -912,7 +912,7 @@ auto result = object.operator=(other);
 Coroutine &operator=(Coroutine const &) = delete
 ```
 
-- **Declared at:** [line 92](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/coroutine.hh#L92)
+- **Declared at:** [line 92](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/coroutine.hh#L92)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -956,7 +956,7 @@ auto result = object.operator=(arg1);
 void resume()
 ```
 
-- **Declared at:** [line 142](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/coroutine.hh#L142)
+- **Declared at:** [line 142](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/coroutine.hh#L142)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -991,7 +991,7 @@ object.resume();
 const SafeT &value() const
 ```
 
-- **Declared at:** [line 185](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/coroutine.hh#L185)
+- **Declared at:** [line 185](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/coroutine.hh#L185)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `const SafeT &`. Check the purpose and failure notes before using the value.
@@ -1024,7 +1024,7 @@ auto result = object.value();
 ~Coroutine()
 ```
 
-- **Declared at:** [line 93](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/coroutine.hh#L93)
+- **Declared at:** [line 93](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/coroutine.hh#L93)
 - **Kind:** `destructor`
 
 **Use it when.** You need the coroutine module and the preconditions in the declaration are already satisfied.
@@ -1053,7 +1053,7 @@ auto result = object.value();
 void initialize(eastl::function<void()> &&func)
 ```
 
-- **Declared at:** [line 335](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/coroutine.hh#L335)
+- **Declared at:** [line 335](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/coroutine.hh#L335)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1097,7 +1097,7 @@ object.initialize(func);
 bool isAlive() const
 ```
 
-- **Declared at:** [line 368](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/coroutine.hh#L368)
+- **Declared at:** [line 368](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/coroutine.hh#L368)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** true if the coroutine is alive, false otherwise.
@@ -1130,7 +1130,7 @@ auto result = object.isAlive();
 Stackful &operator=(const Stackful &) = delete
 ```
 
-- **Declared at:** [line 327](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/coroutine.hh#L327)
+- **Declared at:** [line 327](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/coroutine.hh#L327)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1174,7 +1174,7 @@ auto result = object.operator=(arg1);
 void resume()
 ```
 
-- **Declared at:** [line 348](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/coroutine.hh#L348)
+- **Declared at:** [line 348](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/coroutine.hh#L348)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1207,7 +1207,7 @@ object.resume();
 Stackful() = default
 ```
 
-- **Declared at:** [line 325](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/coroutine.hh#L325)
+- **Declared at:** [line 325](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/coroutine.hh#L325)
 - **Kind:** `constructor`
 
 **Use it when.** You need the coroutine module and the preconditions in the declaration are already satisfied.
@@ -1236,7 +1236,7 @@ psyqo::Stackful value();
 Stackful(const Stackful &) = delete
 ```
 
-- **Declared at:** [line 326](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/coroutine.hh#L326)
+- **Declared at:** [line 326](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/coroutine.hh#L326)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -1276,7 +1276,7 @@ psyqo::Stackful value(arg1);
 void yield()
 ```
 
-- **Declared at:** [line 358](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/coroutine.hh#L358)
+- **Declared at:** [line 358](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/coroutine.hh#L358)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.

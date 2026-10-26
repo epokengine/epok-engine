@@ -31,11 +31,15 @@ pub enum Event {
     Running(u32),
     SerialConnected,
     SerialCommandPending(bool),
+    /// Reported runtime/monitor failure; `halted` requires a resident halt notice.
+    RuntimeIssue { message: String, halted: bool },
     Paused(bool),
     Finished(Result<(), String>),
 }
 pub enum Control {
     Stop,
+    /// Explicit user Stop on a connected physical PSX; shutdown still disconnects.
+    StopAndReset,
     Pause,
     Resume,
     Reset,
@@ -68,7 +72,7 @@ impl Job {
                 summary.verify_inputs(&root)?;
                 if matches!(
                     rx.try_recv(),
-                    Ok(Control::Stop) | Err(mpsc::TryRecvError::Disconnected)
+                    Ok(Control::Stop | Control::StopAndReset) | Err(mpsc::TryRecvError::Disconnected)
                 ) {
                     return Err("Report generation cancelled.".into());
                 }
@@ -103,7 +107,10 @@ impl Job {
                     settings.executable.clear();
                 }
                 let found = crate::serial_support::discover(&mut settings, &task);
-                if action == crate::serial_ui::Action::Test {
+                if action == crate::serial_ui::Action::Reset {
+                    found?;
+                    crate::serial_support::reset(&settings, &task)?;
+                } else if action == crate::serial_ui::Action::Test {
                     found?;
                     crate::serial_support::probe(&settings, &task)?;
                 } else if let Err(message) = found {
@@ -118,7 +125,9 @@ impl Job {
                     return Ok(());
                 }
                 let _ = tx.send(Event::SerialStatus(
-                    if action == crate::serial_ui::Action::Test {
+                    if action == crate::serial_ui::Action::Reset {
+                        "PSX acknowledged reset. Wait for the Unirom loader before Play."
+                    } else if action == crate::serial_ui::Action::Test {
                         "Unirom responded. Ready to Play."
                     } else if action == crate::serial_ui::Action::Prepare {
                         "Tools ready. Choose your adapter and start Unirom, then Play."
@@ -289,7 +298,7 @@ impl Job {
         }
     }
     pub fn control(&self, control: Control) {
-        if matches!(control, Control::Stop) {
+        if matches!(control, Control::Stop | Control::StopAndReset) {
             self.stopping.set(true);
         }
         let _ = self.controls.send(control);
@@ -462,7 +471,7 @@ fn compile_command(
     loop {
         if matches!(
             rx.try_recv(),
-            Ok(Control::Stop) | Err(mpsc::TryRecvError::Disconnected)
+            Ok(Control::Stop | Control::StopAndReset) | Err(mpsc::TryRecvError::Disconnected)
         ) {
             stop(&mut child);
             return Err("Build cancelled".into());
@@ -497,7 +506,7 @@ fn compile_command(
 fn cancelled(rx: &Receiver<Control>) -> bool {
     matches!(
         rx.try_recv(),
-        Ok(Control::Stop) | Err(mpsc::TryRecvError::Disconnected)
+        Ok(Control::Stop | Control::StopAndReset) | Err(mpsc::TryRecvError::Disconnected)
     )
 }
 
@@ -720,7 +729,7 @@ fn build(
             crate::disc::build(root, &build, || {
                 matches!(
                     rx.try_recv(),
-                    Ok(Control::Stop) | Err(mpsc::TryRecvError::Disconnected)
+                    Ok(Control::Stop | Control::StopAndReset) | Err(mpsc::TryRecvError::Disconnected)
                 )
             })?
         };
@@ -830,6 +839,7 @@ fn execute(
         );
     }
     crate::pocketstation::write_link_config(root, &build)?;
+    crate::rumble::write_emulator_config(root, &build)?;
     if debug {
         let map = fs::read_to_string(build.join("epok.map"))
             .map_err(|e| format!("Blueprint debug link map: {e}"))?;
@@ -857,7 +867,7 @@ fn execute(
     }
     if matches!(
         rx.try_recv(),
-        Ok(Control::Stop) | Err(mpsc::TryRecvError::Disconnected)
+        Ok(Control::Stop | Control::StopAndReset) | Err(mpsc::TryRecvError::Disconnected)
     ) {
         return Err("Play cancelled".into());
     }
@@ -972,7 +982,7 @@ fn execute(
             }
         }
         match rx.try_recv() {
-            Ok(Control::Stop) | Err(mpsc::TryRecvError::Disconnected) => {
+            Ok(Control::Stop | Control::StopAndReset) | Err(mpsc::TryRecvError::Disconnected) => {
                 return Ok(());
             }
             Ok(Control::Pause) => match request(config.web_port, "pause") {

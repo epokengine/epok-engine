@@ -2,7 +2,7 @@
 
 > **Header:** `"debug_hud.hpp"` · **Tier:** Epok runtime API · **Source:** [open header](../../../runtime/debug_hud.hpp)
 
-This module covers native HUD layout, drawing and focus navigation. It documents 4 public callables declared directly in this header.
+This module covers native HUD layout, drawing and focus navigation. It documents 5 public callables declared directly in this header.
 
 ## Declared types
 
@@ -14,6 +14,7 @@ This module covers native HUD layout, drawing and focus navigation. It documents
 - [`epok::debug_hud::draw`](#epok-debug-hud-draw-1) — Draws draw as part of native HUD layout, drawing and focus navigation.
 - [`epok::debug_hud::geometry`](#epok-debug-hud-geometry-1) — Performs `geometry` as part of native HUD layout, drawing and focus navigation.
 - [`epok::debug_hud::initialize`](#epok-debug-hud-initialize-1) — Performs `initialize` as part of native HUD layout, drawing and focus navigation.
+- [`epok::debug_hud::toggle`](#epok-debug-hud-toggle-1) — Performs `toggle` as part of native HUD layout, drawing and focus navigation.
 
 <a id="epok-debug-hud-begin-1"></a>
 
@@ -27,7 +28,7 @@ This module covers native HUD layout, drawing and focus navigation. It documents
 inline void begin(psyqo::GPU& gpu)
 ```
 
-- **Declared at:** [line 62](../../../runtime/debug_hud.hpp#L62)
+- **Declared at:** [line 71](../../../runtime/debug_hud.hpp#L71)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -67,7 +68,7 @@ epok::debug_hud::begin(gpu);
 inline void draw(psyqo::GPU& gpu)
 ```
 
-- **Declared at:** [line 91](../../../runtime/debug_hud.hpp#L91)
+- **Declared at:** [line 100](../../../runtime/debug_hud.hpp#L100)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -107,7 +108,7 @@ epok::debug_hud::draw(gpu);
 inline void geometry(uint16_t started, bool gte)
 ```
 
-- **Declared at:** [line 85](../../../runtime/debug_hud.hpp#L85)
+- **Declared at:** [line 94](../../../runtime/debug_hud.hpp#L94)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -149,7 +150,7 @@ epok::debug_hud::geometry(started, gte);
 inline void initialize(psyqo::GPU& gpu)
 ```
 
-- **Declared at:** [line 42](../../../runtime/debug_hud.hpp#L42)
+- **Declared at:** [line 51](../../../runtime/debug_hud.hpp#L51)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -176,3 +177,43 @@ epok::debug_hud::initialize(gpu);
 **Why choose it.** It provides direct, allocation-conscious access to native HUD layout, drawing and focus navigation. No exception-based error path is implied by the signature.
 
 **Trade-offs and warnings.** Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
+
+<a id="epok-debug-hud-toggle-1"></a>
+
+## `epok::debug_hud::toggle`
+
+**Purpose.** Performs `toggle` as part of native HUD layout, drawing and focus navigation.
+
+**Exact declaration**
+
+```cpp
+inline void toggle(bool select_pressed)
+```
+
+- **Declared at:** [line 48](../../../runtime/debug_hud.hpp#L48)
+- **Kind:** `function decl`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `select_pressed` | `bool` | Input | Value supplied for `select_pressed`. See the exact type and module contract. |
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** You need native HUD layout, drawing and focus navigation and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "debug_hud.hpp"
+
+// Assume these named values have been initialized with valid data:
+// bool select_pressed
+
+epok::debug_hud::toggle(select_pressed);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to native HUD layout, drawing and focus navigation. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.

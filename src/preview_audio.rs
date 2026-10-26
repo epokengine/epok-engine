@@ -62,6 +62,7 @@ mod win {
         ) -> u32;
         fn waveOutPrepareHeader(out: *mut c_void, header: *mut Header, size: u32) -> u32;
         fn waveOutWrite(out: *mut c_void, header: *mut Header, size: u32) -> u32;
+        fn waveOutSetVolume(out: *mut c_void, volume: u32) -> u32;
         fn waveOutPause(out: *mut c_void) -> u32;
         fn waveOutRestart(out: *mut c_void) -> u32;
         fn waveOutReset(out: *mut c_void) -> u32;
@@ -79,6 +80,9 @@ mod win {
     }
     impl Player {
         pub fn start(pcm: Pcm) -> Result<Self, String> {
+            Self::start_with_gain(pcm, 1.)
+        }
+        pub fn start_with_gain(pcm: Pcm, gain: f32) -> Result<Self, String> {
             if pcm.samples.is_empty()
                 || !(1..=2).contains(&pcm.channels)
                 || !(8000..=192000).contains(&pcm.rate)
@@ -149,6 +153,7 @@ mod win {
                 duration,
                 loop_region,
             };
+            player.set_gain(gain)?;
             let size = std::mem::size_of::<Header>() as u32;
             for header in &mut player.headers {
                 let result = unsafe { waveOutPrepareHeader(device, header, size) };
@@ -161,6 +166,14 @@ mod win {
                 }
             }
             Ok(player)
+        }
+        pub fn set_gain(&self, gain: f32) -> Result<(), String> {
+            let volume = (gain.clamp(0., 1.) * 65535.).round() as u32;
+            let result = unsafe { waveOutSetVolume(self.device, volume | (volume << 16)) };
+            if result != 0 {
+                return Err(format!("Cannot set audio volume ({result})"));
+            }
+            Ok(())
         }
         pub fn finished(&self) -> bool {
             // WHDR_DONE is updated by WinMM while the prepared header remains allocated.
@@ -209,7 +222,13 @@ pub use win::Player;
 pub struct Player;
 #[cfg(not(windows))]
 impl Player {
-    pub fn start(_: Pcm) -> Result<Self, String> {
+    pub fn start(pcm: Pcm) -> Result<Self, String> {
+        Self::start_with_gain(pcm, 1.)
+    }
+    pub fn set_gain(&self, _: f32) -> Result<(), String> {
+        Ok(())
+    }
+    pub fn start_with_gain(_: Pcm, _: f32) -> Result<Self, String> {
         Err("Audio audition is currently available on Windows.".into())
     }
     pub fn finished(&self) -> bool {

@@ -2,16 +2,13 @@
 
 > **Header:** `"scene_service.hpp"` · **Tier:** Engine internal · **Source:** [open header](../../../runtime/scene_service.hpp)
 
-This module covers scene lifecycle and scene-stack control. It documents 3 public callables declared directly in this header.
-
-## Declared types
-
-`epok::SceneStats`
+This module covers scene lifecycle and scene-stack control. It documents 4 public callables declared directly in this header.
 
 ## Callable index
 
 - [`epok::install_actor_service_hooks`](#epok-install-actor-service-hooks-1) — Performs `install actor service hooks` as part of scene lifecycle and scene-stack control.
 - [`epok::music_retains_audio_source`](#epok-music-retains-audio-source-1) — Component-owned AudioSource storage stays quarantined while the XA consumer still points at it -- exactly the rule allocate_actor_data (runtime/lifecycle.hpp) applies to a legacy slot's `audio`.
+- [`epok::scene_file_tick`](#epok-scene-file-tick-1) — The outgoing scene is gone and the next bank's file is loading behind the loading screen.
 - [`epok::scene_tick`](#epok-scene-tick-1) — Performs `scene tick` as part of scene lifecycle and scene-stack control.
 
 <a id="epok-install-actor-service-hooks-1"></a>
@@ -26,7 +23,7 @@ This module covers scene lifecycle and scene-stack control. It documents 3 publi
 inline void install_actor_service_hooks()
 ```
 
-- **Declared at:** [line 25](../../../runtime/scene_service.hpp#L25)
+- **Declared at:** [line 18](../../../runtime/scene_service.hpp#L18)
 - **Kind:** `function decl`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -59,7 +56,7 @@ epok::install_actor_service_hooks();
 inline bool music_retains_audio_source(const AudioSource* source)
 ```
 
-- **Declared at:** [line 21](../../../runtime/scene_service.hpp#L21)
+- **Declared at:** [line 14](../../../runtime/scene_service.hpp#L14)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -87,6 +84,48 @@ auto result = epok::music_retains_audio_source(source);
 
 **Trade-offs and warnings.** Check the return value; `false` is part of normal control flow for many PSX resource operations. Treat device absence, busy state and I/O failure as expected outcomes; do not block the frame loop waiting for hardware. This is classified as **Engine internal**. Prefer a higher-level Epok service unless you need this exact control. Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
 
+<a id="epok-scene-file-tick-1"></a>
+
+## `epok::scene_file_tick`
+
+**Purpose.** The outgoing scene is gone and the next bank's file is loading behind the loading screen.
+
+**Details.** Nothing of the bank runs until its file is verified.
+
+**Exact declaration**
+
+```cpp
+inline bool scene_file_tick(psyqo::GPU& gpu)
+```
+
+- **Declared at:** [line 29](../../../runtime/scene_service.hpp#L29)
+- **Kind:** `function decl`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `gpu` | `psyqo::GPU &` | Input/output; inspect the function contract | Value supplied for `gpu`. See the exact type and module contract. |
+
+**Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
+
+**Use it when.** Nothing of the bank runs until its file is verified.
+
+**Usage pattern**
+
+```cpp
+#include "scene_service.hpp"
+
+// Assume these named values have been initialized with valid data:
+// psyqo::GPU & gpu
+
+auto result = epok::scene_file_tick(gpu);
+```
+
+**Why choose it.** The boolean result makes success, availability or state explicit without exceptions.
+
+**Trade-offs and warnings.** Check the return value; `false` is part of normal control flow for many PSX resource operations. This is classified as **Engine internal**. Prefer a higher-level Epok service unless you need this exact control. Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
+
 <a id="epok-scene-tick-1"></a>
 
 ## `epok::scene_tick`
@@ -99,7 +138,7 @@ auto result = epok::music_retains_audio_source(source);
 inline bool scene_tick(psyqo::GPU& gpu)
 ```
 
-- **Declared at:** [line 59](../../../runtime/scene_service.hpp#L59)
+- **Declared at:** [line 46](../../../runtime/scene_service.hpp#L46)
 - **Kind:** `function decl`
 
 **Parameters**

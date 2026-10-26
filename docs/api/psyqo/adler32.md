@@ -1,10 +1,10 @@
 # PsyQo API: Adler32
 
-> **Header:** `"psyqo/adler32.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/adler32.hh)
+> **Header:** `"psyqo/adler32.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/adler32.hh)
 
 This module covers the adler32 module. It documents 3 public callables declared directly in this header.
 
-PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552d`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
+PsyQo is pinned through Nugget revision `bfc3f65010efaaf979e10852e4cf203a2eff1b13`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
 
 ## Callable index
 
@@ -26,7 +26,7 @@ PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552
 uint32_t adler32(uint8_t* buffer, unsigned length, uint32_t sum = 1)
 ```
 
-- **Declared at:** [line 53](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/adler32.hh#L53)
+- **Declared at:** [line 53](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/adler32.hh#L53)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -72,7 +72,7 @@ auto result = psyqo::adler32(buffer, length, sum);
 uint32_t adler32_bytes(uint8_t* buffer, unsigned length, uint32_t sum = 1)
 ```
 
-- **Declared at:** [line 66](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/adler32.hh#L66)
+- **Declared at:** [line 66](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/adler32.hh#L66)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -118,7 +118,7 @@ auto result = psyqo::adler32_bytes(buffer, length, sum);
 uint32_t adler32_words(uint32_t* buffer, unsigned length, uint32_t sum = 1)
 ```
 
-- **Declared at:** [line 82](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/adler32.hh#L82)
+- **Declared at:** [line 82](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/adler32.hh#L82)
 - **Kind:** `function decl`
 
 **Parameters**

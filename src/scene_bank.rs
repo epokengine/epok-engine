@@ -191,12 +191,19 @@ pub fn resources(scenes: &[Scene]) -> Scene {
     out.actors.clear();
     out.textures.clear();
     out.fonts.clear();
+    out.tilesets.clear();
     out.reference_tables.clear();
     for s in scenes {
         out.actors.extend(s.actors.clone());
         out.textures.extend(s.textures.clone());
         out.fonts.extend(s.fonts.clone());
+        out.tilesets.extend(s.tilesets.clone());
         out.reference_tables.extend(s.reference_tables.clone());
+        out.hud_budget.layouts = out.hud_budget.layouts.max(s.hud_budget.layouts);
+        out.hud_budget.rectangles = out.hud_budget.rectangles.max(s.hud_budget.rectangles);
+        out.hud_budget.texts = out.hud_budget.texts.max(s.hud_budget.texts);
+        out.hud_budget.glyphs = out.hud_budget.glyphs.max(s.hud_budget.glyphs);
+        out.hud_budget.rotated = out.hud_budget.rotated.max(s.hud_budget.rotated);
     }
     for e in &mut out.actors {
         if let Some(a) = &mut e.audio {

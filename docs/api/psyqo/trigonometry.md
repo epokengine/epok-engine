@@ -1,10 +1,10 @@
 # PsyQo API: Trigonometry
 
-> **Header:** `"psyqo/trigonometry.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/trigonometry.hh)
+> **Header:** `"psyqo/trigonometry.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/trigonometry.hh)
 
 This module covers fixed-point trigonometric helpers. It documents 5 public callables declared directly in this header.
 
-PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552d`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
+PsyQo is pinned through Nugget revision `bfc3f65010efaaf979e10852e4cf203a2eff1b13`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
 
 ## Declared types
 
@@ -30,7 +30,7 @@ PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552
 constexpr FixedPoint<precisionBits> cos(Angle a) const
 ```
 
-- **Declared at:** [line 84](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/trigonometry.hh#L84)
+- **Declared at:** [line 84](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/trigonometry.hh#L84)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -72,7 +72,7 @@ auto result = object.cos(a);
 constexpr FixedPoint<precisionBits> sin(Angle a) const
 ```
 
-- **Declared at:** [line 113](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/trigonometry.hh#L113)
+- **Declared at:** [line 113](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/trigonometry.hh#L113)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -114,7 +114,7 @@ auto result = object.sin(a);
 Trig()
 ```
 
-- **Declared at:** [line 76](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/trigonometry.hh#L76)
+- **Declared at:** [line 76](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/trigonometry.hh#L76)
 - **Kind:** `constructor`
 
 **Use it when.** You need fixed-point trigonometric helpers and the preconditions in the declaration are already satisfied.
@@ -143,7 +143,7 @@ psyqo::Trig value();
 consteval Angle operator""_pi(long double angle)
 ```
 
-- **Declared at:** [line 58](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/trigonometry.hh#L58)
+- **Declared at:** [line 58](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/trigonometry.hh#L58)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -183,7 +183,7 @@ auto result = psyqo::trig_literals::operator""_pi(angle);
 void generateTable(eastl::array<int32_t, 512>& table, unsigned precisionBits)
 ```
 
-- **Declared at:** [line 38](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/trigonometry.hh#L38)
+- **Declared at:** [line 38](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/trigonometry.hh#L38)
 - **Kind:** `function decl`
 
 **Parameters**

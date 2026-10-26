@@ -1345,8 +1345,9 @@ fn stage_with_playback(
     } else {
         ""
     };
+    let rumble_flags = if artifacts.runtime_capabilities.contains("rumble") { "CPPFLAGS += -DEPOK_RUMBLE\n" } else { "" };
     let sources = format!(
-        "SCRIPT_SRCS := {}\n{blueprint_flags}{playback_flags}{}{}",
+        "SCRIPT_SRCS := {}\n{blueprint_flags}{playback_flags}{rumble_flags}{}{}",
         native_sources.join(" "),
         lua.cppflags(),
         lua.libraries()
@@ -1611,6 +1612,8 @@ pub fn runtime_sources() -> &'static [(&'static str, &'static [u8])] {
             "input.hpp",
             include_bytes!("../runtime/input.hpp").as_slice(),
         ),
+        ("rumble.hpp", include_bytes!("../runtime/rumble.hpp").as_slice()),
+        ("controller_pad.hpp", include_bytes!("../runtime/controller_pad.hpp").as_slice()),
         (
             "memory_card.hpp",
             include_bytes!("../runtime/memory_card.hpp").as_slice(),
@@ -1643,6 +1646,10 @@ pub fn runtime_sources() -> &'static [(&'static str, &'static [u8])] {
         (
             "scene_files.hpp",
             include_bytes!("../runtime/scene_files.hpp").as_slice(),
+        ),
+        (
+            "scene_lifecycle.hpp",
+            include_bytes!("../runtime/scene_lifecycle.hpp").as_slice(),
         ),
         (
             "scene_service.hpp",
