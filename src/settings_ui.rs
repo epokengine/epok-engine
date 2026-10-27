@@ -369,7 +369,7 @@ fn matches(query: &str, text: &str) -> bool {
     query.trim().is_empty() || text.to_lowercase().contains(&query.trim().to_lowercase())
 }
 pub fn windows(ui: &imgui::Ui, e: &mut Editor) {
-    e.controls.rumble_panel_port=None;
+    e.controls.rumble_panel_port = None;
     e.dependencies.poll();
     if e.dependencies.warning_ui(ui) {
         open_dependencies(e);

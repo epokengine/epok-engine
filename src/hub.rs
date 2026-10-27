@@ -760,7 +760,9 @@ impl Hub {
             drop(draw);
             if pressed {
                 self.template = info.template;
-                if !info.supports(self.gameplay) { self.gameplay = workspace::GameplayFlavor::Cpp; }
+                if !info.supports(self.gameplay) {
+                    self.gameplay = workspace::GameplayFlavor::Cpp;
+                }
             }
             if selected && self.reveal_template {
                 ui.set_scroll_here_y_with_ratio(1.);
@@ -1252,8 +1254,15 @@ pub fn verify_interactions(context: &mut imgui::Context) {
     for (slot, flavor) in workspace::GameplayFlavor::ALL.into_iter().enumerate() {
         click(context, &mut hub, GAMEPLAY_LIST);
         click(context, &mut hub, GAMEPLAY_ITEM + slot);
-        let expected = if project_templates::info(hub.template).supports(flavor) { flavor } else { workspace::GameplayFlavor::Cpp };
-        assert_eq!(hub.gameplay, expected, "flavor {slot} did not select or disable");
+        let expected = if project_templates::info(hub.template).supports(flavor) {
+            flavor
+        } else {
+            workspace::GameplayFlavor::Cpp
+        };
+        assert_eq!(
+            hub.gameplay, expected,
+            "flavor {slot} did not select or disable"
+        );
     }
     // One target, and picking it is a no-op rather than a hidden state change.
     click(context, &mut hub, TARGET_LIST);

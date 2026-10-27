@@ -32,7 +32,10 @@ pub enum Event {
     SerialConnected,
     SerialCommandPending(bool),
     /// Reported runtime/monitor failure; `halted` requires a resident halt notice.
-    RuntimeIssue { message: String, halted: bool },
+    RuntimeIssue {
+        message: String,
+        halted: bool,
+    },
     Paused(bool),
     Finished(Result<(), String>),
 }
@@ -72,7 +75,8 @@ impl Job {
                 summary.verify_inputs(&root)?;
                 if matches!(
                     rx.try_recv(),
-                    Ok(Control::Stop | Control::StopAndReset) | Err(mpsc::TryRecvError::Disconnected)
+                    Ok(Control::Stop | Control::StopAndReset)
+                        | Err(mpsc::TryRecvError::Disconnected)
                 ) {
                     return Err("Report generation cancelled.".into());
                 }
@@ -729,7 +733,8 @@ fn build(
             crate::disc::build(root, &build, || {
                 matches!(
                     rx.try_recv(),
-                    Ok(Control::Stop | Control::StopAndReset) | Err(mpsc::TryRecvError::Disconnected)
+                    Ok(Control::Stop | Control::StopAndReset)
+                        | Err(mpsc::TryRecvError::Disconnected)
                 )
             })?
         };

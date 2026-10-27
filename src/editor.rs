@@ -317,13 +317,18 @@ impl Editor {
         }
         if let Some(bridge) = self.job.as_ref().and_then(|j| j.native.as_ref()) {
             bridge.pads.lock().unwrap()[0].buttons = buttons;
-            if buttons!=0 { bridge.pads.lock().unwrap()[0].connected=true; }
+            if buttons != 0 {
+                bridge.pads.lock().unwrap()[0].connected = true;
+            }
         }
     }
     pub fn set_controls(&self, mut pads: [crate::controls::PadState; 4]) {
-        for pad in &mut pads { pad.rumble_enabled &= self.preferences.rumble_enabled && self.game_capture && !self.paused; }
+        for pad in &mut pads {
+            pad.rumble_enabled &=
+                self.preferences.rumble_enabled && self.game_capture && !self.paused;
+        }
         pads[0].buttons |= self.mcp.buttons;
-        pads[0].connected |= self.mcp.buttons!=0;
+        pads[0].connected |= self.mcp.buttons != 0;
         if let Some(bridge) = self.job.as_ref().and_then(|job| job.bridge.as_ref()) {
             bridge
                 .buttons
@@ -376,7 +381,12 @@ impl Editor {
         }
         self.controls.gamepad_button_for(id, button, down);
     }
-    pub fn input_gamepad_axis(&mut self, id: usize, axis: crate::controls::GamepadAxis, value: f32) {
+    pub fn input_gamepad_axis(
+        &mut self,
+        id: usize,
+        axis: crate::controls::GamepadAxis,
+        value: f32,
+    ) {
         if value.abs() > 0.5 {
             self.settings
                 .capture_binding(crate::controls::Binding::GamepadAxis {
@@ -3231,8 +3241,17 @@ impl Editor {
     /// Shared toolbar/MCP Stop. Keep the job until its worker acknowledges it,
     /// but do not accept late frames/errors from the connection we are closing.
     pub fn stop_play(&mut self) {
-        if let Some(bridge) = self.job.as_ref().and_then(|job| job.native.as_ref()) { bridge.state.lock().unwrap().rumble = None; bridge.output_enabled.store(false,std::sync::atomic::Ordering::Relaxed); }
-        if let Some(bridge) = self.job.as_ref().and_then(|job| job.bridge.as_ref()) { bridge.rumble_enabled.store(false,std::sync::atomic::Ordering::Relaxed); }
+        if let Some(bridge) = self.job.as_ref().and_then(|job| job.native.as_ref()) {
+            bridge.state.lock().unwrap().rumble = None;
+            bridge
+                .output_enabled
+                .store(false, std::sync::atomic::Ordering::Relaxed);
+        }
+        if let Some(bridge) = self.job.as_ref().and_then(|job| job.bridge.as_ref()) {
+            bridge
+                .rumble_enabled
+                .store(false, std::sync::atomic::Ordering::Relaxed);
+        }
         if let Some(job) = &self.job {
             // A repeated Stop must not replace a reset already requested, but an
             // explicit Stop still cancels the restart an input change scheduled.
@@ -3242,7 +3261,11 @@ impl Editor {
             let reset = self.playing
                 && self.active_play_runtime == crate::play::Runtime::PlayStation
                 && self.active_play_target == crate::play::Target::Serial;
-            job.control(if reset { Control::StopAndReset } else { Control::Stop });
+            job.control(if reset {
+                Control::StopAndReset
+            } else {
+                Control::Stop
+            });
             self.restart_target = None;
             self.job_target = None;
             self.game_capture = false;
@@ -3250,8 +3273,17 @@ impl Editor {
             self.focus_game = false;
             self.focus_console = false;
             self.focus_scene = true;
-            self.log(if reset { "Stopping PSX and requesting a console reset..." } else { "Stopping..." });
-            self.job_stage = if reset { "Resetting PSX before disconnecting..." } else { "Cancelling operation..." }.into();
+            self.log(if reset {
+                "Stopping PSX and requesting a console reset..."
+            } else {
+                "Stopping..."
+            });
+            self.job_stage = if reset {
+                "Resetting PSX before disconnecting..."
+            } else {
+                "Cancelling operation..."
+            }
+            .into();
         }
     }
     /// Reset through the owned monitor, or reconnect when an earlier session ended.
@@ -3260,7 +3292,8 @@ impl Editor {
             return Err("Waiting for the previous PSX command".into());
         }
         if let Some(job) = &self.job {
-            if !self.playing || job.stopping()
+            if !self.playing
+                || job.stopping()
                 || self.active_play_runtime != crate::play::Runtime::PlayStation
                 || self.active_play_target != crate::play::Target::Serial
             {
@@ -3269,7 +3302,11 @@ impl Editor {
             job.control(Control::Reset);
             self.serial_ui.command_pending = true;
         } else {
-            if self.scene_loading.is_some() || self.dependencies.busy() || self.assets.busy || self.bake_job.is_some() {
+            if self.scene_loading.is_some()
+                || self.dependencies.busy()
+                || self.assets.busy
+                || self.bake_job.is_some()
+            {
                 return Err("Wait for the current operation before reconnecting to the PSX".into());
             }
             crate::serial_ui::start(self, crate::serial_ui::Action::Reset);
@@ -3479,7 +3516,10 @@ impl Editor {
                 }
                 Event::RuntimeIssue { message, halted } => {
                     self.runtime_error = Some(message.clone());
-                    if halted && !self.job_stale && !self.job.as_ref().is_some_and(pipeline::Job::stopping) {
+                    if halted
+                        && !self.job_stale
+                        && !self.job.as_ref().is_some_and(pipeline::Job::stopping)
+                    {
                         self.playing = true;
                         self.paused = true;
                         self.game_capture = false;
@@ -3585,8 +3625,14 @@ impl Editor {
                 }
             }
         }
-        let rumble_warning=self.job.as_ref().and_then(|job|job.bridge.as_ref()).and_then(|bridge|bridge.state.lock().unwrap().rumble_warning.take());
-        if let Some(warning)=rumble_warning{self.log(warning);}
+        let rumble_warning = self
+            .job
+            .as_ref()
+            .and_then(|job| job.bridge.as_ref())
+            .and_then(|bridge| bridge.state.lock().unwrap().rumble_warning.take());
+        if let Some(warning) = rumble_warning {
+            self.log(warning);
+        }
         if !self.job_stale
             && let Some(native) = self
                 .job

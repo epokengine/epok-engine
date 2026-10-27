@@ -564,7 +564,9 @@ pub fn creation_options(template: &str, gameplay: &str) -> Result<CreateOptions,
         format!("Unknown gameplay flavor: {gameplay}. Use cpp, blueprint or lua.")
     })?;
     if !template.supports(gameplay) {
-        return Err("Dungeon Complete includes C++ gameplay and a Pocket Lua minigame. Choose cpp.".into());
+        return Err(
+            "Dungeon Complete includes C++ gameplay and a Pocket Lua minigame. Choose cpp.".into(),
+        );
     }
     Ok(CreateOptions::new(template).with_gameplay(gameplay))
 }
@@ -582,7 +584,9 @@ pub fn create_with_options(
 ) -> Result<Project, String> {
     validate_name(name)?;
     if !options.template.supports(options.gameplay) {
-        return Err("Dungeon Complete includes C++ gameplay and a Pocket Lua minigame. Choose C++.".into());
+        return Err(
+            "Dungeon Complete includes C++ gameplay and a Pocket Lua minigame. Choose C++.".into(),
+        );
     }
     // Claim a NEW directory exclusively. Never merge into or overwrite existing content.
     let parent = destination

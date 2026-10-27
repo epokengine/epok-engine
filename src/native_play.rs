@@ -934,7 +934,8 @@ pub fn execute(
         match done_rx.recv_timeout(Duration::from_millis(30)) {
             Ok(result) => break result?,
             Err(mpsc::RecvTimeoutError::Timeout) => match controls.try_recv() {
-                Ok(crate::pipeline::Control::Stop | crate::pipeline::Control::StopAndReset) | Err(mpsc::TryRecvError::Disconnected) => {
+                Ok(crate::pipeline::Control::Stop | crate::pipeline::Control::StopAndReset)
+                | Err(mpsc::TryRecvError::Disconnected) => {
                     cancel.store(true, Ordering::Relaxed);
                     let _ = worker.join();
                     return Err("Native PC Play cancelled".into());
@@ -998,7 +999,8 @@ pub fn execute(
         let mut reset = false;
         loop {
             match controls.try_recv() {
-                Ok(crate::pipeline::Control::Stop | crate::pipeline::Control::StopAndReset) | Err(mpsc::TryRecvError::Disconnected) => {
+                Ok(crate::pipeline::Control::Stop | crate::pipeline::Control::StopAndReset)
+                | Err(mpsc::TryRecvError::Disconnected) => {
                     return Ok(());
                 }
                 Ok(crate::pipeline::Control::Pause) => {

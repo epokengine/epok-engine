@@ -1075,11 +1075,20 @@ fn draw_workspace(
                 && e.play_profile.target == crate::play::Target::Serial
             {
                 ui.same_line_with_spacing(0., 3.);
-                ui.disabled(e.job.is_some() || e.critical_busy() || e.assets.busy || e.bake_job.is_some(), || {
-                    if icon(ui, "R", "reset-psx", "Reset PSX (reconnect to the selected adapter)", false) {
-                        e.action("serial-reset");
-                    }
-                });
+                ui.disabled(
+                    e.job.is_some() || e.critical_busy() || e.assets.busy || e.bake_job.is_some(),
+                    || {
+                        if icon(
+                            ui,
+                            "R",
+                            "reset-psx",
+                            "Reset PSX (reconnect to the selected adapter)",
+                            false,
+                        ) {
+                            e.action("serial-reset");
+                        }
+                    },
+                );
             }
             ui.same_line_with_pos(size[0] - 270.);
             if ui.button("Build") {

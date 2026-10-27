@@ -712,14 +712,41 @@ mod tests {
     fn mesh_packet_budget_bounds_retained_and_dynamic_reservations() {
         let scenes = [Scene::default()];
         let registry = crate::actor_document::tests::registry();
-        let make = |budget| header_with_templates_for(&scenes, &[], None, &[], None, &[], &[], &registry, crate::skeletal_compile::QueryDemand::ALL, &[], budget);
+        let make = |budget| {
+            header_with_templates_for(
+                &scenes,
+                &[],
+                None,
+                &[],
+                None,
+                &[],
+                &[],
+                &registry,
+                crate::skeletal_compile::QueryDemand::ALL,
+                &[],
+                budget,
+            )
+        };
         let automatic = make(None).unwrap();
         let original = number(&automatic, "inline constexpr size_t render_capacity=").unwrap();
         assert!(original > 512);
         let bounded = make(Some(512)).unwrap();
-        assert_eq!(number(&bounded, "inline constexpr size_t render_capacity=").unwrap(), 512);
-        assert_eq!(number(&bounded, "inline constexpr size_t retained_quad_capacity=").unwrap(), 256);
-        assert_eq!(number(&make(Some(8192)).unwrap(), "inline constexpr size_t render_capacity=").unwrap(), original);
+        assert_eq!(
+            number(&bounded, "inline constexpr size_t render_capacity=").unwrap(),
+            512
+        );
+        assert_eq!(
+            number(&bounded, "inline constexpr size_t retained_quad_capacity=").unwrap(),
+            256
+        );
+        assert_eq!(
+            number(
+                &make(Some(8192)).unwrap(),
+                "inline constexpr size_t render_capacity="
+            )
+            .unwrap(),
+            original
+        );
         assert!(make(Some(511)).is_err());
     }
 

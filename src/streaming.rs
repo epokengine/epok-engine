@@ -1656,7 +1656,11 @@ mod tests {
         let mut bundle = compile(std::slice::from_ref(&scene), 2).unwrap();
         let geometry = bundle.bytes.clone();
         let geometry_pages = geometry.len() / PAGE_BYTES;
-        assert!(bundle.globals().contains(&format!("stream_geometry_page_count={geometry_pages};")));
+        assert!(
+            bundle
+                .globals()
+                .contains(&format!("stream_geometry_page_count={geometry_pages};"))
+        );
         let mut duplicate = compile(std::slice::from_ref(&scene), 2).unwrap();
         bundle.append_texture_pixels(&scene).unwrap();
         duplicate.append_texture_pixels(&scene).unwrap();

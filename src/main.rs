@@ -49,7 +49,6 @@ mod console;
 mod content_preview;
 mod controls;
 mod controls_ui;
-mod rumble;
 mod data_table;
 mod data_table_editor;
 mod dependencies;
@@ -58,6 +57,7 @@ mod document;
 mod draw_order_codec;
 mod dungeon;
 mod dungeon_bake;
+mod dungeon_complete_template;
 mod dungeon_editor;
 mod dungeon_gameplay;
 mod dungeon_minimap;
@@ -72,7 +72,6 @@ mod dungeon_seeds;
 mod dungeon_style;
 mod dungeon_style_editor;
 mod dungeon_template;
-mod dungeon_complete_template;
 #[cfg(test)]
 mod dungeon_tests;
 mod dungeon_volumes;
@@ -182,6 +181,7 @@ mod reflection;
 mod reflection_schema;
 #[cfg(test)]
 mod repo_policy_tests;
+mod rumble;
 #[cfg(test)]
 mod runtime_api_tests;
 mod sample_template;

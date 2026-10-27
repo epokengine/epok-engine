@@ -1000,7 +1000,9 @@ mod tests {
         let text = std::fs::read_to_string(build.join("pocket-apps.hh")).unwrap();
         assert!(text.contains("pocket_app_count = 1"));
         assert!(text.contains(&format!(
-            "pocket_app_image_0,{},{}", built.bytes.len(), save_offset
+            "pocket_app_image_0,{},{}",
+            built.bytes.len(),
+            save_offset
         )));
         assert!(text.contains(&crate::blueprint_refs::compact_id(&id.to_string()).to_string()));
         let _ = std::fs::remove_dir_all(&root);
