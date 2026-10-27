@@ -2,27 +2,40 @@
 
 > **Header:** `"world2d_tiles.hpp"` · **Tier:** Epok runtime API · **Source:** [open header](../../../runtime/world2d_tiles.hpp)
 
-This module covers the world2d tiles module. It documents 48 public callables declared directly in this header.
+This module covers the world2d tiles module. It documents 63 public callables declared directly in this header.
 
 ## Declared types
 
-`epok::CanvasLayer2DComponent`, `epok::CanvasModulate2DComponent`, `epok::Parallax2DComponent`, `epok::TileCollision`, `epok::TileInfo`, `epok::TileMapLayerComponent`, `epok::TileSetData`, `epok::world2d::Canvas`, `epok::world2d::TileHooks`
+`epok::CanvasLayer2DComponent`, `epok::CanvasModulate2DComponent`, `epok::Depth2DComponent`, `epok::Parallax2DComponent`, `epok::TileCollision`, `epok::TileInfo`, `epok::TileMapLayerComponent`, `epok::TileSetData`, `epok::world2d::Canvas`, `epok::world2d::TileHooks`
 
 ## Callable index
 
 - [`epok::CanvasLayer2DComponent::class_id`](#epok-canvaslayer2dcomponent-class-id-1) — Performs `class id` as part of the world2d tiles module.
 - [`epok::CanvasLayer2DComponent::get_layer`](#epok-canvaslayer2dcomponent-get-layer-1) — Returns layer as part of the world2d tiles module.
+- [`epok::CanvasLayer2DComponent::is_under_3d`](#epok-canvaslayer2dcomponent-is-under-3d-1) — Reports whether under 3d as part of the world2d tiles module.
 - [`epok::CanvasLayer2DComponent::is_visible`](#epok-canvaslayer2dcomponent-is-visible-1) — Reports whether visible as part of the world2d tiles module.
 - [`epok::CanvasLayer2DComponent::level_attached`](#epok-canvaslayer2dcomponent-level-attached-1) — Performs `level attached` as part of the world2d tiles module.
 - [`epok::CanvasLayer2DComponent::set_follow_viewport`](#epok-canvaslayer2dcomponent-set-follow-viewport-1) — Sets follow viewport as part of the world2d tiles module.
 - [`epok::CanvasLayer2DComponent::set_layer`](#epok-canvaslayer2dcomponent-set-layer-1) — Sets layer as part of the world2d tiles module.
 - [`epok::CanvasLayer2DComponent::set_offset`](#epok-canvaslayer2dcomponent-set-offset-1) — Sets offset as part of the world2d tiles module.
+- [`epok::CanvasLayer2DComponent::set_under_3d`](#epok-canvaslayer2dcomponent-set-under-3d-1) — Sets under 3d as part of the world2d tiles module.
 - [`epok::CanvasLayer2DComponent::set_visible`](#epok-canvaslayer2dcomponent-set-visible-1) — Sets visible as part of the world2d tiles module.
 - [`epok::CanvasLayer2DComponent::~CanvasLayer2DComponent`](#epok-canvaslayer2dcomponent-canvaslayer2dcomponent-1) — Releases the resources owned by `epok::CanvasLayer2DComponent`.
 - [`epok::CanvasModulate2DComponent::class_id`](#epok-canvasmodulate2dcomponent-class-id-1) — Performs `class id` as part of the world2d tiles module.
 - [`epok::CanvasModulate2DComponent::level_attached`](#epok-canvasmodulate2dcomponent-level-attached-1) — Performs `level attached` as part of the world2d tiles module.
 - [`epok::CanvasModulate2DComponent::set_color`](#epok-canvasmodulate2dcomponent-set-color-1) — Sets color as part of the world2d tiles module.
 - [`epok::CanvasModulate2DComponent::~CanvasModulate2DComponent`](#epok-canvasmodulate2dcomponent-canvasmodulate2dcomponent-1) — Releases the resources owned by `epok::CanvasModulate2DComponent`.
+- [`epok::Depth2DComponent::class_id`](#epok-depth2dcomponent-class-id-1) — Performs `class id` as part of the world2d tiles module.
+- [`epok::Depth2DComponent::get_anchor`](#epok-depth2dcomponent-get-anchor-1) — Returns anchor as part of the world2d tiles module.
+- [`epok::Depth2DComponent::get_bias`](#epok-depth2dcomponent-get-bias-1) — Returns bias as part of the world2d tiles module.
+- [`epok::Depth2DComponent::get_distance`](#epok-depth2dcomponent-get-distance-1) — Returns distance as part of the world2d tiles module.
+- [`epok::Depth2DComponent::is_enabled`](#epok-depth2dcomponent-is-enabled-1) — Reports whether enabled as part of the world2d tiles module.
+- [`epok::Depth2DComponent::level_attached`](#epok-depth2dcomponent-level-attached-1) — Performs `level attached` as part of the world2d tiles module.
+- [`epok::Depth2DComponent::set_anchor`](#epok-depth2dcomponent-set-anchor-1) — A 3D actor whose position gives the depth; an empty id returns to `distance`.
+- [`epok::Depth2DComponent::set_bias`](#epok-depth2dcomponent-set-bias-1) — Sets bias as part of the world2d tiles module.
+- [`epok::Depth2DComponent::set_distance`](#epok-depth2dcomponent-set-distance-1) — World units in front of the 3D camera, 0 to 128 (the far end of the ordering table).
+- [`epok::Depth2DComponent::set_enabled`](#epok-depth2dcomponent-set-enabled-1) — Sets enabled as part of the world2d tiles module.
+- [`epok::Depth2DComponent::~Depth2DComponent`](#epok-depth2dcomponent-depth2dcomponent-1) — Releases the resources owned by `epok::Depth2DComponent`.
 - [`epok::Parallax2DComponent::class_id`](#epok-parallax2dcomponent-class-id-1) — Performs `class id` as part of the world2d tiles module.
 - [`epok::Parallax2DComponent::follow`](#epok-parallax2dcomponent-follow-1) — One simulation step: `camera` is the active camera's centre (or 0, 0 without one).
 - [`epok::Parallax2DComponent::level_attached`](#epok-parallax2dcomponent-level-attached-1) — Performs `level attached` as part of the world2d tiles module.
@@ -57,6 +70,8 @@ This module covers the world2d tiles module. It documents 48 public callables de
 - [`epok::TileMapLayerComponent::world_to_map_y`](#epok-tilemaplayercomponent-world-to-map-y-1) — Performs `world to map y` as part of the world2d tiles module.
 - [`epok::TileMapLayerComponent::~TileMapLayerComponent`](#epok-tilemaplayercomponent-tilemaplayercomponent-1) — Releases the resources owned by `epok::TileMapLayerComponent`.
 - [`epok::world2d::canvas_of`](#epok-world2d-canvas-of-1) — Walks from `component`'s owner up its attachments.
+- [`epok::world2d::depth_bucket`](#epok-world2d-depth-bucket-1) — The bucket of camera-space depth `z` (Q12), moved by `bias` buckets and clamped to the table: the bucket a 3D triangle averaging that depth falls in.
+- [`epok::world2d::depth_of`](#epok-world2d-depth-of-1) — The nearest enabled, active Depth2D on `component`'s owner or up its attachments.
 - [`epok::world2d::floor_cells`](#epok-world2d-floor-cells-1) — Floor division of a Q12 distance by a whole number of pixels.
 
 <a id="epok-canvaslayer2dcomponent-class-id-1"></a>
@@ -71,7 +86,7 @@ This module covers the world2d tiles module. It documents 48 public callables de
 uint64_t class_id() const override
 ```
 
-- **Declared at:** [line 299](../../../runtime/world2d_tiles.hpp#L299)
+- **Declared at:** [line 306](../../../runtime/world2d_tiles.hpp#L306)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint64_t`. Check the purpose and failure notes before using the value.
@@ -104,7 +119,7 @@ auto result = object.class_id();
 int32_t get_layer() const
 ```
 
-- **Declared at:** [line 310](../../../runtime/world2d_tiles.hpp#L310)
+- **Declared at:** [line 318](../../../runtime/world2d_tiles.hpp#L318)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `int32_t`. Check the purpose and failure notes before using the value.
@@ -125,6 +140,39 @@ auto result = object.get_layer();
 
 **Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
 
+<a id="epok-canvaslayer2dcomponent-is-under-3d-1"></a>
+
+## `epok::CanvasLayer2DComponent::is_under_3d`
+
+**Purpose.** Reports whether under 3d as part of the world2d tiles module.
+
+**Exact declaration**
+
+```cpp
+bool is_under_3d() const
+```
+
+- **Declared at:** [line 324](../../../runtime/world2d_tiles.hpp#L324)
+- **Kind:** `cxx method`; qualifiers: `const`
+
+**Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the world2d tiles module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "world2d_tiles.hpp"
+
+epok::CanvasLayer2DComponent& object = /* obtain a valid instance */;
+
+auto result = object.is_under_3d();
+```
+
+**Why choose it.** The method is `const`, so it does not mutate the object through this API surface. The boolean result makes success, availability or state explicit without exceptions.
+
+**Trade-offs and warnings.** Check the return value; `false` is part of normal control flow for many PSX resource operations.
+
 <a id="epok-canvaslayer2dcomponent-is-visible-1"></a>
 
 ## `epok::CanvasLayer2DComponent::is_visible`
@@ -137,7 +185,7 @@ auto result = object.get_layer();
 bool is_visible() const
 ```
 
-- **Declared at:** [line 313](../../../runtime/world2d_tiles.hpp#L313)
+- **Declared at:** [line 321](../../../runtime/world2d_tiles.hpp#L321)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -170,7 +218,7 @@ auto result = object.is_visible();
 void level_attached() override
 ```
 
-- **Declared at:** [line 300](../../../runtime/world2d_tiles.hpp#L300)
+- **Declared at:** [line 307](../../../runtime/world2d_tiles.hpp#L307)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -203,7 +251,7 @@ object.level_attached();
 void set_follow_viewport(bool value)
 ```
 
-- **Declared at:** [line 314](../../../runtime/world2d_tiles.hpp#L314)
+- **Declared at:** [line 322](../../../runtime/world2d_tiles.hpp#L322)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -245,7 +293,7 @@ object.set_follow_viewport(value);
 void set_layer(int32_t value)
 ```
 
-- **Declared at:** [line 309](../../../runtime/world2d_tiles.hpp#L309)
+- **Declared at:** [line 317](../../../runtime/world2d_tiles.hpp#L317)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -287,7 +335,7 @@ object.set_layer(value);
 void set_offset(Fixed x, Fixed y)
 ```
 
-- **Declared at:** [line 311](../../../runtime/world2d_tiles.hpp#L311)
+- **Declared at:** [line 319](../../../runtime/world2d_tiles.hpp#L319)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -319,6 +367,48 @@ object.set_offset(x, y);
 
 **Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
 
+<a id="epok-canvaslayer2dcomponent-set-under-3d-1"></a>
+
+## `epok::CanvasLayer2DComponent::set_under_3d`
+
+**Purpose.** Sets under 3d as part of the world2d tiles module.
+
+**Exact declaration**
+
+```cpp
+void set_under_3d(bool value)
+```
+
+- **Declared at:** [line 323](../../../runtime/world2d_tiles.hpp#L323)
+- **Kind:** `cxx method`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `value` | `bool` | Input | Value supplied for `value`. See the exact type and module contract. |
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** You need the world2d tiles module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "world2d_tiles.hpp"
+
+// Assume these named values have been initialized with valid data:
+// bool value
+
+epok::CanvasLayer2DComponent& object = /* obtain a valid instance */;
+
+object.set_under_3d(value);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to the world2d tiles module. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
 <a id="epok-canvaslayer2dcomponent-set-visible-1"></a>
 
 ## `epok::CanvasLayer2DComponent::set_visible`
@@ -331,7 +421,7 @@ object.set_offset(x, y);
 void set_visible(bool value)
 ```
 
-- **Declared at:** [line 312](../../../runtime/world2d_tiles.hpp#L312)
+- **Declared at:** [line 320](../../../runtime/world2d_tiles.hpp#L320)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -373,7 +463,7 @@ object.set_visible(value);
 ~CanvasLayer2DComponent() override
 ```
 
-- **Declared at:** [line 301](../../../runtime/world2d_tiles.hpp#L301)
+- **Declared at:** [line 308](../../../runtime/world2d_tiles.hpp#L308)
 - **Kind:** `destructor`
 
 **Use it when.** You need the world2d tiles module and the preconditions in the declaration are already satisfied.
@@ -402,7 +492,7 @@ object.set_visible(value);
 uint64_t class_id() const override
 ```
 
-- **Declared at:** [line 324](../../../runtime/world2d_tiles.hpp#L324)
+- **Declared at:** [line 334](../../../runtime/world2d_tiles.hpp#L334)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint64_t`. Check the purpose and failure notes before using the value.
@@ -435,7 +525,7 @@ auto result = object.class_id();
 void level_attached() override
 ```
 
-- **Declared at:** [line 325](../../../runtime/world2d_tiles.hpp#L325)
+- **Declared at:** [line 335](../../../runtime/world2d_tiles.hpp#L335)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -468,7 +558,7 @@ object.level_attached();
 void set_color(uint32_t red, uint32_t green, uint32_t blue)
 ```
 
-- **Declared at:** [line 331](../../../runtime/world2d_tiles.hpp#L331)
+- **Declared at:** [line 341](../../../runtime/world2d_tiles.hpp#L341)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -514,7 +604,7 @@ object.set_color(red, green, blue);
 ~CanvasModulate2DComponent() override
 ```
 
-- **Declared at:** [line 326](../../../runtime/world2d_tiles.hpp#L326)
+- **Declared at:** [line 336](../../../runtime/world2d_tiles.hpp#L336)
 - **Kind:** `destructor`
 
 **Use it when.** You need the world2d tiles module and the preconditions in the declaration are already satisfied.
@@ -525,6 +615,401 @@ object.set_color(red, green, blue);
 #include "world2d_tiles.hpp"
 
 // `epok::CanvasModulate2DComponent` cleans up when its owning scope ends.
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to the world2d tiles module. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-depth2dcomponent-class-id-1"></a>
+
+## `epok::Depth2DComponent::class_id`
+
+**Purpose.** Performs `class id` as part of the world2d tiles module.
+
+**Exact declaration**
+
+```cpp
+uint64_t class_id() const override
+```
+
+- **Declared at:** [line 364](../../../runtime/world2d_tiles.hpp#L364)
+- **Kind:** `cxx method`; qualifiers: `const`
+
+**Returns.** Returns `uint64_t`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the world2d tiles module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "world2d_tiles.hpp"
+
+epok::Depth2DComponent& object = /* obtain a valid instance */;
+
+auto result = object.class_id();
+```
+
+**Why choose it.** The method is `const`, so it does not mutate the object through this API surface.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-depth2dcomponent-get-anchor-1"></a>
+
+## `epok::Depth2DComponent::get_anchor`
+
+**Purpose.** Returns anchor as part of the world2d tiles module.
+
+**Exact declaration**
+
+```cpp
+ObjectId get_anchor() const
+```
+
+- **Declared at:** [line 383](../../../runtime/world2d_tiles.hpp#L383)
+- **Kind:** `cxx method`; qualifiers: `const`
+
+**Returns.** Returns `ObjectId`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the world2d tiles module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "world2d_tiles.hpp"
+
+epok::Depth2DComponent& object = /* obtain a valid instance */;
+
+auto result = object.get_anchor();
+```
+
+**Why choose it.** The method is `const`, so it does not mutate the object through this API surface.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-depth2dcomponent-get-bias-1"></a>
+
+## `epok::Depth2DComponent::get_bias`
+
+**Purpose.** Returns bias as part of the world2d tiles module.
+
+**Exact declaration**
+
+```cpp
+int32_t get_bias() const
+```
+
+- **Declared at:** [line 387](../../../runtime/world2d_tiles.hpp#L387)
+- **Kind:** `cxx method`; qualifiers: `const`
+
+**Returns.** Returns `int32_t`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the world2d tiles module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "world2d_tiles.hpp"
+
+epok::Depth2DComponent& object = /* obtain a valid instance */;
+
+auto result = object.get_bias();
+```
+
+**Why choose it.** The method is `const`, so it does not mutate the object through this API surface.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-depth2dcomponent-get-distance-1"></a>
+
+## `epok::Depth2DComponent::get_distance`
+
+**Purpose.** Returns distance as part of the world2d tiles module.
+
+**Exact declaration**
+
+```cpp
+Fixed get_distance() const
+```
+
+- **Declared at:** [line 380](../../../runtime/world2d_tiles.hpp#L380)
+- **Kind:** `cxx method`; qualifiers: `const`
+
+**Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the world2d tiles module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "world2d_tiles.hpp"
+
+epok::Depth2DComponent& object = /* obtain a valid instance */;
+
+auto result = object.get_distance();
+```
+
+**Why choose it.** The method is `const`, so it does not mutate the object through this API surface.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-depth2dcomponent-is-enabled-1"></a>
+
+## `epok::Depth2DComponent::is_enabled`
+
+**Purpose.** Reports whether enabled as part of the world2d tiles module.
+
+**Exact declaration**
+
+```cpp
+bool is_enabled() const
+```
+
+- **Declared at:** [line 375](../../../runtime/world2d_tiles.hpp#L375)
+- **Kind:** `cxx method`; qualifiers: `const`
+
+**Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the world2d tiles module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "world2d_tiles.hpp"
+
+epok::Depth2DComponent& object = /* obtain a valid instance */;
+
+auto result = object.is_enabled();
+```
+
+**Why choose it.** The method is `const`, so it does not mutate the object through this API surface. The boolean result makes success, availability or state explicit without exceptions.
+
+**Trade-offs and warnings.** Check the return value; `false` is part of normal control flow for many PSX resource operations.
+
+<a id="epok-depth2dcomponent-level-attached-1"></a>
+
+## `epok::Depth2DComponent::level_attached`
+
+**Purpose.** Performs `level attached` as part of the world2d tiles module.
+
+**Exact declaration**
+
+```cpp
+void level_attached() override
+```
+
+- **Declared at:** [line 365](../../../runtime/world2d_tiles.hpp#L365)
+- **Kind:** `cxx method`
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** You need the world2d tiles module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "world2d_tiles.hpp"
+
+epok::Depth2DComponent& object = /* obtain a valid instance */;
+
+object.level_attached();
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to the world2d tiles module. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-depth2dcomponent-set-anchor-1"></a>
+
+## `epok::Depth2DComponent::set_anchor`
+
+**Purpose.** A 3D actor whose position gives the depth; an empty id returns to `distance`.
+
+**Exact declaration**
+
+```cpp
+void set_anchor(ObjectId actor)
+```
+
+- **Declared at:** [line 382](../../../runtime/world2d_tiles.hpp#L382)
+- **Kind:** `cxx method`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `actor` | `ObjectId` | Input | Value supplied for `actor`. See the exact type and module contract. |
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** You need the world2d tiles module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "world2d_tiles.hpp"
+
+// Assume these named values have been initialized with valid data:
+// ObjectId actor
+
+epok::Depth2DComponent& object = /* obtain a valid instance */;
+
+object.set_anchor(actor);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to the world2d tiles module. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-depth2dcomponent-set-bias-1"></a>
+
+## `epok::Depth2DComponent::set_bias`
+
+**Purpose.** Sets bias as part of the world2d tiles module.
+
+**Exact declaration**
+
+```cpp
+void set_bias(int32_t buckets)
+```
+
+- **Declared at:** [line 384](../../../runtime/world2d_tiles.hpp#L384)
+- **Kind:** `cxx method`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `buckets` | `int32_t` | Input | Value supplied for `buckets`. See the exact type and module contract. |
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** You need the world2d tiles module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "world2d_tiles.hpp"
+
+// Assume these named values have been initialized with valid data:
+// int32_t buckets
+
+epok::Depth2DComponent& object = /* obtain a valid instance */;
+
+object.set_bias(buckets);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to the world2d tiles module. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-depth2dcomponent-set-distance-1"></a>
+
+## `epok::Depth2DComponent::set_distance`
+
+**Purpose.** World units in front of the 3D camera, 0 to 128 (the far end of the ordering table).
+
+**Exact declaration**
+
+```cpp
+void set_distance(Fixed value)
+```
+
+- **Declared at:** [line 377](../../../runtime/world2d_tiles.hpp#L377)
+- **Kind:** `cxx method`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `value` | `Fixed` | Input | Value supplied for `value`. See the exact type and module contract. |
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** You need the world2d tiles module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "world2d_tiles.hpp"
+
+// Assume these named values have been initialized with valid data:
+// Fixed value
+
+epok::Depth2DComponent& object = /* obtain a valid instance */;
+
+object.set_distance(value);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to the world2d tiles module. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-depth2dcomponent-set-enabled-1"></a>
+
+## `epok::Depth2DComponent::set_enabled`
+
+**Purpose.** Sets enabled as part of the world2d tiles module.
+
+**Exact declaration**
+
+```cpp
+void set_enabled(bool value)
+```
+
+- **Declared at:** [line 374](../../../runtime/world2d_tiles.hpp#L374)
+- **Kind:** `cxx method`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `value` | `bool` | Input | Value supplied for `value`. See the exact type and module contract. |
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** You need the world2d tiles module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "world2d_tiles.hpp"
+
+// Assume these named values have been initialized with valid data:
+// bool value
+
+epok::Depth2DComponent& object = /* obtain a valid instance */;
+
+object.set_enabled(value);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to the world2d tiles module. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-depth2dcomponent-depth2dcomponent-1"></a>
+
+## `epok::Depth2DComponent::~Depth2DComponent`
+
+**Purpose.** Releases the resources owned by `epok::Depth2DComponent`.
+
+**Exact declaration**
+
+```cpp
+~Depth2DComponent() override
+```
+
+- **Declared at:** [line 366](../../../runtime/world2d_tiles.hpp#L366)
+- **Kind:** `destructor`
+
+**Use it when.** You need the world2d tiles module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "world2d_tiles.hpp"
+
+// `epok::Depth2DComponent` cleans up when its owning scope ends.
 ```
 
 **Why choose it.** It provides direct, allocation-conscious access to the world2d tiles module. No exception-based error path is implied by the signature.
@@ -543,7 +1028,7 @@ object.set_color(red, green, blue);
 uint64_t class_id() const override
 ```
 
-- **Declared at:** [line 245](../../../runtime/world2d_tiles.hpp#L245)
+- **Declared at:** [line 250](../../../runtime/world2d_tiles.hpp#L250)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint64_t`. Check the purpose and failure notes before using the value.
@@ -576,7 +1061,7 @@ auto result = object.class_id();
 void follow(const Fixed* camera, Fixed dt)
 ```
 
-- **Declared at:** [line 265](../../../runtime/world2d_tiles.hpp#L265)
+- **Declared at:** [line 270](../../../runtime/world2d_tiles.hpp#L270)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -620,7 +1105,7 @@ object.follow(camera, dt);
 void level_attached() override
 ```
 
-- **Declared at:** [line 246](../../../runtime/world2d_tiles.hpp#L246)
+- **Declared at:** [line 251](../../../runtime/world2d_tiles.hpp#L251)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -653,7 +1138,7 @@ object.level_attached();
 void set_autoscroll(Fixed x, Fixed y)
 ```
 
-- **Declared at:** [line 259](../../../runtime/world2d_tiles.hpp#L259)
+- **Declared at:** [line 264](../../../runtime/world2d_tiles.hpp#L264)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -697,7 +1182,7 @@ object.set_autoscroll(x, y);
 void set_repeat_size(Fixed x, Fixed y)
 ```
 
-- **Declared at:** [line 260](../../../runtime/world2d_tiles.hpp#L260)
+- **Declared at:** [line 265](../../../runtime/world2d_tiles.hpp#L265)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -741,7 +1226,7 @@ object.set_repeat_size(x, y);
 void set_scroll_scale(Fixed x, Fixed y)
 ```
 
-- **Declared at:** [line 258](../../../runtime/world2d_tiles.hpp#L258)
+- **Declared at:** [line 263](../../../runtime/world2d_tiles.hpp#L263)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -785,7 +1270,7 @@ object.set_scroll_scale(x, y);
 ~Parallax2DComponent() override
 ```
 
-- **Declared at:** [line 247](../../../runtime/world2d_tiles.hpp#L247)
+- **Declared at:** [line 252](../../../runtime/world2d_tiles.hpp#L252)
 - **Kind:** `destructor`
 
 **Use it when.** You need the world2d tiles module and the preconditions in the declaration are already satisfied.
@@ -814,7 +1299,7 @@ object.set_scroll_scale(x, y);
 uint16_t cell(int32_t x, int32_t y) const
 ```
 
-- **Declared at:** [line 135](../../../runtime/world2d_tiles.hpp#L135)
+- **Declared at:** [line 140](../../../runtime/world2d_tiles.hpp#L140)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -858,7 +1343,7 @@ auto result = object.cell(x, y);
 uint64_t class_id() const override
 ```
 
-- **Declared at:** [line 95](../../../runtime/world2d_tiles.hpp#L95)
+- **Declared at:** [line 100](../../../runtime/world2d_tiles.hpp#L100)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint64_t`. Check the purpose and failure notes before using the value.
@@ -891,7 +1376,7 @@ auto result = object.class_id();
 uint16_t cooked_cell(int32_t x, int32_t y) const
 ```
 
-- **Declared at:** [line 125](../../../runtime/world2d_tiles.hpp#L125)
+- **Declared at:** [line 130](../../../runtime/world2d_tiles.hpp#L130)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -935,7 +1420,7 @@ auto result = object.cooked_cell(x, y);
 bool erase_cell(int32_t x, int32_t y)
 ```
 
-- **Declared at:** [line 193](../../../runtime/world2d_tiles.hpp#L193)
+- **Declared at:** [line 198](../../../runtime/world2d_tiles.hpp#L198)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -979,7 +1464,7 @@ auto result = object.erase_cell(x, y);
 int32_t get_cell_atlas_x(int32_t x, int32_t y) const
 ```
 
-- **Declared at:** [line 157](../../../runtime/world2d_tiles.hpp#L157)
+- **Declared at:** [line 162](../../../runtime/world2d_tiles.hpp#L162)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -1023,7 +1508,7 @@ auto result = object.get_cell_atlas_x(x, y);
 int32_t get_cell_atlas_y(int32_t x, int32_t y) const
 ```
 
-- **Declared at:** [line 162](../../../runtime/world2d_tiles.hpp#L162)
+- **Declared at:** [line 167](../../../runtime/world2d_tiles.hpp#L167)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -1067,7 +1552,7 @@ auto result = object.get_cell_atlas_y(x, y);
 int32_t get_cell_custom_data(int32_t x, int32_t y, uint32_t layer) const
 ```
 
-- **Declared at:** [line 172](../../../runtime/world2d_tiles.hpp#L172)
+- **Declared at:** [line 177](../../../runtime/world2d_tiles.hpp#L177)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -1113,7 +1598,7 @@ auto result = object.get_cell_custom_data(x, y, layer);
 bool is_cell_empty(int32_t x, int32_t y) const
 ```
 
-- **Declared at:** [line 155](../../../runtime/world2d_tiles.hpp#L155)
+- **Declared at:** [line 160](../../../runtime/world2d_tiles.hpp#L160)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -1157,7 +1642,7 @@ auto result = object.is_cell_empty(x, y);
 bool is_cell_solid(int32_t x, int32_t y) const
 ```
 
-- **Declared at:** [line 167](../../../runtime/world2d_tiles.hpp#L167)
+- **Declared at:** [line 172](../../../runtime/world2d_tiles.hpp#L172)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -1201,7 +1686,7 @@ auto result = object.is_cell_solid(x, y);
 bool is_visible() const
 ```
 
-- **Declared at:** [line 217](../../../runtime/world2d_tiles.hpp#L217)
+- **Declared at:** [line 222](../../../runtime/world2d_tiles.hpp#L222)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -1234,7 +1719,7 @@ auto result = object.is_visible();
 void level_attached() override
 ```
 
-- **Declared at:** [line 96](../../../runtime/world2d_tiles.hpp#L96)
+- **Declared at:** [line 101](../../../runtime/world2d_tiles.hpp#L101)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1267,7 +1752,7 @@ object.level_attached();
 Fixed map_to_world_x(int32_t x) const
 ```
 
-- **Declared at:** [line 206](../../../runtime/world2d_tiles.hpp#L206)
+- **Declared at:** [line 211](../../../runtime/world2d_tiles.hpp#L211)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -1309,7 +1794,7 @@ auto result = object.map_to_world_x(x);
 Fixed map_to_world_y(int32_t y) const
 ```
 
-- **Declared at:** [line 211](../../../runtime/world2d_tiles.hpp#L211)
+- **Declared at:** [line 216](../../../runtime/world2d_tiles.hpp#L216)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -1353,7 +1838,7 @@ auto result = object.map_to_world_y(y);
 bool origin(Fixed* out) const
 ```
 
-- **Declared at:** [line 145](../../../runtime/world2d_tiles.hpp#L145)
+- **Declared at:** [line 150](../../../runtime/world2d_tiles.hpp#L150)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -1397,7 +1882,7 @@ auto result = object.origin(out);
 bool set_cell(int32_t x, int32_t y, int32_t atlas_x, int32_t atlas_y)
 ```
 
-- **Declared at:** [line 179](../../../runtime/world2d_tiles.hpp#L179)
+- **Declared at:** [line 184](../../../runtime/world2d_tiles.hpp#L184)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1445,7 +1930,7 @@ auto result = object.set_cell(x, y, atlas_x, atlas_y);
 bool set_cell_flipped(int32_t x, int32_t y, int32_t atlas_x, int32_t atlas_y, bool flip_h, bool flip_v, bool transpose)
 ```
 
-- **Declared at:** [line 186](../../../runtime/world2d_tiles.hpp#L186)
+- **Declared at:** [line 191](../../../runtime/world2d_tiles.hpp#L191)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1499,7 +1984,7 @@ auto result = object.set_cell_flipped(x, y, atlas_x, atlas_y, flip_h, flip_v, tr
 void set_collision_enabled(bool value)
 ```
 
-- **Declared at:** [line 218](../../../runtime/world2d_tiles.hpp#L218)
+- **Declared at:** [line 223](../../../runtime/world2d_tiles.hpp#L223)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1541,7 +2026,7 @@ object.set_collision_enabled(value);
 void set_modulate(uint32_t red, uint32_t green, uint32_t blue)
 ```
 
-- **Declared at:** [line 219](../../../runtime/world2d_tiles.hpp#L219)
+- **Declared at:** [line 224](../../../runtime/world2d_tiles.hpp#L224)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1587,7 +2072,7 @@ object.set_modulate(red, green, blue);
 void set_visible(bool value)
 ```
 
-- **Declared at:** [line 216](../../../runtime/world2d_tiles.hpp#L216)
+- **Declared at:** [line 221](../../../runtime/world2d_tiles.hpp#L221)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1629,7 +2114,7 @@ object.set_visible(value);
 void set_z_index(int32_t value)
 ```
 
-- **Declared at:** [line 224](../../../runtime/world2d_tiles.hpp#L224)
+- **Declared at:** [line 229](../../../runtime/world2d_tiles.hpp#L229)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1671,7 +2156,7 @@ object.set_z_index(value);
 uint16_t tile_height() const
 ```
 
-- **Declared at:** [line 153](../../../runtime/world2d_tiles.hpp#L153)
+- **Declared at:** [line 158](../../../runtime/world2d_tiles.hpp#L158)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint16_t`. Check the purpose and failure notes before using the value.
@@ -1704,7 +2189,7 @@ auto result = object.tile_height();
 const TileInfo* tile_of(uint16_t value) const
 ```
 
-- **Declared at:** [line 140](../../../runtime/world2d_tiles.hpp#L140)
+- **Declared at:** [line 145](../../../runtime/world2d_tiles.hpp#L145)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -1746,7 +2231,7 @@ auto result = object.tile_of(value);
 uint16_t tile_width() const
 ```
 
-- **Declared at:** [line 152](../../../runtime/world2d_tiles.hpp#L152)
+- **Declared at:** [line 157](../../../runtime/world2d_tiles.hpp#L157)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint16_t`. Check the purpose and failure notes before using the value.
@@ -1779,7 +2264,7 @@ auto result = object.tile_width();
 int32_t world_to_map_x(Fixed world_x) const
 ```
 
-- **Declared at:** [line 195](../../../runtime/world2d_tiles.hpp#L195)
+- **Declared at:** [line 200](../../../runtime/world2d_tiles.hpp#L200)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -1821,7 +2306,7 @@ auto result = object.world_to_map_x(world_x);
 int32_t world_to_map_y(Fixed world_y) const
 ```
 
-- **Declared at:** [line 200](../../../runtime/world2d_tiles.hpp#L200)
+- **Declared at:** [line 205](../../../runtime/world2d_tiles.hpp#L205)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -1863,7 +2348,7 @@ auto result = object.world_to_map_y(world_y);
 ~TileMapLayerComponent() override
 ```
 
-- **Declared at:** [line 103](../../../runtime/world2d_tiles.hpp#L103)
+- **Declared at:** [line 108](../../../runtime/world2d_tiles.hpp#L108)
 - **Kind:** `destructor`
 
 **Use it when.** You need the world2d tiles module and the preconditions in the declaration are already satisfied.
@@ -1894,7 +2379,7 @@ auto result = object.world_to_map_y(world_y);
 inline Canvas canvas_of(ActorComponent& component)
 ```
 
-- **Declared at:** [line 349](../../../runtime/world2d_tiles.hpp#L349)
+- **Declared at:** [line 411](../../../runtime/world2d_tiles.hpp#L411)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1922,6 +2407,88 @@ auto result = epok::world2d::canvas_of(component);
 
 **Trade-offs and warnings.** Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
 
+<a id="epok-world2d-depth-bucket-1"></a>
+
+## `epok::world2d::depth_bucket`
+
+**Purpose.** The bucket of camera-space depth `z` (Q12), moved by `bias` buckets and clamped to the table: the bucket a 3D triangle averaging that depth falls in.
+
+**Exact declaration**
+
+```cpp
+inline int depth_bucket(int32_t z, int32_t bias)
+```
+
+- **Declared at:** [line 396](../../../runtime/world2d_tiles.hpp#L396)
+- **Kind:** `function decl`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `z` | `int32_t` | Input | Value supplied for `z`. See the exact type and module contract. |
+| `bias` | `int32_t` | Input | Value supplied for `bias`. See the exact type and module contract. |
+
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the world2d tiles module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "world2d_tiles.hpp"
+
+// Assume these named values have been initialized with valid data:
+// int32_t z
+// int32_t bias
+
+auto result = epok::world2d::depth_bucket(z, bias);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to the world2d tiles module. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-world2d-depth-of-1"></a>
+
+## `epok::world2d::depth_of`
+
+**Purpose.** The nearest enabled, active Depth2D on `component`'s owner or up its attachments.
+
+**Exact declaration**
+
+```cpp
+inline const Depth2DComponent* depth_of(ActorComponent& component)
+```
+
+- **Declared at:** [line 439](../../../runtime/world2d_tiles.hpp#L439)
+- **Kind:** `function decl`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `component` | `ActorComponent &` | Input/output; inspect the function contract | Value supplied for `component`. See the exact type and module contract. |
+
+**Returns.** Returns `const Depth2DComponent *`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the world2d tiles module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "world2d_tiles.hpp"
+
+// Assume these named values have been initialized with valid data:
+// ActorComponent & component
+
+auto result = epok::world2d::depth_of(component);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to the world2d tiles module. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
+
 <a id="epok-world2d-floor-cells-1"></a>
 
 ## `epok::world2d::floor_cells`
@@ -1934,7 +2501,7 @@ auto result = epok::world2d::canvas_of(component);
 inline int32_t floor_cells(int32_t raw, int32_t pixels)
 ```
 
-- **Declared at:** [line 84](../../../runtime/world2d_tiles.hpp#L84)
+- **Declared at:** [line 89](../../../runtime/world2d_tiles.hpp#L89)
 - **Kind:** `function decl`
 
 **Parameters**

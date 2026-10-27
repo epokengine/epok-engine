@@ -343,7 +343,7 @@ See the complete [Timeline reference](timelines.md) and the
   PathFollow2D, Line2D, Polygon2D, Particles2D, AudioPlayer2D,
   VisibleOnScreenNotifier2D, RemoteTransform2D, Skeleton2D, NavigationRegion2D,
   NavigationAgent2D, RigidBody2D, Joint2D, SubViewport2D, SplitScreen2D,
-  CanvasLayer2D and CanvasModulate2D components, plus any C++, Blueprint or Lua component. Ready-made presets, grouped by
+  CanvasLayer2D, CanvasModulate2D and Depth2D components, plus any C++, Blueprint or Lua component. Ready-made presets, grouped by
   purpose, create each kind of node in one click.
 - **Sprites and animation.** Texture regions, sprite-sheet cells, offset, centring,
   flips, modulate, the console blend modes, z-index and y-sort; named frame
@@ -386,11 +386,16 @@ See the complete [Timeline reference](timelines.md) and the
 - **Parallax and canvas layers.** Parallax2D scrolls attached nodes against the camera
   with autoscroll and screen-filling repeats; CanvasLayer2D draws nodes on their own
   layer in screen pixels or world space; CanvasModulate2D tints a whole canvas.
+- **2D with the 3D world.** A CanvasLayer2D drawn Under 3D puts a background behind
+  all 3D geometry; a Depth2D inserts sprites and tile layers into the 3D ordering table
+  at a camera distance or an anchor actor's depth, plus a bucket bias, so cut-outs of a
+  pre-rendered background hide the 3D characters walking behind them.
 - **Native renderer.** Exact-texel hardware rectangles for unscaled sprites and
   tiles (fixed-size 8 x 8 and 16 x 16 rectangles for tiles) and textured quads
   otherwise, sorted by canvas and a stable radix key, drawn over the 3D world and under
-  the HUD from a cooked, per-project packet budget; Native PC Play draws the same frame.
-  Projects without 2D content compile none of it.
+  the HUD (or under and inside the 3D world, as above) from a cooked, per-project packet
+  budget; Native PC Play composes the same frame. Projects without 2D content compile
+  none of it.
 - **2D editor.** Select, move, rotate, scale and pan tools with shortcuts, grid and
   rotation snapping, pixel rulers, real texture and animation previews, collider and
   camera gizmos, drag-and-drop sprite creation, a sprite region editor and a

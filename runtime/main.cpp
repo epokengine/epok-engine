@@ -1360,6 +1360,22 @@ __attribute__((optimize("O3"))) void GameScene::frame() {
        ||!sky_gradient.draw(gpu(),sky_view,colors))
       clear.draw(gpu(),psyqo::Color{{.r = sky_r, .g = sky_g, .b = sky_b}});
   }
+#ifdef EPOK_WORLD2D
+  // Canvases under the 3D world draw over the sky. Depth2D entries join the table before
+  // any 3D packet, so each draws after the 3D packets of its own bucket.
+  static_assert(buckets==epok::world2d::depth_buckets,"Depth2D buckets are the 3D ordering table's");
+  epok::world2d::renderer.begin(gpu(),clear_camera!=nullptr);
+  epok::world2d::renderer.draw_under(gpu());
+  epok::world2d::renderer.insert_depth(gpu(),table,[&](const epok::Depth2DComponent& depth){
+    return epok::world2d::depth_bucket_of(depth,[&](const epok::ActorData& entity,int32_t& z){
+      const int index=epok::entity_index(&entity);
+      if(index<0||size_t(index)>=epok::object_count)return false;
+      Fixed position[3],camera[3];
+      for(int r=0;r<3;++r)position[r]=render_world[index].values[r][3];
+      view.point(position,camera);z=camera[2].raw();return true;
+    });
+  });
+#endif
   PolygonEmitter emitter{&table, triangle_packets[parity]};
   emitter.mirror_x=epok::projection_focal_x.raw()<0;
   if constexpr(epok::retained_geometry)frame_packet_slots.begin_frame();
@@ -2480,8 +2496,8 @@ __attribute__((optimize("O3"))) void GameScene::frame() {
     gpu().chain(page);
   }
 #ifdef EPOK_WORLD2D
-  // The 2D world draws over the 3D world and under the HUD.
-  epok::world2d::renderer.draw(gpu());
+  // The rest of the 2D world draws over the 3D world and under the HUD.
+  epok::world2d::renderer.draw_over(gpu());
 #endif
   performance_work.sprite_scanlines+=uint16_t(COUNTERS[1].value-sprite_begin);
   const uint16_t hud_begin=COUNTERS[1].value;

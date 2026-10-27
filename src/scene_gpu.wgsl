@@ -29,6 +29,18 @@ fn linear(c:vec3<f32>) -> vec3<f32> {
     let alpha=select(select(1.0,0.25,v.mode==4),0.5,v.mode==1);
     return vec4<f32>(linear(v.color*tex.rgb),alpha);
 }
+// A 2D screen layer of Native PC Play: a full-screen triangle at one depth (the vertex z)
+// showing layer `tex.z` of the bound array where the target pixel lies. Transparent texels
+// leave the pixel, and its depth, alone.
+struct LayerOutput { @builtin(position) position: vec4<f32>, @location(0) @interpolate(flat) layer:i32 };
+@vertex fn layer_vertex(v:Vertex) -> LayerOutput {
+    return LayerOutput(vec4<f32>(v.position,1.0),i32(v.tex.z));
+}
+@fragment fn layer_fragment(v:LayerOutput) -> @location(0) vec4<f32> {
+    let tex=textureSample(textures,nearest_sampler,v.position.xy/camera.extent.xy,v.layer);
+    if tex.a<0.5 {discard;}
+    return vec4<f32>(linear(tex.rgb),1.0);
+}
 @vertex fn background_vertex(@builtin(vertex_index) i:u32) -> @builtin(position) vec4<f32> {
     let p=array<vec2<f32>,3>(vec2<f32>(-1,-1),vec2<f32>(3,-1),vec2<f32>(-1,3));
     return vec4<f32>(p[i],0.0,1.0);

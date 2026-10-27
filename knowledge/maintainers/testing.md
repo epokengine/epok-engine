@@ -277,6 +277,11 @@ python tests/integration/verify_streaming_xa.py
 The two host runners cover input, time, collision, transform caching, lifecycle,
 Memory Card recovery, utility services, palettes, frustum/polygon processing and
 sprite/particle pools. They require a C++20 compiler and the pinned Nugget sources.
+
+`python tests/integration/verify_world2d_depth.py` plays a 3D cube against a 2D
+background drawn Under 3D and a Depth2D mask, near, far and anchored, in PCSX-Redux
+and on Native PC (`--skip-native` runs the emulator cases only). It checks the
+composed pixels and keeps its captures under `.epok/world2d-depth-*/`.
 Streaming checks use isolated projects on ports 8092 and 8093 and require the
 configured CD authoring tools. For diagnostic assertions, benchmark methodology
 and regression gates, see the internal

@@ -186,6 +186,40 @@ pub fn of(scene: &Scene, index: usize) -> Vec<Warning> {
             );
         }
     }
+    if let Some(c) = world2d::component(actor, world2d::DEPTH2D) {
+        let depth: world2d::Depth2D = world2d::read(c);
+        if !scene.actors.iter().any(|a| a.kind == "Camera") {
+            warn(
+                "Depth2D: the map has no 3D camera, so these nodes draw on their canvas.".into(),
+                None,
+            );
+        }
+        if depth.anchor.is_some()
+            && find(scene, depth.anchor).is_none_or(|a| {
+                crate::actor_components::domain(a) != crate::reflection_schema::Domain::World3D
+            })
+        {
+            warn(
+                "Depth2D: its Anchor is gone or is not a 3D actor; Distance is used.".into(),
+                None,
+            );
+        }
+        if [world2d::LINE2D, world2d::POLYGON2D, world2d::PARTICLES2D]
+            .iter()
+            .any(|id| has(actor, id))
+        {
+            warn(
+                "Depth2D places sprites and tile layers only: lines, polygons and particles stay on their canvas.".into(),
+                None,
+            );
+        }
+        if scene.actors.iter().any(|a| has(a, world2d::SPLIT_SCREEN2D)) {
+            warn(
+                "Depth2D is ignored while a SplitScreen2D is active.".into(),
+                None,
+            );
+        }
+    }
     if let Some(c) = world2d::component(actor, world2d::PATH_FOLLOW2D) {
         let follow: world2d::PathFollow2D = world2d::read(c);
         let on_path = follow
@@ -267,5 +301,43 @@ mod tests {
             .actors
             .push(create(Preset::Sprite2D, "Tree", [0., 0.]));
         assert!(of(&scene, 7).is_empty());
+    }
+
+    #[test]
+    fn depth_nodes_need_a_3d_camera_and_a_3d_anchor() {
+        let mut scene = Scene {
+            actors: vec![create(Preset::Depth2D, "Masks", [0., 0.])],
+            ..Default::default()
+        };
+        assert!(of(&scene, 0)[0].text.contains("no 3D camera"));
+        let mut camera = crate::scene::Actor::cube("Camera".into());
+        camera.kind = "Camera".into();
+        scene.actors.push(camera);
+        assert!(of(&scene, 0).is_empty());
+        // An anchor must be a 3D actor: a 2D node, or one gone from the map, is not.
+        let tree = create(Preset::Sprite2D, "Tree", [0., 0.]);
+        let tree_id = tree.id;
+        scene.actors.push(tree);
+        let masks = scene.actors[0]
+            .components
+            .iter_mut()
+            .find(|c| c.class.class_id.as_deref() == Some(world2d::DEPTH2D))
+            .unwrap();
+        world2d::write(
+            masks,
+            &world2d::Depth2D {
+                anchor: Some(tree_id),
+                ..Default::default()
+            },
+        );
+        assert!(of(&scene, 0)[0].text.contains("not a 3D actor"));
+        scene
+            .actors
+            .push(create(Preset::SplitScreen2D, "Split", [0., 0.]));
+        assert!(
+            of(&scene, 0)
+                .iter()
+                .any(|w| w.text.contains("SplitScreen2D"))
+        );
     }
 }

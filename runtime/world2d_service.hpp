@@ -60,23 +60,28 @@ struct Stats {
     uint32_t arena_bytes = 0, colliders = 0, dropped_colliders = 0, trigger_pairs = 0, dropped_trigger_pairs = 0;
     uint32_t tile_layers = 0, tiles = 0, tile_probes = 0, dropped_tile_probes = 0, tile_edits = 0, dropped_tile_edits = 0;
     uint32_t particles = 0, dropped_particles = 0, shapes = 0;
+    // Entries of the last collected view drawn under the 3D world and inside its table.
+    uint32_t under_3d = 0, in_3d = 0;
 };
 inline Stats stats;
 
-// Stable LSD radix sort of draw items by canvas layer, then their 32-bit key. Passes whose
-// byte is equal for every item are skipped, so a scene drawn on one z level and one canvas
-// costs two passes at most.
+// Stable LSD radix sort of draw items by phase, then canvas layer, then their 32-bit key.
+// Passes whose byte is equal for every item are skipped, so a scene drawn on one z level
+// and one canvas costs two passes at most.
 struct DrawItem {
     uint32_t key;
     uint16_t index;
     uint8_t layer;
+    DrawPhase phase = DrawPhase::Over3D;
 };
 inline void sort_draw_items(DrawItem* items, DrawItem* scratch, size_t count) {
     if (count < 2) return;
     DrawItem* from = items;
     DrawItem* to = scratch;
-    for (int pass = 0; pass < 5; ++pass) {
-        auto byte = [pass](const DrawItem& item) { return pass < 4 ? (item.key >> (pass * 8)) & 255 : uint32_t(item.layer); };
+    for (int pass = 0; pass < 6; ++pass) {
+        auto byte = [pass](const DrawItem& item) {
+            return pass < 4 ? (item.key >> (pass * 8)) & 255 : pass == 4 ? uint32_t(item.layer) : uint32_t(item.phase);
+        };
         uint16_t buckets[257] = {};
         for (size_t i = 0; i < count; ++i) ++buckets[byte(from[i]) + 1];
         bool trivial = false;
@@ -1079,6 +1084,8 @@ struct SpriteDraw {
     const ActorComponent* component = nullptr;
     bool screen = false;
     int16_t shift[2] = {0, 0};
+    // The Depth2D placing a sprite or tile layer in the 3D ordering table (Depth3D phase).
+    const Depth2DComponent* depth = nullptr;
 };
 // One quad of a Line2D (corners as in SpriteDraw) with a colour per corner.
 struct ShapeQuad {
@@ -1186,6 +1193,7 @@ namespace world2d {
 template<class TextureSize>
 size_t collect_sprites(SpriteDraw* draws, DrawItem* items, DrawItem* scratch, size_t capacity, TextureSize&& texture_size) {
     stats.sprites = stats.culled = stats.dropped = stats.tile_layers = stats.tiles = 0;
+    stats.under_3d = stats.in_3d = 0;
     if (!sprites.head && !tile_layers.head && !lines.head && !polygons.head && !emitters.head) return 0;
     Camera2D camera;
     view_camera(camera);
@@ -1193,15 +1201,20 @@ size_t collect_sprites(SpriteDraw* draws, DrawItem* items, DrawItem* scratch, si
     const Projector screen_projector = Projector::screen();
     const Tints tints;
     size_t count = 0;
-    auto push = [&](const SpriteDraw& draw, int8_t layer) {
+    auto push = [&](const SpriteDraw& draw, const Canvas& canvas) {
         if (count >= capacity) {
             ++stats.dropped;
             return;
         }
+        const DrawPhase phase = draw.depth ? DrawPhase::Depth3D : canvas.under_3d ? DrawPhase::Under3D : DrawPhase::Over3D;
+        if (phase == DrawPhase::Depth3D) ++stats.in_3d;
+        if (phase == DrawPhase::Under3D) ++stats.under_3d;
         draws[count] = draw;
-        items[count] = DrawItem{draw.key, uint16_t(count), uint8_t(int16_t(layer) + 128)};
+        items[count] = DrawItem{draw.key, uint16_t(count), uint8_t(int16_t(canvas.layer) + 128), phase};
         ++count;
     };
+    // Only sprites and tile layers can join the 3D ordering table.
+    auto depth = [&](ActorComponent& component) { return render_pass.depth ? depth_of(component) : nullptr; };
     sprites.each([&](Sprite2DComponent& sprite) {
         ++stats.sprites;
         if (!sprite.visible || !is_active(&sprite)) return;
@@ -1258,6 +1271,7 @@ size_t collect_sprites(SpriteDraw* draws, DrawItem* items, DrawItem* scratch, si
         draw.blend = sprite.blend;
         draw.flip_h = sprite.flip_h;
         draw.flip_v = sprite.flip_v;
+        draw.depth = depth(sprite);
         const bool axis_aligned = matrix.m[0][0].raw() == 4096 && matrix.m[1][1].raw() == 4096 && !matrix.m[0][1].raw() &&
                                   !matrix.m[1][0].raw();
         draw.rectangle = projector.identity && axis_aligned && !sprite.flip_h && !sprite.flip_v;
@@ -1268,7 +1282,7 @@ size_t collect_sprites(SpriteDraw* draws, DrawItem* items, DrawItem* scratch, si
                 copy.x[i] = int16_t(copy.x[i] + dx);
                 copy.y[i] = int16_t(copy.y[i] + dy);
             }
-            push(copy, canvas.layer);
+            push(copy, canvas);
             drawn = true;
         };
         if (canvas.parallax && (canvas.parallax->repeat_size[0] > 0.0 || canvas.parallax->repeat_size[1] > 0.0))
@@ -1287,6 +1301,7 @@ size_t collect_sprites(SpriteDraw* draws, DrawItem* items, DrawItem* scratch, si
         draw.kind = DrawKind::Tiles;
         draw.component = &layer;
         draw.screen = canvas.screen;
+        draw.depth = depth(layer);
         draw.texture = layer.texture;
         draw.blend = layer.blend;
         for (int k = 0; k < 3; ++k) draw.color[k] = layer.modulate[k];
@@ -1300,7 +1315,7 @@ size_t collect_sprites(SpriteDraw* draws, DrawItem* items, DrawItem* scratch, si
         const bool repeats = canvas.parallax && (canvas.parallax->repeat_size[0] > 0.0 || canvas.parallax->repeat_size[1] > 0.0);
         Fixed origin[2];
         if (!repeats || !layer.grid_size[0] || !layer.origin(origin)) {
-            push(draw, canvas.layer);
+            push(draw, canvas);
             return;
         }
         // Repeated copies of the cooked area cover the screen; tiles cull themselves.
@@ -1323,7 +1338,7 @@ size_t collect_sprites(SpriteDraw* draws, DrawItem* items, DrawItem* scratch, si
             SpriteDraw copy = draw;
             copy.shift[0] = int16_t(draw.shift[0] + dx);
             copy.shift[1] = int16_t(draw.shift[1] + dy);
-            push(copy, canvas.layer);
+            push(copy, canvas);
         });
     });
     // Lines, polygons and particle emitters: one entry each, on their canvas.
@@ -1348,7 +1363,7 @@ size_t collect_sprites(SpriteDraw* draws, DrawItem* items, DrawItem* scratch, si
         const bool repeats = canvas.parallax && (canvas.parallax->repeat_size[0] > 0.0 || canvas.parallax->repeat_size[1] > 0.0);
         Affine2D matrix;
         if (!repeats || kind == DrawKind::Particles || !world_of(component, matrix)) {
-            push(draw, canvas.layer);
+            push(draw, canvas);
             return;
         }
         // A repeating line or polygon: copies across the screen, from its points' bounds.
@@ -1375,7 +1390,7 @@ size_t collect_sprites(SpriteDraw* draws, DrawItem* items, DrawItem* scratch, si
             SpriteDraw copy = draw;
             copy.shift[0] = int16_t(draw.shift[0] + dx);
             copy.shift[1] = int16_t(draw.shift[1] + dy);
-            push(copy, canvas.layer);
+            push(copy, canvas);
         });
     };
     stats.shapes = 0;
@@ -1392,6 +1407,26 @@ size_t collect_sprites(SpriteDraw* draws, DrawItem* items, DrawItem* scratch, si
     });
     sort_draw_items(items, scratch, count);
     return count;
+}
+// The sorted entries of one phase: items [first, last).
+inline void phase_range(const DrawItem* items, size_t count, DrawPhase phase, size_t& first, size_t& last) {
+    first = 0;
+    while (first < count && items[first].phase < phase) ++first;
+    last = first;
+    while (last < count && items[last].phase == phase) ++last;
+}
+// The ordering-table bucket of a Depth2D: the bucket of its distance, or of its anchor's view
+// depth when `anchor_depth(entity, z)` resolves one (Q12; false: no 3D position), moved by
+// its bias.
+template<class AnchorDepth> inline int depth_bucket_of(const Depth2DComponent& depth, AnchorDepth&& anchor_depth) {
+    int32_t z = depth.distance.raw();
+    if (depth.anchor.valid() && active_object_registry)
+        if (Actor* actor = active_object_registry->resolve<Actor>(depth.anchor))
+            if (ActorData* entity = actor->data()) {
+                int32_t at = 0;
+                if (anchor_depth(*entity, at)) z = at;
+            }
+    return depth_bucket(z, depth.bias);
 }
 
 // The projection an expanded entry draws through, and its owner's world matrix.

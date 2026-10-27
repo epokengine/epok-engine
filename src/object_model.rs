@@ -68,6 +68,7 @@ pub const RIGID_BODY2D_COMPONENT_ID: &str = "5f046abe-757c-4499-96bb-35461de7105
 pub const JOINT2D_COMPONENT_ID: &str = "033cc190-e131-43f7-a4ea-54dc87817c1e";
 pub const SUBVIEWPORT2D_COMPONENT_ID: &str = "f5dc7806-fd18-40aa-9984-3b475e48df5d";
 pub const SPLIT_SCREEN2D_COMPONENT_ID: &str = "54813814-1419-4a34-b8f1-6183acb48376";
+pub const DEPTH2D_COMPONENT_ID: &str = "a116bf9a-c98d-4d4b-b6df-0bb237ba81ee";
 pub const CANVAS_COMPONENT_ID: &str = "f2cfb26b-af53-4a46-9d91-1debea72e01b";
 pub const IMAGE_COMPONENT_ID: &str = "d04c78d6-23bd-40d7-88f1-b1afc1b05b5b";
 pub const TEXT_COMPONENT_ID: &str = "fd7f11d1-7ccf-40e8-a7ea-56d89deb3f34";
