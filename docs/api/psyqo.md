@@ -1,6 +1,6 @@
 # PsyQo API
 
-The complete callable surface found in the pinned `psyqo/` headers at Nugget `bfc3f65010efaaf979e10852e4cf203a2eff1b13`. High-level modules come first; hardware and internal modules are clearly marked.
+The complete callable surface found in the pinned `psyqo/` headers at Nugget `c702235f366fb1cd8c18e0a5a5392e0acae8a079`. High-level modules come first; hardware and internal modules are clearly marked.
 
 **Coverage:** 53 headers · 945 public callables.
 

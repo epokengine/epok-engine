@@ -1,10 +1,10 @@
 # PsyQo API: Gte Registers
 
-> **Header:** `"psyqo/gte-registers.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh)
+> **Header:** `"psyqo/gte-registers.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh)
 
 This module covers Geometry Transformation Engine math and register operations. It documents 101 public callables declared directly in this header.
 
-PsyQo is pinned through Nugget revision `bfc3f65010efaaf979e10852e4cf203a2eff1b13`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
+PsyQo is pinned through Nugget revision `c702235f366fb1cd8c18e0a5a5392e0acae8a079`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
 
 ## Declared types
 
@@ -126,7 +126,7 @@ PsyQo is pinned through Nugget revision `bfc3f65010efaaf979e10852e4cf203a2eff1b1
 template <Register reg, Safety safety = Safe> static inline void clear()
 ```
 
-- **Declared at:** [line 163](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L163)
+- **Declared at:** [line 163](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L163)
 - **Kind:** `function template`; qualifiers: `static, template`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -160,7 +160,7 @@ psyqo::GTE::clear<reg, safety>();
 operator Vec3() const
 ```
 
-- **Declared at:** [line 61](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L61)
+- **Declared at:** [line 61](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L61)
 - **Kind:** `conversion function`; qualifiers: `const`
 
 **Returns.** Returns `Vec3`. Check the purpose and failure notes before using the value.
@@ -193,7 +193,7 @@ auto result = object.operator Vector();
 PackedVec3() = default
 ```
 
-- **Declared at:** [line 54](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L54)
+- **Declared at:** [line 54](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L54)
 - **Kind:** `constructor`
 
 **Use it when.** You need Geometry Transformation Engine math and register operations and the preconditions in the declaration are already satisfied.
@@ -222,7 +222,7 @@ psyqo::GTE::PackedVec3 value();
 explicit PackedVec3(Short x_, Short y_, Short z_) : x
 ```
 
-- **Declared at:** [line 55](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L55)
+- **Declared at:** [line 55](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L55)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -264,7 +264,7 @@ psyqo::GTE::PackedVec3 value(x_, y_, z_);
 explicit PackedVec3(const Vec3& v)
 ```
 
-- **Declared at:** [line 56](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L56)
+- **Declared at:** [line 56](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L56)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -302,7 +302,7 @@ psyqo::GTE::PackedVec3 value(v);
 template <> [[deprecated("Use the reference version instead")]] inline void read<PseudoRegister::LV>(Vec3* ptr)
 ```
 
-- **Declared at:** [line 967](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L967)
+- **Declared at:** [line 967](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L967)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -342,7 +342,7 @@ psyqo::GTE::read(ptr);
 template <> inline void read<PseudoRegister::LV>(Vec3& ptr)
 ```
 
-- **Declared at:** [line 974](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L974)
+- **Declared at:** [line 974](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L974)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -382,7 +382,7 @@ psyqo::GTE::read(ptr);
 template <PseudoRegister reg, bool valid = false> [[deprecated("Use the reference version instead")]] static inline void read(Vec3* ptr)
 ```
 
-- **Declared at:** [line 440](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L440)
+- **Declared at:** [line 440](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L440)
 - **Kind:** `function template`; qualifiers: `static, template`
 
 **Parameters**
@@ -425,7 +425,7 @@ psyqo::GTE::read<reg, valid>(ptr);
 template <PseudoRegister reg, bool valid = false> static inline void read(Vec3& vec)
 ```
 
-- **Declared at:** [line 448](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L448)
+- **Declared at:** [line 448](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L448)
 - **Kind:** `function template`; qualifiers: `static, template`
 
 **Parameters**
@@ -468,7 +468,7 @@ psyqo::GTE::read<reg, valid>(vec);
 template <Register reg> static inline void read(uint32_t* ptr)
 ```
 
-- **Declared at:** [line 396](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L396)
+- **Declared at:** [line 396](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L396)
 - **Kind:** `function template`; qualifiers: `static, template`
 
 **Parameters**
@@ -511,7 +511,7 @@ psyqo::GTE::read<reg>(ptr);
 template <Register reg, Safety safety = Safe> static inline uint32_t readRaw()
 ```
 
-- **Declared at:** [line 367](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L367)
+- **Declared at:** [line 367](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L367)
 - **Kind:** `function template`; qualifiers: `static, template`
 
 **Returns.** uint32_t The value read from the register.
@@ -545,7 +545,7 @@ auto result = psyqo::GTE::readRaw<reg, safety>();
 template <> inline PackedVec3 readSafe<PseudoRegister::LV>()
 ```
 
-- **Declared at:** [line 946](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L946)
+- **Declared at:** [line 946](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L946)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Returns.** Returns `PackedVec3`. Check the purpose and failure notes before using the value.
@@ -576,7 +576,7 @@ auto result = psyqo::GTE::readSafe();
 template <> inline PackedVec3 readSafe<PseudoRegister::SV>()
 ```
 
-- **Declared at:** [line 939](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L939)
+- **Declared at:** [line 939](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L939)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Returns.** Returns `PackedVec3`. Check the purpose and failure notes before using the value.
@@ -607,7 +607,7 @@ auto result = psyqo::GTE::readSafe();
 template <PseudoRegister reg, bool valid = false> static inline PackedVec3 readSafe()
 ```
 
-- **Declared at:** [line 413](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L413)
+- **Declared at:** [line 413](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L413)
 - **Kind:** `function template`; qualifiers: `static, template`
 
 **Returns.** PackedVec3 The vector read from the pseudo register.
@@ -641,7 +641,7 @@ auto result = psyqo::GTE::readSafe<reg, valid>();
 template <> inline PackedVec3 readUnsafe<PseudoRegister::LV>()
 ```
 
-- **Declared at:** [line 960](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L960)
+- **Declared at:** [line 960](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L960)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Returns.** Returns `PackedVec3`. Check the purpose and failure notes before using the value.
@@ -672,7 +672,7 @@ auto result = psyqo::GTE::readUnsafe();
 template <> inline PackedVec3 readUnsafe<PseudoRegister::SV>()
 ```
 
-- **Declared at:** [line 953](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L953)
+- **Declared at:** [line 953](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L953)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Returns.** Returns `PackedVec3`. Check the purpose and failure notes before using the value.
@@ -703,7 +703,7 @@ auto result = psyqo::GTE::readUnsafe();
 template <PseudoRegister reg, bool valid = false> static inline PackedVec3 readUnsafe()
 ```
 
-- **Declared at:** [line 430](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L430)
+- **Declared at:** [line 430](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L430)
 - **Kind:** `function template`; qualifiers: `static, template`
 
 **Returns.** PackedVec3 The vector read from the pseudo register.
@@ -737,7 +737,7 @@ auto result = psyqo::GTE::readUnsafe<reg, valid>();
 template <Register reg, Safety safety = Safe> static inline void write(const uint32_t* ptr)
 ```
 
-- **Declared at:** [line 346](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L346)
+- **Declared at:** [line 346](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L346)
 - **Kind:** `function template`; qualifiers: `static, template`
 
 **Parameters**
@@ -780,7 +780,7 @@ psyqo::GTE::write<reg, safety>(ptr);
 template <Register reg, Safety safety = Safe> static inline void write(uint32_t value)
 ```
 
-- **Declared at:** [line 184](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L184)
+- **Declared at:** [line 184](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L184)
 - **Kind:** `function template`; qualifiers: `static, template`
 
 **Parameters**
@@ -823,7 +823,7 @@ psyqo::GTE::write<reg, safety>(value);
 template <> inline void writeSafe<PseudoRegister::Color>(const Matrix33& in)
 ```
 
-- **Declared at:** [line 841](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L841)
+- **Declared at:** [line 841](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L841)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -863,7 +863,7 @@ psyqo::GTE::writeSafe(in);
 template <> inline void writeSafe<PseudoRegister::Light>(const Matrix33& in)
 ```
 
-- **Declared at:** [line 832](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L832)
+- **Declared at:** [line 832](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L832)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -903,7 +903,7 @@ psyqo::GTE::writeSafe(in);
 template <> inline void writeSafe<PseudoRegister::Rotation>(const Matrix33& in)
 ```
 
-- **Declared at:** [line 823](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L823)
+- **Declared at:** [line 823](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L823)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -943,7 +943,7 @@ psyqo::GTE::writeSafe(in);
 template <> inline void writeSafe<PseudoRegister::ScreenOffset>(const Vec2& in)
 ```
 
-- **Declared at:** [line 875](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L875)
+- **Declared at:** [line 875](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L875)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -983,7 +983,7 @@ psyqo::GTE::writeSafe(in);
 template <> inline void writeSafe<PseudoRegister::Translation>(const Vec3& in)
 ```
 
-- **Declared at:** [line 868](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L868)
+- **Declared at:** [line 868](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L868)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -1023,7 +1023,7 @@ psyqo::GTE::writeSafe(in);
 template <> inline void writeSafe<PseudoRegister::V0>(const Vec3& in)
 ```
 
-- **Declared at:** [line 850](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L850)
+- **Declared at:** [line 850](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L850)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -1063,7 +1063,7 @@ psyqo::GTE::writeSafe(in);
 template <> inline void writeSafe<PseudoRegister::V1>(const Vec3& in)
 ```
 
-- **Declared at:** [line 856](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L856)
+- **Declared at:** [line 856](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L856)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -1103,7 +1103,7 @@ psyqo::GTE::writeSafe(in);
 template <> inline void writeSafe<PseudoRegister::V2>(const Vec3& in)
 ```
 
-- **Declared at:** [line 862](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L862)
+- **Declared at:** [line 862](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L862)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -1143,7 +1143,7 @@ psyqo::GTE::writeSafe(in);
 template <> inline void writeSafe<Register::IR0>(Short x_)
 ```
 
-- **Declared at:** [line 502](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L502)
+- **Declared at:** [line 502](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L502)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -1183,7 +1183,7 @@ psyqo::GTE::writeSafe(x_);
 template <> inline void writeSafe<Register::IR1>(Short x_)
 ```
 
-- **Declared at:** [line 508](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L508)
+- **Declared at:** [line 508](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L508)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -1223,7 +1223,7 @@ psyqo::GTE::writeSafe(x_);
 template <> inline void writeSafe<Register::IR2>(Short x_)
 ```
 
-- **Declared at:** [line 514](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L514)
+- **Declared at:** [line 514](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L514)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -1263,7 +1263,7 @@ psyqo::GTE::writeSafe(x_);
 template <> inline void writeSafe<Register::IR3>(Short x_)
 ```
 
-- **Declared at:** [line 520](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L520)
+- **Declared at:** [line 520](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L520)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -1303,7 +1303,7 @@ psyqo::GTE::writeSafe(x_);
 template <> inline void writeSafe<Register::L11L12>(Short x_, Short y_)
 ```
 
-- **Declared at:** [line 560](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L560)
+- **Declared at:** [line 560](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L560)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -1345,7 +1345,7 @@ psyqo::GTE::writeSafe(x_, y_);
 template <> inline void writeSafe<Register::L13L21>(Short x_, Short y_)
 ```
 
-- **Declared at:** [line 567](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L567)
+- **Declared at:** [line 567](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L567)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -1387,7 +1387,7 @@ psyqo::GTE::writeSafe(x_, y_);
 template <> inline void writeSafe<Register::L22L23>(Short x_, Short y_)
 ```
 
-- **Declared at:** [line 574](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L574)
+- **Declared at:** [line 574](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L574)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -1429,7 +1429,7 @@ psyqo::GTE::writeSafe(x_, y_);
 template <> inline void writeSafe<Register::L31L32>(Short x_, Short y_)
 ```
 
-- **Declared at:** [line 581](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L581)
+- **Declared at:** [line 581](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L581)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -1471,7 +1471,7 @@ psyqo::GTE::writeSafe(x_, y_);
 template <> inline void writeSafe<Register::L33>(Short z_)
 ```
 
-- **Declared at:** [line 588](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L588)
+- **Declared at:** [line 588](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L588)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -1511,7 +1511,7 @@ psyqo::GTE::writeSafe(z_);
 template <> inline void writeSafe<Register::LB1LB2>(Short x_, Short y_)
 ```
 
-- **Declared at:** [line 615](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L615)
+- **Declared at:** [line 615](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L615)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -1553,7 +1553,7 @@ psyqo::GTE::writeSafe(x_, y_);
 template <> inline void writeSafe<Register::LB3>(Short z_)
 ```
 
-- **Declared at:** [line 622](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L622)
+- **Declared at:** [line 622](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L622)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -1593,7 +1593,7 @@ psyqo::GTE::writeSafe(z_);
 template <> inline void writeSafe<Register::LG2LG3>(Short x_, Short y_)
 ```
 
-- **Declared at:** [line 608](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L608)
+- **Declared at:** [line 608](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L608)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -1635,7 +1635,7 @@ psyqo::GTE::writeSafe(x_, y_);
 template <> inline void writeSafe<Register::LR1LR2>(Short x_, Short y_)
 ```
 
-- **Declared at:** [line 594](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L594)
+- **Declared at:** [line 594](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L594)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -1677,7 +1677,7 @@ psyqo::GTE::writeSafe(x_, y_);
 template <> inline void writeSafe<Register::LR3LG1>(Short x_, Short y_)
 ```
 
-- **Declared at:** [line 601](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L601)
+- **Declared at:** [line 601](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L601)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -1719,7 +1719,7 @@ psyqo::GTE::writeSafe(x_, y_);
 template <> inline void writeSafe<Register::OTZ>(Short z_)
 ```
 
-- **Declared at:** [line 496](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L496)
+- **Declared at:** [line 496](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L496)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -1759,7 +1759,7 @@ psyqo::GTE::writeSafe(z_);
 template <> inline void writeSafe<Register::R11R12>(Short x_, Short y_)
 ```
 
-- **Declared at:** [line 526](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L526)
+- **Declared at:** [line 526](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L526)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -1801,7 +1801,7 @@ psyqo::GTE::writeSafe(x_, y_);
 template <> inline void writeSafe<Register::R13R21>(Short x_, Short y_)
 ```
 
-- **Declared at:** [line 533](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L533)
+- **Declared at:** [line 533](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L533)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -1843,7 +1843,7 @@ psyqo::GTE::writeSafe(x_, y_);
 template <> inline void writeSafe<Register::R22R23>(Short x_, Short y_)
 ```
 
-- **Declared at:** [line 540](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L540)
+- **Declared at:** [line 540](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L540)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -1885,7 +1885,7 @@ psyqo::GTE::writeSafe(x_, y_);
 template <> inline void writeSafe<Register::R31R32>(Short x_, Short y_)
 ```
 
-- **Declared at:** [line 547](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L547)
+- **Declared at:** [line 547](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L547)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -1927,7 +1927,7 @@ psyqo::GTE::writeSafe(x_, y_);
 template <> inline void writeSafe<Register::R33>(Short z_)
 ```
 
-- **Declared at:** [line 554](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L554)
+- **Declared at:** [line 554](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L554)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -1967,7 +1967,7 @@ psyqo::GTE::writeSafe(z_);
 template <> inline void writeSafe<Register::VXY0>(Short x_, Short y_)
 ```
 
-- **Declared at:** [line 457](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L457)
+- **Declared at:** [line 457](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L457)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -2009,7 +2009,7 @@ psyqo::GTE::writeSafe(x_, y_);
 template <> inline void writeSafe<Register::VXY1>(Short x_, Short y_)
 ```
 
-- **Declared at:** [line 470](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L470)
+- **Declared at:** [line 470](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L470)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -2051,7 +2051,7 @@ psyqo::GTE::writeSafe(x_, y_);
 template <> inline void writeSafe<Register::VXY2>(Short x_, Short y_)
 ```
 
-- **Declared at:** [line 483](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L483)
+- **Declared at:** [line 483](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L483)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -2093,7 +2093,7 @@ psyqo::GTE::writeSafe(x_, y_);
 template <> inline void writeSafe<Register::VZ0>(Short z_)
 ```
 
-- **Declared at:** [line 464](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L464)
+- **Declared at:** [line 464](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L464)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -2133,7 +2133,7 @@ psyqo::GTE::writeSafe(z_);
 template <> inline void writeSafe<Register::VZ1>(Short z_)
 ```
 
-- **Declared at:** [line 477](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L477)
+- **Declared at:** [line 477](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L477)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -2173,7 +2173,7 @@ psyqo::GTE::writeSafe(z_);
 template <> inline void writeSafe<Register::VZ2>(Short z_)
 ```
 
-- **Declared at:** [line 490](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L490)
+- **Declared at:** [line 490](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L490)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -2213,7 +2213,7 @@ psyqo::GTE::writeSafe(z_);
 template <> inline void writeSafe<Register::ZSF3>(Short z_)
 ```
 
-- **Declared at:** [line 628](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L628)
+- **Declared at:** [line 628](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L628)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -2253,7 +2253,7 @@ psyqo::GTE::writeSafe(z_);
 template <> inline void writeSafe<Register::ZSF4>(Short z_)
 ```
 
-- **Declared at:** [line 634](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L634)
+- **Declared at:** [line 634](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L634)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -2293,7 +2293,7 @@ psyqo::GTE::writeSafe(z_);
 template <PseudoRegister reg, bool valid = false> static inline void writeSafe(const Matrix33& in)
 ```
 
-- **Declared at:** [line 274](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L274)
+- **Declared at:** [line 274](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L274)
 - **Kind:** `function template`; qualifiers: `static, template`
 
 **Parameters**
@@ -2336,7 +2336,7 @@ psyqo::GTE::writeSafe<reg, valid>(in);
 template <PseudoRegister reg, bool valid = false> static inline void writeSafe(const Vec2& in)
 ```
 
-- **Declared at:** [line 310](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L310)
+- **Declared at:** [line 310](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L310)
 - **Kind:** `function template`; qualifiers: `static, template`
 
 **Parameters**
@@ -2379,7 +2379,7 @@ psyqo::GTE::writeSafe<reg, valid>(in);
 template <PseudoRegister reg, bool valid = false> static inline void writeSafe(const Vec3& in)
 ```
 
-- **Declared at:** [line 298](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L298)
+- **Declared at:** [line 298](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L298)
 - **Kind:** `function template`; qualifiers: `static, template`
 
 **Parameters**
@@ -2422,7 +2422,7 @@ psyqo::GTE::writeSafe<reg, valid>(in);
 template <Register reg, bool valid = false> static inline void writeSafe(Short fp)
 ```
 
-- **Declared at:** [line 209](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L209)
+- **Declared at:** [line 209](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L209)
 - **Kind:** `function template`; qualifiers: `static, template`
 
 **Parameters**
@@ -2465,7 +2465,7 @@ psyqo::GTE::writeSafe<reg, valid>(fp);
 template <Register reg, bool valid = false> static inline void writeSafe(Short low, Short hi)
 ```
 
-- **Declared at:** [line 233](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L233)
+- **Declared at:** [line 233](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L233)
 - **Kind:** `function template`; qualifiers: `static, template`
 
 **Parameters**
@@ -2510,7 +2510,7 @@ psyqo::GTE::writeSafe<reg, valid>(low, hi);
 template <> inline void writeUnsafe<PseudoRegister::Color>(const Matrix33& in)
 ```
 
-- **Declared at:** [line 899](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L899)
+- **Declared at:** [line 899](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L899)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -2550,7 +2550,7 @@ psyqo::GTE::writeUnsafe(in);
 template <> inline void writeUnsafe<PseudoRegister::Light>(const Matrix33& in)
 ```
 
-- **Declared at:** [line 890](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L890)
+- **Declared at:** [line 890](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L890)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -2590,7 +2590,7 @@ psyqo::GTE::writeUnsafe(in);
 template <> inline void writeUnsafe<PseudoRegister::Rotation>(const Matrix33& in)
 ```
 
-- **Declared at:** [line 881](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L881)
+- **Declared at:** [line 881](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L881)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -2630,7 +2630,7 @@ psyqo::GTE::writeUnsafe(in);
 template <> inline void writeUnsafe<PseudoRegister::ScreenOffset>(const Vec2& in)
 ```
 
-- **Declared at:** [line 933](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L933)
+- **Declared at:** [line 933](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L933)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -2670,7 +2670,7 @@ psyqo::GTE::writeUnsafe(in);
 template <> inline void writeUnsafe<PseudoRegister::Translation>(const Vec3& in)
 ```
 
-- **Declared at:** [line 926](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L926)
+- **Declared at:** [line 926](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L926)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -2710,7 +2710,7 @@ psyqo::GTE::writeUnsafe(in);
 template <> inline void writeUnsafe<PseudoRegister::V0>(const Vec3& in)
 ```
 
-- **Declared at:** [line 908](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L908)
+- **Declared at:** [line 908](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L908)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -2750,7 +2750,7 @@ psyqo::GTE::writeUnsafe(in);
 template <> inline void writeUnsafe<PseudoRegister::V1>(const Vec3& in)
 ```
 
-- **Declared at:** [line 914](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L914)
+- **Declared at:** [line 914](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L914)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -2790,7 +2790,7 @@ psyqo::GTE::writeUnsafe(in);
 template <> inline void writeUnsafe<PseudoRegister::V2>(const Vec3& in)
 ```
 
-- **Declared at:** [line 920](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L920)
+- **Declared at:** [line 920](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L920)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -2830,7 +2830,7 @@ psyqo::GTE::writeUnsafe(in);
 template <> inline void writeUnsafe<Register::IR0>(Short x_)
 ```
 
-- **Declared at:** [line 685](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L685)
+- **Declared at:** [line 685](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L685)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -2870,7 +2870,7 @@ psyqo::GTE::writeUnsafe(x_);
 template <> inline void writeUnsafe<Register::IR1>(Short x_)
 ```
 
-- **Declared at:** [line 691](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L691)
+- **Declared at:** [line 691](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L691)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -2910,7 +2910,7 @@ psyqo::GTE::writeUnsafe(x_);
 template <> inline void writeUnsafe<Register::IR2>(Short x_)
 ```
 
-- **Declared at:** [line 697](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L697)
+- **Declared at:** [line 697](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L697)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -2950,7 +2950,7 @@ psyqo::GTE::writeUnsafe(x_);
 template <> inline void writeUnsafe<Register::IR3>(Short x_)
 ```
 
-- **Declared at:** [line 703](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L703)
+- **Declared at:** [line 703](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L703)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -2990,7 +2990,7 @@ psyqo::GTE::writeUnsafe(x_);
 template <> inline void writeUnsafe<Register::L11L12>(Short x_, Short y_)
 ```
 
-- **Declared at:** [line 743](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L743)
+- **Declared at:** [line 743](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L743)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -3032,7 +3032,7 @@ psyqo::GTE::writeUnsafe(x_, y_);
 template <> inline void writeUnsafe<Register::L13L21>(Short x_, Short y_)
 ```
 
-- **Declared at:** [line 750](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L750)
+- **Declared at:** [line 750](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L750)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -3074,7 +3074,7 @@ psyqo::GTE::writeUnsafe(x_, y_);
 template <> inline void writeUnsafe<Register::L22L23>(Short x_, Short y_)
 ```
 
-- **Declared at:** [line 757](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L757)
+- **Declared at:** [line 757](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L757)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -3116,7 +3116,7 @@ psyqo::GTE::writeUnsafe(x_, y_);
 template <> inline void writeUnsafe<Register::L31L32>(Short x_, Short y_)
 ```
 
-- **Declared at:** [line 764](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L764)
+- **Declared at:** [line 764](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L764)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -3158,7 +3158,7 @@ psyqo::GTE::writeUnsafe(x_, y_);
 template <> inline void writeUnsafe<Register::L33>(Short z_)
 ```
 
-- **Declared at:** [line 771](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L771)
+- **Declared at:** [line 771](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L771)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -3198,7 +3198,7 @@ psyqo::GTE::writeUnsafe(z_);
 template <> inline void writeUnsafe<Register::LB1LB2>(Short x_, Short y_)
 ```
 
-- **Declared at:** [line 798](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L798)
+- **Declared at:** [line 798](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L798)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -3240,7 +3240,7 @@ psyqo::GTE::writeUnsafe(x_, y_);
 template <> inline void writeUnsafe<Register::LB3>(Short z_)
 ```
 
-- **Declared at:** [line 805](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L805)
+- **Declared at:** [line 805](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L805)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -3280,7 +3280,7 @@ psyqo::GTE::writeUnsafe(z_);
 template <> inline void writeUnsafe<Register::LG2LG3>(Short x_, Short y_)
 ```
 
-- **Declared at:** [line 791](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L791)
+- **Declared at:** [line 791](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L791)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -3322,7 +3322,7 @@ psyqo::GTE::writeUnsafe(x_, y_);
 template <> inline void writeUnsafe<Register::LR1LR2>(Short x_, Short y_)
 ```
 
-- **Declared at:** [line 777](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L777)
+- **Declared at:** [line 777](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L777)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -3364,7 +3364,7 @@ psyqo::GTE::writeUnsafe(x_, y_);
 template <> inline void writeUnsafe<Register::LR3LG1>(Short x_, Short y_)
 ```
 
-- **Declared at:** [line 784](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L784)
+- **Declared at:** [line 784](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L784)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -3406,7 +3406,7 @@ psyqo::GTE::writeUnsafe(x_, y_);
 template <> inline void writeUnsafe<Register::OTZ>(Short z_)
 ```
 
-- **Declared at:** [line 679](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L679)
+- **Declared at:** [line 679](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L679)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -3446,7 +3446,7 @@ psyqo::GTE::writeUnsafe(z_);
 template <> inline void writeUnsafe<Register::R11R12>(Short x_, Short y_)
 ```
 
-- **Declared at:** [line 709](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L709)
+- **Declared at:** [line 709](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L709)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -3488,7 +3488,7 @@ psyqo::GTE::writeUnsafe(x_, y_);
 template <> inline void writeUnsafe<Register::R13R21>(Short x_, Short y_)
 ```
 
-- **Declared at:** [line 716](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L716)
+- **Declared at:** [line 716](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L716)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -3530,7 +3530,7 @@ psyqo::GTE::writeUnsafe(x_, y_);
 template <> inline void writeUnsafe<Register::R22R23>(Short x_, Short y_)
 ```
 
-- **Declared at:** [line 723](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L723)
+- **Declared at:** [line 723](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L723)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -3572,7 +3572,7 @@ psyqo::GTE::writeUnsafe(x_, y_);
 template <> inline void writeUnsafe<Register::R31R32>(Short x_, Short y_)
 ```
 
-- **Declared at:** [line 730](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L730)
+- **Declared at:** [line 730](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L730)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -3614,7 +3614,7 @@ psyqo::GTE::writeUnsafe(x_, y_);
 template <> inline void writeUnsafe<Register::R33>(Short z_)
 ```
 
-- **Declared at:** [line 737](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L737)
+- **Declared at:** [line 737](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L737)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -3654,7 +3654,7 @@ psyqo::GTE::writeUnsafe(z_);
 template <> inline void writeUnsafe<Register::VXY0>(Short x_, Short y_)
 ```
 
-- **Declared at:** [line 640](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L640)
+- **Declared at:** [line 640](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L640)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -3696,7 +3696,7 @@ psyqo::GTE::writeUnsafe(x_, y_);
 template <> inline void writeUnsafe<Register::VXY1>(Short x_, Short y_)
 ```
 
-- **Declared at:** [line 653](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L653)
+- **Declared at:** [line 653](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L653)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -3738,7 +3738,7 @@ psyqo::GTE::writeUnsafe(x_, y_);
 template <> inline void writeUnsafe<Register::VXY2>(Short x_, Short y_)
 ```
 
-- **Declared at:** [line 666](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L666)
+- **Declared at:** [line 666](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L666)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -3780,7 +3780,7 @@ psyqo::GTE::writeUnsafe(x_, y_);
 template <> inline void writeUnsafe<Register::VZ0>(Short z_)
 ```
 
-- **Declared at:** [line 647](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L647)
+- **Declared at:** [line 647](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L647)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -3820,7 +3820,7 @@ psyqo::GTE::writeUnsafe(z_);
 template <> inline void writeUnsafe<Register::VZ1>(Short z_)
 ```
 
-- **Declared at:** [line 660](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L660)
+- **Declared at:** [line 660](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L660)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -3860,7 +3860,7 @@ psyqo::GTE::writeUnsafe(z_);
 template <> inline void writeUnsafe<Register::VZ2>(Short z_)
 ```
 
-- **Declared at:** [line 673](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L673)
+- **Declared at:** [line 673](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L673)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -3900,7 +3900,7 @@ psyqo::GTE::writeUnsafe(z_);
 template <> inline void writeUnsafe<Register::ZSF3>(Short z_)
 ```
 
-- **Declared at:** [line 811](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L811)
+- **Declared at:** [line 811](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L811)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -3940,7 +3940,7 @@ psyqo::GTE::writeUnsafe(z_);
 template <> inline void writeUnsafe<Register::ZSF4>(Short z_)
 ```
 
-- **Declared at:** [line 817](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L817)
+- **Declared at:** [line 817](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L817)
 - **Kind:** `function decl`; qualifiers: `template`
 
 **Parameters**
@@ -3980,7 +3980,7 @@ psyqo::GTE::writeUnsafe(z_);
 template <PseudoRegister reg, bool valid = false> static inline void writeUnsafe(const Matrix33& in)
 ```
 
-- **Declared at:** [line 286](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L286)
+- **Declared at:** [line 286](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L286)
 - **Kind:** `function template`; qualifiers: `static, template`
 
 **Parameters**
@@ -4023,7 +4023,7 @@ psyqo::GTE::writeUnsafe<reg, valid>(in);
 template <PseudoRegister reg, bool valid = false> static inline void writeUnsafe(const Vec2& in)
 ```
 
-- **Declared at:** [line 334](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L334)
+- **Declared at:** [line 334](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L334)
 - **Kind:** `function template`; qualifiers: `static, template`
 
 **Parameters**
@@ -4066,7 +4066,7 @@ psyqo::GTE::writeUnsafe<reg, valid>(in);
 template <PseudoRegister reg, bool valid = false> static inline void writeUnsafe(const Vec3& in)
 ```
 
-- **Declared at:** [line 322](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L322)
+- **Declared at:** [line 322](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L322)
 - **Kind:** `function template`; qualifiers: `static, template`
 
 **Parameters**
@@ -4109,7 +4109,7 @@ psyqo::GTE::writeUnsafe<reg, valid>(in);
 template <Register reg, bool valid = false> static inline void writeUnsafe(Short fp)
 ```
 
-- **Declared at:** [line 221](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L221)
+- **Declared at:** [line 221](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L221)
 - **Kind:** `function template`; qualifiers: `static, template`
 
 **Parameters**
@@ -4152,7 +4152,7 @@ psyqo::GTE::writeUnsafe<reg, valid>(fp);
 template <Register reg, bool valid = false> static inline void writeUnsafe(Short low, Short hi)
 ```
 
-- **Declared at:** [line 246](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-registers.hh#L246)
+- **Declared at:** [line 246](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-registers.hh#L246)
 - **Kind:** `function template`; qualifiers: `static, template`
 
 **Parameters**

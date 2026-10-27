@@ -1,10 +1,10 @@
 # PsyQo API: Font
 
-> **Header:** `"psyqo/font.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/font.hh)
+> **Header:** `"psyqo/font.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/font.hh)
 
 This module covers GPU text rendering with the built-in or uploaded font atlas. It documents 18 public callables declared directly in this header.
 
-PsyQo is pinned through Nugget revision `bfc3f65010efaaf979e10852e4cf203a2eff1b13`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
+PsyQo is pinned through Nugget revision `c702235f366fb1cd8c18e0a5a5392e0acae8a079`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
 
 ## Declared types
 
@@ -43,7 +43,7 @@ PsyQo is pinned through Nugget revision `bfc3f65010efaaf979e10852e4cf203a2eff1b1
 virtual ~Font()
 ```
 
-- **Declared at:** [line 180](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/font.hh#L180)
+- **Declared at:** [line 180](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/font.hh#L180)
 - **Kind:** `destructor`; qualifiers: `virtual`
 
 **Use it when.** You need GPU text rendering with the built-in or uploaded font atlas and the preconditions in the declaration are already satisfied.
@@ -72,7 +72,7 @@ virtual ~Font()
 void chainprint(GPU& gpu, const char* text, Vertex pos, Color color)
 ```
 
-- **Declared at:** [line 144](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/font.hh#L144)
+- **Declared at:** [line 144](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/font.hh#L144)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -122,7 +122,7 @@ object.chainprint(gpu, text, pos, color);
 void chainprint(GPU& gpu, eastl::string_view text, Vertex pos, Color color)
 ```
 
-- **Declared at:** [line 143](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/font.hh#L143)
+- **Declared at:** [line 143](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/font.hh#L143)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -170,7 +170,7 @@ object.chainprint(gpu, text, pos, color);
 void chainprintf(GPU& gpu, Vertex pos, Color color, const char* format, ...)
 ```
 
-- **Declared at:** [line 145](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/font.hh#L145)
+- **Declared at:** [line 145](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/font.hh#L145)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -218,7 +218,7 @@ object.chainprintf(gpu, pos, color, format);
 void chainvprintf(GPU& gpu, Vertex pos, Color color, const char* format, va_list ap)
 ```
 
-- **Declared at:** [line 151](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/font.hh#L151)
+- **Declared at:** [line 151](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/font.hh#L151)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -270,7 +270,7 @@ object.chainvprintf(gpu, pos, color, format, ap);
 void initialize(GPU& gpu, Vertex location, Vertex glyphSize)
 ```
 
-- **Declared at:** [line 103](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/font.hh#L103)
+- **Declared at:** [line 103](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/font.hh#L103)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -316,7 +316,7 @@ object.initialize(gpu, location, glyphSize);
 void print(GPU& gpu, const char* text, Vertex pos, Color color)
 ```
 
-- **Declared at:** [line 116](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/font.hh#L116)
+- **Declared at:** [line 116](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/font.hh#L116)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -364,7 +364,7 @@ object.print(gpu, text, pos, color);
 void print(GPU& gpu, const char* text, Vertex pos, Color color, eastl::function<void()>&& callback, DMA::DmaCallback dmaCallback)
 ```
 
-- **Declared at:** [line 117](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/font.hh#L117)
+- **Declared at:** [line 117](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/font.hh#L117)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -418,7 +418,7 @@ object.print(gpu, text, pos, color, callback, dmaCallback);
 void print(GPU& gpu, eastl::string_view text, Vertex pos, Color color)
 ```
 
-- **Declared at:** [line 113](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/font.hh#L113)
+- **Declared at:** [line 113](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/font.hh#L113)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -466,7 +466,7 @@ object.print(gpu, text, pos, color);
 void print(GPU& gpu, eastl::string_view text, Vertex pos, Color color, eastl::function<void()>&& callback, DMA::DmaCallback dmaCallback)
 ```
 
-- **Declared at:** [line 114](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/font.hh#L114)
+- **Declared at:** [line 114](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/font.hh#L114)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -518,7 +518,7 @@ object.print(gpu, text, pos, color, callback, dmaCallback);
 void printf(GPU& gpu, Vertex pos, Color color, const char* format, ...)
 ```
 
-- **Declared at:** [line 119](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/font.hh#L119)
+- **Declared at:** [line 119](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/font.hh#L119)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -566,7 +566,7 @@ object.printf(gpu, pos, color, format);
 void printf(GPU& gpu, Vertex pos, Color color, eastl::function<void()>&& callback, DMA::DmaCallback dmaCallback, const char* format, ...)
 ```
 
-- **Declared at:** [line 125](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/font.hh#L125)
+- **Declared at:** [line 125](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/font.hh#L125)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -620,7 +620,7 @@ object.printf(gpu, pos, color, callback, dmaCallback, format);
 static void unpackFont(GPU& gpu, const uint8_t* data, Vertex location, Vertex textureSize)
 ```
 
-- **Declared at:** [line 92](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/font.hh#L92)
+- **Declared at:** [line 92](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/font.hh#L92)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**
@@ -668,7 +668,7 @@ psyqo::FontBase::unpackFont(gpu, data, location, textureSize);
 void uploadKromFont(GPU& gpu, Vertex location = {{.x = 960, .y = 422}})
 ```
 
-- **Declared at:** [line 84](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/font.hh#L84)
+- **Declared at:** [line 84](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/font.hh#L84)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -714,7 +714,7 @@ object.uploadKromFont(gpu, location);
 void uploadSystemFont(GPU& gpu, Vertex location = {{.x = 960, .y = 464}})
 ```
 
-- **Declared at:** [line 71](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/font.hh#L71)
+- **Declared at:** [line 71](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/font.hh#L71)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -758,7 +758,7 @@ object.uploadSystemFont(gpu, location);
 void vprintf(GPU& gpu, Vertex pos, Color color, const char* format, va_list ap)
 ```
 
-- **Declared at:** [line 132](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/font.hh#L132)
+- **Declared at:** [line 132](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/font.hh#L132)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -808,7 +808,7 @@ object.vprintf(gpu, pos, color, format, ap);
 void vprintf(GPU& gpu, Vertex pos, Color color, eastl::function<void()>&& callback, DMA::DmaCallback dmaCallback, const char* format, va_list ap)
 ```
 
-- **Declared at:** [line 133](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/font.hh#L133)
+- **Declared at:** [line 133](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/font.hh#L133)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -862,7 +862,7 @@ object.vprintf(gpu, pos, color, callback, dmaCallback, format, ap);
 virtual ~FontBase()
 ```
 
-- **Declared at:** [line 59](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/font.hh#L59)
+- **Declared at:** [line 59](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/font.hh#L59)
 - **Kind:** `destructor`; qualifiers: `virtual`
 
 **Use it when.** You need GPU text rendering with the built-in or uploaded font atlas and the preconditions in the declaration are already satisfied.

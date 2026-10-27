@@ -16,7 +16,7 @@ Prefer Epok when both layers solve the same problem. It preserves the editor/run
 ## Version contract
 
 - Epok declarations come from the runtime headers in this documentation snapshot.
-- PsyQo declarations come from the pinned Nugget revision `bfc3f65010efaaf979e10852e4cf203a2eff1b13`.
+- PsyQo declarations come from the pinned Nugget revision `c702235f366fb1cd8c18e0a5a5392e0acae8a079`.
 - EASTL, the C standard library, OpenBIOS internals and third-party implementation helpers are outside this API reference.
 - “Public callable” means a free function, constructor, destructor, conversion, function template or public method declared in the documented namespaces. Private/protected members and compiler-generated lambda call operators are excluded.
 

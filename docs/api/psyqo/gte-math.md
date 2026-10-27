@@ -1,10 +1,10 @@
 # PsyQo API: Gte Math
 
-> **Header:** `"psyqo/gte-math.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-math.hh)
+> **Header:** `"psyqo/gte-math.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-math.hh)
 
 This module covers Geometry Transformation Engine math and register operations. It documents 11 public callables declared directly in this header.
 
-PsyQo is pinned through Nugget revision `bfc3f65010efaaf979e10852e4cf203a2eff1b13`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
+PsyQo is pinned through Nugget revision `c702235f366fb1cd8c18e0a5a5392e0acae8a079`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
 
 ## Callable index
 
@@ -34,7 +34,7 @@ PsyQo is pinned through Nugget revision `bfc3f65010efaaf979e10852e4cf203a2eff1b1
 PSYQO_GTE_MATH_INLINE void crossProductVec3(const Vec3 &v1, const Vec3 &v2, Vec3 *out)
 ```
 
-- **Declared at:** [line 191](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-math.hh#L191)
+- **Declared at:** [line 191](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-math.hh#L191)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -80,7 +80,7 @@ psyqo::GteMath::crossProductVec3(v1, v2, out);
 PSYQO_GTE_MATH_INLINE Vec3 cubic(const Vec3 &a, const Vec3 &b, const Vec3 &c, const Vec3 &d, FixedPoint<> t)
 ```
 
-- **Declared at:** [line 277](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-math.hh#L277)
+- **Declared at:** [line 277](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-math.hh#L277)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -130,7 +130,7 @@ auto result = psyqo::GteMath::cubic(a, b, c, d, t);
 PSYQO_GTE_MATH_INLINE Vec3 cubicDerivative(const Vec3 &a, const Vec3 &b, const Vec3 &c, const Vec3 &d, FixedPoint<> t)
 ```
 
-- **Declared at:** [line 303](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-math.hh#L303)
+- **Declared at:** [line 303](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-math.hh#L303)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -180,7 +180,7 @@ auto result = psyqo::GteMath::cubicDerivative(a, b, c, d, t);
 PSYQO_GTE_MATH_INLINE void fastNormalizeVec3(Vec3 *v)
 ```
 
-- **Declared at:** [line 256](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-math.hh#L256)
+- **Declared at:** [line 256](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-math.hh#L256)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -222,7 +222,7 @@ psyqo::GteMath::fastNormalizeVec3(v);
 PSYQO_GTE_MATH_INLINE Matrix33 fromColumns(const Vec3 &c0, const Vec3 &c1, const Vec3 &c2)
 ```
 
-- **Declared at:** [line 141](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-math.hh#L141)
+- **Declared at:** [line 141](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-math.hh#L141)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -268,7 +268,7 @@ auto result = psyqo::GteMath::fromColumns(c0, c1, c2);
 PSYQO_GTE_MATH_INLINE FixedPoint<> inverseSquareRootSeed(FixedPoint<> x)
 ```
 
-- **Declared at:** [line 222](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-math.hh#L222)
+- **Declared at:** [line 222](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-math.hh#L222)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -310,7 +310,7 @@ auto result = psyqo::GteMath::inverseSquareRootSeed(x);
 PSYQO_GTE_MATH_INLINE void matrixVecMul3(const Matrix33 &m, const Vec3 &v, Vec3 *out)
 ```
 
-- **Declared at:** [line 99](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-math.hh#L99)
+- **Declared at:** [line 99](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-math.hh#L99)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -354,7 +354,7 @@ psyqo::GteMath::matrixVecMul3(m, v, out);
 PSYQO_GTE_MATH_INLINE void matrixVecMul3xy(const Matrix33 &m, const Vec3 &v, Vec2 *out)
 ```
 
-- **Declared at:** [line 111](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-math.hh#L111)
+- **Declared at:** [line 111](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-math.hh#L111)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -398,7 +398,7 @@ psyqo::GteMath::matrixVecMul3xy(m, v, out);
 PSYQO_GTE_MATH_INLINE FixedPoint<> matrixVecMul3z(const Matrix33 &m, const Vec3 &v)
 ```
 
-- **Declared at:** [line 125](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-math.hh#L125)
+- **Declared at:** [line 125](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-math.hh#L125)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -442,7 +442,7 @@ auto result = psyqo::GteMath::matrixVecMul3z(m, v);
 PSYQO_GTE_MATH_INLINE void multiplyMatrix33(const Matrix33 &m1, const Matrix33 &m2, Matrix33 *out)
 ```
 
-- **Declared at:** [line 161](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-math.hh#L161)
+- **Declared at:** [line 161](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-math.hh#L161)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -488,7 +488,7 @@ psyqo::GteMath::multiplyMatrix33(m1, m2, out);
 void normalizeVec3(Vec3 *v)
 ```
 
-- **Declared at:** [line 244](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gte-math.hh#L244)
+- **Declared at:** [line 244](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gte-math.hh#L244)
 - **Kind:** `function decl`
 
 **Parameters**

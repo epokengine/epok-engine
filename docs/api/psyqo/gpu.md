@@ -1,10 +1,10 @@
 # PsyQo API: Gpu
 
-> **Header:** `"psyqo/gpu.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gpu.hh)
+> **Header:** `"psyqo/gpu.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gpu.hh)
 
 This module covers GPU setup, command submission and frame synchronization. It documents 46 public callables declared directly in this header.
 
-PsyQo is pinned through Nugget revision `bfc3f65010efaaf979e10852e4cf203a2eff1b13`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
+PsyQo is pinned through Nugget revision `c702235f366fb1cd8c18e0a5a5392e0acae8a079`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
 
 ## Declared types
 
@@ -73,7 +73,7 @@ PsyQo is pinned through Nugget revision `bfc3f65010efaaf979e10852e4cf203a2eff1b1
 unsigned armPeriodicTimer(uint32_t period, eastl::function<void(uint32_t)> &&callback)
 ```
 
-- **Declared at:** [line 461](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gpu.hh#L461)
+- **Declared at:** [line 461](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gpu.hh#L461)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -119,7 +119,7 @@ auto result = object.armPeriodicTimer(period, callback);
 uintptr_t armTimer(uint32_t deadline, eastl::function<void(uint32_t)> &&callback)
 ```
 
-- **Declared at:** [line 435](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gpu.hh#L435)
+- **Declared at:** [line 435](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gpu.hh#L435)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -165,7 +165,7 @@ auto result = object.armTimer(deadline, callback);
 void cancelTimer(uintptr_t id)
 ```
 
-- **Declared at:** [line 508](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gpu.hh#L508)
+- **Declared at:** [line 508](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gpu.hh#L508)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -209,7 +209,7 @@ object.cancelTimer(id);
 template <Fragment Frag1, Fragment Frag2> void chain(Frag1 *first, Frag2 *last)
 ```
 
-- **Declared at:** [line 334](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gpu.hh#L334)
+- **Declared at:** [line 334](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gpu.hh#L334)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -258,7 +258,7 @@ object.chain<Frag1, Frag2>(first, last);
 template <Fragment Frag> void chain(Frag &fragment)
 ```
 
-- **Declared at:** [line 320](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gpu.hh#L320)
+- **Declared at:** [line 320](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gpu.hh#L320)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -305,7 +305,7 @@ object.chain<Frag>(fragment);
 template <size_t N, Safe safety = Safe::Yes> void chain(OrderingTable<N, safety> &table)
 ```
 
-- **Declared at:** [line 349](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gpu.hh#L349)
+- **Declared at:** [line 349](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gpu.hh#L349)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -352,7 +352,7 @@ object.chain<N, safety>(table);
 void changeTimerPeriod(uintptr_t id, uint32_t period, bool reset = false)
 ```
 
-- **Declared at:** [line 477](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gpu.hh#L477)
+- **Declared at:** [line 477](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gpu.hh#L477)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -400,7 +400,7 @@ object.changeTimerPeriod(id, period, reset);
 void clear(Color bg = {{0, 0, 0}})
 ```
 
-- **Declared at:** [line 149](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gpu.hh#L149)
+- **Declared at:** [line 149](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gpu.hh#L149)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -444,7 +444,7 @@ object.clear(bg);
 TimerAwaiter delay(uint32_t microseconds)
 ```
 
-- **Declared at:** [line 448](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gpu.hh#L448)
+- **Declared at:** [line 448](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gpu.hh#L448)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -486,7 +486,7 @@ auto result = object.delay(microseconds);
 void disableScissor()
 ```
 
-- **Declared at:** [line 245](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gpu.hh#L245)
+- **Declared at:** [line 245](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gpu.hh#L245)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -521,7 +521,7 @@ object.disableScissor();
 void enableScissor()
 ```
 
-- **Declared at:** [line 253](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gpu.hh#L253)
+- **Declared at:** [line 253](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gpu.hh#L253)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -556,7 +556,7 @@ object.enableScissor();
 void getClear(Prim::FastFill &ff, Color bg = {{0, 0, 0}}) const
 ```
 
-- **Declared at:** [line 161](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gpu.hh#L161)
+- **Declared at:** [line 161](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gpu.hh#L161)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -602,7 +602,7 @@ object.getClear(ff, bg);
 uint32_t getFrameCount() const
 ```
 
-- **Declared at:** [line 125](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gpu.hh#L125)
+- **Declared at:** [line 125](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gpu.hh#L125)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
@@ -637,7 +637,7 @@ auto result = object.getFrameCount();
 void getNextClear(Prim::FastFill &ff, Color bg = {{0, 0, 0}}) const
 ```
 
-- **Declared at:** [line 174](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gpu.hh#L174)
+- **Declared at:** [line 174](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gpu.hh#L174)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -683,7 +683,7 @@ object.getNextClear(ff, bg);
 void getNextScissor(Prim::Scissor &scissor)
 ```
 
-- **Declared at:** [line 272](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gpu.hh#L272)
+- **Declared at:** [line 272](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gpu.hh#L272)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -727,7 +727,7 @@ object.getNextScissor(scissor);
 unsigned getParity() const
 ```
 
-- **Declared at:** [line 140](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gpu.hh#L140)
+- **Declared at:** [line 140](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gpu.hh#L140)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** unsigned The index of the current display buffer, either 0 or 1.
@@ -762,7 +762,7 @@ auto result = object.getParity();
 unsigned getRefreshRate() const
 ```
 
-- **Declared at:** [line 111](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gpu.hh#L111)
+- **Declared at:** [line 111](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gpu.hh#L111)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `unsigned int`. Check the purpose and failure notes before using the value.
@@ -797,7 +797,7 @@ auto result = object.getRefreshRate();
 void getScissor(Prim::Scissor &scissor)
 ```
 
-- **Declared at:** [line 262](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gpu.hh#L262)
+- **Declared at:** [line 262](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gpu.hh#L262)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -839,7 +839,7 @@ object.getScissor(scissor);
 void initialize(const Configuration &config)
 ```
 
-- **Declared at:** [line 99](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gpu.hh#L99)
+- **Declared at:** [line 99](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gpu.hh#L99)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -881,7 +881,7 @@ object.initialize(config);
 bool isChainIdle() const
 ```
 
-- **Declared at:** [line 375](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gpu.hh#L375)
+- **Declared at:** [line 375](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gpu.hh#L375)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** true if no background DMA transfer is in progress nor completed.
@@ -914,7 +914,7 @@ auto result = object.isChainIdle();
 bool isChainTransferred() const
 ```
 
-- **Declared at:** [line 389](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gpu.hh#L389)
+- **Declared at:** [line 389](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gpu.hh#L389)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** true if a background DMA transfer has completed, and is now waiting for a frame flip.
@@ -947,7 +947,7 @@ auto result = object.isChainTransferred();
 bool isChainTransferring() const
 ```
 
-- **Declared at:** [line 382](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gpu.hh#L382)
+- **Declared at:** [line 382](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gpu.hh#L382)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** true if a background DMA transfer is in progress.
@@ -982,7 +982,7 @@ auto result = object.isChainTransferring();
 uint32_t now() const
 ```
 
-- **Declared at:** [line 416](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gpu.hh#L416)
+- **Declared at:** [line 416](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gpu.hh#L416)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** The current timestamp in microseconds.
@@ -1017,7 +1017,7 @@ auto result = object.now();
 void pauseTimer(uintptr_t id)
 ```
 
-- **Declared at:** [line 488](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gpu.hh#L488)
+- **Declared at:** [line 488](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gpu.hh#L488)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1061,7 +1061,7 @@ object.pauseTimer(id);
 void pumpCallbacks()
 ```
 
-- **Declared at:** [line 518](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gpu.hh#L518)
+- **Declared at:** [line 518](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gpu.hh#L518)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1094,7 +1094,7 @@ object.pumpCallbacks();
 void reinitialize(const Configuration &config)
 ```
 
-- **Declared at:** [line 100](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gpu.hh#L100)
+- **Declared at:** [line 100](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gpu.hh#L100)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1138,7 +1138,7 @@ object.reinitialize(config);
 void resumeTimer(uintptr_t id)
 ```
 
-- **Declared at:** [line 499](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gpu.hh#L499)
+- **Declared at:** [line 499](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gpu.hh#L499)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1182,7 +1182,7 @@ object.resumeTimer(id);
 void sendChain()
 ```
 
-- **Declared at:** [line 359](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gpu.hh#L359)
+- **Declared at:** [line 359](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gpu.hh#L359)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1217,7 +1217,7 @@ object.sendChain();
 void sendChain(eastl::function<void()> &&callback, DMA::DmaCallback dmaCallback = DMA::FROM_MAIN_LOOP)
 ```
 
-- **Declared at:** [line 368](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gpu.hh#L368)
+- **Declared at:** [line 368](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gpu.hh#L368)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1261,7 +1261,7 @@ object.sendChain(callback, dmaCallback);
 template <Fragment Frag> void sendFragment(const Frag &fragment)
 ```
 
-- **Declared at:** [line 222](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gpu.hh#L222)
+- **Declared at:** [line 222](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gpu.hh#L222)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -1308,7 +1308,7 @@ object.sendFragment<Frag>(fragment);
 template <Fragment Frag> void sendFragment(const Frag &fragment, eastl::function<void()> &&callback, DMA::DmaCallback dmaCallback = DMA::FROM_MAIN_LOOP)
 ```
 
-- **Declared at:** [line 236](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gpu.hh#L236)
+- **Declared at:** [line 236](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gpu.hh#L236)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -1359,7 +1359,7 @@ object.sendFragment<Frag>(fragment, callback, dmaCallback);
 template <Primitive Prim> void sendPrimitive(const Prim &primitive)
 ```
 
-- **Declared at:** [line 296](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gpu.hh#L296)
+- **Declared at:** [line 296](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gpu.hh#L296)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -1404,7 +1404,7 @@ object.sendPrimitive<Prim>(primitive);
 static void sendRaw(uint32_t data)
 ```
 
-- **Declared at:** [line 287](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gpu.hh#L287)
+- **Declared at:** [line 287](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gpu.hh#L287)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**
@@ -1446,7 +1446,7 @@ psyqo::GPU::sendRaw(data);
 void uploadToVRAM(const uint16_t *data, Rect region)
 ```
 
-- **Declared at:** [line 187](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gpu.hh#L187)
+- **Declared at:** [line 187](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gpu.hh#L187)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1492,7 +1492,7 @@ object.uploadToVRAM(data, region);
 void uploadToVRAM(const uint16_t *data, Rect region, eastl::function<void()> &&callback, DMA::DmaCallback dmaCallback = DMA::FROM_MAIN_LOOP)
 ```
 
-- **Declared at:** [line 212](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gpu.hh#L212)
+- **Declared at:** [line 212](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gpu.hh#L212)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1540,7 +1540,7 @@ object.uploadToVRAM(data, region, callback, dmaCallback);
 void waitChainIdle()
 ```
 
-- **Declared at:** [line 395](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gpu.hh#L395)
+- **Declared at:** [line 395](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gpu.hh#L395)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1573,7 +1573,7 @@ object.waitChainIdle();
 void waitFifo()
 ```
 
-- **Declared at:** [line 282](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gpu.hh#L282)
+- **Declared at:** [line 282](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gpu.hh#L282)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1606,7 +1606,7 @@ object.waitFifo();
 void waitReady()
 ```
 
-- **Declared at:** [line 277](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gpu.hh#L277)
+- **Declared at:** [line 277](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gpu.hh#L277)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1639,7 +1639,7 @@ object.waitReady();
 consteval uint32_t operator""_ms(long double value)
 ```
 
-- **Declared at:** [line 66](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gpu.hh#L66)
+- **Declared at:** [line 66](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gpu.hh#L66)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1679,7 +1679,7 @@ auto result = psyqo::timer_literals::operator""_ms(value);
 consteval uint32_t operator""_ms(unsigned long long int value)
 ```
 
-- **Declared at:** [line 62](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gpu.hh#L62)
+- **Declared at:** [line 62](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gpu.hh#L62)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1719,7 +1719,7 @@ auto result = psyqo::timer_literals::operator""_ms(value);
 consteval uint32_t operator""_ns(long double value)
 ```
 
-- **Declared at:** [line 64](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gpu.hh#L64)
+- **Declared at:** [line 64](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gpu.hh#L64)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1761,7 +1761,7 @@ auto result = psyqo::timer_literals::operator""_ns(value);
 consteval uint32_t operator""_ns(unsigned long long int value)
 ```
 
-- **Declared at:** [line 60](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gpu.hh#L60)
+- **Declared at:** [line 60](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gpu.hh#L60)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1801,7 +1801,7 @@ auto result = psyqo::timer_literals::operator""_ns(value);
 consteval uint32_t operator""_s(long double value)
 ```
 
-- **Declared at:** [line 67](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gpu.hh#L67)
+- **Declared at:** [line 67](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gpu.hh#L67)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1841,7 +1841,7 @@ auto result = psyqo::timer_literals::operator""_s(value);
 consteval uint32_t operator""_s(unsigned long long int value)
 ```
 
-- **Declared at:** [line 63](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gpu.hh#L63)
+- **Declared at:** [line 63](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gpu.hh#L63)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1881,7 +1881,7 @@ auto result = psyqo::timer_literals::operator""_s(value);
 consteval uint32_t operator""_us(long double value)
 ```
 
-- **Declared at:** [line 65](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gpu.hh#L65)
+- **Declared at:** [line 65](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gpu.hh#L65)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1921,7 +1921,7 @@ auto result = psyqo::timer_literals::operator""_us(value);
 consteval uint32_t operator""_us(unsigned long long int value)
 ```
 
-- **Declared at:** [line 61](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/gpu.hh#L61)
+- **Declared at:** [line 61](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/gpu.hh#L61)
 - **Kind:** `function decl`
 
 **Parameters**

@@ -1,10 +1,10 @@
 # PsyQo API: Application
 
-> **Header:** `"psyqo/application.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/application.hh)
+> **Header:** `"psyqo/application.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/application.hh)
 
 This module covers the application module. It documents 10 public callables declared directly in this header.
 
-PsyQo is pinned through Nugget revision `bfc3f65010efaaf979e10852e4cf203a2eff1b13`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
+PsyQo is pinned through Nugget revision `c702235f366fb1cd8c18e0a5a5392e0acae8a079`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
 
 ## Declared types
 
@@ -37,7 +37,7 @@ PsyQo is pinned through Nugget revision `bfc3f65010efaaf979e10852e4cf203a2eff1b1
 virtual void createScene()
 ```
 
-- **Declared at:** [line 86](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/application.hh#L86)
+- **Declared at:** [line 86](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/application.hh#L86)
 - **Kind:** `cxx method`; qualifiers: `virtual`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -72,7 +72,7 @@ object.createScene();
 virtual void frame()
 ```
 
-- **Declared at:** [line 137](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/application.hh#L137)
+- **Declared at:** [line 137](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/application.hh#L137)
 - **Kind:** `cxx method`; qualifiers: `virtual`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -107,7 +107,7 @@ object.frame();
 Scene* getCurrentScene()
 ```
 
-- **Declared at:** [line 100](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/application.hh#L100)
+- **Declared at:** [line 100](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/application.hh#L100)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `Scene *`. Check the purpose and failure notes before using the value.
@@ -142,7 +142,7 @@ auto result = object.getCurrentScene();
 psyqo::GPU& gpu()
 ```
 
-- **Declared at:** [line 93](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/application.hh#L93)
+- **Declared at:** [line 93](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/application.hh#L93)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `psyqo::GPU &`. Check the purpose and failure notes before using the value.
@@ -177,7 +177,7 @@ auto result = object.gpu();
 Scene* popScene()
 ```
 
-- **Declared at:** [line 125](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/application.hh#L125)
+- **Declared at:** [line 125](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/application.hh#L125)
 - **Kind:** `cxx method`
 
 **Returns.** the popped scene, potentially for deletion if needed.
@@ -212,7 +212,7 @@ auto result = object.popScene();
 virtual void prepare()
 ```
 
-- **Declared at:** [line 66](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/application.hh#L66)
+- **Declared at:** [line 66](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/application.hh#L66)
 - **Kind:** `cxx method`; qualifiers: `virtual`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -247,7 +247,7 @@ object.prepare();
 void pushScene(Scene* scene)
 ```
 
-- **Declared at:** [line 110](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/application.hh#L110)
+- **Declared at:** [line 110](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/application.hh#L110)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -291,7 +291,7 @@ object.pushScene(scene);
 int run()
 ```
 
-- **Declared at:** [line 56](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/application.hh#L56)
+- **Declared at:** [line 56](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/application.hh#L56)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `int`. Check the purpose and failure notes before using the value.
@@ -326,7 +326,7 @@ auto result = object.run();
 virtual void start()
 ```
 
-- **Declared at:** [line 75](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/application.hh#L75)
+- **Declared at:** [line 75](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/application.hh#L75)
 - **Kind:** `cxx method`; qualifiers: `virtual`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -359,7 +359,7 @@ object.start();
 virtual ~Application() = default
 ```
 
-- **Declared at:** [line 139](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/application.hh#L139)
+- **Declared at:** [line 139](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/application.hh#L139)
 - **Kind:** `destructor`; qualifiers: `virtual`
 
 **Use it when.** You need the application module and the preconditions in the declaration are already satisfied.

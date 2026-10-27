@@ -1,10 +1,10 @@
 # PsyQo API: Buffer
 
-> **Header:** `"psyqo/buffer.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/buffer.hh)
+> **Header:** `"psyqo/buffer.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/buffer.hh)
 
 This module covers the buffer module. It documents 4 public callables declared directly in this header.
 
-PsyQo is pinned through Nugget revision `bfc3f65010efaaf979e10852e4cf203a2eff1b13`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
+PsyQo is pinned through Nugget revision `c702235f366fb1cd8c18e0a5a5392e0acae8a079`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
 
 ## Declared types
 
@@ -29,7 +29,7 @@ PsyQo is pinned through Nugget revision `bfc3f65010efaaf979e10852e4cf203a2eff1b1
 template <typename T> static inline T* allocate(size_t size)
 ```
 
-- **Declared at:** [line 36](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/buffer.hh#L36)
+- **Declared at:** [line 36](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/buffer.hh#L36)
 - **Kind:** `function template`; qualifiers: `static, template`
 
 **Parameters**
@@ -72,7 +72,7 @@ auto result = psyqo::PsyqoAllocator::allocate<T>(size);
 template <typename T> static inline void copy(T* dst, const T* src, size_t size)
 ```
 
-- **Declared at:** [line 45](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/buffer.hh#L45)
+- **Declared at:** [line 45](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/buffer.hh#L45)
 - **Kind:** `function template`; qualifiers: `static, template`
 
 **Parameters**
@@ -119,7 +119,7 @@ psyqo::PsyqoAllocator::copy<T>(dst, src, size);
 static inline void deallocate(void* ptr)
 ```
 
-- **Declared at:** [line 39](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/buffer.hh#L39)
+- **Declared at:** [line 39](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/buffer.hh#L39)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**
@@ -159,7 +159,7 @@ psyqo::PsyqoAllocator::deallocate(ptr);
 template <typename T> static inline T* reallocate(void* ptr, size_t size)
 ```
 
-- **Declared at:** [line 41](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/buffer.hh#L41)
+- **Declared at:** [line 41](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/buffer.hh#L41)
 - **Kind:** `function template`; qualifiers: `static, template`
 
 **Parameters**

@@ -1,10 +1,10 @@
 # PsyQo API: Primitives / Sprites
 
-> **Header:** `"psyqo/primitives/sprites.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/sprites.hh)
+> **Header:** `"psyqo/primitives/sprites.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/sprites.hh)
 
 This module covers typed PlayStation GPU primitives. It documents 20 public callables declared directly in this header.
 
-PsyQo is pinned through Nugget revision `bfc3f65010efaaf979e10852e4cf203a2eff1b13`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
+PsyQo is pinned through Nugget revision `c702235f366fb1cd8c18e0a5a5392e0acae8a079`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
 
 ## Declared types
 
@@ -45,7 +45,7 @@ PsyQo is pinned through Nugget revision `bfc3f65010efaaf979e10852e4cf203a2eff1b1
 Sprite16x16& setColor(Color c)
 ```
 
-- **Declared at:** [line 160](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/sprites.hh#L160)
+- **Declared at:** [line 160](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/sprites.hh#L160)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -87,7 +87,7 @@ auto result = object.setColor(c);
 Sprite16x16& setOpaque()
 ```
 
-- **Declared at:** [line 165](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/sprites.hh#L165)
+- **Declared at:** [line 165](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/sprites.hh#L165)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `Sprite16x16 &`. Check the purpose and failure notes before using the value.
@@ -120,7 +120,7 @@ auto result = object.setOpaque();
 Sprite16x16& setSemiTrans()
 ```
 
-- **Declared at:** [line 169](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/sprites.hh#L169)
+- **Declared at:** [line 169](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/sprites.hh#L169)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `Sprite16x16 &`. Check the purpose and failure notes before using the value.
@@ -153,7 +153,7 @@ auto result = object.setSemiTrans();
 Sprite16x16() : c
 ```
 
-- **Declared at:** [line 158](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/sprites.hh#L158)
+- **Declared at:** [line 158](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/sprites.hh#L158)
 - **Kind:** `constructor`
 
 **Use it when.** You need typed PlayStation GPU primitives and the preconditions in the declaration are already satisfied.
@@ -182,7 +182,7 @@ psyqo::Prim::Sprite16x16 value();
 Sprite16x16(Color c) : c
 ```
 
-- **Declared at:** [line 159](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/sprites.hh#L159)
+- **Declared at:** [line 159](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/sprites.hh#L159)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -220,7 +220,7 @@ psyqo::Prim::Sprite16x16 value(c);
 Sprite1x1& setColor(Color c)
 ```
 
-- **Declared at:** [line 88](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/sprites.hh#L88)
+- **Declared at:** [line 88](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/sprites.hh#L88)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -262,7 +262,7 @@ auto result = object.setColor(c);
 Sprite1x1& setOpaque()
 ```
 
-- **Declared at:** [line 93](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/sprites.hh#L93)
+- **Declared at:** [line 93](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/sprites.hh#L93)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `Sprite1x1 &`. Check the purpose and failure notes before using the value.
@@ -295,7 +295,7 @@ auto result = object.setOpaque();
 Sprite1x1& setSemiTrans()
 ```
 
-- **Declared at:** [line 97](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/sprites.hh#L97)
+- **Declared at:** [line 97](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/sprites.hh#L97)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `Sprite1x1 &`. Check the purpose and failure notes before using the value.
@@ -328,7 +328,7 @@ auto result = object.setSemiTrans();
 Sprite1x1() : c
 ```
 
-- **Declared at:** [line 86](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/sprites.hh#L86)
+- **Declared at:** [line 86](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/sprites.hh#L86)
 - **Kind:** `constructor`
 
 **Use it when.** You need typed PlayStation GPU primitives and the preconditions in the declaration are already satisfied.
@@ -357,7 +357,7 @@ psyqo::Prim::Sprite1x1 value();
 Sprite1x1(Color c) : c
 ```
 
-- **Declared at:** [line 87](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/sprites.hh#L87)
+- **Declared at:** [line 87](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/sprites.hh#L87)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -395,7 +395,7 @@ psyqo::Prim::Sprite1x1 value(c);
 Sprite8x8& setColor(Color c)
 ```
 
-- **Declared at:** [line 124](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/sprites.hh#L124)
+- **Declared at:** [line 124](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/sprites.hh#L124)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -437,7 +437,7 @@ auto result = object.setColor(c);
 Sprite8x8& setOpaque()
 ```
 
-- **Declared at:** [line 129](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/sprites.hh#L129)
+- **Declared at:** [line 129](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/sprites.hh#L129)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `Sprite8x8 &`. Check the purpose and failure notes before using the value.
@@ -470,7 +470,7 @@ auto result = object.setOpaque();
 Sprite8x8& setSemiTrans()
 ```
 
-- **Declared at:** [line 133](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/sprites.hh#L133)
+- **Declared at:** [line 133](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/sprites.hh#L133)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `Sprite8x8 &`. Check the purpose and failure notes before using the value.
@@ -503,7 +503,7 @@ auto result = object.setSemiTrans();
 Sprite8x8() : c
 ```
 
-- **Declared at:** [line 122](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/sprites.hh#L122)
+- **Declared at:** [line 122](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/sprites.hh#L122)
 - **Kind:** `constructor`
 
 **Use it when.** You need typed PlayStation GPU primitives and the preconditions in the declaration are already satisfied.
@@ -532,7 +532,7 @@ psyqo::Prim::Sprite8x8 value();
 Sprite8x8(Color c) : c
 ```
 
-- **Declared at:** [line 123](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/sprites.hh#L123)
+- **Declared at:** [line 123](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/sprites.hh#L123)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -570,7 +570,7 @@ psyqo::Prim::Sprite8x8 value(c);
 Sprite& setColor(Color c)
 ```
 
-- **Declared at:** [line 51](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/sprites.hh#L51)
+- **Declared at:** [line 51](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/sprites.hh#L51)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -612,7 +612,7 @@ auto result = object.setColor(c);
 Sprite& setOpaque()
 ```
 
-- **Declared at:** [line 56](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/sprites.hh#L56)
+- **Declared at:** [line 56](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/sprites.hh#L56)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `Sprite &`. Check the purpose and failure notes before using the value.
@@ -645,7 +645,7 @@ auto result = object.setOpaque();
 Sprite& setSemiTrans()
 ```
 
-- **Declared at:** [line 60](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/sprites.hh#L60)
+- **Declared at:** [line 60](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/sprites.hh#L60)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `Sprite &`. Check the purpose and failure notes before using the value.
@@ -678,7 +678,7 @@ auto result = object.setSemiTrans();
 Sprite() : c
 ```
 
-- **Declared at:** [line 49](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/sprites.hh#L49)
+- **Declared at:** [line 49](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/sprites.hh#L49)
 - **Kind:** `constructor`
 
 **Use it when.** You need typed PlayStation GPU primitives and the preconditions in the declaration are already satisfied.
@@ -707,7 +707,7 @@ psyqo::Prim::Sprite value();
 Sprite(Color c) : c
 ```
 
-- **Declared at:** [line 50](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/primitives/sprites.hh#L50)
+- **Declared at:** [line 50](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/sprites.hh#L50)
 - **Kind:** `constructor`
 
 **Parameters**

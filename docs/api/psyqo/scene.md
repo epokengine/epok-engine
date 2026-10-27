@@ -1,10 +1,10 @@
 # PsyQo API: Scene
 
-> **Header:** `"psyqo/scene.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/scene.hh)
+> **Header:** `"psyqo/scene.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/scene.hh)
 
 This module covers scene lifecycle and scene-stack control. It documents 4 public callables declared directly in this header.
 
-PsyQo is pinned through Nugget revision `bfc3f65010efaaf979e10852e4cf203a2eff1b13`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
+PsyQo is pinned through Nugget revision `c702235f366fb1cd8c18e0a5a5392e0acae8a079`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
 
 ## Declared types
 
@@ -31,7 +31,7 @@ PsyQo is pinned through Nugget revision `bfc3f65010efaaf979e10852e4cf203a2eff1b1
 virtual void frame()
 ```
 
-- **Declared at:** [line 65](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/scene.hh#L65)
+- **Declared at:** [line 65](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/scene.hh#L65)
 - **Kind:** `cxx method`; qualifiers: `virtual`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -66,7 +66,7 @@ object.frame();
 virtual void start(StartReason reason)
 ```
 
-- **Declared at:** [line 57](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/scene.hh#L57)
+- **Declared at:** [line 57](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/scene.hh#L57)
 - **Kind:** `cxx method`; qualifiers: `virtual`
 
 **Parameters**
@@ -110,7 +110,7 @@ object.start(reason);
 virtual void teardown(TearDownReason reason)
 ```
 
-- **Declared at:** [line 77](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/scene.hh#L77)
+- **Declared at:** [line 77](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/scene.hh#L77)
 - **Kind:** `cxx method`; qualifiers: `virtual`
 
 **Parameters**
@@ -152,7 +152,7 @@ object.teardown(reason);
 virtual ~Scene() = default
 ```
 
-- **Declared at:** [line 79](https://github.com/epokengine/nugget/blob/bfc3f65010efaaf979e10852e4cf203a2eff1b13/psyqo/scene.hh#L79)
+- **Declared at:** [line 79](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/scene.hh#L79)
 - **Kind:** `destructor`; qualifiers: `virtual`
 
 **Use it when.** You need scene lifecycle and scene-stack control and the preconditions in the declaration are already satisfied.
