@@ -120,7 +120,7 @@ debug:
   spu_ram: false
 default_scene_script_parent: null
 default_sound_bank: null
-editor_version: 0.8.0
+editor_version: 0.9.0
 format_version: 1
 lua_execution: native_cpp
 lua_profile: gameplay_v2

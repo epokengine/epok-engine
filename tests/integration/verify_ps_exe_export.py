@@ -214,8 +214,9 @@ def main():
                     time.sleep(0.2)
             finally:
                 if process.poll() is None:
-                    subprocess.run(["taskkill", "/PID", str(process.pid), "/T", "/F"],
-                                   capture_output=True, creationflags=FLAGS)
+                    # We launch the emulator itself, not its Windows launcher.
+                    # Use its owned handle; taskkill can fail to enumerate processes.
+                    process.kill()
                 process.wait(timeout=15)
 
     results = {}
