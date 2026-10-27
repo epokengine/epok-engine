@@ -17,7 +17,7 @@ From the export directory:
 
 ```sh
 git clone --no-checkout https://github.com/epokengine/nugget.git third_party/nugget
-git -C third_party/nugget checkout --detach bfc3f65010efaaf979e10852e4cf203a2eff1b13
+git -C third_party/nugget checkout --detach c702235f366fb1cd8c18e0a5a5392e0acae8a079
 make BUILD=Release NUGGET_DIR=third_party/nugget
 ```
 

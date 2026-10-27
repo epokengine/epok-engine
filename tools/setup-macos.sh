@@ -15,7 +15,7 @@ esac
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 tools="$root/.tools/macos"
 sdk="$root/third_party/nugget"
-sdk_revision="bfc3f65010efaaf979e10852e4cf203a2eff1b13"
+sdk_revision="c702235f366fb1cd8c18e0a5a5392e0acae8a079"
 sdk_marker="$sdk/.epok-pinned-revision"
 psxlua="$sdk/third_party/psxlua"
 psxlua_revision="abed030e686b4e34987851bd0a028c93b1f73967"
