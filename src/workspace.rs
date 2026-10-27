@@ -702,11 +702,21 @@ pub fn editor_home() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
 }
 
+#[cfg(not(test))]
 pub fn user_data() -> PathBuf {
     std::env::var_os("LOCALAPPDATA")
         .or_else(|| std::env::var_os("XDG_DATA_HOME"))
         .map(PathBuf::from)
         .unwrap_or_else(|| user_home().join(".local/share"))
+        .join("Epok")
+}
+/// Unit tests get a fresh profile per test process, so they neither read the
+/// developer's preferences, recent projects and tools nor overwrite them.
+#[cfg(test)]
+pub fn user_data() -> PathBuf {
+    static PROFILE: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+    PROFILE
+        .get_or_init(|| tests::temp("user-data"))
         .join("Epok")
 }
 pub fn user_home() -> PathBuf {

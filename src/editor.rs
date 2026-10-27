@@ -3234,7 +3234,9 @@ impl Editor {
         if let Some(bridge) = self.job.as_ref().and_then(|job| job.native.as_ref()) { bridge.state.lock().unwrap().rumble = None; bridge.output_enabled.store(false,std::sync::atomic::Ordering::Relaxed); }
         if let Some(bridge) = self.job.as_ref().and_then(|job| job.bridge.as_ref()) { bridge.rumble_enabled.store(false,std::sync::atomic::Ordering::Relaxed); }
         if let Some(job) = &self.job {
-            if job.stopping() {
+            // A repeated Stop must not replace a reset already requested, but an
+            // explicit Stop still cancels the restart an input change scheduled.
+            if job.stopping() && self.restart_target.is_none() {
                 return;
             }
             let reset = self.playing

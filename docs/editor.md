@@ -49,7 +49,7 @@ Editor panels and tool windows share a charcoal theme with blue selection and fo
 Gizmo shortcuts are suppressed during flight. Click a mesh to select the nearest visible hit, or click the background to clear selection. Camera and gizmo drags do not change selection. Use Hierarchy to select empty entities and cameras without selectable Scene icons.
 
 The camera button at the upper-right of the Scene toolbar opens **Camera Speed**,
-following [Unreal's camera speed controls](https://dev.epicgames.com/documentation/en-us/unreal-engine/viewport-toolbar?application_version=5.6#camera-speed-options).
+which sets how fast the Scene camera flies, pans and dollies.
 Its slider runs from **1 to 8**, with **4** retaining Epok's default of five world
 units per second. Each level doubles the speed; fractional values allow finer
 adjustment. **Camera Speed Scalar** multiplies it by **1 to 128**.
