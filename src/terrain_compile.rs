@@ -652,7 +652,7 @@ mod tests {
                     );
                 }
                 for v in &chunk.vertices {
-                    assert!(v.iter().all(|c| i32::from(*c).abs() <= 32767));
+                    assert!(v.iter().all(|c| (*c).abs() <= 32767));
                 }
             }
             // Every quad lands in exactly one chunk.

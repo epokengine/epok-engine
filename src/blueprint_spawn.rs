@@ -55,6 +55,7 @@ pub fn header(catalog: &[Script]) -> Result<String, String> {
     let registry = crate::blueprint::registry_from_catalog(std::path::Path::new(""), catalog);
     header_with_templates(catalog, &[], false, &registry)
 }
+#[cfg(test)]
 pub fn header_with_templates(
     catalog: &[Script],
     templates: &[CookedTemplate],
@@ -84,6 +85,7 @@ pub fn object_class_table(catalog: &[Script]) -> Result<String, String> {
 /// Emit the runtime object table from the same authoritative registry used to resolve
 /// actor records. Real projects need SDK-native classes that intentionally stay out of
 /// the project script catalog, including the default `epok::SceneScriptActor`.
+#[cfg(test)]
 pub fn object_class_table_with_registry(
     registry: &crate::blueprint::Registry,
 ) -> Result<String, String> {

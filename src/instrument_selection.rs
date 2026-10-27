@@ -189,7 +189,7 @@ pub fn resolve(
                 }
                 // SF2 defines bank 128 as the standard percussion bank. Arbitrary MIDI
                 // percussion-bank extensions need an explicit mapping, never a bank-0 fallback.
-                let selected = remap.get(&instrument).copied().or_else(|| {
+                let selected = remap.get(&instrument).copied().or({
                     if !instrument.percussion {
                         Some((instrument.bank, instrument.program))
                     } else if instrument.bank == 0 {
@@ -365,7 +365,7 @@ mod tests {
         let remapped = resolve(
             &sequence,
             &library,
-            &[mapping.clone()],
+            std::slice::from_ref(&mapping),
             &AtomicBool::new(false),
         )
         .unwrap();

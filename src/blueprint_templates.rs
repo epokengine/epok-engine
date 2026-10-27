@@ -148,16 +148,6 @@ impl Template {
     }
 }
 
-fn member_field(id: &str) -> Option<&'static str> {
-    Some(match id {
-        "epok.actor.name.v1" => "name",
-        "epok.actor.active.v1" => "active",
-        "epok.actor.components.v1" => "components",
-        "epok.actor.properties.v1" => "properties",
-        "epok.actor.overrides.v1" => "overrides",
-        _ => return None,
-    })
-}
 fn apply_override(item: &mut TemplateEntity, edits: &EntityOverride) -> Result<(), String> {
     apply_instance_edits(&mut item.entity, &edits.members)?;
     if let Some(parent) = &edits.parent {
@@ -210,6 +200,7 @@ fn audio_members_signature(
     (!selected.is_empty()).then(|| crate::scene_dependencies::hash(selected))
 }
 
+#[cfg(test)]
 pub fn instance_audio_signature(instance: &Instance, registry: Option<&Registry>) -> String {
     crate::scene_dependencies::hash((
         &instance.class,

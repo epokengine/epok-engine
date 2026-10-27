@@ -20,6 +20,7 @@ pub struct Region {
     pub voice: Voice,
 }
 pub struct Prepared {
+    #[allow(dead_code)] // Only the test-only `identity` reads it.
     pub source_hash: String,
     pub coverage: Coverage,
     pub regions: Vec<Region>,
@@ -99,6 +100,7 @@ pub struct Cooked {
 
 /// A reduced bank belongs to this selection and source song, never just to the
 /// library asset UUID. The implementation identity covers the target pipeline.
+#[cfg(test)]
 pub fn identity(
     prepared: &Prepared,
     recipe: &Recipe,
@@ -125,6 +127,7 @@ pub fn identity(
     Ok(crate::psx_sequence::identity(&inputs))
 }
 
+#[cfg(test)]
 pub fn prepare(
     source: &[u8],
     sequence: &crate::sequence_ir::SequenceIr,
@@ -457,7 +460,8 @@ pub fn cook(
             if a >= b || b > blocks {
                 return Err("Sample loop is outside the encoded block range".into());
             }
-            if numerator_a % denominator != 0 || numerator_b % denominator != 0 {
+            if !numerator_a.is_multiple_of(denominator) || !numerator_b.is_multiple_of(denominator)
+            {
                 if recipe.sample_loops == SampleLoops::ExactBlocks {
                     return Err(format!(
                         "Region {:?} loop requires ADPCM block alignment; choose Align Outward explicitly",
@@ -556,12 +560,12 @@ pub fn cook(
             });
         }
         let mut bytes = encoded.bytes;
-        if voice.loop_mode == LoopMode::UntilRelease {
-            if let Some([start, _]) = loop_region {
-                // Repeat address is owned by the service: a loop-start flag
-                // would undo release before the first traversal reaches it.
-                bytes[(start / 28 * 16 + 1) as usize] &= !4;
-            }
+        if voice.loop_mode == LoopMode::UntilRelease
+            && let Some([start, _]) = loop_region
+        {
+            // Repeat address is owned by the service: a loop-start flag
+            // would undo release before the first traversal reaches it.
+            bytes[(start / 28 * 16 + 1) as usize] &= !4;
         }
         bytes.resize(bytes.len().div_ceil(64) * 64, 0);
         let key = crate::assets::hash(
@@ -735,7 +739,7 @@ pub fn cook(
 /// Decode a cooked sample's linear body, including an UntilRelease tail. The
 /// regular AudioClip decoder still stops at its first ADPCM end flag.
 pub fn decode_contiguous(bytes: &[u8], frames: u32) -> Result<Vec<i16>, String> {
-    if frames < 56 || frames % 28 != 0 {
+    if frames < 56 || !frames.is_multiple_of(28) {
         return Err("Invalid bank decoded frame count".into());
     }
     let extent = (frames as usize / 28 + 1)
@@ -931,9 +935,11 @@ mod tests {
     fn library_cook_reports_alignment_and_overbudget_and_rejects_unsupported_or_cancelled() {
         let mut prepared = prepared_fixture();
         prepared.regions[0].voice.loop_start = 57;
-        let mut recipe = Recipe::default();
-        recipe.bank_budget_bytes = 64;
-        recipe.other_resident_bytes = crate::audio_import::SPU_BUDGET as u32 - 128;
+        let mut recipe = Recipe {
+            bank_budget_bytes: 64,
+            other_resident_bytes: crate::audio_import::SPU_BUDGET as u32 - 128,
+            ..Default::default()
+        };
         let cancel = AtomicBool::new(false);
         let cooked = cook(&prepared, &recipe, &cancel).unwrap();
         assert!(!cooked.report.fits_sample_budget);
@@ -984,8 +990,14 @@ mod tests {
         };
         let full = crate::psx_music_settings::Selection::FullLibrary;
         let cancel = AtomicBool::new(false);
-        let prepared =
-            prepare_selection(&source, &sequence, &[alias.clone()], full, &cancel).unwrap();
+        let prepared = prepare_selection(
+            &source,
+            &sequence,
+            std::slice::from_ref(&alias),
+            full,
+            &cancel,
+        )
+        .unwrap();
         assert_eq!(
             prepared.regions.len(),
             2,
@@ -1006,8 +1018,10 @@ mod tests {
                 .unwrap()
                 .contains("missing library preset")
         );
-        let mut recipe = Recipe::default();
-        recipe.selection = full;
+        let recipe = Recipe {
+            selection: full,
+            ..Default::default()
+        };
         let cooked = cook(&prepared, &recipe, &cancel).unwrap();
         assert_eq!(cooked.zones.len(), 2);
         assert_eq!(cooked.samples.len(), 1);

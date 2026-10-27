@@ -66,9 +66,11 @@ fn commit_song(
         serde_json::json!(["keep", 29]),
     );
     if let Some(rate) = rate {
-        let mut recipe = Recipe::default();
-        recipe.preset = Preset::Custom;
-        recipe.max_sample_rate = rate;
+        let recipe = Recipe {
+            preset: Preset::Custom,
+            max_sample_rate: rate,
+            ..Default::default()
+        };
         recipe.store(&mut settings).unwrap();
     }
     assets::commit(
@@ -322,8 +324,10 @@ fn import_automatically_fits_a_soundfont_recipe_to_the_psx_budget() {
         &cancelled,
     )
     .unwrap();
-    let mut high = Recipe::default();
-    high.preset = Preset::Custom;
+    let mut high = Recipe {
+        preset: Preset::Custom,
+        ..Default::default()
+    };
     let high_bytes = crate::psx_library::cook(&prepared, &high, &cancelled)
         .unwrap()
         .report
@@ -372,12 +376,13 @@ fn failed_budget_cancellation_and_stale_library_records_publish_nothing() {
     let fixture = fixture("psx-library-asset-failures");
     let index = assets::scan(&fixture.root, &mut Default::default());
     let original = index.resolve(fixture.song).unwrap().clone();
-    let mut impossible = Recipe::default();
-    impossible.preset = Preset::Custom;
-    impossible.bank_budget_bytes = 1;
+    let impossible = Recipe {
+        preset: Preset::Custom,
+        bank_budget_bytes: 1,
+        ..Default::default()
+    };
     let budget_error = replace_recipe(&fixture.root, &original, fixture.bank, impossible)
-        .err()
-        .expect("an impossible resident budget must stop import before publishing");
+        .expect_err("an impossible resident budget must stop import before publishing");
     assert!(budget_error.contains("require") || budget_error.contains("budget"));
     assert!(!fixture.root.join(".epok/imported").exists());
 

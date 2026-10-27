@@ -23,6 +23,7 @@ pub enum Button {
     Square,
 }
 impl Button {
+    #[cfg(test)]
     pub const ALL: [Self; 16] = [
         Self::Select,
         Self::L3,
@@ -245,17 +246,10 @@ fn map(button: Button, key: &str) -> Mapping {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
+#[derive(Default)]
 pub struct Slot {
     pub enabled: bool,
     pub profile: Option<uuid::Uuid>,
-}
-impl Default for Slot {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            profile: None,
-        }
-    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -409,15 +403,6 @@ impl HostInput {
         self.mouse_delta[0] += delta[0];
         self.mouse_delta[1] += delta[1];
     }
-    #[cfg(test)]
-    pub fn gamepad_button(&mut self, button: String, down: bool) {
-        self.sync_devices(vec![Device {
-            id: 0,
-            name: "Test gamepad".into(),
-            rumble_supported: false,
-        }]);
-        self.gamepad_button_for(0, button, down);
-    }
     pub fn gamepad_button_for(&mut self, id: usize, button: String, down: bool) {
         let pad = self.gamepads.entry(id).or_default();
         if down {
@@ -425,15 +410,6 @@ impl HostInput {
         } else {
             pad.buttons.remove(&button);
         }
-    }
-    #[cfg(test)]
-    pub fn gamepad_axis(&mut self, axis: GamepadAxis, value: f32) {
-        self.sync_devices(vec![Device {
-            id: 0,
-            name: "Test gamepad".into(),
-            rumble_supported: false,
-        }]);
-        self.gamepad_axis_for(0, axis, value);
     }
     pub fn gamepad_axis_for(&mut self, id: usize, axis: GamepadAxis, value: f32) {
         self.gamepads.entry(id).or_default().axes.insert(

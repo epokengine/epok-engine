@@ -46,6 +46,7 @@ pub fn validate(scene: &crate::scene::Scene) -> Result<(), String> {
     }
     Ok(())
 }
+#[cfg(test)]
 pub fn fog_color(color: [u8; 3], depth: f32, fog: &Fog) -> [u8; 3] {
     fog_color_domain(color, depth, fog, 255.)
 }

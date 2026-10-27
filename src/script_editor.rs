@@ -211,10 +211,10 @@ pub fn save_all(editor: &mut Editor) -> Result<(), String> {
 }
 
 pub fn tick(editor: &mut Editor) {
-    if let Some((id, name, line)) = editor.script_editor.pocket_requested.take() {
-        if let Err(error) = open_pocket(editor, id, name.as_deref(), line) {
-            editor.pocketstation.error = Some(error);
-        }
+    if let Some((id, name, line)) = editor.script_editor.pocket_requested.take()
+        && let Err(error) = open_pocket(editor, id, name.as_deref(), line)
+    {
+        editor.pocketstation.error = Some(error);
     }
     let mut state = std::mem::take(&mut editor.script_editor);
     if let Err(error) = state.flush_changes() {

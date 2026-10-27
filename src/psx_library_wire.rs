@@ -145,7 +145,7 @@ pub fn encode(cooked: &Cooked) -> Result<Vec<u8>, String> {
 fn validate_sample(sample: &Sample) -> Result<(), String> {
     if !(400..=MAX_RATE).contains(&sample.rate)
         || sample.frames < 56
-        || sample.frames % 28 != 0
+        || !sample.frames.is_multiple_of(28)
         || sample.bytes.len() < 64
         || !sample.bytes.len().is_multiple_of(64)
     {

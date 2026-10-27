@@ -424,6 +424,7 @@ pub fn validate_binding(binding: &ClassDefaults) -> Result<(), String> {
     Ok(())
 }
 
+#[allow(dead_code)] // Reserved backend API like AuthoringProvider; only the tests use it today.
 pub trait ExecutionBackend {
     fn declaration(&self, class: &str, instance: &str) -> String;
     fn reset(&self, class: &str, instance: &str) -> String;
@@ -437,6 +438,7 @@ impl ExecutionBackend for Native {
         format!("{instance}={class}{{}};\n")
     }
 }
+#[allow(dead_code)] // Part of the reserved ExecutionBackend API.
 pub fn backend(id: &schema::Extension) -> Result<&'static dyn ExecutionBackend, String> {
     if *id == schema::native_backend() {
         Ok(&Native)
@@ -447,6 +449,7 @@ pub fn backend(id: &schema::Extension) -> Result<&'static dyn ExecutionBackend, 
         ))
     }
 }
+#[allow(dead_code)] // Part of the reserved ExecutionBackend API.
 pub fn resolve<'a>(binding: &ClassDefaults, catalog: &'a [Script]) -> Result<&'a Script, String> {
     validate_binding(binding)?;
     let script = if let Some(id) = &binding.class_id {

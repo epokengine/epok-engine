@@ -487,10 +487,10 @@ pub fn controls(
                 proposed.max_sample_rate,
                 proposed.available_bytes()
             ));
-            if ui.button("Adopt proposed recipe") {
-                if let Err(error) = proposed.store(settings) {
-                    state.error = Some(error);
-                }
+            if ui.button("Adopt proposed recipe")
+                && let Err(error) = proposed.store(settings)
+            {
+                state.error = Some(error);
             }
             help(
                 ui,

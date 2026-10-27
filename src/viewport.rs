@@ -521,8 +521,8 @@ mod tests {
                 "Wheel must pass the old pivot"
             );
             view.dolly(-40.);
-            for i in 0..3 {
-                assert!((view.center[i] - pivot[i]).abs() < 0.0001);
+            for (center, target) in view.center.iter().zip(pivot) {
+                assert!((center - target).abs() < 0.0001);
             }
         }
         let legacy: View = serde_json::from_value(serde_json::json!({"zoom": 1.5})).unwrap();

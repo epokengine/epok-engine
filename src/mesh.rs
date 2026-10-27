@@ -369,7 +369,7 @@ impl Document {
                 self.faces.last_mut().unwrap().vertex_colors = f.vertex_colors.map(|colors| {
                     let mix = |a: usize, b: usize| {
                         std::array::from_fn(|c| {
-                            ((u16::from(colors[a][c]) + u16::from(colors[b][c]) + 1) / 2) as u8
+                            (u16::from(colors[a][c]) + u16::from(colors[b][c])).div_ceil(2) as u8
                         })
                     };
                     let center = std::array::from_fn(|c| {
@@ -749,13 +749,13 @@ pub(crate) mod tests {
                         // including negative and fractional authored coordinates.
                         assert_eq!(
                             ((c.origin[axis] * 4096.) as i32 >> 4)
-                                + (i32::from(c.vertices[*vertex as usize][axis]) >> 4),
+                                + (c.vertices[*vertex as usize][axis] >> 4),
                             (quads[i].points[k][axis] * 4096.).round() as i32 >> 4
                         );
                     }
                     for axis in 0..3 {
                         assert!(
-                            (i32::from(c.vertices[*vertex as usize][axis]) - c.center[axis]).abs()
+                            (c.vertices[*vertex as usize][axis] - c.center[axis]).abs()
                                 <= c.extent[axis]
                         );
                     }
@@ -770,8 +770,10 @@ pub(crate) mod tests {
     }
     #[test]
     fn large_faces_keep_authored_topology_uvs_and_q12_precision() {
-        let mut doc = Document::default();
-        doc.vertices = vec![[0., 0., 0.], [32., 0., 0.], [32., 0., 0.5], [0., 0., 0.5]];
+        let mut doc = Document {
+            vertices: vec![[0., 0., 0.], [32., 0., 0.], [32., 0., 0.5], [0., 0., 0.5]],
+            ..Default::default()
+        };
         doc.faces.push(Face {
             id: Uuid::new_v4(),
             vertices: [0, 1, 2, 3],
@@ -839,7 +841,7 @@ pub(crate) mod tests {
                 for (corner, index) in indices.into_iter().enumerate() {
                     for axis in 0..3 {
                         let origin = (chunk.origin[axis] * 4096.) as i32;
-                        let local = i32::from(chunk.vertices[usize::from(index)][axis]);
+                        let local = chunk.vertices[usize::from(index)][axis];
                         let world = (quads[face].points[corner][axis] * 4096.) as i32;
                         assert_eq!(origin + local, world);
                         assert_eq!((origin >> 4) + (local >> 4), world >> 4);

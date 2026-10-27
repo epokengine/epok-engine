@@ -580,10 +580,10 @@ impl Scene {
             if let Some(camera) = map.get(&track.camera) {
                 track.camera = *camera;
             }
-            if let Some(nav) = &mut track.navigation {
-                if let Some(target) = map.get(&nav.target) {
-                    nav.target = *target;
-                }
+            if let Some(nav) = &mut track.navigation
+                && let Some(target) = map.get(&nav.target)
+            {
+                nav.target = *target;
             }
         }
         self.refresh_actor_hierarchy();
@@ -1191,7 +1191,8 @@ mod tests {
     #[test]
     fn every_supported_scene_version_loads_and_a_newer_document_is_refused() {
         let mut scene = Scene::default();
-        for version in [crate::actor_document::SCENE_VERSION] {
+        {
+            let version = crate::actor_document::SCENE_VERSION;
             scene.version = version;
             scene.validate().unwrap();
         }

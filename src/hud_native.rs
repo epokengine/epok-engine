@@ -404,7 +404,7 @@ fn render_with_background(
     opaque_background: bool,
 ) -> (Vec<u8>, Vec<ScreenLayer>) {
     let [width, height] = scene.display_size.map(usize::from);
-    let mut pixels = if opaque_background {
+    let pixels = if opaque_background {
         [33, 40, 52, 255].repeat(width * height)
     } else {
         [0, 0, 0, fade].repeat(width * height)

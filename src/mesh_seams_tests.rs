@@ -37,8 +37,10 @@ fn verify_bounds(chunks: &[Chunk], faces: usize) {
     for c in chunks {
         assert!(c.vertices.len() <= 512);
         for v in &c.vertices {
-            for a in 0..3 {
-                assert!((i64::from(v[a]) - i64::from(c.center[a])).abs() <= i64::from(c.extent[a]));
+            for (a, &value) in v.iter().enumerate() {
+                assert!(
+                    (i64::from(value) - i64::from(c.center[a])).abs() <= i64::from(c.extent[a])
+                );
             }
         }
     }

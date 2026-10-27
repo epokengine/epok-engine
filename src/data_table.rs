@@ -88,6 +88,7 @@ impl DataTable {
         }
         Ok(())
     }
+    #[cfg(test)]
     pub fn find(&self, key: &str, kind: Option<&Kind>) -> Option<Uuid> {
         self.rows
             .iter()
@@ -182,18 +183,18 @@ pub fn header(tables: &std::collections::BTreeMap<Uuid, DataTable>) -> Result<St
         if table_id == 0 {
             return Err("Invalid compact DataTable identity".into());
         }
-        if let Some(previous) = compact.insert(table_id, *id) {
-            if previous != *id {
-                return Err("Compact DataTable identity collision".into());
-            }
+        if let Some(previous) = compact.insert(table_id, *id)
+            && previous != *id
+        {
+            return Err("Compact DataTable identity collision".into());
         }
         for row in &table.rows {
             let asset = crate::blueprint_refs::compact_id(&row.asset.to_string());
             let kind = kind_code(&format!("{:?}", row.kind))?;
-            if let Some(previous) = compact.insert(asset, row.asset) {
-                if previous != row.asset {
-                    return Err("Compact DataTable asset identity collision".into());
-                }
+            if let Some(previous) = compact.insert(asset, row.asset)
+                && previous != row.asset
+            {
+                return Err("Compact DataTable asset identity collision".into());
             }
             rows.push(format!(
                 "{{UINT64_C({table_id}),{},UINT64_C({asset}),{kind}}}",

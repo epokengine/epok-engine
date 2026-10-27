@@ -728,6 +728,7 @@ pub(crate) fn icon(ui: &imgui::Ui, glyph: &str, id: &str, tip: &str, active: boo
     }
     result
 }
+#[allow(clippy::too_many_arguments)]
 pub fn draw(
     ui: &imgui::Ui,
     e: &mut Editor,
@@ -1449,6 +1450,7 @@ fn placeable_actor_classes(e: &Editor) -> Vec<ActorClass> {
 /// The domain of a legacy entity. UI and 3D authoring data claim their
 /// respective spatial domain; a bare Empty with only shared components such as
 /// scripts or audio is domain-neutral and remains available in every view.
+#[cfg(test)]
 fn entity_domain(entity: &crate::scene::Actor) -> crate::reflection_schema::Domain {
     use crate::reflection_schema::Domain;
     if entity.canvas.is_some() || entity.rect.is_some() {
@@ -1700,17 +1702,6 @@ fn creation_menu(
     }
     action
 }
-/// Everything the Hierarchy computes once per frame and every node reads.
-struct HierarchyContext<'a> {
-    children: &'a [Vec<usize>],
-    /// Matched the search filter, directly or through a descendant.
-    visible: &'a [bool],
-    /// Belongs to the current view mode or is domain-neutral.
-    in_domain: &'a [bool],
-    /// Has a descendant in that domain, so it is drawn as a presentation root.
-    passthrough: &'a [bool],
-    actors: &'a [ActorClass],
-}
 #[derive(Default)]
 struct HierarchyResult {
     reparent: Option<(usize, Option<usize>, bool)>,
@@ -1719,162 +1710,6 @@ struct HierarchyResult {
     root_action: Option<&'static str>,
     actor_class: Option<String>,
     open_map_settings: bool,
-}
-fn hierarchy_node(
-    ui: &imgui::Ui,
-    e: &mut Editor,
-    index: usize,
-    cx: &HierarchyContext,
-    out: &mut HierarchyResult,
-) {
-    if !cx.visible[index] || (!cx.in_domain[index] && !cx.passthrough[index]) {
-        return;
-    }
-    let entity = &e.scene.actors[index];
-    let label = format!(
-        "{} {}###entity{}",
-        if entity.kind == "Camera" {
-            CAMERA
-        } else {
-            CUBE
-        },
-        entity.name,
-        index
-    );
-    let mut flags = imgui::TreeNodeFlags::SPAN_AVAIL_WIDTH
-        | imgui::TreeNodeFlags::OPEN_ON_ARROW
-        | imgui::TreeNodeFlags::DEFAULT_OPEN;
-    if cx.children[index].is_empty() {
-        flags |= imgui::TreeNodeFlags::LEAF;
-    }
-    // An ancestor of another domain keeps the branch's shape and order without
-    // becoming selectable, a rename target or a drop target.
-    if !cx.in_domain[index] {
-        let _muted = ui.push_style_color(C::Text, gray(120));
-        let node = ui
-            .tree_node_config(label)
-            .flags(flags & !imgui::TreeNodeFlags::LEAF)
-            .push();
-        drop(_muted);
-        if ui.is_item_hovered() {
-            ui.tooltip_text(format!(
-                "{} is not part of the {} view; shown so its children keep their place.",
-                e.scene.actors[index].name,
-                e.scene_view_mode.label()
-            ));
-        }
-        if let Some(_node) = node {
-            for child in &cx.children[index] {
-                hierarchy_node(ui, e, *child, cx, out);
-            }
-        }
-        return;
-    }
-    if e.selected == Some(index) {
-        flags |= imgui::TreeNodeFlags::SELECTED;
-    }
-    let mut config = ui.tree_node_config(label).flags(flags);
-    if !e.search.is_empty()
-        || e.reveal_selected && e.selected.is_some_and(|i| e.scene.is_descendant(i, index))
-    {
-        config = config.opened(true, Condition::Always);
-    }
-    let node = config.push();
-    if e.reveal_selected && e.selected == Some(index) {
-        ui.set_scroll_here_y();
-    }
-    if ui.is_item_hovered() {
-        ui.tooltip_text(&e.scene.actors[index].name);
-    }
-    if ui.is_item_clicked() && !ui.is_item_toggled_open() {
-        e.selected_asset = None;
-        e.selected_actor = None;
-        e.selected = Some(index);
-        e.view_dirty = true;
-        if ui.is_mouse_double_clicked(imgui::MouseButton::Left) {
-            e.action("frame-selected");
-        }
-    }
-    if !e.playing {
-        if let Some(_source) = ui
-            .drag_drop_source_config("EPOK_ENTITY")
-            .begin_payload(index)
-        {
-            ui.text(&e.scene.actors[index].name);
-            ui.text_disabled("Drop on parent; drop on scene to unparent");
-        }
-        if let Some(target) = ui.drag_drop_target()
-            && let Some(Ok(payload)) =
-                target.accept_payload::<usize, _>("EPOK_ENTITY", imgui::DragDropFlags::empty())
-            && payload.delivery
-        {
-            out.reparent = Some((payload.data, Some(index), true));
-        }
-    }
-    if let Some(_popup) = ui.begin_popup_context_item() {
-        e.selected_asset = None;
-        e.selected_actor = None;
-        e.selected = Some(index);
-        e.view_dirty = true;
-        ui.disabled(e.playing, || {
-            if ui.menu_item("Rename") {
-                e.begin_rename(index);
-            }
-            ui.separator();
-            let mut actor_class = None;
-            if let Some(command) = creation_menu(ui, true, cx.actors, &mut actor_class) {
-                out.action = Some((index, command));
-            }
-            if actor_class.is_some() {
-                out.actor_class = actor_class;
-            }
-            ui.separator();
-            if let Some(_menu) = ui.begin_menu("Parent > Keep World")
-                && let Some(parent) = parent_menu(ui, e, index, true)
-            {
-                out.reparent = Some((index, parent, true));
-            }
-            if let Some(_menu) = ui.begin_menu("Parent > Keep Local")
-                && let Some(parent) = parent_menu(ui, e, index, false)
-            {
-                out.reparent = Some((index, parent, false));
-            }
-            ui.separator();
-            if ui.menu_item("Duplicate") {
-                out.action = Some((index, "duplicate"));
-            }
-            if ui.menu_item("Delete") {
-                out.action = Some((index, "delete"));
-            }
-            if !cx.children[index].is_empty() {
-                ui.text_disabled("Duplicate / Delete includes children");
-            }
-        });
-    }
-    if e.rename.as_ref().is_some_and(|(i, _)| *i == index) {
-        ui.set_next_item_width(-1.);
-        let focus_requested = e.rename_focus;
-        if focus_requested {
-            ui.set_keyboard_focus_here();
-            e.rename_focus = false;
-        }
-        let submit = ui
-            .input_text(
-                format!("##rename{index}"),
-                &mut e.rename.as_mut().unwrap().1,
-            )
-            .auto_select_all(true)
-            .enter_returns_true(true)
-            .build();
-        if let Some(commit) = hierarchy_rename_finished(ui, submit, focus_requested) {
-            e.finish_rename(commit);
-        }
-    }
-    if let Some(_node) = node {
-        for child in &cx.children[index] {
-            hierarchy_node(ui, e, *child, cx, out);
-        }
-    }
 }
 /// Domain-filtered document actors, drawn under the legacy actors.
 struct ActorContext<'a> {

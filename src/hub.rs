@@ -1163,19 +1163,6 @@ fn button_center(ui: &imgui::Ui) -> [f32; 2] {
     [(min[0] + max[0]) * 0.5, (min[1] + max[1]) * 0.5]
 }
 
-#[cfg(test)]
-mod template_tests {
-    #[test]
-    #[ignore = "Owns an ImGui context; run serially for template card and flavor interactions"]
-    fn complete_game_card_and_unavailable_flavors_use_real_controls() {
-        let mut context = imgui::Context::create();
-        context.set_ini_filename(None);
-        context.io_mut().display_size = [1440., 1000.];
-        context.io_mut().delta_time = 1. / 60.;
-        super::verify_interactions(&mut context);
-    }
-}
-
 /// Reuse the existing UI test's context: Dear ImGui permits one active context per process.
 #[cfg(test)]
 pub fn verify_interactions(context: &mut imgui::Context) {
@@ -1382,4 +1369,17 @@ pub fn verify_interactions(context: &mut imgui::Context) {
     assert!(workspace::read_recent(&hub.registry).unwrap().is_empty());
     assert!(workspace::manifest_path(&root).unwrap().exists());
     std::fs::remove_dir_all(parent).unwrap();
+}
+
+#[cfg(test)]
+mod template_tests {
+    #[test]
+    #[ignore = "Owns an ImGui context; run serially for template card and flavor interactions"]
+    fn complete_game_card_and_unavailable_flavors_use_real_controls() {
+        let mut context = imgui::Context::create();
+        context.set_ini_filename(None);
+        context.io_mut().display_size = [1440., 1000.];
+        context.io_mut().delta_time = 1. / 60.;
+        super::verify_interactions(&mut context);
+    }
 }

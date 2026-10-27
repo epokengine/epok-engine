@@ -286,9 +286,11 @@ mod tests {
                 .contains("cancelled")
         );
         cancel.store(false, Ordering::Relaxed);
-        let mut recipe = crate::psx_music_settings::Recipe::default();
-        recipe.preset = crate::psx_music_settings::Preset::Custom;
-        recipe.effects = crate::psx_music_settings::Effects::Room;
+        let recipe = crate::psx_music_settings::Recipe {
+            preset: crate::psx_music_settings::Preset::Custom,
+            effects: crate::psx_music_settings::Effects::Room,
+            ..Default::default()
+        };
         assert_eq!(
             recipe.available_bytes(),
             crate::audio_import::SPU_BUDGET as u32 - 9920
@@ -336,13 +338,15 @@ mod tests {
         let cancel = AtomicBool::new(false);
         let ir = crate::midi::parse(&midi).unwrap();
         let prepared = crate::psx_library::prepare(&library, &ir, &[], &cancel).unwrap();
-        let mut recipe = crate::psx_music_settings::Recipe::default();
-        recipe.preset = crate::psx_music_settings::Preset::Custom;
-        recipe.max_sample_rate = 10208;
-        recipe.other_resident_bytes = 4672;
-        recipe.maximum_release_ms = std::env::var("EPOK_P4_RELEASE_MS")
-            .ok()
-            .map(|s| s.parse().unwrap());
+        let recipe = crate::psx_music_settings::Recipe {
+            preset: crate::psx_music_settings::Preset::Custom,
+            max_sample_rate: 10208,
+            other_resident_bytes: 4672,
+            maximum_release_ms: std::env::var("EPOK_P4_RELEASE_MS")
+                .ok()
+                .map(|s| s.parse().unwrap()),
+            ..Default::default()
+        };
         let cooked = crate::psx_library::cook(&prepared, &recipe, &cancel).unwrap();
         assert!(cooked.report.fits_sample_budget);
         let voices: u16 = std::env::var("EPOK_P4_VOICE_LIMIT")

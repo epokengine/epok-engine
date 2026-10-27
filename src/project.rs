@@ -2032,7 +2032,7 @@ fn actor_table_with_registry(
             &actor.properties,
             &actor.overrides,
             &class.cpp_name,
-            &registry,
+            registry,
             scene,
             &format!("{}: actor {}", scene.name, actor.name),
         )?);
@@ -2161,7 +2161,7 @@ fn actor_table_with_registry(
                     &component.properties,
                     &component.overrides,
                     &component_class.cpp_name,
-                    &registry,
+                    registry,
                     scene,
                     &format!(
                         "{}: actor {} component {}",

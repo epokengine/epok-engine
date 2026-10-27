@@ -7,7 +7,6 @@ use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, BTreeSet},
     path::Path,
-    sync::Arc,
 };
 use uuid::Uuid;
 
@@ -527,6 +526,7 @@ pub fn picker(ui: &imgui::Ui, index: &assets::Index, material: &mut Material) ->
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
+    use std::sync::Arc;
     pub fn tim_fixture(
         bits: usize,
         palette: &[u16],
@@ -970,8 +970,10 @@ pub(crate) mod tests {
     }
     #[test]
     fn vram_rejects_overflow_without_touching_framebuffer_or_font() {
-        let mut scene = Scene::default();
-        scene.display_size = [640, 480];
+        let mut scene = Scene {
+            display_size: [640, 480],
+            ..Default::default()
+        };
         let mut d = decode(&png()).unwrap();
         d.width = 256;
         d.height = 256;

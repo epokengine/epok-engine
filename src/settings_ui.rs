@@ -105,65 +105,6 @@ pub fn open_controls(e: &mut Editor) {
     e.settings.project_page = 5;
     e.settings.project_search.clear();
 }
-
-#[cfg(test)]
-mod controls_capture_tests {
-    use super::*;
-    use crate::controls::{Axis, Binding, Button, Control, MouseAxis};
-
-    #[test]
-    fn capture_ignores_pointer_motion_for_buttons_and_buttons_for_axes() {
-        let project: Manifest = serde_json::from_value(serde_json::json!({
-            "format_version": 1, "editor_version": "0.7.0", "name": "Input capture",
-            "startup_scene": "assets/scenes/Main.epokmap", "auto_build": false
-        }))
-        .unwrap();
-        let mut state = State {
-            project: Some(project),
-            project_open: true,
-            ..Default::default()
-        };
-        let cross = Control::Button(Button::Cross);
-        state.capture = Some((0, cross));
-        state.capture_binding(Binding::MouseAxis { axis: MouseAxis::X });
-        assert_eq!(state.capture, Some((0, cross)));
-        let key = Binding::Keyboard {
-            key: "Space".into(),
-        };
-        state.capture_binding(key.clone());
-        assert_eq!(
-            state
-                .project
-                .as_ref()
-                .unwrap()
-                .controls
-                .profile(0)
-                .unwrap()
-                .binding(cross),
-            Some(&key)
-        );
-        assert!(state.capture.is_none());
-        let axis = Control::Axis(Axis::LeftX);
-        state.capture = Some((0, axis));
-        state.capture_binding(key.clone());
-        assert_eq!(state.capture, Some((0, axis)));
-        state.project_open = false;
-        state.capture_binding(Binding::MouseAxis { axis: MouseAxis::Y });
-        assert!(state.capture.is_none());
-        assert!(
-            state
-                .project
-                .as_ref()
-                .unwrap()
-                .controls
-                .profile(0)
-                .unwrap()
-                .binding(axis)
-                .is_none()
-        );
-        assert!(Button::ALL.iter().all(|b| b.label().is_ascii()));
-    }
-}
 /// `cpp_name` of every class a scene Blueprint may derive from, in name order.
 fn scene_script_parents(e: &crate::editor::Editor) -> Vec<String> {
     let Some(model) = e.object_model() else {
@@ -814,4 +755,63 @@ pub fn verify_interactions(context: &mut imgui::Context) {
         root.join("replacement/encoder.exe")
     );
     assert_eq!(saved.web_port, 9123);
+}
+
+#[cfg(test)]
+mod controls_capture_tests {
+    use super::*;
+    use crate::controls::{Axis, Binding, Button, Control, MouseAxis};
+
+    #[test]
+    fn capture_ignores_pointer_motion_for_buttons_and_buttons_for_axes() {
+        let project: Manifest = serde_json::from_value(serde_json::json!({
+            "format_version": 1, "editor_version": "0.7.0", "name": "Input capture",
+            "startup_scene": "assets/scenes/Main.epokmap", "auto_build": false
+        }))
+        .unwrap();
+        let mut state = State {
+            project: Some(project),
+            project_open: true,
+            ..Default::default()
+        };
+        let cross = Control::Button(Button::Cross);
+        state.capture = Some((0, cross));
+        state.capture_binding(Binding::MouseAxis { axis: MouseAxis::X });
+        assert_eq!(state.capture, Some((0, cross)));
+        let key = Binding::Keyboard {
+            key: "Space".into(),
+        };
+        state.capture_binding(key.clone());
+        assert_eq!(
+            state
+                .project
+                .as_ref()
+                .unwrap()
+                .controls
+                .profile(0)
+                .unwrap()
+                .binding(cross),
+            Some(&key)
+        );
+        assert!(state.capture.is_none());
+        let axis = Control::Axis(Axis::LeftX);
+        state.capture = Some((0, axis));
+        state.capture_binding(key.clone());
+        assert_eq!(state.capture, Some((0, axis)));
+        state.project_open = false;
+        state.capture_binding(Binding::MouseAxis { axis: MouseAxis::Y });
+        assert!(state.capture.is_none());
+        assert!(
+            state
+                .project
+                .as_ref()
+                .unwrap()
+                .controls
+                .profile(0)
+                .unwrap()
+                .binding(axis)
+                .is_none()
+        );
+        assert!(Button::ALL.iter().all(|b| b.label().is_ascii()));
+    }
 }

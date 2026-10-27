@@ -137,6 +137,7 @@ pub fn render(
         None,
     )
 }
+#[allow(clippy::too_many_arguments)]
 pub fn render_native(
     events: &[Event],
     ppqn: u16,
@@ -158,6 +159,7 @@ pub fn render_native(
         Some(stream),
     )
 }
+#[allow(clippy::too_many_arguments)]
 fn render_impl(
     events: &[Event],
     ppqn: u16,

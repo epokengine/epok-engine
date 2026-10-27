@@ -606,11 +606,10 @@ pub fn run(
         }
         match event {
             Event::WindowEvent { event: WindowEvent::KeyboardInput { event, .. }, .. } => {
-                if let Some(editor)=session.as_mut() {
-                    if let winit::keyboard::PhysicalKey::Code(code)=event.physical_key {
+                if let Some(editor)=session.as_mut()
+                    && let winit::keyboard::PhysicalKey::Code(code)=event.physical_key {
                         editor.input_key(format!("{code:?}"),event.state==ElementState::Pressed);
                     }
-                }
             }
             Event::WindowEvent { event: WindowEvent::MouseInput { state, button, .. }, .. } => {
                 if let Some(button)=mouse_button(button) && let Some(editor)=session.as_mut() { editor.input_mouse_button(button,state==ElementState::Pressed); }

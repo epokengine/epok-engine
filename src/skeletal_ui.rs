@@ -54,12 +54,11 @@ pub fn open(e: &mut Editor, record: Record) {
         ..Default::default()
     };
     let args = std::env::args().collect::<Vec<_>>();
-    if let Some(pair) = args.windows(2).find(|v| v[0] == "--preview-model-yaw") {
-        if let Ok(yaw) = pair[1].parse::<f32>() {
-            if yaw.is_finite() {
-                state.yaw = yaw;
-            }
-        }
+    if let Some(pair) = args.windows(2).find(|v| v[0] == "--preview-model-yaw")
+        && let Ok(yaw) = pair[1].parse::<f32>()
+        && yaw.is_finite()
+    {
+        state.yaw = yaw;
     }
     if args.iter().any(|v| v == "--preview-model-no-bones") {
         state.show_bones = false;
@@ -70,12 +69,12 @@ pub fn open(e: &mut Editor, record: Record) {
     {
         Ok((id, model)) => {
             let mut c = Component::new(id);
-            if let Some(pair) = args.windows(2).find(|v| v[0] == "--preview-model-time") {
-                if let Ok(time) = pair[1].parse::<f32>() {
-                    if time.is_finite() && time >= 0.0 {
-                        c.time = time;
-                    }
-                }
+            if let Some(pair) = args.windows(2).find(|v| v[0] == "--preview-model-time")
+                && let Ok(time) = pair[1].parse::<f32>()
+                && time.is_finite()
+                && time >= 0.0
+            {
+                c.time = time;
             }
             c.clip = if model.mesh.clips.contains(&record.meta.id) {
                 Some(record.meta.id)

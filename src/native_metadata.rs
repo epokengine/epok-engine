@@ -17,10 +17,6 @@ pub(crate) fn file_key(root: &Path, path: &Path) -> Result<String, String> {
     Ok(format!("{FILE}{location}"))
 }
 
-pub fn file(root: &Path, path: &Path, signature: String) -> Result<(), String> {
-    crate::staging_files::consumed(Files::from([(file_key(root, path)?, signature)]))
-}
-
 fn metadata_set(root: &Path, files: &[PathBuf]) -> Result<String, String> {
     let mut keys = crate::scripts::metadata_files(files)
         .map(|path| file_key(root, path))

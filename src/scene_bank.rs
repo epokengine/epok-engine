@@ -240,6 +240,7 @@ pub fn header_with_streaming(
         .extend(crate::blueprint::registry_from_catalog(Path::new(""), catalog).classes);
     header_with_templates(scenes, catalog, streaming, &[], None, &[], &[], &registry)
 }
+#[allow(clippy::too_many_arguments)]
 pub fn header_with_templates(
     scenes: &[Scene],
     catalog: &[Script],
@@ -266,6 +267,7 @@ pub fn header_with_templates(
 }
 /// `external[bank]` marks banks whose data loads from a scene file at run time
 /// (see scene_files.rs); missing entries stay in the executable.
+#[allow(clippy::too_many_arguments)]
 pub fn header_with_templates_for(
     scenes: &[Scene],
     catalog: &[Script],

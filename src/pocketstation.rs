@@ -994,7 +994,7 @@ mod tests {
         app.files[0].text = "function init()\n save.set(1, 42)\n save.write()\nend\n".into();
         let built = build_app(&app).unwrap();
         let save_offset = built.program.assembly.labels["rt_save_sector_data"] - file::FLASH_BASE;
-        assert!(save_offset > 0 && save_offset % 128 == 0);
+        assert!(save_offset > 0 && save_offset.is_multiple_of(128));
         let id = create(&root, &fresh_path("Star"), &app).unwrap();
         stage(&build, &assets::scan(&root, &mut Default::default())).unwrap();
         let text = std::fs::read_to_string(build.join("pocket-apps.hh")).unwrap();

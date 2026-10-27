@@ -1010,10 +1010,9 @@ impl SceneGpu {
                     let mut mask = static_mesh_mask(scene);
                     if input.revision.is_none()
                         && let Some(index) = selected
+                        && let Some(value) = mask.get_mut(index)
                     {
-                        if let Some(value) = mask.get_mut(index) {
-                            *value = false;
-                        }
+                        *value = false;
                     }
                     self.static_colors = Default::default();
                     let (mesh, _, ranges) = geometry_cached(
@@ -1600,6 +1599,7 @@ fn geometry(
         GeometryPass::All,
     )
 }
+#[allow(clippy::too_many_arguments)]
 fn geometry_with_effects(
     scene: &Scene,
     selected: Option<usize>,
@@ -1614,6 +1614,7 @@ fn geometry_with_effects(
         scene, selected, phase, state, view, effects, wire, pass, None,
     )
 }
+#[allow(clippy::too_many_arguments)]
 fn geometry_cached(
     scene: &Scene,
     selected: Option<usize>,
@@ -1685,13 +1686,12 @@ fn geometry_cached(
             .as_ref()
             .and_then(|b| b.preview_colors(e.id, quads.len() * 4));
         for (qi, q) in quads.iter().enumerate() {
-            if let GeometryPass::Baked(selection) = pass {
-                if selection
+            if let GeometryPass::Baked(selection) = pass
+                && selection
                     .get(&e.id)
                     .is_some_and(|faces| !faces.contains(&qi))
-                {
-                    continue;
-                }
+            {
+                continue;
             }
             let p = q.points.map(|v| world.point(v));
             let n = crate::lighting::transform_normal(world, q.normal);
@@ -1764,13 +1764,12 @@ fn geometry_cached(
         for (qi, q) in quads.iter().enumerate().filter(|_| {
             wire || selected == Some(index) || (state.open && state.target == Some(index))
         }) {
-            if let GeometryPass::Baked(selection) = pass {
-                if selection
+            if let GeometryPass::Baked(selection) = pass
+                && selection
                     .get(&e.id)
                     .is_some_and(|faces| !faces.contains(&qi))
-                {
-                    continue;
-                }
+            {
+                continue;
             }
             let p = q.points.map(|v| world.point(v));
             let color = if state.open

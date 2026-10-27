@@ -110,7 +110,7 @@ impl Bundle {
                 .ok_or("Unresolved streamed texture")?;
             let cooked = crate::texture_cook::cook(data);
             let length = cooked.words.len() * 2;
-            if length == 0 || length > PAGE_BYTES || length % 4 != 0 {
+            if length == 0 || length > PAGE_BYTES || !length.is_multiple_of(4) {
                 return Err("Texture upload must be 4-byte aligned and fit one 64 KiB page".into());
             }
             if used + length > PAGE_BYTES {
@@ -210,25 +210,25 @@ impl Bundle {
         let ordered = self.ordered.get(bank).and_then(Option::as_ref);
         for line in header.lines() {
             let mut line = line.to_string();
-            if let Some(pages) = pages {
-                if line.starts_with("inline constexpr VisibilityTrackData track_data=") {
-                    out.push_str(&pages.header());
-                    if let Some(ordered) = ordered {
-                        out.push_str(&ordered.header(ordered.actor_count));
-                    }
-                    let base = line
-                        .strip_suffix("};")
-                        .ok_or("Unexpected visibility descriptor syntax")?;
-                    line = format!(
-                        "{base},track_page_sets,track_page_samples{}}};",
-                        if ordered.is_some() {
-                            ",&ordered_data"
-                        } else {
-                            ""
-                        }
-                    );
-                    pages_replaced = true;
+            if let Some(pages) = pages
+                && line.starts_with("inline constexpr VisibilityTrackData track_data=")
+            {
+                out.push_str(&pages.header());
+                if let Some(ordered) = ordered {
+                    out.push_str(&ordered.header(ordered.actor_count));
                 }
+                let base = line
+                    .strip_suffix("};")
+                    .ok_or("Unexpected visibility descriptor syntax")?;
+                line = format!(
+                    "{base},track_page_sets,track_page_samples{}}};",
+                    if ordered.is_some() {
+                        ",&ordered_data"
+                    } else {
+                        ""
+                    }
+                );
+                pages_replaced = true;
             }
             let mut omit = false;
             for (key, location) in chunks {
@@ -413,6 +413,7 @@ fn encode_quad(
 pub fn compile(scenes: &[Scene], pool_pages: usize) -> Result<Bundle, String> {
     compile_with_budget(scenes, pool_pages, 4096)
 }
+#[cfg(test)]
 pub fn compile_with_budget(
     scenes: &[Scene],
     pool_pages: usize,

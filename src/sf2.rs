@@ -75,7 +75,7 @@ fn records<'a>(
 }
 
 fn record_count(data: &[u8], entry: usize, cap: usize, label: &str) -> Result<usize, String> {
-    if data.len() % entry != 0 {
+    if !data.len().is_multiple_of(entry) {
         return Err(format!("{label} chunk has a partial record"));
     }
     let count = data.len() / entry;
@@ -247,8 +247,8 @@ fn effective_generator_count(
     instrument_local: &ZoneIr,
 ) -> usize {
     let mut present = [false; 61];
-    for operator in 0..=60 {
-        present[operator] = generator_default(operator as u16).is_some();
+    for (operator, slot) in present.iter_mut().enumerate() {
+        *slot = generator_default(operator as u16).is_some();
     }
     for zone in instrument_global
         .into_iter()
@@ -720,11 +720,11 @@ pub fn parse(bytes: &[u8]) -> Result<LibraryIr, String> {
     let imod = records(imod_data, 10, MAX_GEN_MOD_RECORDS, "imod")?;
     let igen = records(igen_data, 4, MAX_GEN_MOD_RECORDS, "igen")?;
     let shdr = records(shdr_data, 46, MAX_SAMPLES + 1, "shdr")?;
-    if phdr.len() < 1
-        || inst.len() < 1
-        || shdr.len() < 1
-        || pbag.len() < 1
-        || ibag.len() < 1
+    if phdr.is_empty()
+        || inst.is_empty()
+        || shdr.is_empty()
+        || pbag.is_empty()
+        || ibag.is_empty()
         || pgen.is_empty()
         || pmod.is_empty()
         || igen.is_empty()
@@ -1153,6 +1153,8 @@ mod tests {
     use super::*;
 
     type TestModulator = (u16, u16, i16, u16, u16);
+    /// A zone's generators (operator, amount) and modulators.
+    type TestZone = (Vec<(u16, i16)>, Vec<TestModulator>);
 
     #[derive(Clone, Copy)]
     pub(super) struct TestSample {
@@ -1202,7 +1204,7 @@ mod tests {
         chunk(b"LIST", data)
     }
 
-    fn zones(zones: Vec<(Vec<(u16, i16)>, Vec<TestModulator>)>) -> (Vec<u8>, Vec<u8>, Vec<u8>) {
+    fn zones(zones: Vec<TestZone>) -> (Vec<u8>, Vec<u8>, Vec<u8>) {
         let mut bags = Vec::new();
         let mut generators = Vec::new();
         let mut modulators = Vec::new();
@@ -1234,8 +1236,8 @@ mod tests {
 
     pub(super) fn synthetic(
         major: u16,
-        preset_zones: Vec<(Vec<(u16, i16)>, Vec<TestModulator>)>,
-        instrument_zones: Vec<(Vec<(u16, i16)>, Vec<TestModulator>)>,
+        preset_zones: Vec<TestZone>,
+        instrument_zones: Vec<TestZone>,
         samples: Vec<TestSample>,
         sample_data: Vec<u8>,
     ) -> Vec<u8> {
@@ -1252,8 +1254,8 @@ mod tests {
     fn synthetic_version(
         major: u16,
         minor: u16,
-        preset_zones: Vec<(Vec<(u16, i16)>, Vec<TestModulator>)>,
-        instrument_zones: Vec<(Vec<(u16, i16)>, Vec<TestModulator>)>,
+        preset_zones: Vec<TestZone>,
+        instrument_zones: Vec<TestZone>,
         samples: Vec<TestSample>,
         sample_data: Vec<u8>,
     ) -> Vec<u8> {

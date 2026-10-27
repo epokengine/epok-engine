@@ -40,12 +40,14 @@ impl Script {
     pub fn instantiable(&self) -> bool {
         self.classes.first().is_none_or(|c| !c.abstract_class)
     }
+    #[cfg(test)]
     pub fn is_component(&self) -> bool {
         self.classes.iter().any(|c| {
             c.id == crate::object_model::ACTOR_COMPONENT_ID
                 || c.family == Some(schema::ClassFamily::Component)
         })
     }
+    #[cfg(test)]
     pub fn attachable(&self) -> bool {
         self.instantiable() && self.is_component()
     }
@@ -486,6 +488,7 @@ fn catalog_after_creation(root: &Path, name: &str, concrete: bool) -> Result<(),
         ))
     }
 }
+#[cfg_attr(test, allow(dead_code))] // Its only caller opens the code editor, which tests skip.
 pub fn source(root: &Path, name: &str) -> PathBuf {
     catalog(root)
         .ok()

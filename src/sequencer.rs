@@ -1148,16 +1148,15 @@ impl View {
             && ui.is_window_hovered()
             && !ui.is_any_item_hovered()
             && !ui.is_any_item_active()
+            && let Some((id, group, lane, expandable)) = hovered_row
         {
-            if let Some((id, group, lane, expandable)) = hovered_row {
-                if (group || expandable) && mouse[0] < origin[0] + 44. {
-                    if !self.collapsed.insert(id) {
-                        self.collapsed.remove(&id);
-                    }
-                } else {
-                    self.track = Some(id);
-                    self.lane = lane;
+            if (group || expandable) && mouse[0] < origin[0] + 44. {
+                if !self.collapsed.insert(id) {
+                    self.collapsed.remove(&id);
                 }
+            } else {
+                self.track = Some(id);
+                self.lane = lane;
             }
         }
         if !ui.is_mouse_down(MouseButton::Left) {

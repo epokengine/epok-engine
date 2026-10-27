@@ -5,6 +5,7 @@
 //! into this representation. Emitters only adapt their expression payload.
 use crate::{reflection_schema as schema, script_ir::Span};
 
+#[allow(dead_code)] // Emitters only validate calls through it today; the fields are not read yet.
 #[derive(Clone, Debug)]
 pub enum Receiver<T> {
     Instance { value: T, value_type: schema::Type },
@@ -12,6 +13,7 @@ pub enum Receiver<T> {
     Value { value: T, value_type: schema::Type },
 }
 
+#[allow(dead_code)] // Emitters only validate calls through it today; the fields are not read yet.
 #[derive(Clone, Debug)]
 pub struct Argument<T> {
     pub parameter_id: String,
@@ -19,6 +21,7 @@ pub struct Argument<T> {
     pub value_type: schema::Type,
 }
 
+#[allow(dead_code)] // Emitters only validate calls through it today; the fields are not read yet.
 #[derive(Clone, Debug)]
 pub struct ResolvedCall<T> {
     pub operation_id: String,
@@ -65,6 +68,7 @@ impl<T> ResolvedCall<T> {
         })
     }
 
+    #[cfg(test)]
     pub fn reentrant(&self) -> bool {
         matches!(
             self.effect,

@@ -501,15 +501,6 @@ impl GameplayFlavor {
             Self::Lua => "Lua",
         }
     }
-    pub fn describe(self) -> &'static str {
-        match self {
-            Self::Cpp => "Native component source owned by the project.",
-            Self::Blueprint => "A visual graph authored in the project.",
-            Self::Lua => {
-                "Lua source authored in the project, built with the project's Lua execution setting."
-            }
-        }
-    }
     pub fn parse(value: &str) -> Option<Self> {
         Self::ALL.into_iter().find(|f| f.key() == value)
     }
@@ -573,6 +564,7 @@ pub fn creation_options(template: &str, gameplay: &str) -> Result<CreateOptions,
 
 /// Creation with the historic signature: C++ starter gameplay for a PlayStation
 /// project. Existing callers and old automation keep working unchanged.
+#[cfg(test)]
 pub fn create(destination: &Path, name: &str, template: Template) -> Result<Project, String> {
     create_with_options(destination, name, CreateOptions::new(template))
 }

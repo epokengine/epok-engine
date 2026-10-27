@@ -123,10 +123,10 @@ struct Slot {
 }
 impl Slot {
     fn stop(&mut self) {
-        if self.refreshed.is_some() {
-            if let Some(motors) = &self.motors {
-                motors.stop();
-            }
+        if self.refreshed.is_some()
+            && let Some(motors) = &self.motors
+        {
+            motors.stop();
         }
         self.refreshed = None;
         self.value = (0, false);
@@ -211,28 +211,30 @@ impl Driver {
                 slot.key = key;
             }
             let mut wanted = (0, false, 0);
-            if play_allowed && key != slot.blocked {
-                if let (Some(s), Some(command)) = (fresh, command) {
-                    let age = now
-                        .saturating_duration_since(s.received)
-                        .as_micros()
-                        .min(u128::from(u32::MAX)) as u32;
-                    let remaining = command.remaining_us.saturating_sub(age);
-                    if command.identity == input.identity(port) && remaining != 0 {
-                        wanted = (command.large, command.small, remaining);
-                    }
+            if play_allowed
+                && key != slot.blocked
+                && let (Some(s), Some(command)) = (fresh, command)
+            {
+                let age = now
+                    .saturating_duration_since(s.received)
+                    .as_micros()
+                    .min(u128::from(u32::MAX)) as u32;
+                let remaining = command.remaining_us.saturating_sub(age);
+                if command.identity == input.identity(port) && remaining != 0 {
+                    wanted = (command.large, command.small, remaining);
                 }
             }
-            if let Some((selected, identity, end)) = self.test {
-                if selected == port && identity == input.identity(port) {
-                    wanted = (
-                        192,
-                        true,
-                        end.saturating_duration_since(now)
-                            .as_micros()
-                            .min(u128::from(u32::MAX)) as u32,
-                    );
-                }
+            if let Some((selected, identity, end)) = self.test
+                && selected == port
+                && identity == input.identity(port)
+            {
+                wanted = (
+                    192,
+                    true,
+                    end.saturating_duration_since(now)
+                        .as_micros()
+                        .min(u128::from(u32::MAX)) as u32,
+                );
             }
             if slot.failed || wanted.2 == 0 || (wanted.0 == 0 && !wanted.1) {
                 slot.stop();
