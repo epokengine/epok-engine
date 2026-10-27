@@ -120,6 +120,70 @@ impl TextureBank {
         );
     }
 }
+/// The 2D screen layers of a Native PC frame, one array layer each, at the display size.
+struct LayerBank {
+    texture: wgpu::Texture,
+    bind_group: wgpu::BindGroup,
+}
+impl LayerBank {
+    fn new(
+        device: &wgpu::Device,
+        layout: &wgpu::BindGroupLayout,
+        camera: &wgpu::Buffer,
+        sampler: &wgpu::Sampler,
+        size: wgpu::Extent3d,
+    ) -> Self {
+        let texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Scene screen layers"),
+            size,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            view_formats: &[],
+        });
+        let view = texture.create_view(&wgpu::TextureViewDescriptor {
+            dimension: Some(wgpu::TextureViewDimension::D2Array),
+            ..Default::default()
+        });
+        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Scene screen layers"),
+            layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: camera.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::TextureView(&view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::Sampler(sampler),
+                },
+            ],
+        });
+        Self {
+            texture,
+            bind_group,
+        }
+    }
+}
+/// The depth-buffer value at the near edge of ordering-table `bucket` (a quarter world unit
+/// of camera depth each) through the scene shader's projection: a layer there hides the
+/// geometry behind that edge, as the console's table draws it before the layer.
+fn layer_depth(bucket: u16) -> f32 {
+    const NEAR: f32 = 1.;
+    const FAR: f32 = 20000.;
+    let depth = f32::from(bucket) * 0.25;
+    if depth <= NEAR {
+        0.
+    } else {
+        (depth - NEAR) * FAR / (FAR - NEAR) / depth
+    }
+}
 struct Vertices {
     buffer: wgpu::Buffer,
     capacity: u64,
@@ -168,6 +232,10 @@ pub struct SceneGpu {
     shadows: Vertices,
     line_pipeline: wgpu::RenderPipeline,
     background_pipeline: wgpu::RenderPipeline,
+    /// Screen layers under the 3D world (no depth), then those inside it (depth-tested).
+    layer_pipelines: [wgpu::RenderPipeline; 2],
+    layer_bank: Option<LayerBank>,
+    layer_vertices: Vertices,
     camera: wgpu::Buffer,
     depth: wgpu::TextureView,
     mesh: Vertices,
@@ -216,6 +284,9 @@ struct RenderInput<'a> {
     split_static: bool,
     baked_selection: Option<&'a crate::baked_preview::Selection>,
     baked_revision: u64,
+    /// Native PC 2D layers composed under and inside the 3D image, each `layer_size`.
+    screen_layers: &'a [crate::hud_native::ScreenLayer],
+    layer_size: [u32; 2],
 }
 /// Runtime-only skeletal state that changes the generated vertex buffer.
 ///
@@ -510,6 +581,52 @@ impl SceneGpu {
                 cache: None,
             })
         };
+        // Screen layers: under the 3D world they neither test nor write depth; inside it
+        // their opaque texels test and write their layer's depth like geometry.
+        let make_layer_pipeline = |inside: bool| {
+            const ATTRIBUTES: [wgpu::VertexAttribute; 3] =
+                wgpu::vertex_attr_array![0=>Float32x3,1=>Float32x3,2=>Float32x4];
+            device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                label: Some("Scene screen layer"),
+                layout: Some(&pipeline_layout),
+                vertex: wgpu::VertexState {
+                    module: &shader,
+                    entry_point: Some("layer_vertex"),
+                    compilation_options: Default::default(),
+                    buffers: &[wgpu::VertexBufferLayout {
+                        array_stride: 40,
+                        step_mode: wgpu::VertexStepMode::Vertex,
+                        attributes: &ATTRIBUTES,
+                    }],
+                },
+                primitive: Default::default(),
+                depth_stencil: Some(wgpu::DepthStencilState {
+                    format: wgpu::TextureFormat::Depth32Float,
+                    depth_write_enabled: inside,
+                    depth_compare: if inside {
+                        wgpu::CompareFunction::LessEqual
+                    } else {
+                        wgpu::CompareFunction::Always
+                    },
+                    stencil: Default::default(),
+                    bias: Default::default(),
+                }),
+                multisample: Default::default(),
+                fragment: Some(wgpu::FragmentState {
+                    module: &shader,
+                    entry_point: Some("layer_fragment"),
+                    compilation_options: Default::default(),
+                    targets: &[Some(wgpu::ColorTargetState {
+                        format: FORMAT,
+                        blend: None,
+                        write_mask: wgpu::ColorWrites::ALL,
+                    })],
+                }),
+                multiview: None,
+                cache: None,
+            })
+        };
+        let layer_pipelines = [make_layer_pipeline(false), make_layer_pipeline(true)];
         let depth = device
             .create_texture(&wgpu::TextureDescriptor {
                 label: Some("Scene depth"),
@@ -579,6 +696,9 @@ impl SceneGpu {
                 0,
                 0,
             ),
+            layer_pipelines,
+            layer_bank: None,
+            layer_vertices: Vertices::new(device),
             camera,
             depth,
             mesh: Vertices::new(device),
@@ -653,6 +773,8 @@ impl SceneGpu {
                 split_static: true,
                 baked_selection: editor.baked_preview.filter(),
                 baked_revision: editor.baked_preview.revision,
+                screen_layers: &[],
+                layer_size: [0; 2],
             },
         );
     }
@@ -707,6 +829,8 @@ impl SceneGpu {
                 split_static: true,
                 baked_selection: None,
                 baked_revision: 0,
+                screen_layers: &frame.screen_layers,
+                layer_size: frame.hud_size,
             },
         );
     }
@@ -742,6 +866,8 @@ impl SceneGpu {
                 split_static: false,
                 baked_selection: None,
                 baked_revision: 0,
+                screen_layers: &[],
+                layer_size: [0; 2],
             },
         );
     }
@@ -777,6 +903,8 @@ impl SceneGpu {
                 split_static: false,
                 baked_selection: None,
                 baked_revision: 0,
+                screen_layers: &[],
+                layer_size: [0; 2],
             },
         );
     }
@@ -1003,6 +1131,70 @@ impl SceneGpu {
         let (brush_fill, brush_ring) = brush_overlay(scene, input.terrain);
         self.brush_fill.upload(device, queue, &brush_fill);
         self.brush_edges.upload(device, queue, &brush_ring);
+        // Native PC 2D layers: one full-screen triangle each, the under_3d canvases first,
+        // then the Depth2D buckets. Vertex counts of the two groups.
+        let mut layer_draws = [0u32; 2];
+        if !input.screen_layers.is_empty() {
+            let size = wgpu::Extent3d {
+                width: input.layer_size[0].max(1),
+                height: input.layer_size[1].max(1),
+                depth_or_array_layers: input.screen_layers.len() as u32,
+            };
+            if self
+                .layer_bank
+                .as_ref()
+                .is_none_or(|bank| bank.texture.size() != size)
+            {
+                self.layer_bank = Some(LayerBank::new(
+                    device,
+                    &self.texture_layout,
+                    &self.camera,
+                    &self.texture_sampler,
+                    size,
+                ));
+            }
+            let bank = self.layer_bank.as_ref().expect("screen layer bank");
+            let mut vertices = Vec::new();
+            for inside in [false, true] {
+                for (index, layer) in input.screen_layers.iter().enumerate() {
+                    if layer.bucket.is_some() != inside {
+                        continue;
+                    }
+                    if layer.rgba.len() == (size.width * size.height * 4) as usize {
+                        queue.write_texture(
+                            wgpu::TexelCopyTextureInfo {
+                                texture: &bank.texture,
+                                mip_level: 0,
+                                origin: wgpu::Origin3d {
+                                    x: 0,
+                                    y: 0,
+                                    z: index as u32,
+                                },
+                                aspect: wgpu::TextureAspect::All,
+                            },
+                            &layer.rgba,
+                            wgpu::TexelCopyBufferLayout {
+                                offset: 0,
+                                bytes_per_row: Some(size.width * 4),
+                                rows_per_image: Some(size.height),
+                            },
+                            wgpu::Extent3d {
+                                depth_or_array_layers: 1,
+                                ..size
+                            },
+                        );
+                    }
+                    let z = layer.bucket.map_or(0.5, layer_depth);
+                    for [x, y] in [[-1f32, -1.], [3., -1.], [-1., 3.]] {
+                        for f in [x, y, z, 0., 0., 0., 0., 0., index as f32, 0.] {
+                            vertices.extend_from_slice(&f.to_le_bytes());
+                        }
+                    }
+                    layer_draws[usize::from(inside)] += 3;
+                }
+            }
+            self.layer_vertices.upload(device, queue, &vertices);
+        }
         let (s, c) = view.yaw.sin_cos();
         let (sp, cp) = view.pitch.sin_cos();
         let uniform = [
@@ -1058,6 +1250,22 @@ impl SceneGpu {
         if input.background.is_none() || input.sky_gradient.is_some() {
             pass.set_pipeline(&self.background_pipeline);
             pass.draw(0..3, 0..1);
+        }
+        if layer_draws != [0; 2]
+            && let Some(bank) = &self.layer_bank
+        {
+            pass.set_bind_group(0, &bank.bind_group, &[]);
+            pass.set_vertex_buffer(0, self.layer_vertices.buffer.slice(..));
+            let [under, inside] = layer_draws;
+            if under > 0 {
+                pass.set_pipeline(&self.layer_pipelines[0]);
+                pass.draw(0..under, 0..1);
+            }
+            if inside > 0 {
+                pass.set_pipeline(&self.layer_pipelines[1]);
+                pass.draw(under..under + inside, 0..1);
+            }
+            pass.set_bind_group(0, &self.texture_banks[0].bind_group, &[]);
         }
         if !input.wire {
             if split_static && self.static_mesh.count > 0 {
@@ -2057,6 +2265,7 @@ mod tests {
             camera: Some(0),
             hud_rgba: vec![],
             hud_size: size.map(u32::from),
+            screen_layers: vec![],
             stats: [0; 5],
             audio_voices: 0,
             audio_pending: 0,
@@ -2547,6 +2756,8 @@ mod tests {
                     split_static: false,
                     baked_selection: None,
                     baked_revision: 0,
+                    screen_layers: &[],
+                    layer_size: [0; 2],
                 },
             );
             queue.submit(Some(encoder.finish()));
@@ -2669,6 +2880,8 @@ mod tests {
                     split_static: false,
                     baked_selection: None,
                     baked_revision: 0,
+                    screen_layers: &[],
+                    layer_size: [0; 2],
                 },
             );
             queue.submit(Some(encoder.finish()));
@@ -2801,6 +3014,8 @@ mod tests {
                     split_static: false,
                     baked_selection: None,
                     baked_revision: 0,
+                    screen_layers: &[],
+                    layer_size: [0; 2],
                 },
             );
             queue.submit(Some(encoder.finish()));
@@ -3024,6 +3239,8 @@ mod tests {
                 split_static: false,
                 baked_selection: bake.filter(),
                 baked_revision: bake.revision,
+                screen_layers: &[],
+                layer_size: [0; 2],
             },
         );
         queue.submit(Some(encoder.finish()));
@@ -3428,6 +3645,8 @@ mod tests {
                     split_static: false,
                     baked_selection: None,
                     baked_revision: 0,
+                    screen_layers: &[],
+                    layer_size: [0; 2],
                 },
             );
             encoder.copy_texture_to_buffer(
@@ -3693,6 +3912,8 @@ mod tests {
                     split_static: true,
                     baked_selection: None,
                     baked_revision: 0,
+                    screen_layers: &[],
+                    layer_size: [0; 2],
                 },
             );
             queue.submit(Some(encoder.finish()));

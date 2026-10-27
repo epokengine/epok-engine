@@ -33,6 +33,7 @@ fn editor_state_exposes_native_frames_without_emulator_counters() {
         camera: Some(3),
         hud_rgba: vec![],
         hud_size: [512, 240],
+        screen_layers: vec![],
         stats: [0; 5],
         audio_voices: 0,
         audio_pending: 0,

@@ -88,6 +88,7 @@ const ClassDescriptor object_classes[] = {
     {Joint2DComponent::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::World2D, world2d_bit, ObjectClassMultiple, &object_construct<Joint2DComponent>, &object_destruct, sizeof(Joint2DComponent), alignof(Joint2DComponent), &ObjectPool<Joint2DComponent, 4>::acquire, &ObjectPool<Joint2DComponent, 4>::release},
     {SubViewport2DComponent::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::World2D, world2d_bit, 0, &object_construct<SubViewport2DComponent>, &object_destruct, sizeof(SubViewport2DComponent), alignof(SubViewport2DComponent), &ObjectPool<SubViewport2DComponent, 4>::acquire, &ObjectPool<SubViewport2DComponent, 4>::release},
     {SplitScreen2DComponent::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::World2D, world2d_bit, 0, &object_construct<SplitScreen2DComponent>, &object_destruct, sizeof(SplitScreen2DComponent), alignof(SplitScreen2DComponent), &ObjectPool<SplitScreen2DComponent, 4>::acquire, &ObjectPool<SplitScreen2DComponent, 4>::release},
+    {Depth2DComponent::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::World2D, world2d_bit, 0, &object_construct<Depth2DComponent>, &object_destruct, sizeof(Depth2DComponent), alignof(Depth2DComponent), &ObjectPool<Depth2DComponent, 4>::acquire, &ObjectPool<Depth2DComponent, 4>::release},
     {Listener2D::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::None, world2d_bit, ObjectClassMultiple, &object_construct<Listener2D>, &object_destruct, sizeof(Listener2D), alignof(Listener2D), &ObjectPool<Listener2D, 4>::acquire, &ObjectPool<Listener2D, 4>::release},
     {Level::static_class_id, Object::static_class_id, ObjectFamily::Level, ObjectDomain::None, 0, ObjectClassAbstract, nullptr, nullptr, sizeof(Level), alignof(Level), nullptr, nullptr},
 };
@@ -578,6 +579,64 @@ void canvas_layers() {
     assert(count == 2 && draws[items[0].index].x[0] == 12);
     canvas->set_visible(false);
     assert(world2d::collect_sprites(draws, items, scratch, 4, size) == 1);
+}
+
+// 12b. Under_3d canvases sort before every other canvas; Depth2D drawables (and those
+// attached below them) form the Depth3D phase only in a view with a 3D world, and their
+// bucket is the camera depth in quarter units plus the bias, clamped to the table.
+void depth_phases() {
+    reset();
+    auto size = [](int index, uint16_t& w, uint16_t& h) { if (index != 3) return false; w = 16; h = 16; return true; };
+    auto* background = spawn<Actor2D>("Background", 40, 40);
+    auto* backdrop = game_level.add_component<CanvasLayer2DComponent>(*background, "Canvas");
+    backdrop->set_layer(5);  // a high layer still draws first when under the 3D world
+    backdrop->set_under_3d(true);
+    auto* hud = spawn<Actor2D>("Hud", 0, 0);
+    game_level.add_component<CanvasLayer2DComponent>(*hud, "Canvas");
+    auto* masks = spawn<Actor2D>("Masks", 0, 0);
+    game_level.add_component<CanvasLayer2DComponent>(*masks, "Canvas");
+    auto* depth = game_level.add_component<Depth2DComponent>(*masks, "Depth");
+    depth->set_distance(q(10));
+    depth->set_bias(2);
+    auto* pillar = spawn<Actor2D>("Pillar", 60, 60);
+    root(pillar).attach_parent = root(masks).id();
+    auto* icon = spawn<Actor2D>("Icon", 80, 80);
+    root(icon).attach_parent = root(hud).id();
+    Actor2D* owners[3] = {background, pillar, icon};
+    for (Actor2D* owner : owners) game_level.add_component<Sprite2DComponent>(*owner, "Sprite")->texture = 3;
+    step();
+    world2d::SpriteDraw draws[4];
+    world2d::DrawItem items[4], scratch[4];
+    auto phase = [&](size_t i) { return items[i].phase; };
+    // Without a 3D world the pillar stays on its canvas (layer 1, after the HUD icon).
+    size_t count = world2d::collect_sprites(draws, items, scratch, 4, size);
+    assert(count == 3 && phase(0) == world2d::DrawPhase::Under3D && draws[items[0].index].x[0] == 32);
+    assert(phase(1) == world2d::DrawPhase::Over3D && phase(2) == world2d::DrawPhase::Over3D);
+    assert(draws[items[1].index].x[0] == 52 && !draws[items[1].index].depth);
+    assert(world2d::stats.under_3d == 1 && world2d::stats.in_3d == 0);
+    // With one, the attached pillar joins the table through its parent's Depth2D.
+    world2d::render_pass.depth = true;
+    count = world2d::collect_sprites(draws, items, scratch, 4, size);
+    size_t first = 0, last = 0;
+    world2d::phase_range(items, count, world2d::DrawPhase::Depth3D, first, last);
+    assert(count == 3 && first == 1 && last == 2 && world2d::stats.in_3d == 1);
+    assert(draws[items[1].index].depth == depth && draws[items[1].index].x[0] == 52);
+    world2d::phase_range(items, count, world2d::DrawPhase::Over3D, first, last);
+    assert(first == 2 && last == 3 && draws[items[2].index].x[0] == 72);
+    // 10 units are bucket 40; the bias moves it to 42. An anchor without a 3D position (a 2D
+    // actor has no entity slot) keeps the distance.
+    auto anchored = [](const ActorData&, int32_t& z) { z = 3 * 4096; return true; };
+    assert(world2d::depth_bucket_of(*depth, anchored) == 42);
+    depth->set_anchor(pillar->id());
+    assert(world2d::depth_bucket_of(*depth, anchored) == 42);
+    assert(world2d::depth_bucket(-4096, 0) == 0 && world2d::depth_bucket(200 * 4096, 0) == world2d::depth_buckets - 1);
+    assert(world2d::depth_bucket(4096, -10) == 0 && world2d::depth_bucket(4096, 3) == 7);
+    // A disabled Depth2D leaves the pillar on its canvas.
+    depth->set_enabled(false);
+    count = world2d::collect_sprites(draws, items, scratch, 4, size);
+    world2d::phase_range(items, count, world2d::DrawPhase::Depth3D, first, last);
+    assert(first == last && world2d::stats.in_3d == 0);
+    world2d::render_pass = world2d::RenderPass{};
 }
 
 // 13. Followers walk a path at their speed, wrap, bounce, turn with it and carry riders.
@@ -1179,6 +1238,7 @@ int main() {
     tile_drawing();
     parallax();
     canvas_layers();
+    depth_phases();
     path_follow();
     shapes();
     particles();

@@ -2,9 +2,9 @@
   "nugget_revision": "bfc3f65010efaaf979e10852e4cf203a2eff1b13",
   "epok": {
     "headers": 130,
-    "types": 555,
-    "callables": 2196,
-    "properties": 3187
+    "types": 559,
+    "callables": 2216,
+    "properties": 3207
   },
   "psyqo": {
     "headers": 53,
@@ -1267,20 +1267,20 @@
       "family": "epok",
       "header": "world2d_render.hpp",
       "slug": "world2d-render",
-      "callables": 1,
-      "types": 1,
-      "properties": 1,
-      "source_sha256": "2e3e2de87c1d7df5c96e6b87710887b793e0a7d9adc87f172e26ca099495ec1a",
+      "callables": 4,
+      "types": 3,
+      "properties": 3,
+      "source_sha256": "9da6ea4571776cf2ea03cf732fc9abdec190aa426892e163167e00977e37243a",
       "diagnostics": []
     },
     {
       "family": "epok",
       "header": "world2d_service.hpp",
       "slug": "world2d-service",
-      "callables": 50,
+      "callables": 52,
       "types": 10,
-      "properties": 75,
-      "source_sha256": "09360bf6067f4d1e651972de4b12f8419429040ab3434ca5ef9ed02ea4e5612f",
+      "properties": 79,
+      "source_sha256": "2e642a4cd193333adfce658ccade8048bc7344bf0f0ad11200d85d79e9fc51bc",
       "diagnostics": []
     },
     {
@@ -1297,10 +1297,10 @@
       "family": "epok",
       "header": "world2d_tiles.hpp",
       "slug": "world2d-tiles",
-      "callables": 48,
-      "types": 9,
-      "properties": 75,
-      "source_sha256": "f468a06e0073b2d3b481f1348ca806520a35eeaa509f4bbf3c7b9cd1b61658d3",
+      "callables": 63,
+      "types": 10,
+      "properties": 85,
+      "source_sha256": "67c296e2870b84189e8085784dc7333d34afd4c8976dffa963409f463da1784c",
       "diagnostics": []
     },
     {
@@ -1308,9 +1308,9 @@
       "header": "world2d_viewports.hpp",
       "slug": "world2d-viewports",
       "callables": 23,
-      "types": 3,
-      "properties": 32,
-      "source_sha256": "bd9c2db31c89f3449c68f0fe299b9554eb1595f646def72dafb3579d8943f270",
+      "types": 4,
+      "properties": 36,
+      "source_sha256": "9f88477687b413e42f350c616f3b9f03c9189da87bec730e07dd9c6f32d5f13f",
       "diagnostics": []
     },
     {

@@ -366,20 +366,29 @@ pub fn compile(scene: &Scene) -> (Vec<Command>, [u32; 6]) {
 }
 
 pub fn render(scene: &Scene, commands: &[Command], seconds: f32, fade: u8) -> Vec<u8> {
-    render_with_background(scene, scene, commands, seconds, fade, true)
+    render_with_background(scene, scene, commands, seconds, fade, true).0
 }
 
-/// Transparent HUD layer for Native PC Play. Geometry is rendered by the host
-/// scene backend; this layer contains only console-quantized HUD pixels and fade.
-/// Commands from resident scene banks use global resource indices; palette
-/// animation and display state belong to the active scene only.
-pub fn render_overlay_with_resources(
+/// A screen-sized RGBA layer of the 2D world that Native PC Play composes with the 3D image
+/// (kind 9 opens one, kind 8 returns to the screen): the under_3d canvases, with no bucket,
+/// or the Depth2D entries of one ordering-table bucket. Transparent texels stay alpha 0.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ScreenLayer {
+    pub bucket: Option<u16>,
+    pub rgba: Vec<u8>,
+}
+
+/// Transparent HUD layer for Native PC Play, and the screen layers the commands drew apart
+/// from it. Geometry is rendered by the host scene backend; the HUD layer contains only
+/// console-quantized HUD pixels and fade. Commands from resident scene banks use global
+/// resource indices; palette animation and display state belong to the active scene only.
+pub fn render_overlay_layers(
     scene: &Scene,
     resources: &Scene,
     commands: &[Command],
     seconds: f32,
     fade: u8,
-) -> Vec<u8> {
+) -> (Vec<u8>, Vec<ScreenLayer>) {
     render_with_background(scene, resources, commands, seconds, fade, false)
 }
 
@@ -393,7 +402,7 @@ fn render_with_background(
     seconds: f32,
     fade: u8,
     opaque_background: bool,
-) -> Vec<u8> {
+) -> (Vec<u8>, Vec<ScreenLayer>) {
     let [width, height] = scene.display_size.map(usize::from);
     let mut pixels = if opaque_background {
         [33, 40, 52, 255].repeat(width * height)
@@ -456,6 +465,8 @@ fn render_with_background(
         pixels,
     }];
     let mut pictures: std::collections::BTreeMap<i32, usize> = Default::default();
+    // Screen layers: (bucket, index into `layers`).
+    let mut screens: Vec<(Option<u16>, usize)> = Vec::new();
     let mut current = 0usize;
     let mut clip = [0i32, 0, width as i32, height as i32];
     for Command(c) in commands {
@@ -485,6 +496,17 @@ fn render_with_background(
             }
             8 => {
                 current = 0;
+                clip = [0, 0, width as i32, height as i32];
+                continue;
+            }
+            9 => {
+                layers.push(Layer {
+                    width,
+                    height,
+                    pixels: vec![0; width * height * 4],
+                });
+                current = layers.len() - 1;
+                screens.push((u16::try_from(c[2]).ok().filter(|b| *b < 512), current));
                 clip = [0, 0, width as i32, height as i32];
                 continue;
             }
@@ -622,6 +644,13 @@ fn render_with_background(
             }
         }
     }
+    let screens = screens
+        .into_iter()
+        .map(|(bucket, index)| ScreenLayer {
+            bucket,
+            rgba: std::mem::take(&mut layers[index].pixels),
+        })
+        .collect();
     let mut pixels = layers.swap_remove(0).pixels;
     if fade > 0 {
         for p in pixels.chunks_exact_mut(4) {
@@ -630,7 +659,7 @@ fn render_with_background(
             }
         }
     }
-    pixels
+    (pixels, screens)
 }
 
 #[cfg(test)]
@@ -679,6 +708,39 @@ mod tests {
         // Inside the clip: the picture's green, through the PSX gain; outside: untouched.
         assert!(at(1, 1)[1] > 200 && at(1, 1)[0] == 0);
         assert_eq!(at(6, 1), &[33, 40, 52]);
+    }
+    #[test]
+    fn screen_layers_keep_their_pixels_apart_from_the_hud() {
+        let scene = Scene {
+            display_size: [8, 4],
+            ..Scene::default()
+        };
+        let command = |v: &[i32]| {
+            let mut c = [0i32; 24];
+            c[..v.len()].copy_from_slice(v);
+            Command(c)
+        };
+        let commands = vec![
+            // Under the 3D world: the left half red. Inside it at bucket 40: one blue pixel.
+            command(&[9, -1, -1]),
+            command(&[0, -1, -1, 0, 0, 4, 4, 0, 0, 0, 0, 255, 0, 0]),
+            command(&[8]),
+            command(&[9, -1, 40]),
+            command(&[0, -1, -1, 6, 1, 7, 2, 0, 0, 0, 0, 0, 0, 255]),
+            command(&[8]),
+            // The HUD itself: a white pixel.
+            command(&[0, -1, -1, 7, 3, 8, 4, 0, 0, 0, 0, 255, 255, 255]),
+        ];
+        let (hud, layers) = render_overlay_layers(&scene, &scene, &commands, 0., 0);
+        let alpha = |rgba: &[u8], x: usize, y: usize| rgba[(y * 8 + x) * 4 + 3];
+        assert_eq!(layers.len(), 2);
+        assert_eq!(layers[0].bucket, None);
+        assert_eq!(layers[1].bucket, Some(40));
+        assert!(alpha(&layers[0].rgba, 1, 1) == 255 && alpha(&layers[0].rgba, 6, 1) == 0);
+        assert!(alpha(&layers[1].rgba, 6, 1) == 255 && alpha(&layers[1].rgba, 1, 1) == 0);
+        assert_eq!(&layers[1].rgba[(8 + 6) * 4..(8 + 6) * 4 + 3], &[0, 0, 255]);
+        // The HUD layer holds only its own pixel.
+        assert!(alpha(&hud, 7, 3) == 255 && alpha(&hud, 1, 1) == 0 && alpha(&hud, 6, 1) == 0);
     }
     fn labelled(text: &str, font: Option<uuid::Uuid>) -> Scene {
         let mut s = Scene::default();

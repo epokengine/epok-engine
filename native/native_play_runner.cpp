@@ -101,6 +101,14 @@ epok::ActorData* camera_entity(){
     for(size_t i=0;i<epok::object_count;++i)if(valid(&epok::objects[i]))return &epok::objects[i];
     return nullptr;
 }
+// World to the active 3D camera's space (false without a camera). Refreshes world matrices.
+bool camera_space(Matrix& view){
+    auto* camera=camera_entity();if(!camera)return false;
+    refresh_world();const int index=epok::entity_index(camera);if(index<0)return false;
+    view=Matrix::identity();int current=index;unsigned depth=0;
+    while(current>=0&&size_t(current)<epok::object_count&&depth++<33){view=view.compose(inverse_local(epok::objects[current].transform));current=epok::objects[current].parent;}
+    return true;
+}
 void dispatch_trigger(const epok::TriggerEvent& event){
     const epok::DataHandle a{event.first,event.first_generation},b{event.second,event.second_generation};
     if(a.get()&&epok::is_active(a.get()))epok::dispatch_slot_trigger(a,b,event.phase);
@@ -145,10 +153,7 @@ bool set_active_camera(ActorData* camera){
 }
 DataHandle active_camera(){return handle(camera_entity());}
 bool camera_project(const Fixed* point,Fixed* screen){
-    if(!point||!screen)return false;auto* camera=camera_entity();if(!camera)return false;
-    refresh_world();const int index=entity_index(camera);if(index<0)return false;
-    auto view=Matrix::identity();int current=index;unsigned depth=0;
-    while(current>=0&&size_t(current)<object_count&&depth++<33){view=view.compose(inverse_local(objects[current].transform));current=objects[current].parent;}
+    if(!point||!screen)return false;Matrix view;if(!camera_space(view))return false;auto* camera=camera_entity();
     Fixed p[3];view.point(point,p);if(p[2]<=Fixed(0.25))return false;
     int32_t fov=camera->camera_settings.field_of_view.raw();if(fov<25*4096)fov=25*4096;if(fov>120*4096)fov=120*4096;
     const double focal=1.0/std::tan(double(fov)*3.14159265358979323846/(2.0*180.0*4096.0));
@@ -238,10 +243,13 @@ static void frame(){
 #ifdef EPOK_WORLD2D
     // The 2D world draws under the HUD, through the same command rasterizer: the
     // background of the active Camera2D when no 3D camera paints one, then every
-    // resolved sprite as a textured quad (texel corners are inclusive).
+    // resolved sprite as a textured quad (texel corners are inclusive). The under_3d
+    // canvases and each Depth2D bucket go to screen layers the editor composes with the
+    // 3D image, as the console orders them around its 3D world.
     {
         static epok::world2d::SpriteDraw draws[EPOK_WORLD2D_DRAW_ITEMS];
         static epok::world2d::DrawItem items[EPOK_WORLD2D_DRAW_ITEMS],scratch[EPOK_WORLD2D_DRAW_ITEMS];
+        static int buckets[EPOK_WORLD2D_DRAW_ITEMS];
         if(!camera_entity())if(const uint8_t* background=epok::world2d::service.background())sink.rectangle(-1,0,0,epok::display_width,epok::display_height,background);
         // Corners A, B, C, D; a transpose swaps the texture axes (B and C exchange texels).
         auto quad=[&](int texture,const int16_t* sx,const int16_t* sy,int su,int sv,int sw,int sh,bool flip_h,bool flip_v,bool transpose,const uint8_t* color){
@@ -251,45 +259,46 @@ static void frame(){
             const int u[4]={ul,transpose?ul:ur,transpose?ur:ul,ur},v[4]={vt,transpose?vb:vt,transpose?vt:vb,vb};
             sink.textured_quad(-1,texture,x,y,u,v,color);
         };
-        // One view: collect through the current render pass and emit its commands.
-        auto view=[&]{
-            const size_t count=epok::world2d::collect_sprites(draws,items,scratch,EPOK_WORLD2D_DRAW_ITEMS,[](int index,uint16_t& w,uint16_t& h){
+        auto collect=[&]{
+            return epok::world2d::collect_sprites(draws,items,scratch,EPOK_WORLD2D_DRAW_ITEMS,[](int index,uint16_t& w,uint16_t& h){
                 if(index<0||size_t(index)>=epok::texture_count)return false;w=epok::texture_assets[index].width;h=epok::texture_assets[index].height;return w>0&&h>0;});
-            for(size_t i=0;i<count;++i){
-                const auto& d=draws[items[i].index];
-                using epok::world2d::DrawKind;
-                if(d.kind==DrawKind::Line){
-                    // Flat quads: each segment takes the colour at its middle.
-                    epok::world2d::each_line_quad(d,[&](const epok::world2d::ShapeQuad& q){int x[4],y[4];uint8_t c[3];for(int k=0;k<4;++k){x[k]=q.x[k];y[k]=q.y[k];}for(int k=0;k<3;++k)c[k]=uint8_t((q.color[0][k]+q.color[1][k]+1)/2);sink.quad(-1,x,y,c);});
-                    continue;
-                }
-                if(d.kind==DrawKind::Polygon){
-                    const auto& shape=*static_cast<const epok::Polygon2DComponent*>(d.component);uint8_t c[3];for(int k=0;k<3;++k)c[k]=uint8_t((unsigned(shape.color[k])*d.color[k]+127)/255);
-                    const bool textured=shape.texels&&d.texture>=0&&size_t(d.texture)<epok::texture_count;
-                    // A triangle is a quad whose last corner repeats the third.
-                    epok::world2d::each_polygon_triangle(d,[&](const epok::world2d::ShapeTriangle& t){int x[4]={t.x[0],t.x[1],t.x[2],t.x[2]},y[4]={t.y[0],t.y[1],t.y[2],t.y[2]};
-                        if(textured){int u[4]={t.u[0],t.u[1],t.u[2],t.u[2]},v[4]={t.v[0],t.v[1],t.v[2],t.v[2]};sink.textured_quad(-1,int(d.texture),x,y,u,v,c);}else sink.quad(-1,x,y,c);});
-                    continue;
-                }
-                if(d.texture==-2){
-                    // A SubViewport2D's picture, drawn earlier this frame.
-                    const auto* picture=static_cast<const epok::SubViewport2DComponent*>(d.component);
-                    if(picture)quad(0x10000+int(picture->native_index),d.x,d.y,d.source[0],d.source[1],d.source[2],d.source[3],d.flip_h,d.flip_v,false,d.color);
-                    continue;
-                }
-                if(d.texture<0||size_t(d.texture)>=epok::texture_count)continue;
-                const auto& t=epok::texture_assets[d.texture];
-                if(d.kind==DrawKind::Tiles){
-                    epok::world2d::each_tile(d,t.width,t.height,[&](const epok::world2d::TileDraw& tile){quad(int(d.texture),tile.x,tile.y,tile.u,tile.v,tile.w,tile.h,tile.flip_h,tile.flip_v,tile.transpose,d.color);});
-                    continue;
-                }
-                if(d.kind==DrawKind::Particles){
-                    epok::world2d::each_particle(d,t.width,t.height,[&](const epok::world2d::SpriteDraw& p){quad(int(d.texture),p.x,p.y,p.source[0],p.source[1],p.source[2],p.source[3],false,false,false,p.color);});
-                    continue;
-                }
-                quad(int(d.texture),d.x,d.y,d.source[0],d.source[1],d.source[2],d.source[3],d.flip_h,d.flip_v,false,d.color);
-            }
         };
+        // One entry's commands.
+        auto emit=[&](const epok::world2d::SpriteDraw& d){
+            using epok::world2d::DrawKind;
+            if(d.kind==DrawKind::Line){
+                // Flat quads: each segment takes the colour at its middle.
+                epok::world2d::each_line_quad(d,[&](const epok::world2d::ShapeQuad& q){int x[4],y[4];uint8_t c[3];for(int k=0;k<4;++k){x[k]=q.x[k];y[k]=q.y[k];}for(int k=0;k<3;++k)c[k]=uint8_t((q.color[0][k]+q.color[1][k]+1)/2);sink.quad(-1,x,y,c);});
+                return;
+            }
+            if(d.kind==DrawKind::Polygon){
+                const auto& shape=*static_cast<const epok::Polygon2DComponent*>(d.component);uint8_t c[3];for(int k=0;k<3;++k)c[k]=uint8_t((unsigned(shape.color[k])*d.color[k]+127)/255);
+                const bool textured=shape.texels&&d.texture>=0&&size_t(d.texture)<epok::texture_count;
+                // A triangle is a quad whose last corner repeats the third.
+                epok::world2d::each_polygon_triangle(d,[&](const epok::world2d::ShapeTriangle& t){int x[4]={t.x[0],t.x[1],t.x[2],t.x[2]},y[4]={t.y[0],t.y[1],t.y[2],t.y[2]};
+                    if(textured){int u[4]={t.u[0],t.u[1],t.u[2],t.u[2]},v[4]={t.v[0],t.v[1],t.v[2],t.v[2]};sink.textured_quad(-1,int(d.texture),x,y,u,v,c);}else sink.quad(-1,x,y,c);});
+                return;
+            }
+            if(d.texture==-2){
+                // A SubViewport2D's picture, drawn earlier this frame.
+                const auto* picture=static_cast<const epok::SubViewport2DComponent*>(d.component);
+                if(picture)quad(0x10000+int(picture->native_index),d.x,d.y,d.source[0],d.source[1],d.source[2],d.source[3],d.flip_h,d.flip_v,false,d.color);
+                return;
+            }
+            if(d.texture<0||size_t(d.texture)>=epok::texture_count)return;
+            const auto& t=epok::texture_assets[d.texture];
+            if(d.kind==DrawKind::Tiles){
+                epok::world2d::each_tile(d,t.width,t.height,[&](const epok::world2d::TileDraw& tile){quad(int(d.texture),tile.x,tile.y,tile.u,tile.v,tile.w,tile.h,tile.flip_h,tile.flip_v,tile.transpose,d.color);});
+                return;
+            }
+            if(d.kind==DrawKind::Particles){
+                epok::world2d::each_particle(d,t.width,t.height,[&](const epok::world2d::SpriteDraw& p){quad(int(d.texture),p.x,p.y,p.source[0],p.source[1],p.source[2],p.source[3],false,false,false,p.color);});
+                return;
+            }
+            quad(int(d.texture),d.x,d.y,d.source[0],d.source[1],d.source[2],d.source[3],d.flip_h,d.flip_v,false,d.color);
+        };
+        // One view: collect through the current render pass and emit its commands.
+        auto view=[&]{const size_t count=collect();for(size_t i=0;i<count;++i)emit(draws[items[i].index]);};
         // Pictures first, as on the console; then the views.
         using epok::world2d::RenderPass;
         RenderPass main;uint16_t pictures=0;
@@ -303,22 +312,54 @@ static void frame(){
             epok::world2d::render_pass=pass;view();
             sink.end_picture();
         });
-        if(auto* split=epok::world2d::active_split()){
+        // The screen view, collected once. A split screen draws the world canvases per half
+        // and Depth2D entries stay on their canvas; with a 3D camera they join its depths.
+        auto* split=epok::world2d::active_split();
+        Matrix view_3d;
+        const bool with_3d=camera_space(view_3d);
+        main.world=!split;main.depth=with_3d&&!split;
+        epok::world2d::render_pass=main;size_t count=collect();
+        using epok::world2d::DrawPhase;
+        size_t first=0,last=0;
+        // Without a 3D camera nothing is under them but the Camera2D background.
+        epok::world2d::phase_range(items,count,DrawPhase::Under3D,first,last);
+        if(first<last){
+            if(with_3d)sink.begin_layer(-1);
+            for(size_t i=first;i<last;++i)emit(draws[items[i].index]);
+            if(with_3d)sink.end_picture();
+        }
+        epok::world2d::phase_range(items,count,DrawPhase::Depth3D,first,last);
+        for(size_t i=first;i<last;++i)buckets[i]=epok::world2d::depth_bucket_of(*draws[items[i].index].depth,[&](const epok::ActorData& entity,int32_t& z){
+            const int index=epok::entity_index(&entity);if(index<0||size_t(index)>=epok::object_count)return false;
+            Fixed position[3],camera[3];for(int r=0;r<3;++r)position[r]=world[index].values[r][3];
+            view_3d.point(position,camera);z=camera[2].raw();return true;});
+        // One layer per bucket; inside it, entries keep their 2D order.
+        for(size_t i=first;i<last;++i){
+            bool seen=false;for(size_t j=first;j<i&&!seen;++j)seen=buckets[j]==buckets[i];
+            if(seen)continue;
+            sink.begin_layer(buckets[i]);
+            for(size_t j=i;j<last;++j)if(buckets[j]==buckets[i])emit(draws[items[j].index]);
+            sink.end_picture();
+        }
+        if(split){
             for(int i=0;i<2;++i){
                 epok::Camera2D through;if(!split->view(i,through))continue;
                 const int16_t* r=through.viewport;
                 sink.clip(r[0],r[1],r[0]+r[2],r[1]+r[3]);
                 if(auto* camera=epok::world2d::camera_on(split->cameras[i]))sink.rectangle(-1,r[0],r[1],r[0]+r[2],r[1]+r[3],camera->background);
-                RenderPass pass=main;pass.camera=&through;pass.screen=false;for(int k=0;k<4;++k)pass.clip[k]=r[k];
+                RenderPass pass=main;pass.camera=&through;pass.world=true;pass.screen=false;for(int k=0;k<4;++k)pass.clip[k]=r[k];
                 epok::world2d::render_pass=pass;view();
             }
             sink.clip(0,0,epok::display_width,epok::display_height);
-            if(split->divider){int16_t first[4];split->half(0,first);
-                if(split->side_by_side)sink.rectangle(-1,first[2],0,first[2]+split->divider,epok::display_height,split->divider_color);
-                else sink.rectangle(-1,0,first[3],epok::display_width,first[3]+split->divider,split->divider_color);}
-            main.world=false;
+            if(split->divider){int16_t half[4];split->half(0,half);
+                if(split->side_by_side)sink.rectangle(-1,half[2],0,half[2]+split->divider,epok::display_height,split->divider_color);
+                else sink.rectangle(-1,0,half[3],epok::display_width,half[3]+split->divider,split->divider_color);}
+            // The halves reused the draw list: collect the screen view again.
+            epok::world2d::render_pass=main;count=collect();
         }
-        epok::world2d::render_pass=main;view();
+        epok::world2d::render_pass=main;
+        epok::world2d::phase_range(items,count,DrawPhase::Over3D,first,last);
+        for(size_t i=first;i<last;++i)emit(draws[items[i].index]);
         epok::world2d::render_pass=RenderPass{};
     }
 #endif
