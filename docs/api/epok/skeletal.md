@@ -169,7 +169,7 @@ auto result = epok::skeletal_detail::pose_matrix(p);
 **Exact declaration**
 
 ```cpp
-__attribute__((noinline,optimize("O3"))) #endif void decode_vertices(const SkeletalMesh& model,const Animator& animator)
+__attribute__((noinline,optimize("O3"))) void decode_vertices(const SkeletalMesh& model,const Animator& animator)
 ```
 
 - **Declared at:** [line 115](../../../runtime/skeletal.hpp#L115)
@@ -307,7 +307,7 @@ object.pose(model, animator, aim_bone, aim_stop_bones, aim_pitch);
 **Exact declaration**
 
 ```cpp
-__attribute__((noinline,optimize("O3"))) #endif size_t pose_bones(const SkeletalMesh& model,const Animator& animator,int16_t aim_bone,const int16_t* aim_stop_bones,Fixed aim_pitch,uint32_t generation=0)
+__attribute__((noinline,optimize("O3"))) size_t pose_bones(const SkeletalMesh& model,const Animator& animator,int16_t aim_bone,const int16_t* aim_stop_bones,Fixed aim_pitch,uint32_t generation=0)
 ```
 
 - **Declared at:** [line 88](../../../runtime/skeletal.hpp#L88)

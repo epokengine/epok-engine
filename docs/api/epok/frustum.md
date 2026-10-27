@@ -536,7 +536,7 @@ auto result = epok::gpu_clip_safe<Point>(a, b, c);
 **Exact declaration**
 
 ```cpp
-__attribute__((always_inline)) #endif inline void narrow_chunk_bounds(const int32_t rows[3][3],const int32_t absolute[3][3], const int32_t translation[3],const int32_t vector[3], const int32_t extent[3],int32_t center[3],int32_t span[3], bool isolated_x)
+__attribute__((always_inline)) inline void narrow_chunk_bounds(const int32_t rows[3][3],const int32_t absolute[3][3], const int32_t translation[3],const int32_t vector[3], const int32_t extent[3],int32_t center[3],int32_t span[3], bool isolated_x)
 ```
 
 - **Declared at:** [line 91](../../../runtime/frustum.hpp#L91)

@@ -374,6 +374,9 @@ def source_signature(cursor, source_text: str) -> str:
     snippet = "".join(selected)
     snippet = re.sub(r"/\*.*?\*/", " ", snippet, flags=re.S)
     snippet = re.sub(r"//[^\n]*", " ", snippet)
+    # A declaration split by conditional compilation keeps the branch the target
+    # compiler sees; the directive lines themselves are not part of it.
+    snippet = re.sub(r"^[ \t]*#[^\n]*", " ", snippet, flags=re.M)
     paren_depth = 0
     bracket_depth = 0
     stop = len(snippet)

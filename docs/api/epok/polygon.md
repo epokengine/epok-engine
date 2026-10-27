@@ -312,7 +312,7 @@ auto result = epok::clip_polygon<Units>(buffers, count, planes, from);
 **Exact declaration**
 
 ```cpp
-template<class Units,class Distance=int64_t> #if defined(__GNUC__) && !defined(__clang__) __attribute__((noinline,optimize("O3"))) #endif int clip_polygon_distances(ClipVertex (&buffers)[2][12], int count, uint8_t planes, int& from)
+template<class Units,class Distance=int64_t> __attribute__((noinline,optimize("O3"))) int clip_polygon_distances(ClipVertex (&buffers)[2][12], int count, uint8_t planes, int& from)
 ```
 
 - **Declared at:** [line 191](../../../runtime/polygon.hpp#L191)

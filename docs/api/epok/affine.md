@@ -28,7 +28,7 @@ This module covers fixed-point affine transforms and matrix composition. It docu
 **Exact declaration**
 
 ```cpp
-__attribute__((noinline,optimize("O3"))) #endif Affine compose(const Affine& b) const
+__attribute__((noinline,optimize("O3"))) Affine compose(const Affine& b) const
 ```
 
 - **Declared at:** [line 47](../../../runtime/affine.hpp#L47)

@@ -149,7 +149,7 @@ auto result = epok::streaming_acquire_slot(page, gpu);
 **Exact declaration**
 
 ```cpp
-__attribute__((noinline)) #endif inline int streaming_acquire_slot_slow(uint32_t page, psyqo::GPU &gpu)
+__attribute__((noinline)) inline int streaming_acquire_slot_slow(uint32_t page, psyqo::GPU &gpu)
 ```
 
 - **Declared at:** [line 375](../../../runtime/streaming.hpp#L375)
@@ -238,7 +238,7 @@ epok::streaming_begin_working_set<Capacity>(pages, pins);
 **Exact declaration**
 
 ```cpp
-__attribute__((noinline)) #endif inline bool streaming_bind_chain(const MeshGeometry *root, StreamObjectBinding &binding, psyqo::GPU &gpu)
+__attribute__((noinline)) inline bool streaming_bind_chain(const MeshGeometry *root, StreamObjectBinding &binding, psyqo::GPU &gpu)
 ```
 
 - **Declared at:** [line 587](../../../runtime/streaming.hpp#L587)
@@ -764,7 +764,7 @@ auto result = epok::streaming_required_page_ready(page, serviced);
 **Exact declaration**
 
 ```cpp
-__attribute__((noinline)) #endif inline StreamMeshView streaming_resolve_archive_mesh(const MeshGeometry &mesh, psyqo::GPU &gpu, bool metadata_validated)
+__attribute__((noinline)) inline StreamMeshView streaming_resolve_archive_mesh(const MeshGeometry &mesh, psyqo::GPU &gpu, bool metadata_validated)
 ```
 
 - **Declared at:** [line 560](../../../runtime/streaming.hpp#L560)

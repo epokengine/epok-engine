@@ -2,10 +2,10 @@
   "schema_version": 2,
   "initiative": "gameplay-api-parity",
   "baseline": {
-    "commit": "7de2414ec4871c96defd7d0aeb67053bd1a036a9",
-    "branch": "fix/regenerate-api-reference",
+    "commit": "edd266e43a31d49171b13bc7c9afe752f58e5cfd",
+    "branch": "develop",
     "catalog": "docs/api/catalog.json",
-    "catalog_sha256": "68c228c246e98c99be43ac87c663bf471320ec140f141859da55c25b1e0aa02a",
+    "catalog_sha256": "33837bc6bc5e3d92fefa86c1795079020abe595c07a181818708b22b34bd12d7",
     "catalog_schema": 1,
     "nugget_revision": "c702235f366fb1cd8c18e0a5a5392e0acae8a079",
     "source_hashes": {
@@ -4565,7 +4565,7 @@
           "qualified": "epok::Affine::compose",
           "source": "runtime/affine.hpp",
           "line": 47,
-          "signature": "__attribute__((noinline,optimize(\"O3\"))) #endif Affine compose(const Affine& b) const",
+          "signature": "__attribute__((noinline,optimize(\"O3\"))) Affine compose(const Affine& b) const",
           "result": "Affine<Number>",
           "parameters": [
             {
@@ -4580,10 +4580,10 @@
           "virtual": false
         }
       ],
-      "declaration_hash": "047e0bf46b8d72651b3a7c7604dd98f86bc81f67fac157ee838a4edf8617ac7f",
+      "declaration_hash": "66d5f3470d74e3cc290fc3d6e6dbbe2a953190068debff6873692286387c4126",
       "disposition": "internal_implementation",
       "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
-      "canonical_public_declaration": "__attribute__((noinline,optimize(\"O3\"))) #endif Affine compose(const Affine& b) const",
+      "canonical_public_declaration": "__attribute__((noinline,optimize(\"O3\"))) Affine compose(const Affine& b) const",
       "types_and_directions": {
         "parameters": [
           {
@@ -8897,7 +8897,7 @@
           "qualified": "epok::BlobRenderer::draw",
           "source": "runtime/shadows.hpp",
           "line": 16,
-          "signature": "template<size_t N,typename Table> #ifdef __mips__ __attribute__((noinline,optimize(\"O3\"))) #endif void draw(int parity,Table& table,const std::array<ActorData,N>& objects,const std::array<Affine<Fixed>,N>& world,size_t count,const CameraSpace<Fixed>& view)",
+          "signature": "template<size_t N,typename Table> __attribute__((noinline,optimize(\"O3\"))) void draw(int parity,Table& table,const std::array<ActorData,N>& objects,const std::array<Affine<Fixed>,N>& world,size_t count,const CameraSpace<Fixed>& view)",
           "result": "void",
           "parameters": [
             {
@@ -8937,10 +8937,10 @@
           "virtual": false
         }
       ],
-      "declaration_hash": "b3c11c4b9384793ce7f272e41b863079d9385465b025bb2239ac7a574ffe8509",
+      "declaration_hash": "82d7ebadc9c12d508ec9d05aeb4b7f92a867f0f676f82508eff17c3af2d77b13",
       "disposition": "internal_implementation",
       "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
-      "canonical_public_declaration": "template<size_t N,typename Table> #ifdef __mips__ __attribute__((noinline,optimize(\"O3\"))) #endif void draw(int parity,Table& table,const std::array<ActorData,N>& objects,const std::array<Affine<Fixed>,N>& world,size_t count,const CameraSpace<Fixed>& view)",
+      "canonical_public_declaration": "template<size_t N,typename Table> __attribute__((noinline,optimize(\"O3\"))) void draw(int parity,Table& table,const std::array<ActorData,N>& objects,const std::array<Affine<Fixed>,N>& world,size_t count,const CameraSpace<Fixed>& view)",
       "types_and_directions": {
         "parameters": [
           {
@@ -121533,7 +121533,7 @@
           "qualified": "epok::clip_polygon_distances",
           "source": "runtime/polygon.hpp",
           "line": 191,
-          "signature": "template<class Units,class Distance=int64_t> #if defined(__GNUC__) && !defined(__clang__) __attribute__((noinline,optimize(\"O3\"))) #endif int clip_polygon_distances(ClipVertex (&buffers)[2][12], int count, uint8_t planes, int& from)",
+          "signature": "template<class Units,class Distance=int64_t> __attribute__((noinline,optimize(\"O3\"))) int clip_polygon_distances(ClipVertex (&buffers)[2][12], int count, uint8_t planes, int& from)",
           "result": "int",
           "parameters": [
             {
@@ -121563,10 +121563,10 @@
           "virtual": false
         }
       ],
-      "declaration_hash": "07a7f2dc3799b5f56b9f2a24ef15d0f3726c4a8798ef69ce0348a5c99784b183",
+      "declaration_hash": "369c1d0470ef7f1a298133365622d545d250ddd55673fe2de10ad2b4929d1418",
       "disposition": "internal_implementation",
       "rationale": "Compiler, renderer, scheduler, storage, or backend machinery rather than a game-authored operation.",
-      "canonical_public_declaration": "template<class Units,class Distance=int64_t> #if defined(__GNUC__) && !defined(__clang__) __attribute__((noinline,optimize(\"O3\"))) #endif int clip_polygon_distances(ClipVertex (&buffers)[2][12], int count, uint8_t planes, int& from)",
+      "canonical_public_declaration": "template<class Units,class Distance=int64_t> __attribute__((noinline,optimize(\"O3\"))) int clip_polygon_distances(ClipVertex (&buffers)[2][12], int count, uint8_t planes, int& from)",
       "types_and_directions": {
         "parameters": [
           {
@@ -150292,7 +150292,7 @@
           "qualified": "epok::narrow_chunk_bounds",
           "source": "runtime/frustum.hpp",
           "line": 91,
-          "signature": "__attribute__((always_inline)) #endif inline void narrow_chunk_bounds(const int32_t rows[3][3],const int32_t absolute[3][3], const int32_t translation[3],const int32_t vector[3], const int32_t extent[3],int32_t center[3],int32_t span[3], bool isolated_x)",
+          "signature": "__attribute__((always_inline)) inline void narrow_chunk_bounds(const int32_t rows[3][3],const int32_t absolute[3][3], const int32_t translation[3],const int32_t vector[3], const int32_t extent[3],int32_t center[3],int32_t span[3], bool isolated_x)",
           "result": "void",
           "parameters": [
             {
@@ -150342,10 +150342,10 @@
           "virtual": false
         }
       ],
-      "declaration_hash": "110dfd8e67467f357655982e452ef7cba3c25c04324387117cd5f651006697ea",
+      "declaration_hash": "ed7b0fcec70732a7c52cf65667d4acdbf1bfaedf1e08d40d9ede03780ae050f0",
       "disposition": "internal_implementation",
       "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
-      "canonical_public_declaration": "__attribute__((always_inline)) #endif inline void narrow_chunk_bounds(const int32_t rows[3][3],const int32_t absolute[3][3], const int32_t translation[3],const int32_t vector[3], const int32_t extent[3],int32_t center[3],int32_t span[3], bool isolated_x)",
+      "canonical_public_declaration": "__attribute__((always_inline)) inline void narrow_chunk_bounds(const int32_t rows[3][3],const int32_t absolute[3][3], const int32_t translation[3],const int32_t vector[3], const int32_t extent[3],int32_t center[3],int32_t span[3], bool isolated_x)",
       "types_and_directions": {
         "parameters": [
           {
@@ -153653,7 +153653,7 @@
           "qualified": "epok::ordered_projection_anchor",
           "source": "runtime/ordered_projection.hpp",
           "line": 85,
-          "signature": "template<class Number> #if defined(__GNUC__) && !defined(__clang__) __attribute__((noinline,optimize(\"O3\"))) #elif defined(__GNUC__) __attribute__((noinline)) #endif bool ordered_projection_anchor(const Affine<Number>& matrix,const int32_t* base_offset, const int32_t* center,int32_t* offset,int32_t* translation)",
+          "signature": "template<class Number> __attribute__((noinline,optimize(\"O3\"))) __attribute__((noinline)) bool ordered_projection_anchor(const Affine<Number>& matrix,const int32_t* base_offset, const int32_t* center,int32_t* offset,int32_t* translation)",
           "result": "bool",
           "parameters": [
             {
@@ -153688,10 +153688,10 @@
           "virtual": false
         }
       ],
-      "declaration_hash": "edfa07e77a2b2478d9bc1389346318e572b59b5ae82c0ee87eb00edc902b981f",
+      "declaration_hash": "b74d24ccc90e2431e71b5dfd5f428e8ba9bac6b66eb3921efecb3eb8e00679e7",
       "disposition": "internal_implementation",
       "rationale": "Compiler, renderer, scheduler, storage, or backend machinery rather than a game-authored operation.",
-      "canonical_public_declaration": "template<class Number> #if defined(__GNUC__) && !defined(__clang__) __attribute__((noinline,optimize(\"O3\"))) #elif defined(__GNUC__) __attribute__((noinline)) #endif bool ordered_projection_anchor(const Affine<Number>& matrix,const int32_t* base_offset, const int32_t* center,int32_t* offset,int32_t* translation)",
+      "canonical_public_declaration": "template<class Number> __attribute__((noinline,optimize(\"O3\"))) __attribute__((noinline)) bool ordered_projection_anchor(const Affine<Number>& matrix,const int32_t* base_offset, const int32_t* center,int32_t* offset,int32_t* translation)",
       "types_and_directions": {
         "parameters": [
           {
@@ -155869,7 +155869,7 @@
           "qualified": "epok::project_ordered_cpu",
           "source": "runtime/ordered_projection.hpp",
           "line": 172,
-          "signature": "template<class Units,int Width,int Height,class Number> #if defined(__GNUC__) && !defined(__clang__) __attribute__((noinline,optimize(\"O3\"))) #elif defined(__GNUC__) __attribute__((noinline)) #endif bool project_ordered_cpu(const int32_t (*points)[3],unsigned count, const CameraSpace<Number>& view,const Number* row_scale, ProjectedVertex* projected,uint32_t* screen,int32_t* depth, const Affine<Number>* gte_matrix=nullptr,const int32_t* gte_offset=nullptr)",
+          "signature": "template<class Units,int Width,int Height,class Number> __attribute__((noinline,optimize(\"O3\"))) __attribute__((noinline)) bool project_ordered_cpu(const int32_t (*points)[3],unsigned count, const CameraSpace<Number>& view,const Number* row_scale, ProjectedVertex* projected,uint32_t* screen,int32_t* depth, const Affine<Number>* gte_matrix=nullptr,const int32_t* gte_offset=nullptr)",
           "result": "bool",
           "parameters": [
             {
@@ -155924,10 +155924,10 @@
           "virtual": false
         }
       ],
-      "declaration_hash": "f98e2e6850b2df540dc7186f863fab04c885506274e8b0765628e9c575c5fbf8",
+      "declaration_hash": "f95a8c3ca53c8c76436e432e3c46a19a0c4a909f8d01e73d9c35252e75c571e6",
       "disposition": "internal_implementation",
       "rationale": "Compiler, renderer, scheduler, storage, or backend machinery rather than a game-authored operation.",
-      "canonical_public_declaration": "template<class Units,int Width,int Height,class Number> #if defined(__GNUC__) && !defined(__clang__) __attribute__((noinline,optimize(\"O3\"))) #elif defined(__GNUC__) __attribute__((noinline)) #endif bool project_ordered_cpu(const int32_t (*points)[3],unsigned count, const CameraSpace<Number>& view,const Number* row_scale, ProjectedVertex* projected,uint32_t* screen,int32_t* depth, const Affine<Number>* gte_matrix=nullptr,const int32_t* gte_offset=nullptr)",
+      "canonical_public_declaration": "template<class Units,int Width,int Height,class Number> __attribute__((noinline,optimize(\"O3\"))) __attribute__((noinline)) bool project_ordered_cpu(const int32_t (*points)[3],unsigned count, const CameraSpace<Number>& view,const Number* row_scale, ProjectedVertex* projected,uint32_t* screen,int32_t* depth, const Affine<Number>* gte_matrix=nullptr,const int32_t* gte_offset=nullptr)",
       "types_and_directions": {
         "parameters": [
           {
@@ -163676,7 +163676,7 @@
           "qualified": "epok::sequence::Kernel::advance",
           "source": "runtime/sequence_kernel.hpp",
           "line": 226,
-          "signature": "template<class Backend> #if defined(__mips__) && defined(__GNUC__) __attribute__((optimize(\"O3\"))) #endif void advance(uint32_t microseconds, Backend& backend)",
+          "signature": "template<class Backend> __attribute__((optimize(\"O3\"))) void advance(uint32_t microseconds, Backend& backend)",
           "result": "void",
           "parameters": [
             {
@@ -163696,10 +163696,10 @@
           "virtual": false
         }
       ],
-      "declaration_hash": "8c087b0525b5b35b46622aad20ba4a17a89cdd17f3c7a81b2e6d3b1179f7d178",
+      "declaration_hash": "cca7c76c837db6afc24f378077502eaa99adeb98102e876879bf9d94d6cfc20f",
       "disposition": "internal_implementation",
       "rationale": "Compiler, renderer, scheduler, storage, or backend machinery rather than a game-authored operation.",
-      "canonical_public_declaration": "template<class Backend> #if defined(__mips__) && defined(__GNUC__) __attribute__((optimize(\"O3\"))) #endif void advance(uint32_t microseconds, Backend& backend)",
+      "canonical_public_declaration": "template<class Backend> __attribute__((optimize(\"O3\"))) void advance(uint32_t microseconds, Backend& backend)",
       "types_and_directions": {
         "parameters": [
           {
@@ -167775,7 +167775,7 @@
           "qualified": "epok::skeletal_detail::Scratch::decode_vertices",
           "source": "runtime/skeletal.hpp",
           "line": 115,
-          "signature": "__attribute__((noinline,optimize(\"O3\"))) #endif void decode_vertices(const SkeletalMesh& model,const Animator& animator)",
+          "signature": "__attribute__((noinline,optimize(\"O3\"))) void decode_vertices(const SkeletalMesh& model,const Animator& animator)",
           "result": "void",
           "parameters": [
             {
@@ -167795,10 +167795,10 @@
           "virtual": false
         }
       ],
-      "declaration_hash": "9bb02b8891b46809fa670f3236e3f65e7a577195e7f8765536f394cd44ca612a",
+      "declaration_hash": "664c3ee8eba28cb81ee4d8ac8514847ffd89af6bcfd7bc50ab6cb917deba10ad",
       "disposition": "internal_implementation",
       "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
-      "canonical_public_declaration": "__attribute__((noinline,optimize(\"O3\"))) #endif void decode_vertices(const SkeletalMesh& model,const Animator& animator)",
+      "canonical_public_declaration": "__attribute__((noinline,optimize(\"O3\"))) void decode_vertices(const SkeletalMesh& model,const Animator& animator)",
       "types_and_directions": {
         "parameters": [
           {
@@ -168090,7 +168090,7 @@
           "qualified": "epok::skeletal_detail::Scratch::pose_bones",
           "source": "runtime/skeletal.hpp",
           "line": 88,
-          "signature": "__attribute__((noinline,optimize(\"O3\"))) #endif size_t pose_bones(const SkeletalMesh& model,const Animator& animator,int16_t aim_bone,const int16_t* aim_stop_bones,Fixed aim_pitch,uint32_t generation=0)",
+          "signature": "__attribute__((noinline,optimize(\"O3\"))) size_t pose_bones(const SkeletalMesh& model,const Animator& animator,int16_t aim_bone,const int16_t* aim_stop_bones,Fixed aim_pitch,uint32_t generation=0)",
           "result": "size_t",
           "parameters": [
             {
@@ -168130,10 +168130,10 @@
           "virtual": false
         }
       ],
-      "declaration_hash": "494ec56ef8e3bf72d9c734627f18fcbb2c558404f194b56ada57e908e58187eb",
+      "declaration_hash": "63564db6890b130e856aa5455a4b3858f1d7fc40591b83f7bfda9c4b77c54da6",
       "disposition": "internal_implementation",
       "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
-      "canonical_public_declaration": "__attribute__((noinline,optimize(\"O3\"))) #endif size_t pose_bones(const SkeletalMesh& model,const Animator& animator,int16_t aim_bone,const int16_t* aim_stop_bones,Fixed aim_pitch,uint32_t generation=0)",
+      "canonical_public_declaration": "__attribute__((noinline,optimize(\"O3\"))) size_t pose_bones(const SkeletalMesh& model,const Animator& animator,int16_t aim_bone,const int16_t* aim_stop_bones,Fixed aim_pitch,uint32_t generation=0)",
       "types_and_directions": {
         "parameters": [
           {
@@ -172595,7 +172595,7 @@
           "qualified": "epok::streaming_acquire_slot_slow",
           "source": "runtime/streaming.hpp",
           "line": 375,
-          "signature": "__attribute__((noinline)) #endif inline int streaming_acquire_slot_slow(uint32_t page, psyqo::GPU &gpu)",
+          "signature": "__attribute__((noinline)) inline int streaming_acquire_slot_slow(uint32_t page, psyqo::GPU &gpu)",
           "result": "int",
           "parameters": [
             {
@@ -172615,10 +172615,10 @@
           "virtual": false
         }
       ],
-      "declaration_hash": "3a3cf4d5342a93177eb49cdfd5fc1d8d08496edcc81889097b2d87378d02b44e",
+      "declaration_hash": "8ce9dbc85ede498f75ffc91f96497b0b62b7141c703b907af7290839714ca7a1",
       "disposition": "internal_implementation",
       "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
-      "canonical_public_declaration": "__attribute__((noinline)) #endif inline int streaming_acquire_slot_slow(uint32_t page, psyqo::GPU &gpu)",
+      "canonical_public_declaration": "__attribute__((noinline)) inline int streaming_acquire_slot_slow(uint32_t page, psyqo::GPU &gpu)",
       "types_and_directions": {
         "parameters": [
           {
@@ -172785,7 +172785,7 @@
           "qualified": "epok::streaming_bind_chain",
           "source": "runtime/streaming.hpp",
           "line": 587,
-          "signature": "__attribute__((noinline)) #endif inline bool streaming_bind_chain(const MeshGeometry *root, StreamObjectBinding &binding, psyqo::GPU &gpu)",
+          "signature": "__attribute__((noinline)) inline bool streaming_bind_chain(const MeshGeometry *root, StreamObjectBinding &binding, psyqo::GPU &gpu)",
           "result": "bool",
           "parameters": [
             {
@@ -172810,10 +172810,10 @@
           "virtual": false
         }
       ],
-      "declaration_hash": "d6cae1b92d322a757208ff5cd2168c334ba8245c7f4caa6dac6c9ba932287a4b",
+      "declaration_hash": "aab3ddc898449fa6e7fabc58a86f9d40acdb3411b34182784a3d7a1cc6ec0a09",
       "disposition": "internal_implementation",
       "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
-      "canonical_public_declaration": "__attribute__((noinline)) #endif inline bool streaming_bind_chain(const MeshGeometry *root, StreamObjectBinding &binding, psyqo::GPU &gpu)",
+      "canonical_public_declaration": "__attribute__((noinline)) inline bool streaming_bind_chain(const MeshGeometry *root, StreamObjectBinding &binding, psyqo::GPU &gpu)",
       "types_and_directions": {
         "parameters": [
           {
@@ -173964,7 +173964,7 @@
           "qualified": "epok::streaming_resolve_archive_mesh",
           "source": "runtime/streaming.hpp",
           "line": 560,
-          "signature": "__attribute__((noinline)) #endif inline StreamMeshView streaming_resolve_archive_mesh(const MeshGeometry &mesh, psyqo::GPU &gpu, bool metadata_validated)",
+          "signature": "__attribute__((noinline)) inline StreamMeshView streaming_resolve_archive_mesh(const MeshGeometry &mesh, psyqo::GPU &gpu, bool metadata_validated)",
           "result": "StreamMeshView",
           "parameters": [
             {
@@ -173989,10 +173989,10 @@
           "virtual": false
         }
       ],
-      "declaration_hash": "f859d161c24cb71b4f4a092288312e94f763d96b7428797ebcf06b6141cc3054",
+      "declaration_hash": "963ec3866913dbbe5d59cf4fb0235bf5c02c943aea253d06de579478f4505f31",
       "disposition": "internal_implementation",
       "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
-      "canonical_public_declaration": "__attribute__((noinline)) #endif inline StreamMeshView streaming_resolve_archive_mesh(const MeshGeometry &mesh, psyqo::GPU &gpu, bool metadata_validated)",
+      "canonical_public_declaration": "__attribute__((noinline)) inline StreamMeshView streaming_resolve_archive_mesh(const MeshGeometry &mesh, psyqo::GPU &gpu, bool metadata_validated)",
       "types_and_directions": {
         "parameters": [
           {

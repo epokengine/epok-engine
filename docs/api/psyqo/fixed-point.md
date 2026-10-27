@@ -183,7 +183,7 @@ auto result = object.ceil<U>();
 **Exact declaration**
 
 ```cpp
-consteval #endif FixedPoint(long double ld)
+consteval FixedPoint(long double ld)
 ```
 
 - **Declared at:** [line 163](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/fixed-point.hh#L163)

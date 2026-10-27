@@ -2,7 +2,7 @@
 
 Generated from `coverage.json` by `tools/gameplay_api_parity.py`; do not edit by hand.
 
-Baseline commit: `7de2414ec4871c96defd7d0aeb67053bd1a036a9`. Frozen semantic candidate rows: **5366**.
+Baseline commit: `edd266e43a31d49171b13bc7c9afe752f58e5cfd`. Frozen semantic candidate rows: **5366**.
 
 A classified row is not necessarily implemented. The strict checker fails until every public gameplay row has executable support, tests, examples, and cost evidence on all five surfaces.
 
