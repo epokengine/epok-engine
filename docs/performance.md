@@ -4,6 +4,14 @@
 
 ## Counters and timing
 
+**Project Settings > Rendering > Geometry > Mesh Triangle Budget** can cap the
+double-buffered mesh packet reservation, including retained geometry. Automatic
+keeps the scene-derived capacity used by existing projects. A limit of 512..8192
+reduces main RAM use without changing mesh assets or resolution. Validate all
+camera views and encounters: geometry beyond the pool is counted in
+`lighting_stats.dropped_triangles`. Streaming retains its independent limit; when
+both apply, the smaller capacity wins. Changes apply on the next build.
+
 ### Optional on-screen debug HUD
 
 **Project Settings > Debug** has independent FPS, CPU, Geometry/GTE, GPU Command

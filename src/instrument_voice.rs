@@ -23,6 +23,7 @@ impl TimeCents {
             2_f64.powf(self.0 as f64 / 1200.)
         }
     }
+    #[cfg(test)]
     fn for_key(self, cents_per_key: i32, key: u8, maximum: i32) -> Self {
         let value = i64::from(self.0) + i64::from(cents_per_key) * (60 - i64::from(key));
         // SoundFont applies key offsets before checking the hold-only sentinel.
@@ -46,9 +47,11 @@ pub struct Envelope {
     pub sustain: Sustain,
 }
 impl Envelope {
+    #[cfg(test)]
     pub fn hold_for_key(&self, key: u8) -> TimeCents {
         self.hold.for_key(self.hold_cents_per_key, key, 5000)
     }
+    #[cfg(test)]
     pub fn decay_for_key(&self, key: u8) -> TimeCents {
         self.decay.for_key(self.decay_cents_per_key, key, 8000)
     }

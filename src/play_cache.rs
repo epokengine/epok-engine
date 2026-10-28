@@ -41,6 +41,9 @@ pub fn request(root: &Path, input: &Input, config: &Config, debug: bool) -> Resu
             .map(|(path, scene)| (path, crate::scene_dependencies::signature(scene))),
         &input.play,
         &input.play_settings_signature,
+        // A Serial Play receipt skipped this check; never reuse it for a package.
+        input.reject_disc_media,
+        input.debug_overlay,
         config,
         debug,
         crate::project::fingerprint(root)?,
@@ -66,7 +69,8 @@ impl Receipt {
             if !matches!(
                 path.as_str(),
                 "epok.ps-exe" | "epok.elf" | "epok.map" | "epok.bin" | "epok.cue" | "epok.iso"
-            ) {
+            ) && !crate::scene_files::is_file_name(path)
+            {
                 return Err("Invalid cached output path".into());
             }
             if crate::assets::hash(&std::fs::read(build.join(path)).map_err(|e| e.to_string())?)
@@ -99,7 +103,12 @@ impl Receipt {
         disc: Option<&Path>,
     ) -> Result<(), String> {
         let mut outputs = Files::new();
+        let scene_files: Vec<String> = crate::scene_files::staged(build)
+            .into_iter()
+            .map(|file| file.name)
+            .collect();
         let mut names = vec!["epok.ps-exe", "epok.elf", "epok.map"];
+        names.extend(scene_files.iter().map(String::as_str));
         let disc = disc.map(|path| path.file_name().unwrap().to_string_lossy().into_owned());
         if let Some(name) = disc.as_deref() {
             names.push(name);
@@ -122,7 +131,12 @@ impl Receipt {
         };
         crate::project::write_changed(&build.join(RECEIPT), &crate::document::to_vec(&receipt)?)
     }
-    pub fn reuse(self, root: &Path, build: &Path) -> Result<(PathBuf, Option<PathBuf>), String> {
+    /// Returns the executable, the disc image and the staged files certified with them.
+    pub fn reuse(
+        self,
+        root: &Path,
+        build: &Path,
+    ) -> Result<(PathBuf, Option<PathBuf>, Files), String> {
         let exe = build.join("epok.ps-exe");
         let bytes = std::fs::read(&exe).map_err(|e| e.to_string())?;
         if !bytes.starts_with(b"PS-X EXE")
@@ -133,7 +147,11 @@ impl Receipt {
         let current = BuildTicket::begin_native(root, build)?;
         self.verify_outputs(build)?;
         current.reuse(&self.ticket, root, build, &bytes)?;
-        Ok((exe, self.disc.map(|path| build.join(path))))
+        Ok((
+            exe,
+            self.disc.map(|path| build.join(path)),
+            self.ticket.files().clone(),
+        ))
     }
 }
 

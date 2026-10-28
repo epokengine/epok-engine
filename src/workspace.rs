@@ -40,6 +40,10 @@ pub struct Manifest {
     pub play: crate::play::Profile,
     #[serde(default)]
     pub transition: crate::play::Transition,
+    /// Scenes whose resources stay in the executable; the others load from
+    /// disc when they start. Absent in older projects: every scene stays in.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scene_storage: Option<crate::play::SceneStorage>,
     #[serde(default)]
     pub rendering: crate::settings::Rendering,
     #[serde(default)]
@@ -441,14 +445,16 @@ pub enum Template {
     ThirdPerson,
     Platformer2D,
     Dungeon,
+    DungeonComplete,
 }
 impl Template {
-    pub const ALL: [Self; 5] = [
+    pub const ALL: [Self; 6] = [
         Self::Basic,
         Self::Sample,
         Self::ThirdPerson,
         Self::Platformer2D,
         Self::Dungeon,
+        Self::DungeonComplete,
     ];
     /// The spelling `--template` accepts and the preview file stem.
     pub fn key(self) -> &'static str {
@@ -458,10 +464,14 @@ impl Template {
             Self::ThirdPerson => "third-person",
             Self::Platformer2D => "platformer-2d",
             Self::Dungeon => "dungeon",
+            Self::DungeonComplete => "dungeon-complete",
         }
     }
     pub fn parse(value: &str) -> Option<Self> {
         Self::ALL.into_iter().find(|t| t.key() == value)
+    }
+    pub fn supports(self, flavor: GameplayFlavor) -> bool {
+        self != Self::DungeonComplete || flavor == GameplayFlavor::Cpp
     }
 }
 
@@ -489,15 +499,6 @@ impl GameplayFlavor {
             Self::Cpp => "C++",
             Self::Blueprint => "Blueprint",
             Self::Lua => "Lua",
-        }
-    }
-    pub fn describe(self) -> &'static str {
-        match self {
-            Self::Cpp => "Native component source owned by the project.",
-            Self::Blueprint => "A visual graph authored in the project.",
-            Self::Lua => {
-                "Lua source authored in the project, built with the project's Lua execution setting."
-            }
         }
     }
     pub fn parse(value: &str) -> Option<Self> {
@@ -547,17 +548,23 @@ impl CreateOptions {
 pub fn creation_options(template: &str, gameplay: &str) -> Result<CreateOptions, String> {
     let template = Template::parse(template).ok_or_else(|| {
         format!(
-            "Unknown template: {template}. Use basic, sample, third-person, platformer-2d or dungeon."
+            "Unknown template: {template}. Use basic, sample, third-person, platformer-2d, dungeon or dungeon-complete."
         )
     })?;
     let gameplay = GameplayFlavor::parse(gameplay).ok_or_else(|| {
         format!("Unknown gameplay flavor: {gameplay}. Use cpp, blueprint or lua.")
     })?;
+    if !template.supports(gameplay) {
+        return Err(
+            "Dungeon Complete includes C++ gameplay and a Pocket Lua minigame. Choose cpp.".into(),
+        );
+    }
     Ok(CreateOptions::new(template).with_gameplay(gameplay))
 }
 
 /// Creation with the historic signature: C++ starter gameplay for a PlayStation
 /// project. Existing callers and old automation keep working unchanged.
+#[cfg(test)]
 pub fn create(destination: &Path, name: &str, template: Template) -> Result<Project, String> {
     create_with_options(destination, name, CreateOptions::new(template))
 }
@@ -568,6 +575,11 @@ pub fn create_with_options(
     options: CreateOptions,
 ) -> Result<Project, String> {
     validate_name(name)?;
+    if !options.template.supports(options.gameplay) {
+        return Err(
+            "Dungeon Complete includes C++ gameplay and a Pocket Lua minigame. Choose C++.".into(),
+        );
+    }
     // Claim a NEW directory exclusively. Never merge into or overwrite existing content.
     let parent = destination
         .parent()
@@ -601,6 +613,7 @@ fn populate(destination: &Path, name: &str, options: CreateOptions) -> Result<Pr
         Template::ThirdPerson => crate::third_person::create(destination, gameplay)?,
         Template::Platformer2D => crate::platformer_template::create(destination, gameplay)?,
         Template::Dungeon => crate::dungeon_template::create(destination, gameplay)?,
+        Template::DungeonComplete => crate::dungeon_complete_template::create(destination)?,
         Template::Basic => {
             // Basic stays basic: no starter behaviour in any flavor, so nothing
             // here depends on the selection beyond the descriptor it records.
@@ -613,7 +626,7 @@ fn populate(destination: &Path, name: &str, options: CreateOptions) -> Result<Pr
         }
         Template::Sample => crate::sample_template::create(destination, gameplay)?,
     };
-    let manifest = Manifest {
+    let mut manifest = Manifest {
         format_version: FORMAT,
         editor_version: env!("CARGO_PKG_VERSION").into(),
         name: name.into(),
@@ -622,6 +635,9 @@ fn populate(destination: &Path, name: &str, options: CreateOptions) -> Result<Pr
         build: Default::default(),
         play: Default::default(),
         transition: Default::default(),
+        // New projects start with the scene table: scenes load from disc when
+        // Play reads CD or PC data, until they are marked to stay in the EXE.
+        scene_storage: Some(Default::default()),
         rendering: if matches!(
             template,
             Template::ThirdPerson | Template::Platformer2D | Template::Dungeon
@@ -641,6 +657,11 @@ fn populate(destination: &Path, name: &str, options: CreateOptions) -> Result<Pr
         default_sound_bank: None,
         default_scene_script_parent: None,
     };
+    if template == Template::DungeonComplete {
+        manifest = crate::dungeon_complete_template::manifest()?;
+        manifest.name = name.into();
+        manifest.editor_version = env!("CARGO_PKG_VERSION").into();
+    }
     scene.save(&destination.join(&manifest.startup_scene))?;
     write_changed(
         &destination.join(".gitignore"),
@@ -677,11 +698,21 @@ pub fn editor_home() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
 }
 
+#[cfg(not(test))]
 pub fn user_data() -> PathBuf {
     std::env::var_os("LOCALAPPDATA")
         .or_else(|| std::env::var_os("XDG_DATA_HOME"))
         .map(PathBuf::from)
         .unwrap_or_else(|| user_home().join(".local/share"))
+        .join("Epok")
+}
+/// Unit tests get a fresh profile per test process, so they neither read the
+/// developer's preferences, recent projects and tools nor overwrite them.
+#[cfg(test)]
+pub fn user_data() -> PathBuf {
+    static PROFILE: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+    PROFILE
+        .get_or_init(|| tests::temp("user-data"))
         .join("Epok")
 }
 pub fn user_home() -> PathBuf {
@@ -767,6 +798,10 @@ pub(crate) mod tests {
     fn the_command_line_names_every_template_and_flavor() {
         for template in Template::ALL {
             for flavor in GameplayFlavor::ALL {
+                if !template.supports(flavor) {
+                    assert!(creation_options(template.key(), flavor.key()).is_err());
+                    continue;
+                }
                 let options = creation_options(template.key(), flavor.key()).unwrap();
                 assert_eq!(options.template, template);
                 assert_eq!(options.gameplay, flavor);

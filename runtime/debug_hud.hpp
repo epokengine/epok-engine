@@ -1,5 +1,8 @@
 #pragma once
 #include "debug-hud.hh"
+#ifndef EPOK_DEBUG_TOGGLE
+#define EPOK_DEBUG_TOGGLE 0
+#endif
 
 #if EPOK_DEBUG_FPS || EPOK_DEBUG_CPU || EPOK_DEBUG_GTE || EPOK_DEBUG_GPU || EPOK_DEBUG_SPU
 #include <array>
@@ -39,6 +42,12 @@ struct State {
 };
 inline State state;
 static_assert(sizeof(State) < 2048, "Debug overlay must stay below 2 KiB of packet/state RAM");
+// With EPOK_DEBUG_TOGGLE the overlay starts hidden and Select shows or hides
+// it. Measurement continues while hidden; the game still receives Select.
+inline bool visible = !EPOK_DEBUG_TOGGLE;
+inline void toggle(bool select_pressed) {
+    if (EPOK_DEBUG_TOGGLE && select_pressed) visible = !visible;
+}
 inline void initialize(psyqo::GPU& gpu) {
 #if EPOK_DEBUG_FPS
     state.sample_vblank = gpu.getFrameCount();
@@ -89,6 +98,7 @@ inline void geometry(uint16_t started, bool gte) {
 #endif
 }
 inline void draw(psyqo::GPU& gpu) {
+    if (!visible) return;
     const uint32_t cpu_lines = uint16_t(COUNTERS[1].value - state.frame_start);
     const unsigned parity = gpu.getParity();
     const int left = display_width / 20, bottom = display_height - display_height / 20;
@@ -155,6 +165,7 @@ inline void draw(psyqo::GPU& gpu) {
 #else
 namespace epok::debug_hud {
 inline void initialize(psyqo::GPU&) {}
+inline void toggle(bool) {}
 inline void begin(psyqo::GPU&) {}
 inline void geometry(uint16_t, bool) {}
 inline void draw(psyqo::GPU&) {}

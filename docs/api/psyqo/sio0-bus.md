@@ -1,10 +1,10 @@
 # PsyQo API: Sio0 Bus
 
-> **Header:** `"psyqo/sio0-bus.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/sio0-bus.hh)
+> **Header:** `"psyqo/sio0-bus.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/sio0-bus.hh)
 
 This module covers the sio0 bus module. It documents 7 public callables declared directly in this header.
 
-PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552d`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
+PsyQo is pinned through Nugget revision `c702235f366fb1cd8c18e0a5a5392e0acae8a079`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
 
 ## Declared types
 
@@ -32,7 +32,7 @@ PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552
 static void acquire()
 ```
 
-- **Declared at:** [line 59](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/sio0-bus.hh#L59)
+- **Declared at:** [line 59](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/sio0-bus.hh#L59)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -63,7 +63,7 @@ psyqo::SIO0Bus::acquire();
 Lock()
 ```
 
-- **Declared at:** [line 80](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/sio0-bus.hh#L80)
+- **Declared at:** [line 80](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/sio0-bus.hh#L80)
 - **Kind:** `constructor`
 
 **Use it when.** You need the sio0 bus module and the preconditions in the declaration are already satisfied.
@@ -92,7 +92,7 @@ psyqo::SIO0Bus::Lock value();
 Lock(const Lock &) = delete
 ```
 
-- **Declared at:** [line 82](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/sio0-bus.hh#L82)
+- **Declared at:** [line 82](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/sio0-bus.hh#L82)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -130,7 +130,7 @@ psyqo::SIO0Bus::Lock value(arg1);
 Lock &operator=(const Lock &) = delete
 ```
 
-- **Declared at:** [line 83](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/sio0-bus.hh#L83)
+- **Declared at:** [line 83](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/sio0-bus.hh#L83)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -172,7 +172,7 @@ auto result = object.operator=(arg1);
 ~Lock()
 ```
 
-- **Declared at:** [line 81](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/sio0-bus.hh#L81)
+- **Declared at:** [line 81](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/sio0-bus.hh#L81)
 - **Kind:** `destructor`
 
 **Use it when.** You need the sio0 bus module and the preconditions in the declaration are already satisfied.
@@ -201,7 +201,7 @@ auto result = object.operator=(arg1);
 static bool owned()
 ```
 
-- **Declared at:** [line 71](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/sio0-bus.hh#L71)
+- **Declared at:** [line 71](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/sio0-bus.hh#L71)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -232,7 +232,7 @@ auto result = psyqo::SIO0Bus::owned();
 static void release()
 ```
 
-- **Declared at:** [line 64](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/sio0-bus.hh#L64)
+- **Declared at:** [line 64](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/sio0-bus.hh#L64)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.

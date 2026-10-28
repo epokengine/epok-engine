@@ -136,6 +136,7 @@ pub struct Editor {
     pub job_progress: Option<f32>,
     pub memory: crate::memory_ui::State,
     pub export_ui: crate::export_ui::State,
+    pub ps_exe_export_ui: crate::ps_exe_export_ui::State,
     pub preferences: crate::settings::Preferences,
     pub play_profile: crate::play::Profile,
     pub play_warning: Option<String>,
@@ -212,6 +213,7 @@ pub struct Editor {
     pub focus_scene: bool,
     pub focus_project: bool,
     pub last_error: Option<String>,
+    pub runtime_error: Option<String>,
     pub game_frame: Option<std::sync::Arc<crate::bridge::Frame>>,
     pub native_frame: Option<std::sync::Arc<crate::native_play::Frame>>,
     pub game_error: Option<String>,
@@ -229,6 +231,7 @@ pub struct Editor {
     /// platform layer has built the font atlas.
     pub inspector_font: Option<imgui::FontId>,
     pub drag_axis: Option<usize>,
+    pub scene_orientation: crate::gizmo::OrientationState,
     pub scene_click: crate::picking::ClickGesture,
     pub scene_panel_size: [f32; 2],
     pub reveal_selected: bool,
@@ -253,7 +256,15 @@ pub struct Editor {
     pub scene_view_mode: crate::scene_view_mode::SceneViewMode,
     /// The P4 document actor selected in the Hierarchy. Mutually exclusive with
     /// `selected`: an author never has a legacy entity and an actor selected at once.
+    /// With several actors selected it is the primary one, the actor the
+    /// Inspector, the gizmos and every single-actor tool follow.
     pub selected_actor: Option<uuid::Uuid>,
+    /// Every actor of the Hierarchy selection, oldest first. It counts only while
+    /// it holds `selected_actor`, so code that sets `selected_actor` alone leaves
+    /// a single selection behind. Read it through [`Editor::selected_actors`].
+    selected_actors: Vec<uuid::Uuid>,
+    /// Where a Shift+click range starts: the last actor clicked without Shift.
+    selection_anchor: Option<uuid::Uuid>,
     /// Inline actor rename in the Hierarchy: the actor and its edited name.
     pub actor_rename: Option<(uuid::Uuid, String)>,
     pub actor_rename_focus: bool,
@@ -306,10 +317,18 @@ impl Editor {
         }
         if let Some(bridge) = self.job.as_ref().and_then(|j| j.native.as_ref()) {
             bridge.pads.lock().unwrap()[0].buttons = buttons;
+            if buttons != 0 {
+                bridge.pads.lock().unwrap()[0].connected = true;
+            }
         }
     }
     pub fn set_controls(&self, mut pads: [crate::controls::PadState; 4]) {
+        for pad in &mut pads {
+            pad.rumble_enabled &=
+                self.preferences.rumble_enabled && self.game_capture && !self.paused;
+        }
         pads[0].buttons |= self.mcp.buttons;
+        pads[0].connected |= self.mcp.buttons != 0;
         if let Some(bridge) = self.job.as_ref().and_then(|job| job.bridge.as_ref()) {
             bridge
                 .buttons
@@ -353,16 +372,21 @@ impl Editor {
         }
         self.controls.mouse_motion(delta);
     }
-    pub fn input_gamepad_button(&mut self, button: String, down: bool) {
+    pub fn input_gamepad_button(&mut self, id: usize, button: String, down: bool) {
         if down {
             self.settings
                 .capture_binding(crate::controls::Binding::GamepadButton {
                     button: button.clone(),
                 });
         }
-        self.controls.gamepad_button(button, down);
+        self.controls.gamepad_button_for(id, button, down);
     }
-    pub fn input_gamepad_axis(&mut self, axis: crate::controls::GamepadAxis, value: f32) {
+    pub fn input_gamepad_axis(
+        &mut self,
+        id: usize,
+        axis: crate::controls::GamepadAxis,
+        value: f32,
+    ) {
         if value.abs() > 0.5 {
             self.settings
                 .capture_binding(crate::controls::Binding::GamepadAxis {
@@ -370,7 +394,7 @@ impl Editor {
                     positive: value > 0.,
                 });
         }
-        self.controls.gamepad_axis(axis, value);
+        self.controls.gamepad_axis_for(id, axis, value);
     }
     pub fn sample_controls(&mut self) -> [crate::controls::PadState; 4] {
         let settings = self
@@ -473,6 +497,9 @@ impl Editor {
         }
         if std::env::args().any(|v| v == "--screenshot-project-settings") {
             crate::settings_ui::open_project(&mut editor);
+        }
+        if std::env::args().any(|v| v == "--screenshot-scene-table") {
+            crate::settings_ui::open_scene_table(&mut editor);
         }
         if std::env::args().any(|v| v == "--screenshot-editor-preferences") {
             crate::settings_ui::open_preferences(&mut editor);
@@ -652,6 +679,8 @@ impl Editor {
         preferences.save()?;
         self.grid = preferences.show_grid;
         self.view.fly_speed = preferences.fly_speed;
+        self.view.camera_speed_scalar = preferences.camera_speed_scalar;
+        self.view.distance_scaled_speed = preferences.distance_scaled_speed;
         self.preferences = preferences;
         self.view_dirty = true;
         Ok(())
@@ -716,6 +745,7 @@ impl Editor {
             job_progress: None,
             memory: Default::default(),
             export_ui: Default::default(),
+            ps_exe_export_ui: Default::default(),
             preferences: preferences.clone(),
             script_editor: Default::default(),
             play_profile: crate::play::Profile::load(&root).unwrap_or_default(),
@@ -760,6 +790,8 @@ impl Editor {
             dirty,
             view: viewport::View {
                 fly_speed: preferences.fly_speed,
+                camera_speed_scalar: preferences.camera_speed_scalar,
+                distance_scaled_speed: preferences.distance_scaled_speed,
                 ..Default::default()
             },
             view_dirty: true,
@@ -800,6 +832,7 @@ impl Editor {
             focus_scene: true,
             focus_project: true,
             last_error: None,
+            runtime_error: None,
             game_frame: None,
             native_frame: None,
             native_play_cache: None,
@@ -819,6 +852,7 @@ impl Editor {
             asset_inspector: Default::default(),
             inspector_font: None,
             drag_axis: None,
+            scene_orientation: Default::default(),
             scene_click: Default::default(),
             scene_panel_size: [960., 600.],
             reveal_selected: false,
@@ -839,6 +873,8 @@ impl Editor {
             raw_look: None,
             scene_view_mode: Default::default(),
             selected_actor: None,
+            selected_actors: Vec::new(),
+            selection_anchor: None,
             actor_rename: None,
             actor_rename_focus: false,
             view_2d: Default::default(),
@@ -870,13 +906,19 @@ impl Editor {
                 crate::scene_view_state::framed(
                     &editor.scene,
                     editor.scene_panel_size,
-                    editor.preferences.fly_speed,
+                    &editor.preferences,
                 )
             });
         editor
     }
     pub fn log(&mut self, s: impl Into<String>) {
         self.log_message(crate::scene_loading::Message::new(s));
+    }
+    fn log_error(&mut self, message: impl Into<String>) {
+        let message = message.into();
+        self.console.error = Some(message.clone());
+        self.focus_console = true;
+        self.log(format!("ERROR: {message}"));
     }
     pub(crate) fn log_message(&mut self, message: crate::scene_loading::Message) {
         self.reconcile_log_times();
@@ -901,6 +943,7 @@ impl Editor {
     pub(crate) fn clear_logs(&mut self) {
         self.logs.clear();
         self.log_times.clear();
+        self.console.error = None;
     }
     pub fn scene_path(&self) -> PathBuf {
         self.scene_file.clone()
@@ -983,6 +1026,8 @@ impl Editor {
         self.scene_history.reset(&self.scene);
         mark("scene and history");
         self.selected_actor = None;
+        self.selected_actors.clear();
+        self.selection_anchor = None;
         self.scene_file = prepared.path;
         // The first observation publishes the new active document without
         // treating navigation/closed editor documents as an authored edit.
@@ -1014,7 +1059,7 @@ impl Editor {
                 crate::scene_view_state::framed(
                     &self.scene,
                     self.scene_panel_size,
-                    self.preferences.fly_speed,
+                    &self.preferences,
                 )
             });
         self.reset_instance_baseline();
@@ -1084,6 +1129,7 @@ impl Editor {
         self.hud_drag = None;
         self.drag_axis = None;
         self.scene_click = Default::default();
+        self.scene_orientation.cancel();
     }
     pub fn changed(&mut self) {
         self.apply_change();
@@ -1210,14 +1256,118 @@ impl Editor {
         }
         cache.as_ref().and_then(|(_, model)| model.clone())
     }
-    /// Selects a P4 document actor, clearing the legacy-entity selection.
+    /// Selects a P4 document actor, clearing the legacy-entity selection and
+    /// every other selected actor.
     pub fn select_actor(&mut self, actor: Option<uuid::Uuid>) {
-        self.selected_actor = actor;
-        self.selected = actor.and_then(|id| self.scene.actor_index(id));
-        if actor.is_some() {
+        self.set_actor_selection(actor.into_iter().collect(), actor);
+        self.selection_anchor = actor;
+    }
+    /// Replaces the Hierarchy selection with `actors`, `primary` among them.
+    fn set_actor_selection(&mut self, actors: Vec<uuid::Uuid>, primary: Option<uuid::Uuid>) {
+        self.selected_actor = primary;
+        self.selected_actors = actors;
+        self.selected = primary.and_then(|id| self.scene.actor_index(id));
+        if primary.is_some() {
             self.selected_asset = None;
         }
         self.view_dirty = true;
+    }
+    /// The selection oldest first, or only the primary actor once something
+    /// selected it alone.
+    fn actor_selection(&self) -> Vec<uuid::Uuid> {
+        match self.selected_actor {
+            Some(primary) if self.selected_actors.contains(&primary) => {
+                self.selected_actors.clone()
+            }
+            primary => primary.into_iter().collect(),
+        }
+    }
+    /// Whether `id` is part of the Hierarchy selection.
+    pub fn is_actor_selected(&self, id: uuid::Uuid) -> bool {
+        self.selected_actor == Some(id)
+            || self
+                .selected_actor
+                .is_some_and(|p| self.selected_actors.contains(&p))
+                && self.selected_actors.contains(&id)
+    }
+    /// The selected actors in document order, the primary one included.
+    pub fn selected_actors(&self) -> Vec<uuid::Uuid> {
+        self.scene
+            .actors
+            .iter()
+            .map(|actor| actor.id)
+            .filter(|id| self.is_actor_selected(*id))
+            .collect()
+    }
+    /// What a Hierarchy command on `id` acts on: the whole selection when `id`
+    /// is part of it, otherwise `id` alone.
+    pub fn actor_command_targets(&self, id: uuid::Uuid) -> Vec<uuid::Uuid> {
+        if self.is_actor_selected(id) {
+            self.selected_actors()
+        } else {
+            vec![id]
+        }
+    }
+    /// The selection, when it holds several actors and the picked object is one
+    /// of them: what Ctrl+D and the Edit menu's Duplicate and Delete act on.
+    fn picked_actor_group(&self) -> Option<Vec<uuid::Uuid>> {
+        let picked = self.selected.and_then(|i| self.scene.actors.get(i))?.id;
+        let selection = self.selected_actors();
+        (self.is_actor_selected(picked) && selection.len() > 1).then_some(selection)
+    }
+    /// Ctrl+click: adds `id` to the selection as its primary actor, or takes it
+    /// out. Taking the primary out hands that role to the most recently
+    /// selected actor left.
+    pub fn toggle_actor_selection(&mut self, id: uuid::Uuid) {
+        let mut actors = self.actor_selection();
+        let primary = if let Some(at) = actors.iter().position(|a| *a == id) {
+            actors.remove(at);
+            self.selected_actor
+                .filter(|p| *p != id)
+                .or(actors.last().copied())
+        } else {
+            actors.push(id);
+            Some(id)
+        };
+        self.set_actor_selection(actors, primary);
+        self.selection_anchor = Some(id);
+    }
+    /// Shift+click: selects the rows from the anchor to `id`, where `rows` are
+    /// the actors the Hierarchy shows, top to bottom, and makes `id` primary.
+    /// `extend` (Ctrl held as well) adds the range to the selection instead of
+    /// replacing it. Without an anchor among `rows`, `id` is selected alone.
+    pub fn select_actor_range(&mut self, rows: &[uuid::Uuid], id: uuid::Uuid, extend: bool) {
+        let Some(end) = rows.iter().position(|row| *row == id) else {
+            self.select_actor(Some(id));
+            return;
+        };
+        let start = self
+            .selection_anchor
+            .and_then(|anchor| rows.iter().position(|row| *row == anchor))
+            .unwrap_or(end);
+        let mut actors = if extend {
+            self.actor_selection()
+        } else {
+            Vec::new()
+        };
+        for row in &rows[start.min(end)..=start.max(end)] {
+            if !actors.contains(row) {
+                actors.push(*row);
+            }
+        }
+        self.set_actor_selection(actors, Some(id));
+        // The next Shift+click re-ranges from the same row.
+        self.selection_anchor = Some(rows[start]);
+    }
+    /// Selects `id` and every actor whose logical parent chain reaches it,
+    /// keeping `id` primary.
+    pub fn select_actor_children(&mut self, id: uuid::Uuid) {
+        let branch = self.scene.actor_branch(id);
+        if branch.is_empty() {
+            return;
+        }
+        self.set_actor_selection(branch, Some(id));
+        self.selection_anchor = Some(id);
     }
     pub fn can_undo_scene(&self) -> bool {
         self.scene_history.can_undo() || !self.script_undo.is_empty()
@@ -1270,6 +1420,8 @@ impl Editor {
         self.selected_actor = self
             .selected_actor
             .filter(|id| self.scene.actors.iter().any(|actor| actor.id == *id));
+        self.selected_actors
+            .retain(|id| self.scene.actors.iter().any(|actor| actor.id == *id));
         self.rename = None;
         self.actor_rename = None;
         self.drag_2d = None;
@@ -1282,14 +1434,20 @@ impl Editor {
         self.dirty = true;
         self.view_dirty = true;
     }
-    /// Appends a P4 document actor of `class` and selects it.
+    /// Appends a P4 document actor of `class` at the map root and selects it.
+    pub fn create_actor(&mut self, class: &str) {
+        self.create_actor_under(class, None);
+    }
+    /// Appends a P4 document actor of `class` under `parent` (`None` is the map
+    /// root) and selects it, in one undo step.
     ///
     /// The components come from the class chain's `EPOK_COMPONENT` defaults; a
     /// class that declares none still gets the root component its domain
     /// requires (design.md section 2), so the actor is valid the moment it
-    /// exists. The scene is validated against the model and rolled back on
-    /// failure, exactly like entity creation.
-    pub fn create_actor(&mut self, class: &str) {
+    /// exists. A parent of the same domain carries the actor at its origin, as
+    /// `reparent_actor` would. The scene is validated against the model and
+    /// rolled back on failure, exactly like entity creation.
+    pub fn create_actor_under(&mut self, class: &str, parent: Option<uuid::Uuid>) {
         if self.playing {
             self.log("Stop the emulator before editing.");
             return;
@@ -1298,6 +1456,7 @@ impl Editor {
             self.last_error = Some("The class model is unavailable; reload the project.".into());
             return;
         };
+        let original = self.scene.clone();
         let before = self.scene.actors.len();
         let placed = place_class(
             &mut self.scene,
@@ -1316,12 +1475,20 @@ impl Editor {
         };
         let id = self.scene.actors[index].id;
         let name = self.scene.actors[index].name.clone();
-        // A Blueprint template placement validated itself; a plain actor is checked here.
-        if index + 1 == self.scene.actors.len()
-            && self.scene.actors.len() == before + 1
+        if parent.is_some() {
+            let attach =
+                crate::mcp_tools::implied_attachment(Some(&model), &self.scene, id, parent);
+            self.scene.actors[index].logical_parent = parent;
+            self.scene.actors[index].attach = attach;
+            self.scene.refresh_actor_hierarchy();
+        }
+        // A Blueprint template placement validated itself; a plain actor, and a
+        // template given a parent, is checked here.
+        let plain = index + 1 == self.scene.actors.len() && self.scene.actors.len() == before + 1;
+        if (plain || parent.is_some())
             && let Err(error) = self.scene.validate_with_model(Some(&model))
         {
-            self.scene.actors.retain(|a| a.id != id);
+            self.scene = original;
             self.last_error = Some(error.clone());
             self.log(error);
             return;
@@ -1331,6 +1498,45 @@ impl Editor {
         self.search.clear();
         self.changed();
         self.log(format!("Created {name} ({class})."));
+    }
+    /// Makes `id`, an actor a recipe has just added, a child of `parent` before
+    /// the recipe records its step. Returns whether `parent` carries it: a parent
+    /// of the same domain does, so the actor's transform becomes local to it;
+    /// any other parent only groups it where it is.
+    pub fn parent_new_actor(&mut self, id: uuid::Uuid, parent: Option<uuid::Uuid>) -> bool {
+        let (Some(parent), Some(index)) = (parent, self.scene.actor_index(id)) else {
+            return false;
+        };
+        let model = self.object_model();
+        let attach =
+            crate::mcp_tools::implied_attachment(model.as_deref(), &self.scene, id, Some(parent));
+        let carried = attach.is_some();
+        self.scene.actors[index].logical_parent = Some(parent);
+        self.scene.actors[index].attach = attach;
+        self.scene.refresh_actor_hierarchy();
+        carried
+    }
+    /// Runs a creation command from an actor's Hierarchy menu so that what it
+    /// creates becomes that actor's child. The commands that already read the
+    /// selection as their parent (Instantiate Child Actor, UI widgets) get
+    /// `parent` selected first.
+    pub fn create_child(&mut self, command: &str, parent: uuid::Uuid) {
+        if let Some(preset) = crate::world3d_presets::Preset::from_command(command) {
+            crate::world3d_presets::create(self, preset, Some(parent));
+            return;
+        }
+        self.select_actor(Some(parent));
+        if let Some(label) = command.strip_prefix("create-node2d-")
+            && let Some(preset) = crate::world2d::Preset::ALL
+                .into_iter()
+                .find(|p| p.label() == label)
+        {
+            self.set_scene_view_mode(crate::scene_view_mode::SceneViewMode::TwoD);
+            let centre = self.view_2d.centre;
+            crate::world2d_editor::create_node_under(self, preset, centre, Some(parent));
+            return;
+        }
+        self.action(command);
     }
     // -----------------------------------------------------------------------
     // Actor operations (P11). Every one of them ends in `changed()`, so the map
@@ -1395,38 +1601,74 @@ impl Editor {
         candidate.actors[index].name = name.clone();
         self.commit_actor_edit(candidate, format!("Renamed actor to {name}."));
     }
-    /// Copies one actor and its logical branch, then selects the copy.
-    pub fn duplicate_actor(&mut self, id: uuid::Uuid) {
+    /// Copies each actor and its logical branch in one undo step, then selects
+    /// the copies of exactly `ids`. An actor whose logical ancestor is listed
+    /// too is copied with that ancestor's branch, never a second time.
+    pub fn duplicate_actors(&mut self, ids: &[uuid::Uuid]) {
         if !self.actor_editable() {
             return;
         }
         let mut candidate = self.scene.clone();
-        let copy = match candidate.duplicate_actor_branch(id) {
-            Ok(copy) => copy,
-            Err(error) => {
+        let mut copies = std::collections::BTreeMap::new();
+        for root in self.scene.actor_branch_roots(ids) {
+            // A branch is copied in document order and appended in that order.
+            let originals = candidate.actor_branch(root);
+            let first = candidate.actors.len();
+            if let Err(error) = candidate.duplicate_actor_branch(root) {
                 self.last_error = Some(error.clone());
                 self.log(error);
                 return;
             }
-        };
-        let name = candidate
-            .actors
+            copies.extend(
+                originals
+                    .into_iter()
+                    .zip(candidate.actors[first..].iter().map(|actor| actor.id)),
+            );
+        }
+        let selection: Vec<_> = ids
             .iter()
-            .find(|a| a.id == copy)
-            .map(|a| a.name.clone())
-            .unwrap_or_default();
-        if self.commit_actor_edit(candidate, format!("Duplicated actor as {name}.")) {
-            self.select_actor(Some(copy));
+            .filter_map(|id| copies.get(id).copied())
+            .collect();
+        let message = match selection.as_slice() {
+            [] => {
+                let error = "No actor selected".to_owned();
+                self.last_error = Some(error.clone());
+                self.log(error);
+                return;
+            }
+            [copy] => {
+                let name = candidate
+                    .actors
+                    .iter()
+                    .find(|a| a.id == *copy)
+                    .map(|a| a.name.clone())
+                    .unwrap_or_default();
+                format!("Duplicated actor as {name}.")
+            }
+            several => format!("Duplicated {} actors.", several.len()),
+        };
+        if self.commit_actor_edit(candidate, message) {
+            let primary = self
+                .selected_actor
+                .and_then(|id| copies.get(&id).copied())
+                .filter(|copy| selection.contains(copy))
+                .or(selection.last().copied());
+            self.set_actor_selection(selection, primary);
+            self.selection_anchor = primary;
         }
     }
-    /// Removes one actor, every actor whose logical parent chain reaches it, and
-    /// every attachment that pointed into the removed branch.
-    pub fn delete_actor(&mut self, id: uuid::Uuid) {
+    /// Removes each actor, every actor whose logical parent chain reaches it,
+    /// and every attachment that pointed into a removed branch, in one undo step.
+    pub fn delete_actors(&mut self, ids: &[uuid::Uuid]) {
         if !self.actor_editable() {
             return;
         }
         let mut candidate = self.scene.clone();
-        let removed = candidate.delete_actor_branch(id);
+        let mut removed = Vec::new();
+        for id in ids {
+            // An actor inside a branch removed before it is already gone.
+            removed.extend(candidate.delete_actor_branch(*id));
+        }
         if removed.is_empty() {
             // Deleting nothing is refused rather than recorded as an empty step.
             let error = "That actor is no longer in this map.".to_owned();
@@ -1443,10 +1685,19 @@ impl Editor {
                 format!("Deleted {count} actors.")
             },
         ) {
-            let selected = self
+            let mut kept = self.actor_selection();
+            kept.retain(|actor| !removed.contains(actor));
+            let primary = self
                 .selected_actor
-                .filter(|selected| !removed.contains(selected));
-            self.select_actor(selected);
+                .filter(|selected| !removed.contains(selected))
+                .or(kept.last().copied());
+            self.set_actor_selection(kept, primary);
+            if self
+                .selection_anchor
+                .is_some_and(|anchor| removed.contains(&anchor))
+            {
+                self.selection_anchor = primary;
+            }
             if self
                 .actor_rename
                 .as_ref()
@@ -1462,28 +1713,43 @@ impl Editor {
     /// same domain; across domains, and at the root, it is cleared. A parent that
     /// would close a cycle is refused by `Scene::validate_with_model`.
     pub fn reparent_actor(&mut self, child: uuid::Uuid, parent: Option<uuid::Uuid>) {
+        self.reparent_actors(&[child], parent);
+    }
+    /// Gives every actor of `children` the logical parent `parent`, as
+    /// [`Editor::reparent_actor`] does for one, in one undo step.
+    pub fn reparent_actors(&mut self, children: &[uuid::Uuid], parent: Option<uuid::Uuid>) {
         if !self.actor_editable() {
             return;
         }
-        if Some(child) == parent {
+        if parent.is_some_and(|parent| children.contains(&parent)) {
             let error = "An actor cannot be its own parent.".to_owned();
             self.last_error = Some(error.clone());
             self.log(error);
             return;
         }
-        let Some(index) = self.scene.actor_index(child) else {
-            return;
-        };
         let model = self.object_model();
-        let attach =
-            crate::mcp_tools::implied_attachment(model.as_deref(), &self.scene, child, parent);
         let mut candidate = self.scene.clone();
-        candidate.actors[index].logical_parent = parent;
-        candidate.actors[index].attach = attach;
-        let name = candidate.actors[index].name.clone();
-        let message = match parent.and_then(|p| candidate.actors.iter().find(|a| a.id == p)) {
-            Some(target) => format!("Parented {name} to {}.", target.name),
-            None => format!("Moved {name} to the map root."),
+        let mut moved = Vec::new();
+        for child in children {
+            let Some(index) = candidate.actor_index(*child) else {
+                continue;
+            };
+            // The attachment follows from the two actors' domains alone.
+            let attach =
+                crate::mcp_tools::implied_attachment(model.as_deref(), &self.scene, *child, parent);
+            candidate.actors[index].logical_parent = parent;
+            candidate.actors[index].attach = attach;
+            moved.push(candidate.actors[index].name.clone());
+        }
+        let target = parent
+            .and_then(|p| candidate.actors.iter().find(|a| a.id == p))
+            .map(|a| a.name.clone());
+        let message = match (moved.as_slice(), target) {
+            ([], _) => return,
+            ([name], Some(target)) => format!("Parented {name} to {target}."),
+            ([name], None) => format!("Moved {name} to the map root."),
+            (several, Some(target)) => format!("Parented {} actors to {target}.", several.len()),
+            (several, None) => format!("Moved {} actors to the map root.", several.len()),
         };
         self.commit_actor_edit(candidate, message);
     }
@@ -2233,6 +2499,46 @@ impl Editor {
     pub fn build_disc(&mut self) {
         self.build_target(false, true);
     }
+    /// Build > Export PS-EXE... builds saved files with an in-memory hardware
+    /// profile. The Play profile and serial preferences are left as they are.
+    pub fn export_ps_exe(&mut self, options: crate::ps_exe_export::Options) -> Result<(), String> {
+        if self.job.is_some() {
+            return Err("Wait for the active build or Play session to finish.".into());
+        }
+        if self.scene_loading.is_some()
+            || self.assets.busy
+            || self.bake_job.is_some()
+            || self.dependencies.busy()
+        {
+            return Err("Wait for scene loading, asset import, lighting bake or dependency installation to finish.".into());
+        }
+        if self.has_unsaved_changes() {
+            return Err(
+                "Save all changes before exporting. Packages are built from saved project files."
+                    .into(),
+            );
+        }
+        let request = crate::ps_exe_export::Request::new(&self.root, &self.scene_path(), options)?;
+        self.observe_playback_sources();
+        self.restart_target = None;
+        self.job_stale = false;
+        self.job_target = None;
+        self.last_error = None;
+        self.focus_console = true;
+        self.console.force_follow();
+        // The package build is not the configured Play build; keep the status
+        // bar and memory report from presenting it as current for Play.
+        self.memory.status_current = false;
+        self.memory.stale = true;
+        self.memory.report_only = true;
+        self.active_play_runtime = crate::play::Runtime::PlayStation;
+        self.active_play_target = crate::play::Target::Embedded;
+        self.job_progress = None;
+        self.job_stage = "Exporting PS-EXE".into();
+        self.job = Some(pipeline::Job::export_ps_exe(self.root.clone(), request));
+        self.log("Exporting PS-EXE package...");
+        Ok(())
+    }
     fn build_target(&mut self, run: bool, physical_disc: bool) {
         self.build_request(run, physical_disc, false);
     }
@@ -2296,7 +2602,9 @@ impl Editor {
             self.game_frame = None;
             self.native_frame = None;
             self.game_error = None;
+            self.runtime_error = None;
         }
+        self.console.error = None;
         self.last_error = None;
         self.focus_console = true;
         self.pending_since = None;
@@ -2311,7 +2619,7 @@ impl Editor {
             Err(error) => {
                 self.job_target = None;
                 self.last_error = Some(error.clone());
-                self.log(error);
+                self.log_error(error);
                 return;
             }
         };
@@ -2427,6 +2735,7 @@ impl Editor {
             }
         }
     }
+    #[cfg(test)]
     pub fn begin_rename(&mut self, index: usize) {
         if self.playing {
             return;
@@ -2439,6 +2748,7 @@ impl Editor {
         self.search.clear();
         self.scene_navigation = false;
     }
+    #[cfg(test)]
     pub fn finish_rename(&mut self, commit: bool) {
         if let Some((index, name)) = self.rename.take()
             && commit
@@ -2590,14 +2900,15 @@ impl Editor {
             entity.name = format!("{base}.{suffix:03}");
             suffix += 1;
         }
+        let id = entity.id;
         self.scene.actors.push(entity);
         if let Err(error) = self.scene.validate() {
             self.scene = original;
             self.log(error);
             return;
         }
-        self.selected_asset = None;
-        self.selected = Some(self.scene.actors.len() - 1);
+        // The Hierarchy highlights by actor identity, so the widget is selected as one.
+        self.select_actor(Some(id));
         self.reveal_selected = true;
         self.search.clear();
         self.set_scene_2d(true);
@@ -2637,6 +2948,10 @@ impl Editor {
                 .and_then(|index| self.scene.actors.get(index))
                 .map(|actor| actor.id);
             crate::actor_workflow::begin(self, parent);
+            return;
+        }
+        if let Some(preset) = crate::world3d_presets::Preset::from_command(action) {
+            crate::world3d_presets::create(self, preset, None);
             return;
         }
         if self.critical_busy() && !(action == "play" && self.job.is_some()) {
@@ -2740,7 +3055,9 @@ impl Editor {
                 }
             }
             "duplicate" => {
-                if let Some(i) = self.selected {
+                if let Some(group) = self.picked_actor_group() {
+                    self.duplicate_actors(&group);
+                } else if let Some(i) = self.selected {
                     let original_ids = (0..self.scene.actors.len())
                         .filter(|index| self.scene.is_descendant(*index, i))
                         .map(|index| self.scene.actors[index].id)
@@ -2758,8 +3075,14 @@ impl Editor {
                                 &identities,
                                 &self.class_registry,
                             );
-                            self.selected_asset = None;
-                            self.selected = Some(index);
+                            // Ctrl+D on an actor picked in the Hierarchy selects
+                            // the copy there, as the Hierarchy's Duplicate does.
+                            if self.selected_actor.is_some() {
+                                self.select_actor(Some(self.scene.actors[index].id));
+                            } else {
+                                self.selected_asset = None;
+                                self.selected = Some(index);
+                            }
                             self.changed();
                         }
                         Err(error) => self.log(error),
@@ -2767,7 +3090,9 @@ impl Editor {
                 }
             }
             "delete" => {
-                if let Some(i) = self.selected {
+                if let Some(group) = self.picked_actor_group() {
+                    self.delete_actors(&group);
+                } else if let Some(i) = self.selected {
                     self.scene.delete_branch(i);
                     self.selected_asset = None;
                     self.selected =
@@ -2786,6 +3111,7 @@ impl Editor {
             "build" => self.build(false),
             "export-disc" => crate::export_ui::open(self),
             "build-disc" => self.build_disc(),
+            "export-ps-exe" => crate::ps_exe_export_ui::open(self),
             "pause" => {
                 if self.playing && !self.serial_ui.command_pending {
                     let debug = self
@@ -2819,6 +3145,12 @@ impl Editor {
                 }
             }
             "serial-reset" | "serial-pause" | "serial-resume" => {
+                if action == "serial-reset" {
+                    if let Err(error) = self.reset_psx() {
+                        self.log_error(error);
+                    }
+                    return;
+                }
                 if self.playing
                     && self.active_play_runtime == crate::play::Runtime::PlayStation
                     && self.active_play_target == crate::play::Target::Serial
@@ -2826,7 +3158,6 @@ impl Editor {
                     && let Some(job) = &self.job
                 {
                     job.control(match action {
-                        "serial-reset" => Control::Reset,
                         "serial-pause" => Control::Pause,
                         _ => Control::Resume,
                     });
@@ -2890,7 +3221,13 @@ impl Editor {
                 }
             }
             "reset-view" => {
-                self.view = viewport::View::default();
+                // Reset the pose without discarding the author's navigation speed.
+                self.view = viewport::View {
+                    fly_speed: self.view.fly_speed,
+                    camera_speed_scalar: self.view.camera_speed_scalar,
+                    distance_scaled_speed: self.view.distance_scaled_speed,
+                    ..Default::default()
+                };
                 self.view_dirty = true;
             }
             "export" => match crate::export::export_project(
@@ -2906,8 +3243,31 @@ impl Editor {
     /// Shared toolbar/MCP Stop. Keep the job until its worker acknowledges it,
     /// but do not accept late frames/errors from the connection we are closing.
     pub fn stop_play(&mut self) {
+        if let Some(bridge) = self.job.as_ref().and_then(|job| job.native.as_ref()) {
+            bridge.state.lock().unwrap().rumble = None;
+            bridge
+                .output_enabled
+                .store(false, std::sync::atomic::Ordering::Relaxed);
+        }
+        if let Some(bridge) = self.job.as_ref().and_then(|job| job.bridge.as_ref()) {
+            bridge
+                .rumble_enabled
+                .store(false, std::sync::atomic::Ordering::Relaxed);
+        }
         if let Some(job) = &self.job {
-            job.control(Control::Stop);
+            // A repeated Stop must not replace a reset already requested, but an
+            // explicit Stop still cancels the restart an input change scheduled.
+            if job.stopping() && self.restart_target.is_none() {
+                return;
+            }
+            let reset = self.playing
+                && self.active_play_runtime == crate::play::Runtime::PlayStation
+                && self.active_play_target == crate::play::Target::Serial;
+            job.control(if reset {
+                Control::StopAndReset
+            } else {
+                Control::Stop
+            });
             self.restart_target = None;
             self.job_target = None;
             self.game_capture = false;
@@ -2915,9 +3275,45 @@ impl Editor {
             self.focus_game = false;
             self.focus_console = false;
             self.focus_scene = true;
-            self.log("Stopping...");
-            self.job_stage = "Cancelling operation...".into();
+            self.log(if reset {
+                "Stopping PSX and requesting a console reset..."
+            } else {
+                "Stopping..."
+            });
+            self.job_stage = if reset {
+                "Resetting PSX before disconnecting..."
+            } else {
+                "Cancelling operation..."
+            }
+            .into();
         }
+    }
+    /// Reset through the owned monitor, or reconnect when an earlier session ended.
+    pub fn reset_psx(&mut self) -> Result<(), String> {
+        if self.serial_ui.command_pending {
+            return Err("Waiting for the previous PSX command".into());
+        }
+        if let Some(job) = &self.job {
+            if !self.playing
+                || job.stopping()
+                || self.active_play_runtime != crate::play::Runtime::PlayStation
+                || self.active_play_target != crate::play::Target::Serial
+            {
+                return Err("Wait for the current operation before resetting the PSX".into());
+            }
+            job.control(Control::Reset);
+            self.serial_ui.command_pending = true;
+        } else {
+            if self.scene_loading.is_some()
+                || self.dependencies.busy()
+                || self.assets.busy
+                || self.bake_job.is_some()
+            {
+                return Err("Wait for the current operation before reconnecting to the PSX".into());
+            }
+            crate::serial_ui::start(self, crate::serial_ui::Action::Reset);
+        }
+        Ok(())
     }
     pub fn tick(&mut self) {
         if self.playing
@@ -3055,8 +3451,9 @@ impl Editor {
                 }
                 Event::SerialIssue(s) => {
                     self.serial_ui.open = true;
-                    self.serial_ui.error = Some(s);
+                    self.serial_ui.error = Some(s.clone());
                     self.serial_ui.tools_ready = crate::serial_support::tools_installed();
+                    self.log_error(s);
                 }
                 Event::LightingBaked(bake) => {
                     if bake.fingerprint == crate::lighting::fingerprint(&self.scene) {
@@ -3077,6 +3474,10 @@ impl Editor {
                     self.external_watch.request_refresh();
                     self.source_dirty = true;
                     self.log(format!("Built {}", p.display()));
+                }
+                Event::Packaged(path) => {
+                    self.log(format!("Exported PS-EXE package: {}", path.display()));
+                    crate::ps_exe_export_ui::published(self, path);
                 }
                 Event::Running(pid) => {
                     self.emulator_pid = Some(pid);
@@ -3110,10 +3511,23 @@ impl Editor {
                     self.playing = true;
                     self.paused = false;
                     self.focus_console = true;
-                    self.log("PSX runtime and resident handler connected. Pause / Continue and Reset PSX are available. Stop only disconnects the PC session.");
+                    self.log("PSX runtime and resident handler connected. Pause / Continue and Reset PSX are available. Stop requests a PSX reset before disconnecting.");
                 }
                 Event::SerialCommandPending(pending) => {
                     self.serial_ui.command_pending = pending;
+                }
+                Event::RuntimeIssue { message, halted } => {
+                    self.runtime_error = Some(message.clone());
+                    if halted
+                        && !self.job_stale
+                        && !self.job.as_ref().is_some_and(pipeline::Job::stopping)
+                    {
+                        self.playing = true;
+                        self.paused = true;
+                        self.game_capture = false;
+                        self.focus_game = false;
+                    }
+                    self.log_error(message);
                 }
                 Event::Paused(p) => {
                     self.paused = p;
@@ -3175,8 +3589,7 @@ impl Editor {
                                 // into a silent build-only recovery.
                                 self.restart_target = target.filter(|(run, _)| *run);
                                 self.last_error = Some(e.clone());
-                                self.focus_console = true;
-                                self.log(e);
+                                self.log_error(e);
                             }
                         }
                     }
@@ -3186,6 +3599,7 @@ impl Editor {
                 }
             }
         }
+        let mut capture_error = None;
         if !self.job_stale
             && let Some(bridge) = self
                 .job
@@ -3205,13 +3619,21 @@ impl Editor {
                 self.game_frame = Some(frame.clone());
             }
             if let Some(error) = &state.error {
-                self.game_error = Some(error.clone());
+                capture_error = Some(error.clone());
                 self.game_capture = false;
                 if let Some(pid) = self.emulator_pid {
                     crate::native::emulator_window(pid, true);
                     self.emulator_visible = true;
                 }
             }
+        }
+        let rumble_warning = self
+            .job
+            .as_ref()
+            .and_then(|job| job.bridge.as_ref())
+            .and_then(|bridge| bridge.state.lock().unwrap().rumble_warning.take());
+        if let Some(warning) = rumble_warning {
+            self.log(warning);
         }
         if !self.job_stale
             && let Some(native) = self
@@ -3225,15 +3647,23 @@ impl Editor {
                 self.native_frame = Some(frame.clone());
             }
             if let Some(error) = &state.error {
-                self.game_error = Some(error.clone());
+                capture_error = Some(error.clone());
                 self.game_capture = false;
             }
+        }
+        if let Some(error) = capture_error {
+            if self.game_error.as_ref() != Some(&error) {
+                self.log_error(error.clone());
+            }
+            self.game_error = Some(error);
         }
         // Camera navigation and gizmo drags must stay responsive. Process events,
         // but defer idle dependency publication until the drag ends so graph
         // maintenance cannot consume a camera frame. Build/Play still validates
         // its own inputs and active jobs continue observing live edits normally.
-        if (self.scene_navigation || self.drag_axis.is_some()) && self.job.is_none() {
+        if (self.scene_navigation || self.drag_axis.is_some() || self.scene_orientation.is_active())
+            && self.job.is_none()
+        {
             return;
         }
         self.observe_external_sources();
@@ -3491,10 +3921,134 @@ impl Drop for Editor {
     }
 }
 
+/// Places an instance of actor class `class` at the end of `scene`, as the Actor
+/// picker does: a Blueprint class that carries actors places its whole template,
+/// any other class one actor with its default components. Returns the index of the
+/// placed root actor.
+pub fn place_class(
+    scene: &mut crate::scene::Scene,
+    root: &std::path::Path,
+    registry: &crate::blueprint::Registry,
+    model: &crate::object_model::Model,
+    class: &str,
+) -> Result<usize, String> {
+    use crate::{actor_document as doc, object_model as om, reflection_schema::Domain};
+    let Some(resolved) = model.class(class) else {
+        return Err(format!("`{class}` is not a reflected class."));
+    };
+    if registry
+        .classes
+        .get(&resolved.id)
+        .is_some_and(|c| c.provider.id == "blueprint")
+    {
+        let result = (|| -> Result<Option<usize>, String> {
+            let files = crate::blueprint_asset::load_all(root)?;
+            let template =
+                crate::blueprint_templates::resolve_assets(&files, registry, &resolved.id)?;
+            if template.actors.is_empty() {
+                return Ok(None);
+            }
+            let class = &registry.classes[&resolved.id];
+            let binding = crate::scene::ClassDefaults {
+                name: class.cpp_name.clone(),
+                class_id: Some(class.id.clone()),
+                provider: class.provider.clone(),
+                backend: class.backend.clone(),
+                ..Default::default()
+            };
+            let placed =
+                crate::blueprint_templates::place(scene, &template, binding, registry, None)?;
+            Ok(Some(placed.root))
+        })();
+        if let Some(index) = result? {
+            return Ok(index);
+        }
+    }
+    let base = resolved
+        .cpp_name
+        .rsplit("::")
+        .next()
+        .unwrap_or(&resolved.cpp_name)
+        .to_owned();
+    let mut name = base.clone();
+    let mut suffix = 1;
+    while scene.actors.iter().any(|a| a.name == name) {
+        name = format!("{base}.{suffix:03}");
+        suffix += 1;
+    }
+    let mut actor = doc::ActorInstance::new(
+        uuid::Uuid::new_v4(),
+        doc::ClassReference::new(&resolved.cpp_name, &resolved.id),
+        &name,
+    );
+    for default in &resolved.default_components {
+        let Some(component) = model.class(&default.class) else {
+            continue;
+        };
+        let label = default.name.clone().unwrap_or_else(|| {
+            component
+                .cpp_name
+                .rsplit("::")
+                .next()
+                .unwrap_or(&component.cpp_name)
+                .to_owned()
+        });
+        let mut instance = doc::ComponentInstance::new(
+            uuid::Uuid::new_v4(),
+            doc::ClassReference::new(&component.cpp_name, &component.id),
+            &label,
+        );
+        instance.root = default.root;
+        instance.inherited = true;
+        instance.default_id = Some(default.id.clone());
+        actor.components.push(instance);
+    }
+    for (index, default) in resolved.default_components.iter().enumerate() {
+        if let Some(parent) = &default.attach_to {
+            let parent = resolved
+                .default_components
+                .iter()
+                .position(|c| &c.field == parent)
+                .and_then(|i| actor.components.get(i))
+                .map(|c| c.id);
+            if let Some(component) = actor.components.get_mut(index) {
+                component.attach_parent = parent;
+            }
+        }
+    }
+    if actor.root().is_none()
+        && let Some(root) = match resolved.domain {
+            Domain::World3D => Some(om::SCENE_COMPONENT3D_ID),
+            Domain::World2D => Some(om::SCENE_COMPONENT2D_ID),
+            Domain::UI => Some(om::RECT_TRANSFORM_COMPONENT_ID),
+            Domain::None => None,
+        }
+        .and_then(|id| model.class(id))
+    {
+        let label = root
+            .cpp_name
+            .rsplit("::")
+            .next()
+            .unwrap_or(&root.cpp_name)
+            .trim_end_matches("Component")
+            .to_owned();
+        let mut instance = doc::ComponentInstance::new(
+            uuid::Uuid::new_v4(),
+            doc::ClassReference::new(&root.cpp_name, &root.id),
+            &label,
+        );
+        instance.root = true;
+        actor.components.insert(0, instance);
+    }
+    actor.refresh_components();
+    scene.actors.push(actor);
+    Ok(scene.actors.len() - 1)
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
-    fn serial_controls_wait_for_confirmation_and_stop_still_disconnects() {
+    fn serial_controls_wait_for_confirmation_and_stop_requests_reset() {
         let root =
             std::env::temp_dir().join(format!("epok-serial-controls-{}", uuid::Uuid::new_v4()));
         let mut editor = super::Editor::new(root.clone());
@@ -3535,7 +4089,7 @@ mod tests {
         editor.action("play");
         assert!(matches!(
             controls.try_recv(),
-            Ok(crate::pipeline::Control::Stop)
+            Ok(crate::pipeline::Control::StopAndReset)
         ));
         events
             .send(crate::pipeline::Event::Finished(Ok(())))
@@ -4082,7 +4636,7 @@ mod tests {
 
         // Duplicate copies the whole logical branch with fresh identities.
         let before = editor.scene.actors.len();
-        editor.duplicate_actor(hero);
+        editor.duplicate_actors(&[hero]);
         assert_eq!(editor.scene.actors.len(), before * 2);
         let copy = editor.selected_actor.unwrap();
         assert_ne!(copy, hero);
@@ -4104,20 +4658,241 @@ mod tests {
         );
 
         // Delete takes the branch and clears what pointed into it.
-        editor.delete_actor(copy);
+        editor.delete_actors(&[copy]);
         assert_eq!(editor.scene.actors.len(), before);
         editor.select_actor(Some(hero));
-        editor.delete_actor(hero);
+        editor.delete_actors(&[hero]);
         assert!(editor.scene.actors.is_empty());
         assert!(editor.selected_actor.is_none());
         assert!(editor.selected.is_none());
         // Deleting nothing is refused rather than recorded as an empty step.
         let before = editor.scene.clone();
-        editor.delete_actor(hero);
+        editor.delete_actors(&[hero]);
         assert_eq!(editor.scene, before);
         // Undo walks back through the whole sequence.
         editor.undo_scene().unwrap();
         assert!(!editor.scene.actors.is_empty());
+        drop(editor);
+        if root.exists() {
+            std::fs::remove_dir_all(root).unwrap();
+        }
+    }
+    /// What an actor's Hierarchy menu creates becomes that actor's child in one
+    /// undo step, and Ctrl+D selects the copy like the menu's Duplicate.
+    #[test]
+    fn actor_menu_creates_children_in_one_step_and_ctrl_d_selects_the_copy() {
+        let root = crate::workspace::tests::temp("actor-menu-children");
+        let mut editor = Editor::new(root.clone());
+        editor.auto_build = false;
+        editor.scene.actors.clear();
+        editor.catalog = crate::mcp_tests::actor_catalog();
+        editor.class_registry =
+            crate::blueprint::registry_from_catalog(&editor.root, &editor.catalog);
+        editor.registry_revision += 1;
+        editor.create_actor("epok::Actor3D");
+        let hero = editor.selected_actor.unwrap();
+        editor.create_actor("epok::Actor2D");
+        let sprite = editor.selected_actor.unwrap();
+        let actor = |e: &Editor, id| e.scene.actors[e.scene.actor_index(id).unwrap()].clone();
+
+        let before = editor.scene.clone();
+        editor.create_actor_under("epok::Actor3D", Some(hero));
+        assert!(editor.last_error.is_none(), "{:?}", editor.last_error);
+        let child = editor.selected_actor.unwrap();
+        assert_eq!(actor(&editor, child).logical_parent, Some(hero));
+        assert_eq!(
+            actor(&editor, child).attach.map(|a| a.actor),
+            Some(hero),
+            "A parent of the same domain carries the child"
+        );
+        editor.undo_scene().unwrap();
+        assert_eq!(editor.scene, before, "Creation and parenting are one step");
+
+        // A 2D node under a 2D actor sits at its origin; under a 3D actor it is
+        // only grouped and stays where the 2D view was looking.
+        editor.view_2d.centre = [40., -24.];
+        editor.create_child("create-node2d-Node2D", sprite);
+        let node = editor.selected_actor.unwrap();
+        assert_ne!(node, sprite);
+        let placed = actor(&editor, node);
+        assert_eq!(placed.logical_parent, Some(sprite));
+        assert_eq!(placed.attach.as_ref().map(|a| a.actor), Some(sprite));
+        let local = crate::scene_view_mode::read_transform_2d(&placed.root().unwrap().properties);
+        assert_eq!(local.position, [0., 0.]);
+        editor.create_child("create-node2d-Node2D", hero);
+        let grouped = actor(&editor, editor.selected_actor.unwrap());
+        assert_eq!(grouped.logical_parent, Some(hero));
+        assert!(grouped.attach.is_none());
+        let world = crate::scene_view_mode::read_transform_2d(&grouped.root().unwrap().properties);
+        assert_eq!(world.position, [40., -24.]);
+
+        // A UI widget goes under the clicked UI actor.
+        editor.create_actor("epok::UIActor");
+        let panel = editor.selected_actor.unwrap();
+        editor.select_actor(Some(hero));
+        editor.create_child("ui-button", panel);
+        let button = editor.selected_actor.unwrap();
+        assert_ne!(button, panel, "The new widget is selected");
+        assert_eq!(editor.selected, editor.scene.actor_index(button));
+        assert_eq!(actor(&editor, button).logical_parent, Some(panel));
+
+        // Instantiate Child Actor opens the class dialog for the clicked actor.
+        editor.select_actor(Some(sprite));
+        editor.create_child("instantiate-child-actor", hero);
+        assert!(editor.actor_creation.requested);
+        assert_eq!(editor.actor_creation.parent, Some(hero));
+
+        // Ctrl+D runs the "duplicate" action; it selects the copy in the Hierarchy.
+        editor.select_actor(Some(hero));
+        editor.action("duplicate");
+        let copy = editor.selected_actor.unwrap();
+        assert_ne!(copy, hero);
+        assert_eq!(editor.selected, editor.scene.actor_index(copy));
+        drop(editor);
+        if root.exists() {
+            std::fs::remove_dir_all(root).unwrap();
+        }
+    }
+    /// Ctrl+click, Shift+click and Select Children build a selection; Duplicate,
+    /// Delete and Move to Map Root take all of it as one undo step each.
+    #[test]
+    fn a_selection_of_several_actors_duplicates_deletes_and_moves_in_one_step() {
+        let root = crate::workspace::tests::temp("actor-multi-selection");
+        let mut editor = Editor::new(root.clone());
+        editor.auto_build = false;
+        editor.scene.actors.clear();
+        editor.catalog = crate::mcp_tests::actor_catalog();
+        editor.class_registry =
+            crate::blueprint::registry_from_catalog(&editor.root, &editor.catalog);
+        editor.registry_revision += 1;
+        editor.create_actor("epok::Actor3D");
+        let hero = editor.selected_actor.unwrap();
+        editor.create_actor("epok::Actor3D");
+        let crate_actor = editor.selected_actor.unwrap();
+        editor.create_actor("epok::Actor3D");
+        let lamp = editor.selected_actor.unwrap();
+        editor.create_actor_under("epok::Actor3D", Some(hero));
+        let child = editor.selected_actor.unwrap();
+        editor.create_actor_under("epok::Actor3D", Some(child));
+        let grandchild = editor.selected_actor.unwrap();
+        // The Hierarchy draws each branch under its parent.
+        let rows = [hero, child, grandchild, crate_actor, lamp];
+
+        // Ctrl+click adds an actor and makes it primary; a second Ctrl+click
+        // takes it out and hands the primary role back.
+        editor.select_actor(Some(hero));
+        editor.toggle_actor_selection(lamp);
+        assert_eq!(editor.selected_actors(), vec![hero, lamp]);
+        assert_eq!(editor.selected_actor, Some(lamp));
+        assert_eq!(editor.selected, editor.scene.actor_index(lamp));
+        assert!(editor.is_actor_selected(hero) && !editor.is_actor_selected(crate_actor));
+        editor.toggle_actor_selection(lamp);
+        assert_eq!(editor.selected_actors(), vec![hero]);
+        assert_eq!(editor.selected_actor, Some(hero));
+
+        // Shift+click selects the rows between the anchor and the clicked one,
+        // and the anchor stays for the next Shift+click.
+        editor.select_actor(Some(crate_actor));
+        editor.select_actor_range(&rows, child, false);
+        assert_eq!(
+            editor.selected_actors(),
+            vec![crate_actor, child, grandchild]
+        );
+        assert_eq!(editor.selected_actor, Some(child));
+        editor.select_actor_range(&rows, lamp, false);
+        assert_eq!(editor.selected_actors(), vec![crate_actor, lamp]);
+        // With Ctrl held as well the range is added to the selection.
+        editor.select_actor(Some(hero));
+        editor.toggle_actor_selection(grandchild);
+        editor.select_actor_range(&rows, crate_actor, true);
+        assert_eq!(
+            editor.selected_actors(),
+            vec![hero, crate_actor, grandchild]
+        );
+        // Selecting one actor some other way leaves a single selection.
+        editor.selected_actor = Some(lamp);
+        assert_eq!(editor.selected_actors(), vec![lamp]);
+
+        // Select Children takes the whole logical branch; the actor stays primary.
+        editor.select_actor_children(hero);
+        assert_eq!(editor.selected_actors(), vec![hero, child, grandchild]);
+        assert_eq!(editor.selected_actor, Some(hero));
+        assert_eq!(
+            editor.actor_command_targets(child),
+            vec![hero, child, grandchild]
+        );
+        assert_eq!(editor.actor_command_targets(lamp), vec![lamp]);
+
+        // Duplicate copies each selected branch once and selects the copies.
+        editor.toggle_actor_selection(lamp);
+        let before = editor.scene.clone();
+        editor.duplicate_actors(&editor.selected_actors());
+        assert!(editor.last_error.is_none(), "{:?}", editor.last_error);
+        assert_eq!(editor.scene.actors.len(), before.actors.len() + 4);
+        let copies = editor.selected_actors();
+        assert_eq!(copies.len(), 4);
+        assert!(
+            copies
+                .iter()
+                .all(|copy| before.actor_index(*copy).is_none())
+        );
+        let parent =
+            |e: &Editor, id| e.scene.actors[e.scene.actor_index(id).unwrap()].logical_parent;
+        let lamp_copy = editor.selected_actor.unwrap();
+        assert_eq!(
+            parent(&editor, lamp_copy),
+            None,
+            "The primary actor's copy is primary"
+        );
+        let copied_children: Vec<_> = copies
+            .iter()
+            .filter(|copy| parent(&editor, **copy).is_some_and(|p| copies.contains(&p)))
+            .collect();
+        assert_eq!(
+            copied_children.len(),
+            2,
+            "The copied branch keeps its shape"
+        );
+        editor.undo_scene().unwrap();
+        assert_eq!(
+            editor.scene, before,
+            "Duplicating the selection is one step"
+        );
+        // Ctrl+D runs the same command for the whole selection.
+        editor.select_actor(Some(crate_actor));
+        editor.toggle_actor_selection(lamp);
+        editor.action("duplicate");
+        assert_eq!(editor.scene.actors.len(), before.actors.len() + 2);
+        assert_eq!(editor.selected_actors().len(), 2);
+        editor.undo_scene().unwrap();
+        assert_eq!(editor.scene, before);
+
+        // Move to Map Root moves every selected actor in one step.
+        editor.reparent_actor(lamp, Some(crate_actor));
+        let before = editor.scene.clone();
+        editor.select_actor(Some(child));
+        editor.toggle_actor_selection(lamp);
+        editor.reparent_actors(&editor.selected_actors(), None);
+        assert_eq!(parent(&editor, child), None);
+        assert_eq!(parent(&editor, lamp), None);
+        assert_eq!(parent(&editor, grandchild), Some(child));
+        editor.undo_scene().unwrap();
+        assert_eq!(editor.scene, before, "Moving the selection is one step");
+
+        // Delete takes every selected branch, the Edit menu's Delete as well.
+        editor.select_actor(Some(child));
+        editor.toggle_actor_selection(lamp);
+        editor.delete_actors(&editor.selected_actors());
+        assert_eq!(editor.scene.actors.len(), before.actors.len() - 3);
+        assert!(editor.selected_actor.is_none() && editor.selected_actors().is_empty());
+        editor.undo_scene().unwrap();
+        assert_eq!(editor.scene, before, "Deleting the selection is one step");
+        editor.select_actor(Some(hero));
+        editor.toggle_actor_selection(crate_actor);
+        editor.action("delete");
+        assert_eq!(editor.scene.actors.len(), 0, "The lamp went with the crate");
+        editor.undo_scene().unwrap();
+        assert_eq!(editor.scene, before);
         drop(editor);
         if root.exists() {
             std::fs::remove_dir_all(root).unwrap();
@@ -4608,8 +5383,10 @@ mod tests {
         let a = root.join("assets/scenes/A.epokmap");
         let b = root.join("assets/scenes/B.epokmap");
         for (path, position) in [(&a, [600., 20., -400.]), (&b, [-700., 90., 1000.])] {
-            let mut scene = Scene::default();
-            scene.actors = vec![Actor::cube("Map geometry".into())];
+            let mut scene = Scene {
+                actors: vec![Actor::cube("Map geometry".into())],
+                ..Default::default()
+            };
             scene.actors[0].position = position;
             scene.save(path).unwrap();
         }
@@ -5752,128 +6529,4 @@ mod tests {
         drop(editor);
         std::fs::remove_dir_all(root).unwrap();
     }
-}
-
-/// Places an instance of actor class `class` at the end of `scene`, as the Actor
-/// picker does: a Blueprint class that carries actors places its whole template,
-/// any other class one actor with its default components. Returns the index of the
-/// placed root actor.
-pub fn place_class(
-    scene: &mut crate::scene::Scene,
-    root: &std::path::Path,
-    registry: &crate::blueprint::Registry,
-    model: &crate::object_model::Model,
-    class: &str,
-) -> Result<usize, String> {
-    use crate::{actor_document as doc, object_model as om, reflection_schema::Domain};
-    let Some(resolved) = model.class(class) else {
-        return Err(format!("`{class}` is not a reflected class."));
-    };
-    if registry
-        .classes
-        .get(&resolved.id)
-        .is_some_and(|c| c.provider.id == "blueprint")
-    {
-        let result = (|| -> Result<Option<usize>, String> {
-            let files = crate::blueprint_asset::load_all(root)?;
-            let template =
-                crate::blueprint_templates::resolve_assets(&files, registry, &resolved.id)?;
-            if template.actors.is_empty() {
-                return Ok(None);
-            }
-            let class = &registry.classes[&resolved.id];
-            let binding = crate::scene::ClassDefaults {
-                name: class.cpp_name.clone(),
-                class_id: Some(class.id.clone()),
-                provider: class.provider.clone(),
-                backend: class.backend.clone(),
-                ..Default::default()
-            };
-            let placed =
-                crate::blueprint_templates::place(scene, &template, binding, registry, None)?;
-            Ok(Some(placed.root))
-        })();
-        if let Some(index) = result? {
-            return Ok(index);
-        }
-    }
-    let base = resolved
-        .cpp_name
-        .rsplit("::")
-        .next()
-        .unwrap_or(&resolved.cpp_name)
-        .to_owned();
-    let mut name = base.clone();
-    let mut suffix = 1;
-    while scene.actors.iter().any(|a| a.name == name) {
-        name = format!("{base}.{suffix:03}");
-        suffix += 1;
-    }
-    let mut actor = doc::ActorInstance::new(
-        uuid::Uuid::new_v4(),
-        doc::ClassReference::new(&resolved.cpp_name, &resolved.id),
-        &name,
-    );
-    for default in &resolved.default_components {
-        let Some(component) = model.class(&default.class) else {
-            continue;
-        };
-        let label = default.name.clone().unwrap_or_else(|| {
-            component
-                .cpp_name
-                .rsplit("::")
-                .next()
-                .unwrap_or(&component.cpp_name)
-                .to_owned()
-        });
-        let mut instance = doc::ComponentInstance::new(
-            uuid::Uuid::new_v4(),
-            doc::ClassReference::new(&component.cpp_name, &component.id),
-            &label,
-        );
-        instance.root = default.root;
-        instance.inherited = true;
-        instance.default_id = Some(default.id.clone());
-        actor.components.push(instance);
-    }
-    for (index, default) in resolved.default_components.iter().enumerate() {
-        if let Some(parent) = &default.attach_to {
-            let parent = resolved
-                .default_components
-                .iter()
-                .position(|c| &c.field == parent)
-                .and_then(|i| actor.components.get(i))
-                .map(|c| c.id);
-            if let Some(component) = actor.components.get_mut(index) {
-                component.attach_parent = parent;
-            }
-        }
-    }
-    if actor.root().is_none()
-        && let Some(root) = match resolved.domain {
-            Domain::World3D => Some(om::SCENE_COMPONENT3D_ID),
-            Domain::World2D => Some(om::SCENE_COMPONENT2D_ID),
-            Domain::UI => Some(om::RECT_TRANSFORM_COMPONENT_ID),
-            Domain::None => None,
-        }
-        .and_then(|id| model.class(id))
-    {
-        let label = root
-            .cpp_name
-            .rsplit("::")
-            .next()
-            .unwrap_or(&root.cpp_name)
-            .trim_end_matches("Component")
-            .to_owned();
-        let mut instance = doc::ComponentInstance::new(
-            uuid::Uuid::new_v4(),
-            doc::ClassReference::new(&root.cpp_name, &root.id),
-            &label,
-        );
-        instance.root = true;
-        actor.components.insert(0, instance);
-    }
-    actor.refresh_components();
-    scene.actors.push(actor);
-    Ok(scene.actors.len() - 1)
 }

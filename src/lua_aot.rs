@@ -1251,6 +1251,12 @@ pub fn emit_bindings(
     Ok(text)
 }
 
+/// The binding table of a VM build without a Lua class. The single zeroed row
+/// only keeps the definition standard C++; nothing reads past the count.
+pub fn emit_empty_bindings() -> String {
+    "// Generated Lua class bindings. Do not edit.\n#include \"lua_runtime.hpp\"\nnamespace epok::lua {\nconst ClassBinding class_bindings[1] = {};\nconst uint32_t class_binding_count = 0;\n}\n".into()
+}
+
 impl MethodIr {
     fn body_declares_loop_variable(&self, id: LocalId) -> bool {
         fn scan(block: &Block, id: LocalId) -> bool {

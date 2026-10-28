@@ -57,8 +57,8 @@ mod seams;
 #[path = "mesh_visibility.rs"]
 mod visibility;
 pub fn chunks(quads: &[Quad]) -> Result<Vec<Chunk>, String> {
-    // Culling cells need not force 4 m draw batches. Eight-metre cells retain
-    // useful arena-scale culling while sharing vertices across adjacent panels.
+    // Share tile vertices and amortize draw setup over a larger spatial batch.
+    // encode_chunks independently splits any group outside the narrow range.
     // Payloads are bounded independently below, including skewed convex faces.
     const CELL: f32 = 8.;
     let mut cells: BTreeMap<[i32; 3], Vec<usize>> = BTreeMap::new();
@@ -165,16 +165,16 @@ pub fn world_q12(
     point: [f32; 3],
 ) -> Result<[i32; 3], String> {
     let mut out = [0; 3];
-    for axis in 0..3 {
-        let world = f64::from(transform.0[axis][3])
+    for (slot, row) in out.iter_mut().zip(&transform.0) {
+        let world = f64::from(row[3])
             + (0..3)
-                .map(|c| f64::from(transform.0[axis][c]) * f64::from(point[c]))
+                .map(|c| f64::from(row[c]) * f64::from(point[c]))
                 .sum::<f64>();
         let fixed = (world * 4096.).round();
         if !fixed.is_finite() || fixed < f64::from(i32::MIN) || fixed > f64::from(i32::MAX) {
             return Err("World coordinate exceeds Q12 range".into());
         }
-        out[axis] = fixed as i32;
+        *slot = fixed as i32;
     }
     Ok(out)
 }
@@ -268,6 +268,7 @@ pub fn packed_uv(uv: [f32; 2], page: crate::texture_cook::Page) -> u16 {
     let v = (i32::from(base_v) + q(uv[1]) * (i32::from(height) - 1) / 4096) & 255;
     (u | (v << 8)) as u16
 }
+#[cfg(test)]
 pub fn header_with_pages(e: &Actor, index: usize, pages: PageLookup) -> Result<String, String> {
     let palette = crate::vertex_colors::Palette::quads(&crate::lighting::quads(e))?;
     header_with_colors(e, index, pages, &palette)

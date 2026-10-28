@@ -151,7 +151,7 @@ auto result = object.active();
 **Exact declaration**
 
 ```cpp
-template<class Backend> #if defined(__mips__) && defined(__GNUC__) __attribute__((optimize("O3"))) #endif void advance(uint32_t microseconds, Backend& backend)
+template<class Backend> __attribute__((optimize("O3"))) void advance(uint32_t microseconds, Backend& backend)
 ```
 
 - **Declared at:** [line 226](../../../runtime/sequence_kernel.hpp#L226)

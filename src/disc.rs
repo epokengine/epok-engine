@@ -161,7 +161,8 @@ pub fn manifest(build: &Path, music: &[String]) -> Result<(), String> {
 fn manifest_inner(build: &Path, music: &[String], force: bool) -> Result<(), String> {
     let geometry = build.join(crate::streaming::ARCHIVE).is_file();
     let videos = crate::video::staged(build);
-    if music.is_empty() && videos.is_empty() && !geometry && !force {
+    let scenes = crate::scene_files::staged(build);
+    if music.is_empty() && videos.is_empty() && !geometry && scenes.is_empty() && !force {
         match fs::remove_file(build.join("disc.xml")) {
             Ok(()) => {}
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
@@ -181,6 +182,15 @@ fn manifest_inner(build: &Path, music: &[String], force: bool) -> Result<(), Str
     } else {
         String::new()
     };
+    entries += &scenes
+        .iter()
+        .map(|file| {
+            format!(
+                "<file name=\"{0}\" type=\"data\" source=\"{0}\" date=\"20200101000000\"/>\n",
+                file.name
+            )
+        })
+        .collect::<String>();
     entries += &music.iter().map(|name|format!("<file name=\"{name}\" type=\"mixed\" source=\"music/{name}\" date=\"20200101000000\"/>\n")).collect::<String>();
     entries += &videos.iter().map(|name|format!("<file name=\"{name}\" type=\"mixed\" source=\"video/{name}\" date=\"20200101000000\"/>\n")).collect::<String>();
     let xml = format!(
@@ -243,6 +253,14 @@ pub fn build(
             return Err("Geometry archive must contain complete 64 KiB pages".into());
         }
         sectors += bytes.div_ceil(2048);
+    }
+    for file in crate::scene_files::staged(folder) {
+        if manifest.contains(&format!("source=\"{}\"", file.name)) {
+            sectors += fs::metadata(folder.join(&file.name))
+                .map_err(|e| format!("Scene file {} for {}: {e}", file.name, file.scene))?
+                .len()
+                .div_ceil(2048);
+        }
     }
     for entry in fs::read_dir(folder.join("music"))
         .or_else(|e| {

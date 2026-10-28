@@ -12,7 +12,7 @@ class PsyqoMemoryCardDriver final:public MemoryCardDriver {
     static psyqo::MemoryCard::Port port(unsigned p){return static_cast<psyqo::MemoryCard::Port>(p);}
     static CardError error(psyqo::MemoryCard::Error e){return static_cast<CardError>(e);}
 public:
-    void prepare(){card.prepare();memory_card.attach(*this);}
+    void prepare(psyqo::GPU& gpu){card.prepare();card.useAsyncRecovery(gpu);memory_card.attach(*this);}
     bool idle()const override{return filesystem.isIdle();}
     void probe(unsigned p,void* owner,Completion complete)override {
         filesystem.getCardState(port(p),[owner,complete](auto e){complete(owner,error(e));});

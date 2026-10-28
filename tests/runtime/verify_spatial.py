@@ -15,6 +15,7 @@ SOURCES.append(ROOT / "tests/runtime/gameplay_api.cpp")
 SOURCES.append(ROOT / "tests/runtime/navigation.cpp")
 SOURCES.append(ROOT / "tests/runtime/terrain_collision.cpp")
 SOURCES.append(ROOT / "tests/runtime/compound_collision.cpp")
+SOURCES.append(ROOT / "tests/runtime/collision_fraction.cpp")
 SOURCES.append(ROOT / "tests/runtime/compound_grid.cpp")
 SOURCES.append(ROOT / "tests/runtime/dungeon_random.cpp")
 SOURCES.append(ROOT / "tests/runtime/navigation_motion.cpp")
@@ -29,6 +30,9 @@ SOURCES.append(ROOT / "tests/runtime/ordered_draw.cpp")
 SOURCES.append(ROOT / "tests/runtime/ordered_projection.cpp")
 SOURCES.append(ROOT / "tests/runtime/ordered_screen.cpp")
 SOURCES.append(ROOT / "tests/runtime/baked_packet.cpp")
+SOURCES.append(ROOT / "tests/runtime/fragment_slot.cpp")
+SOURCES.append(ROOT / "tests/runtime/pocketstation_async.cpp")
+SOURCES.append(ROOT / "tests/runtime/pocketstation_sio.cpp")
 SOURCES.append(ROOT / "tests/runtime/baked_colors.cpp")
 SOURCES.append(ROOT / "tests/runtime/streaming_pool.cpp")
 SOURCES.append(ROOT / "tests/runtime/stream_hash.cpp")
@@ -39,6 +43,7 @@ SOURCES.append(ROOT / "tests/runtime/streaming_archive_fits.cpp")
 SOURCES.append(ROOT / "tests/runtime/transition.cpp")
 SOURCES.append(ROOT / "tests/runtime/scene_transitions.cpp")
 SOURCES.append(ROOT / "tests/runtime/streaming_host.cpp")
+SOURCES.append(ROOT / "tests/runtime/scene_files_host.cpp")
 SOURCES.append(ROOT / "tests/runtime/motion_interpolation.cpp")
 SOURCES.append(ROOT / "tests/runtime/serial_kernel.cpp")
 SOURCES.append(ROOT / "tests/runtime/audio_disabled.cpp")
@@ -56,6 +61,7 @@ SOURCES.append(ROOT / "tests/runtime/instrument_synth.cpp")
 SOURCES.append(ROOT / "tests/runtime/instrument_preview.cpp")
 SOURCES.append(ROOT / "tests/runtime/instrument_service.cpp")
 SOURCES.append(ROOT / "tests/runtime/native_music_service.cpp")
+SOURCES.append(ROOT / "tests/runtime/native_music_clock.cpp")
 SOURCES.append(ROOT / "tests/runtime/native_music_mixed.cpp")
 SOURCES.append(ROOT / "tests/runtime/native_envelope.cpp")
 SOURCES.append(ROOT / "tests/runtime/instrument_reverb.cpp")
@@ -64,6 +70,8 @@ SOURCES.append(ROOT / "tests/runtime/spu_transfer.cpp")
 SOURCES.append(ROOT / "tests/runtime/palette_renderer.cpp")
 SOURCES.append(ROOT / "tests/runtime/camera_space.cpp")
 SOURCES.append(ROOT / "tests/runtime/fixed_trigonometry.cpp")
+SOURCES.append(ROOT / "tests/runtime/fixed_division.cpp")
+SOURCES.append(ROOT / "tests/runtime/lighting_math.cpp")
 SOURCES.append(ROOT / "tests/runtime/camera_aim.cpp")
 SOURCES.append(ROOT / "tests/runtime/rail_camera_aim.cpp")
 SOURCES.append(ROOT / "tests/runtime/texture_upload.cpp")
@@ -106,6 +114,13 @@ with tempfile.TemporaryDirectory(prefix="epok-spatial-") as temp:
     (host / "common/kernel").mkdir(parents=True)
     shutil.copyfile(ROOT / "tests/runtime/pcdrv_stub.hpp", host / "common/kernel/pcdrv.h")
     documents.write_text(host / "data-config.hh", "#pragma once\n#define EPOK_HOST_DATA 1\n")
+    scene_host = path / "scene-files-host"
+    shutil.copytree(host, scene_host)
+    shutil.copyfile(ROOT / "runtime/scene_files.hpp", scene_host / "scene_files.hpp")
+    # The scene test observes each storage boundary; native_music_clock tests
+    # the real guard's timer reconstruction and nested-pause behavior separately.
+    documents.write_text(scene_host / "sequence_clock.hpp", "#pragma once\n")
+    documents.write_text(scene_host / "common/kernel/pcdrv.h", "#pragma once\n#define PCDRV_SEEK_SET 0\n#define PCDRV_SEEK_END 2\nint PCinit();\nint PCopen(const char*,int,int);\nint PCclose(int);\nint PClseek(int,int,int);\nint PCread(int,void*,int);\n")
     read = path / "streaming-read"
     read.mkdir()
     shutil.copyfile(ROOT / "runtime/streaming_read.hpp", read / "streaming_read.hpp")
@@ -114,9 +129,17 @@ with tempfile.TemporaryDirectory(prefix="epok-spatial-") as temp:
         (read / name).parent.mkdir(parents=True, exist_ok=True)
         documents.write_text(read / name, "#pragma once\n")
     includes = [path, ROOT / "third_party/nugget", ROOT / "runtime", ROOT / "native"]
+    pocket = path / "pocket-hardware"
+    (pocket / "psyqo/hardware").mkdir(parents=True)
+    shutil.copyfile(ROOT / "tests/runtime/pocketstation_sio_stub.hpp", pocket / "pocketstation_sio_stub.hpp")
+    for name in ("cpu.hh", "sio.hh"):
+        documents.write_text(pocket / "psyqo/hardware" / name, '#pragma once\n#include "pocketstation_sio_stub.hpp"\n')
+    (pocket / "common/hardware").mkdir(parents=True)
+    documents.write_text(pocket / "common/hardware/counters.h", '#pragma once\n#include "pocketstation_sio_stub.hpp"\n')
     gte = path / "gte-matrix"
     (gte / "psyqo").mkdir(parents=True)
     shutil.copyfile(ROOT / "runtime/gte_geometry.hpp", gte / "gte_geometry.hpp")
+    shutil.copyfile(ROOT / "runtime/lighting.hpp", gte / "lighting.hpp")
     shutil.copyfile(ROOT / "tests/runtime/gte_register_stub.hpp", gte / "psyqo/gte-registers.hh")
     documents.write_text(gte / "psyqo/gte-kernels.hh", "#pragma once\n")
     palette = path / "palette-renderer"
@@ -127,11 +150,18 @@ with tempfile.TemporaryDirectory(prefix="epok-spatial-") as temp:
     audio = path / "audio-runtime"
     (audio / "common/hardware").mkdir(parents=True)
     shutil.copyfile(ROOT / "runtime/audio.hpp", audio / "audio.hpp")
-    for name in ("spu_transfer.hpp", "sequence_service.hpp", "native_music_runtime.hpp", "sequence_instrument_service.hpp", "sequence_data.hpp", "native_music_data.hpp", "native_music_service.hpp", "sequence_kernel.hpp", "sequence_lock.hpp", "sequence_tables.hpp", "instrument_bank.hpp", "instrument_allocator.hpp", "instrument_synth.hpp", "instrument_preparation.hpp", "instrument_reverb.hpp"):
+    for name in ("spu_transfer.hpp", "sequence_service.hpp", "sequence_clock.hpp", "native_music_runtime.hpp", "sequence_instrument_service.hpp", "sequence_data.hpp", "native_music_data.hpp", "native_music_service.hpp", "sequence_kernel.hpp", "sequence_lock.hpp", "sequence_tables.hpp", "instrument_bank.hpp", "instrument_allocator.hpp", "instrument_synth.hpp", "instrument_preparation.hpp", "instrument_reverb.hpp"):
         shutil.copyfile(ROOT / "runtime" / name, audio / name)
     shutil.copyfile(ROOT / "tests/runtime/audio_transport_stub.hpp", audio / "epok.hpp")
     for name in ("dma.h", "spu.h", "hwregs.h"):
         documents.write_text(audio / "common/hardware" / name, "#pragma once\n")
+    documents.write_text(audio / "common/hardware/counters.h", "#pragma once\n#include <stdint.h>\nstruct FakeAudioCounter {uint16_t value=0,mode=0,target=0;};\ninline FakeAudioCounter fake_audio_counters[3];\n#define COUNTERS fake_audio_counters\ninline constexpr uint16_t TM_CLK_DIV8=0x200,TM_IRQ_TARGET=0x10,TM_IRQ_REPEAT=0x40,TM_RESET_TARGET=8;\n")
+    (audio / "common/syscalls").mkdir(parents=True)
+    (audio / "common/kernel").mkdir(parents=True)
+    (audio / "psyqo").mkdir(parents=True)
+    documents.write_text(audio / "common/syscalls/syscalls.h", "#pragma once\ninline unsigned audio_test_timer=99;inline void syscall_enableEvent(unsigned){}inline void syscall_enableTimerIRQ(unsigned n){audio_test_timer=n;}inline void syscall_setTimerAutoAck(unsigned,int){}\n")
+    documents.write_text(audio / "common/kernel/events.h", "#pragma once\ninline constexpr unsigned EVENT_MODE_CALLBACK=0;\n")
+    documents.write_text(audio / "psyqo/kernel.hh", "#pragma once\nnamespace psyqo::Kernel {enum class IRQ {Timer0,Timer2};inline bool isKernelTakenOver(){return false;}template<class F> void queueIRQHandler(IRQ,F){}template<class F> unsigned openEvent(unsigned,unsigned,unsigned,F){return 1;}inline void abort(const char*){} }\n")
     for source in SOURCES:
         target = path / (source.stem + ("-test.exe" if os.name == "nt" else "-test"))
         if Path(compiler).name.lower() == "cl.exe":
@@ -140,6 +170,8 @@ with tempfile.TemporaryDirectory(prefix="epok-spatial-") as temp:
             command = [compiler, "-std=c++20", "-Wall", "-Wextra", str(source), "-o", str(target), *[f"-I{p}" for p in includes]]
         if source.stem == "streaming_read":
             command.insert(1, f"/I{read}" if Path(compiler).name.lower()=="cl.exe" else f"-I{read}")
+        if source.stem == "pocketstation_sio":
+            command.insert(1, f"/I{pocket}" if Path(compiler).name.lower()=="cl.exe" else f"-I{pocket}")
         if source.stem in ("instrument_preview", "instrument_source_preview"):
             native_source = ROOT / "native" / source.name
             if Path(compiler).name.lower() == "cl.exe":

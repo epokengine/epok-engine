@@ -255,14 +255,11 @@ pub fn resolve(scene: &Scene, program: &Program) -> Result<Resolved, String> {
             .second
             .map(|r| source.get(&r).ok_or("Missing ordered draw second face"))
             .transpose()?;
-        if let Some(second) = second {
-            if first.quad.material != second.quad.material
-                || first.quad.vertex_colors.is_some() != second.quad.vertex_colors.is_some()
-            {
-                return Err(
-                    "Ordered draw halves have incompatible materials or color domains".into(),
-                );
-            }
+        if let Some(second) = second
+            && (first.quad.material != second.quad.material
+                || first.quad.vertex_colors.is_some() != second.quad.vertex_colors.is_some())
+        {
+            return Err("Ordered draw halves have incompatible materials or color domains".into());
         }
         let faces = [first, second.unwrap_or(first)];
         let mut quad = first.quad.clone();
@@ -491,8 +488,10 @@ pub(crate) mod tests {
                 .actor,
             scene.actors[1].id
         );
-        let mut plain = Scene::default();
-        plain.ordered_draw = None;
+        let plain = Scene {
+            ordered_draw: None,
+            ..Default::default()
+        };
         let json = serde_json::to_value(plain).unwrap();
         assert!(json.get("ordered_draw").is_none());
     }

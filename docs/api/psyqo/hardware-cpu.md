@@ -1,10 +1,10 @@
 # PsyQo API: Hardware / Cpu
 
-> **Header:** `"psyqo/hardware/cpu.hh"` · **Tier:** PsyQo low-level API · **Source:** [open header](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/hardware/cpu.hh)
+> **Header:** `"psyqo/hardware/cpu.hh"` · **Tier:** PsyQo low-level API · **Source:** [open header](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/hardware/cpu.hh)
 
 This module covers the hardware/cpu module. It documents 5 public callables declared directly in this header.
 
-PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552d`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
+PsyQo is pinned through Nugget revision `c702235f366fb1cd8c18e0a5a5392e0acae8a079`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
 
 ## Declared types
 
@@ -30,7 +30,7 @@ PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552
 static inline void flushWriteQueue()
 ```
 
-- **Declared at:** [line 62](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/hardware/cpu.hh#L62)
+- **Declared at:** [line 62](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/hardware/cpu.hh#L62)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -61,7 +61,7 @@ psyqo::Hardware::CPU::flushWriteQueue();
 void clear()
 ```
 
-- **Declared at:** [line 51](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/hardware/cpu.hh#L51)
+- **Declared at:** [line 51](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/hardware/cpu.hh#L51)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -94,7 +94,7 @@ object.clear();
 void clear(IRQ irq)
 ```
 
-- **Declared at:** [line 50](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/hardware/cpu.hh#L50)
+- **Declared at:** [line 50](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/hardware/cpu.hh#L50)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -136,7 +136,7 @@ object.clear(irq);
 bool isSet(IRQ irq) const
 ```
 
-- **Declared at:** [line 52](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/hardware/cpu.hh#L52)
+- **Declared at:** [line 52](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/hardware/cpu.hh#L52)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -178,7 +178,7 @@ auto result = object.isSet(irq);
 void set(IRQ irq)
 ```
 
-- **Declared at:** [line 49](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/hardware/cpu.hh#L49)
+- **Declared at:** [line 49](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/hardware/cpu.hh#L49)
 - **Kind:** `cxx method`
 
 **Parameters**

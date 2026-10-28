@@ -90,6 +90,10 @@ impl Summary {
             inputs,
         })
     }
+    /// SHA-256 of a compiled output as captured right after its build validated.
+    pub fn output_hash(&self, path: &str) -> Option<&str> {
+        self.inputs.get(path).map(String::as_str)
+    }
     pub fn load(root: &Path, debug: bool) -> Option<Self> {
         let summary: Self =
             serde_json::from_slice(&std::fs::read(directory(root, debug).join(SUMMARY)).ok()?)
@@ -111,6 +115,7 @@ impl Summary {
                     "GEOMETRY.BIN" | "epok.cue" | "epok.bin" | "epok.iso"
                 )
                 || crate::video::is_staged_path(path)
+                || crate::scene_files::is_file_name(path)
                 || path
                     .strip_prefix("music/M")
                     .and_then(|p| p.strip_suffix(".XA"))

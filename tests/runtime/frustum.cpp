@@ -102,7 +102,30 @@ static void verify_narrow_chunk_bounds() {
     }
 }
 int main(){
+    int32_t cube_basis[3][3]={{4096,0,0},{0,4096,0},{0,0,4096}},position[3]={},camera[3]={};
+    const unsigned axes[6]={2,2,0,0,1,1};const int signs[6]={-1,1,-1,1,1,-1};
+    for(unsigned face=0;face<6;++face){
+        for(auto& value:camera)value=0;camera[axes[face]]=signs[face]*8192;
+        assert(epok::closed_cube_faces(cube_basis,position,camera)==(1u<<face));
+    }
+    camera[0]=camera[1]=8192;camera[2]=-8192;
+    assert(epok::closed_cube_faces(cube_basis,position,camera)==((1u<<0)|(1u<<3)|(1u<<4)));
+    cube_basis[0][0]=-4096;
+    assert(epok::closed_cube_faces(cube_basis,position,camera)==((1u<<0)|(1u<<2)|(1u<<4)));
+    cube_basis[0][1]=1;assert(epok::closed_cube_faces(cube_basis,position,camera)==63); // shear fallback
     verify_narrow_chunk_bounds();
+    auto native_planes=[]<class F>(){
+        uint32_t seed=34815;
+        for(unsigned sample=0;sample<100000;++sample){
+            int32_t center[3],extent[3];
+            for(int r=0;r<3;++r){seed=seed*1664525u+1013904223u;center[r]=int32_t(seed%137363458)-68681729;seed=seed*1664525u+1013904223u;extent[r]=int32_t(seed%1572870);}
+            assert((epok::chunk_outside<F,int32_t>(center,extent,128*4096)==epok::chunk_outside<F>(center,extent,128*4096)));
+            assert((epok::chunk_fully_inside<F,int32_t>(center,extent,F::focal)==epok::chunk_fully_inside<F>(center,extent,F::focal)));
+        }
+    };
+    native_planes.operator()<epok::ScreenFrustum<320,240>>();
+    native_planes.operator()<epok::ScreenFrustum<512,240>>();
+    native_planes.operator()<epok::ScreenFrustum<640,480>>();
     const int32_t huge_translation[3]={1<<26,0,0};
     assert(!epok::chunk_bounds_planes_fit(huge_translation));
     const int32_t inside[3]={0,0,8*4096},size[3]={4096,4096,4096};

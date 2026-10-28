@@ -1,10 +1,10 @@
 # PsyQo API: Iso9660 Parser
 
-> **Header:** `"psyqo/iso9660-parser.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/iso9660-parser.hh)
+> **Header:** `"psyqo/iso9660-parser.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/iso9660-parser.hh)
 
 This module covers the iso9660 parser module. It documents 18 public callables declared directly in this header.
 
-PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552d`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
+PsyQo is pinned through Nugget revision `c702235f366fb1cd8c18e0a5a5392e0acae8a079`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
 
 ## Declared types
 
@@ -43,7 +43,7 @@ PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552
 CDRom* getCDRom()
 ```
 
-- **Declared at:** [line 183](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/iso9660-parser.hh#L183)
+- **Declared at:** [line 183](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/iso9660-parser.hh#L183)
 - **Kind:** `cxx method`
 
 **Returns.** The CDRom object.
@@ -76,7 +76,7 @@ auto result = object.getCDRom();
 GetDirentryAwaiter getDirentry(eastl::string_view path, DirEntry* entry)
 ```
 
-- **Declared at:** [line 150](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/iso9660-parser.hh#L150)
+- **Declared at:** [line 150](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/iso9660-parser.hh#L150)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -122,7 +122,7 @@ auto result = object.getDirentry(path, entry);
 void getDirentry(eastl::string_view path, DirEntry* entry, eastl::function<void(bool success)> callback)
 ```
 
-- **Declared at:** [line 129](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/iso9660-parser.hh#L129)
+- **Declared at:** [line 129](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/iso9660-parser.hh#L129)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -168,7 +168,7 @@ object.getDirentry(path, entry, callback);
 bool await_ready() const
 ```
 
-- **Declared at:** [line 134](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/iso9660-parser.hh#L134)
+- **Declared at:** [line 134](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/iso9660-parser.hh#L134)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -201,7 +201,7 @@ auto result = object.await_ready();
 bool await_resume()
 ```
 
-- **Declared at:** [line 142](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/iso9660-parser.hh#L142)
+- **Declared at:** [line 142](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/iso9660-parser.hh#L142)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -234,7 +234,7 @@ auto result = object.await_resume();
 template <typename U> void await_suspend(std::coroutine_handle<U> handle)
 ```
 
-- **Declared at:** [line 136](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/iso9660-parser.hh#L136)
+- **Declared at:** [line 136](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/iso9660-parser.hh#L136)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -279,7 +279,7 @@ object.await_suspend<U>(handle);
 GetDirentryAwaiter(ISO9660Parser& parser, eastl::string_view path, DirEntry* entry)
 ```
 
-- **Declared at:** [line 132](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/iso9660-parser.hh#L132)
+- **Declared at:** [line 132](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/iso9660-parser.hh#L132)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -321,7 +321,7 @@ psyqo::ISO9660Parser::GetDirentryAwaiter value(parser, path, entry);
 InitializeAwaiter initialize()
 ```
 
-- **Declared at:** [line 116](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/iso9660-parser.hh#L116)
+- **Declared at:** [line 116](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/iso9660-parser.hh#L116)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `InitializeAwaiter`. Check the purpose and failure notes before using the value.
@@ -356,7 +356,7 @@ auto result = object.initialize();
 void initialize(eastl::function<void(bool success)> callback)
 ```
 
-- **Declared at:** [line 98](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/iso9660-parser.hh#L98)
+- **Declared at:** [line 98](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/iso9660-parser.hh#L98)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -398,7 +398,7 @@ object.initialize(callback);
 bool await_ready() const
 ```
 
-- **Declared at:** [line 102](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/iso9660-parser.hh#L102)
+- **Declared at:** [line 102](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/iso9660-parser.hh#L102)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -431,7 +431,7 @@ auto result = object.await_ready();
 bool await_resume()
 ```
 
-- **Declared at:** [line 110](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/iso9660-parser.hh#L110)
+- **Declared at:** [line 110](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/iso9660-parser.hh#L110)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -464,7 +464,7 @@ auto result = object.await_resume();
 template <typename U> void await_suspend(std::coroutine_handle<U> handle)
 ```
 
-- **Declared at:** [line 104](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/iso9660-parser.hh#L104)
+- **Declared at:** [line 104](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/iso9660-parser.hh#L104)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -509,7 +509,7 @@ object.await_suspend<U>(handle);
 InitializeAwaiter(ISO9660Parser& parser) : m_par
 ```
 
-- **Declared at:** [line 101](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/iso9660-parser.hh#L101)
+- **Declared at:** [line 101](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/iso9660-parser.hh#L101)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -549,7 +549,7 @@ psyqo::ISO9660Parser::InitializeAwaiter value(parser);
 bool initialized()
 ```
 
-- **Declared at:** [line 176](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/iso9660-parser.hh#L176)
+- **Declared at:** [line 176](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/iso9660-parser.hh#L176)
 - **Kind:** `cxx method`
 
 **Returns.** The root directory entry.
@@ -584,7 +584,7 @@ auto result = object.initialized();
 ISO9660Parser(CDRom* cdrom) : m
 ```
 
-- **Declared at:** [line 87](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/iso9660-parser.hh#L87)
+- **Declared at:** [line 87](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/iso9660-parser.hh#L87)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -622,7 +622,7 @@ psyqo::ISO9660Parser value(cdrom);
 TaskQueue::Task scheduleGetDirentry(eastl::string_view path, DirEntry* entry)
 ```
 
-- **Declared at:** [line 130](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/iso9660-parser.hh#L130)
+- **Declared at:** [line 130](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/iso9660-parser.hh#L130)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -666,7 +666,7 @@ auto result = object.scheduleGetDirentry(path, entry);
 TaskQueue::Task scheduleInitialize()
 ```
 
-- **Declared at:** [line 99](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/iso9660-parser.hh#L99)
+- **Declared at:** [line 99](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/iso9660-parser.hh#L99)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `TaskQueue::Task`. Check the purpose and failure notes before using the value.
@@ -701,7 +701,7 @@ auto result = object.scheduleInitialize();
 TaskQueue::Task scheduleReadRequest(const ReadRequest* request)
 ```
 
-- **Declared at:** [line 166](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/iso9660-parser.hh#L166)
+- **Declared at:** [line 166](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/iso9660-parser.hh#L166)
 - **Kind:** `cxx method`
 
 **Parameters**

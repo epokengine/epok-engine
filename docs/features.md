@@ -343,7 +343,7 @@ See the complete [Timeline reference](timelines.md) and the
   PathFollow2D, Line2D, Polygon2D, Particles2D, AudioPlayer2D,
   VisibleOnScreenNotifier2D, RemoteTransform2D, Skeleton2D, NavigationRegion2D,
   NavigationAgent2D, RigidBody2D, Joint2D, SubViewport2D, SplitScreen2D,
-  CanvasLayer2D and CanvasModulate2D components, plus any C++, Blueprint or Lua component. Ready-made presets, grouped by
+  CanvasLayer2D, CanvasModulate2D and Depth2D components, plus any C++, Blueprint or Lua component. Ready-made presets, grouped by
   purpose, create each kind of node in one click.
 - **Sprites and animation.** Texture regions, sprite-sheet cells, offset, centring,
   flips, modulate, the console blend modes, z-index and y-sort; named frame
@@ -386,11 +386,16 @@ See the complete [Timeline reference](timelines.md) and the
 - **Parallax and canvas layers.** Parallax2D scrolls attached nodes against the camera
   with autoscroll and screen-filling repeats; CanvasLayer2D draws nodes on their own
   layer in screen pixels or world space; CanvasModulate2D tints a whole canvas.
+- **2D with the 3D world.** A CanvasLayer2D drawn Under 3D puts a background behind
+  all 3D geometry; a Depth2D inserts sprites and tile layers into the 3D ordering table
+  at a camera distance or an anchor actor's depth, plus a bucket bias, so cut-outs of a
+  pre-rendered background hide the 3D characters walking behind them.
 - **Native renderer.** Exact-texel hardware rectangles for unscaled sprites and
   tiles (fixed-size 8 x 8 and 16 x 16 rectangles for tiles) and textured quads
   otherwise, sorted by canvas and a stable radix key, drawn over the 3D world and under
-  the HUD from a cooked, per-project packet budget; Native PC Play draws the same frame.
-  Projects without 2D content compile none of it.
+  the HUD (or under and inside the 3D world, as above) from a cooked, per-project packet
+  budget; Native PC Play composes the same frame. Projects without 2D content compile
+  none of it.
 - **2D editor.** Select, move, rotate, scale and pan tools with shortcuts, grid and
   rotation snapping, pixel rulers, real texture and animation previews, collider and
   camera gizmos, drag-and-drop sprite creation, a sprite region editor and a
@@ -580,6 +585,13 @@ Start with [Your first Blueprint](blueprints-tutorial.md), then use the
   embedded Game view owns focus and releases buttons when focus is lost. An
   opt-in analog-controller mode adds signed Q12 stick axes for both sticks with
   an exact center and no dead zone.
+- **Controller rumble.** The reflected Input library requests finite DualShock
+  large/small motor pulses from C++, Blueprint and Lua Gameplay profile 2.
+  PSX uses the shared SIO0 owner; Native PC uses individually assigned devices
+  and bounded host effects. Controls exposes device support and a short rumble
+  test, while Play preferences and in-game settings can mute output. See
+  [controller rumble](input-collision.md#controller-rumble) for platform limits
+  and the acceptance status.
 - **Measured fixed step.** Host frame time feeds a fixed 60 Hz simulation with
   bounded catch-up, pause, single-step, tick counters and interpolation data.
 - **AABB collision.** Collider layers/masks, solid and trigger modes, overlap,
@@ -654,8 +666,16 @@ See [Play targets and loading](play.md).
   loading frame with configurable text/64x64 RGB555 image, retire the old bank,
   warm streamed geometry, load the new bank and fade in. Failed reads stay muted
   and allow retry. C++ can override transition options per request.
+- **Scenes outside the executable.** The project's scene table marks which scenes
+  stay in the EXE. With CD or PC data, the others are saved as checked
+  `SCENEnn.BIN` files and load into one shared RAM region behind the loading
+  screen, with a progress bar of the bytes read. See
+  [Scenes outside the executable](scene-files.md).
 - **Executable and disc packaging.** Produce a PS-X EXE; package ISO or BIN/CUE
   with XA/external geometry and a user-supplied system-area license when required.
+- **PS-EXE packages.** Export a verified ZIP holding the executable, the PCDrv
+  files it reads, a manifest, launch instructions and notices, for
+  PCDrv-compatible loaders. See [Export PS-EXE](ps-exe-export.md).
 - **Standalone export.** Generate a relocatable C++/PsyQo project with runtime,
   scripts, assets, Make launchers, manifests, guides, licenses and notices. It can
   rebuild without the Rust editor, libclang extractor or original authoring tree.
@@ -772,7 +792,7 @@ The editor exposes the following implemented headless families. Run them with
 
 | Family | Commands |
 | --- | --- |
-| Build and run | `--build-psx`, `--play-psx`, `--use-play-profile`, `--blueprint-debug`, `--analyze-memory`, `--export-psx` |
+| Build and run | `--build-psx`, `--play-psx`, `--use-play-profile`, `--blueprint-debug`, `--analyze-memory`, `--export-psx`, `--export-ps-exe` |
 | Projects | `--create-project`, `--template`, `--migrate-project`, `--recover-project` |
 | Assets | `--scan-assets`, `--import-texture`, `--import-obj`, `--import-fbx`, `--import-audio`, `--reimport-asset`, `--inspect-asset` |
 | Native gameplay | `--reflect`, `--new-script`, `--parent`, `--new-blueprint`, `--compile-blueprints`, `--add-actor`, `--scene` |
@@ -869,7 +889,7 @@ live beside the corresponding implementation and are summarized under
 | Lua scripting | `lua_aot`, `lua_api_stub`, `lua_asset`, `lua_bytecode`, `lua_compile`, `lua_dependencies`, `lua_frontend`, `lua_identity`, `lua_vm`, `script_ir` |
 | Blueprints | `blueprint`, `blueprint_asset`, `blueprint_compile`, `blueprint_debug`, `blueprint_debug_ui`, `blueprint_dependencies`, `blueprint_editor`, `blueprint_ir`, `blueprint_playback`, `blueprint_refs`, `blueprint_spawn`, `blueprint_templates`, `blueprint_template_editor`, `blueprint_workflow`, `blueprint_action_menu`, `blueprint_inline_values`, `blueprint_split_pins` |
 | Timeline/VFX | `timeline`, `timeline_adapters`, `timeline_compile`, `timeline_curve`, `timeline_editor`, `timeline_runtime`, `timeline_scene`, `particle_effect`, `particle_effect_editor`, `particle_effect_preview`, `particle_effect_scene`, `playback_staging` |
-| Build/play/export | `build_inputs`, `staging_files`, `pipeline`, `play`, `play_ui`, `disc`, `export`, `export_ui`, `bridge`, `dependencies` |
+| Build/play/export | `build_inputs`, `staging_files`, `pipeline`, `play`, `play_ui`, `disc`, `export`, `export_ui`, `ps_exe_export`, `ps_exe_export_ui`, `bridge`, `dependencies` |
 | Physical console and analysis | `serial`, `serial_support`, `serial_terminal`, `serial_ui`, `memory`, `memory_ui`, `streaming`, `music`, `audio` |
 | Assistant integration | `mcp`, `mcp_tools`, `mcp_stdio` |
 | In-crate validation | `mcp_tests`, `skeletal_tests`, `dungeon_tests`, plus the Blueprint and Timeline test modules declared only for test builds |

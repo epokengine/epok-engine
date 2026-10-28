@@ -81,19 +81,42 @@ An actor node is a drag source and a drop target for the payload `EPOK_ACTOR` (t
 index in `scene.actors`, resolved to its UUID in the same frame). The drag tooltip reads
 *"Drop on an actor to parent; drop on the map to unparent"*.
 
+### Selection
+
+The Hierarchy holds a set of selected actors, `Editor::selected_actors()`, and one primary
+actor, `selected_actor`, which is always part of the set. The Inspector, the gizmos and the
+single-actor tools follow the primary actor only. A plain click
+selects one actor (`select_actor`); Ctrl+click adds the actor as the new primary or takes it
+out (`toggle_actor_selection`, the most recently selected actor left becomes primary);
+Shift+click selects the drawn rows from the anchor, the last actor clicked without Shift, to
+the clicked one (`select_actor_range`, which gets the rows of that frame in drawing order;
+Ctrl+Shift adds the range). Every selected actor is drawn highlighted. The set counts only
+while it holds `selected_actor`, so code that assigns `selected_actor` directly leaves a single
+selection rather than a stale set.
+
 | Affordance | Effect |
 | --- | --- |
 | double-click, or context menu **Rename** | inline `input_text` over the node, exactly like an entity rename: Enter or blur commits, Escape discards, an empty or unchanged name is a no-op |
-| context menu **Duplicate** | copies the actor and its whole logical branch |
-| context menu **Delete** | removes the actor and its whole logical branch |
-| context menu **Move to Map Root** | `logical_parent = None`, `attach = None` |
+| context menu **Duplicate** (Ctrl+D) | copies each selected actor and its whole logical branch in one undo step, then selects the copies |
+| context menu **Delete** (Del) | removes each selected actor and its whole logical branch in one undo step |
+| context menu **Select Children** | selects the clicked actor and every actor whose `logical_parent` chain reaches it; the clicked actor stays primary |
+| context menu **Move to Map Root** | `logical_parent = None`, `attach = None` on every selected actor, in one undo step |
+| context menu creation items (the ready-made actors of `world3d_presets::Preset`, the 2D nodes and UI widgets, Instantiate Child Actor..., **Actor**) | create the new actor as the clicked actor's child in one undo step, with `attach` set by the reparent rules below |
 | context menu **Convert class...** | permanently disabled (see below) |
 | drag an actor onto another actor | reparents the dragged actor under the drop target |
 | drag an actor onto the empty area below the tree | moves it to the map root |
-| `Delete` key while the Hierarchy has focus | deletes the selected actor when the selection is an actor, otherwise the selected entity, as before |
+| `Delete` key while the Hierarchy has focus | deletes every selected actor when the selection is an actor, otherwise the selected entity, as before |
 
-The grey line *"Duplicate / Delete includes child actors"* appears when the actor has
-children. Opening the context menu selects the actor, as the entity menu does.
+The menu carries no explanatory text lines; commands
+that do not apply, such as **Select Children** and **Save as Dungeon Room...** on an actor
+without children, stay in place disabled with a tooltip. Opening the context menu on an
+actor outside the selection selects that actor alone, as the entity menu does; opening it
+on a selected actor keeps the selection, and Duplicate, Delete and Move to Map Root act on
+`Editor::actor_command_targets(clicked)` — the whole selection then, the clicked actor alone
+otherwise. Ctrl+D and the Edit menu's Duplicate and Delete take the whole selection when the
+picked object is one of several selected actors (`Editor::duplicate_actors`,
+`delete_actors`, `reparent_actors`), and so do the 2D view's Del, Ctrl+D and context menu.
+Dragging still moves only the dragged actor.
 
 ### Reparent rules
 
@@ -130,6 +153,11 @@ intra-branch `logical_parent` are all renumbered while references that leave the
 their target. Names are suffixed `.001`, `.002`, … against both actors and entities, exactly
 like `Scene::duplicate_branch`. `legacy_entity` is cleared on the copies: a copy is a new
 placement, not a second view of the same legacy entity.
+
+Duplicating a selection copies only the roots it covers (`Scene::actor_branch_roots`): a
+selected actor whose logical ancestor is selected too travels with that ancestor's copy. The
+copies of exactly the selected actors become the new selection, the primary actor's copy
+primary.
 
 `Scene::delete_actor_branch(id)` removes the same set, then clears every surviving
 `logical_parent` and `attach` that pointed into it, including an `attach` that named a

@@ -115,12 +115,12 @@ where
         if let Some(i) = cache.entries.iter().position(|e| e.key == key) {
             let entry = cache.entries.remove(i).unwrap();
             cache.bytes -= entry.weight;
-            if entry.hash == hash {
-                if let Ok(value) = entry.value.clone().downcast::<T>() {
-                    cache.bytes += entry.weight;
-                    cache.entries.push_back(entry);
-                    return Ok(value);
-                }
+            if entry.hash == hash
+                && let Ok(value) = entry.value.clone().downcast::<T>()
+            {
+                cache.bytes += entry.weight;
+                cache.entries.push_back(entry);
+                return Ok(value);
             }
         }
     }
@@ -144,10 +144,10 @@ where
         // Cache I/O is an optimization: unwritable/deleted caches cannot prevent
         // opening a valid scene or publishing the decoded source.
         let payload = serde_json::to_vec(&value).map_err(|e| e.to_string())?;
-        if payload.len() <= LIMIT - 72 {
-            if let Some(path) = &disk {
-                let _ = store(path, hash, &payload);
-            }
+        if payload.len() <= LIMIT - 72
+            && let Some(path) = &disk
+        {
+            let _ = store(path, hash, &payload);
         }
         (value, payload.len())
     };

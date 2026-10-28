@@ -25,26 +25,38 @@ class HudRenderer {
     struct Nop { uint32_t command=0; };
     psyqo::Fragments::SimpleFragment<Nop> bookends[2][2];
     uint32_t retained_key[2]={};bool retained[2]={};HudStats retained_stats[2];
+    static constexpr size_t node_capacity=objects.size();
+    hud_core::NodeCache<node_capacity> nodes;
+    psyqo::Fragments::SimpleFragment<Nop> node_bookends[2][node_capacity][2];
+    uint32_t node_keys[node_capacity]={};
     size_t used=0,texts=0,rects=0,letters=0,pictures=0,turned=0,turned_textured=0;
     static uint32_t mix(uint32_t h,uint32_t v){return (h^v)*16777619u;}
     // Every input the fragment build reads: hierarchy, canvas/rect layout,
     // image, progress and text state, plus the texture bank.
-    template<size_t N>static uint32_t layout_key(const std::array<ActorData,N>& entities,size_t count){
+    template<size_t N>uint32_t layout_key(const std::array<ActorData,N>& entities,size_t count){
         uint32_t h=2166136261u;h=mix(h,uint32_t(count));h=mix(h,uint32_t(reinterpret_cast<uintptr_t>(texture_assets)));
+        h=mix(h,uint32_t(reinterpret_cast<uintptr_t>(font_assets)));
         for(size_t i=0;i<count;++i){
             const auto& e=entities[i];
+            // The layout traversal never visits a node without Canvas/Rect.
+            // Its world activation or parent cannot change any HUD packet.
+            if(!e.canvas.enabled&&!e.rect.enabled){node_keys[i]=0;h=mix(h,0);continue;}
+            const uint32_t previous=h;h=2166136261u;
             h=mix(h,uint32_t(e.alive)|uint32_t(e.active)<<1|uint32_t(e.canvas.enabled)<<2|uint32_t(e.rect.enabled)<<3|uint32_t(e.parent+1)<<8);
-            if(!e.canvas.enabled&&!e.rect.enabled)continue;
+            if(!e.alive||!e.active){node_keys[i]=h;h=mix(previous,h);continue;}
             h=mix(h,uint32_t(uint16_t(e.canvas.focused)));
             for(int k=0;k<2;++k){h=mix(h,uint32_t(e.rect.anchor_min[k].raw()));h=mix(h,uint32_t(e.rect.anchor_max[k].raw()));h=mix(h,uint32_t(e.rect.pivot[k].raw()));h=mix(h,uint32_t(e.rect.position[k].raw()));h=mix(h,uint32_t(e.rect.size[k].raw()));}
             h=mix(h,uint32_t(e.rect.rotation.raw()));
-            h=mix(h,uint32_t(e.image.enabled)|uint32_t(e.image.color[0])<<8|uint32_t(e.image.color[1])<<16|uint32_t(e.image.color[2])<<24);h=mix(h,uint32_t(e.image.texture));h=mix(h,uint32_t(e.image.tiling));
+            h=mix(h,uint32_t(e.image.enabled));if(e.image.enabled){h=mix(h,uint32_t(e.image.color[0])<<8|uint32_t(e.image.color[1])<<16|uint32_t(e.image.color[2])<<24);h=mix(h,uint32_t(e.image.texture));h=mix(h,uint32_t(e.image.tiling));
             for(int k=0;k<4;++k)h=mix(h,uint32_t(e.image.region[k])|uint32_t(e.image.borders[k])<<16);
-            h=mix(h,uint32_t(e.progress.enabled)|uint32_t(e.progress.color[0])<<8|uint32_t(e.progress.color[1])<<16|uint32_t(e.progress.color[2])<<24);
+            }
+            h=mix(h,uint32_t(e.progress.enabled));if(e.progress.enabled){h=mix(h,uint32_t(e.progress.color[0])<<8|uint32_t(e.progress.color[1])<<16|uint32_t(e.progress.color[2])<<24);
             h=mix(h,uint32_t(e.progress.value.raw()));h=mix(h,uint32_t(e.progress.background[0])|uint32_t(e.progress.background[1])<<8|uint32_t(e.progress.background[2])<<16);
-            h=mix(h,uint32_t(e.text.enabled)|uint32_t(e.text.wrap)<<1|uint32_t(e.text.color[0])<<8|uint32_t(e.text.color[1])<<16|uint32_t(e.text.color[2])<<24);
+            h=mix(h,uint32_t(e.progress.step.raw()));}
+            h=mix(h,uint32_t(e.text.enabled));if(e.text.enabled){h=mix(h,uint32_t(e.text.wrap)<<1|uint32_t(e.text.color[0])<<8|uint32_t(e.text.color[1])<<16|uint32_t(e.text.color[2])<<24);
             h=mix(h,uint32_t(e.text.font));h=mix(h,uint32_t(e.text.align));
             if(e.text.enabled)for(const char* c=e.text.value;*c;++c)h=mix(h,uint8_t(*c));
+            }
             h=mix(h,uint32_t(e.layout_element.enabled)|uint32_t(e.layout_element.horizontal)<<8|uint32_t(e.layout_element.vertical)<<16);
             for(int k=0;k<2;++k)h=mix(h,uint32_t(e.layout_element.minimum[k].raw()));
             h=mix(h,uint32_t(e.layout_element.stretch.raw()));
@@ -54,10 +66,26 @@ class HudRenderer {
             h=mix(h,uint32_t(e.focusable.enabled)|uint32_t(e.focusable.order)<<8|uint32_t(e.focusable.highlight[0])<<16|uint32_t(e.focusable.highlight[1])<<24);
             h=mix(h,uint32_t(e.focusable.highlight[2])|uint32_t(e.focusable.kind)<<8|uint32_t(e.focusable.checked)<<16);
             for(int k=0;k<4;++k)h=mix(h,uint32_t(uint16_t(e.focusable.neighbors[k])));
+            h=mix(h,uint32_t(reinterpret_cast<uintptr_t>(texture_assets)));h=mix(h,uint32_t(reinterpret_cast<uintptr_t>(font_assets)));
+            node_keys[i]=h;h=mix(previous,h);
         }
         return h;
     }
 public:
+    using NodeCounts=typename hud_core::NodeCache<node_capacity>::Counts;
+    NodeCounts counts()const{return {{uint32_t(used),uint32_t(texts),uint32_t(letters),uint32_t(pictures),uint32_t(turned),uint32_t(turned_textured)}};}
+    bool begin_node(int owner,const hud_core::Rect& rect,const hud_core::Affine2& transform,const uint8_t* tint,HudStats& stats){
+        uint32_t key=node_keys[owner];
+        for(auto value:{rect.x,rect.y,rect.w,rect.h,transform.c,transform.s,transform.tx,transform.ty})key=mix(key,uint32_t(value.raw()));
+        key=mix(key,uint32_t(tint[0])|uint32_t(tint[1])<<8|uint32_t(tint[2])<<16);
+        auto offsets=counts();const unsigned parity=output->getParity();
+        if(nodes.begin(size_t(owner),key,offsets,stats)){
+            used=offsets.values[0];texts=offsets.values[1];letters=offsets.values[2];pictures=offsets.values[3];turned=offsets.values[4];turned_textured=offsets.values[5];
+            output->chain(&node_bookends[parity][owner][0],&node_bookends[parity][owner][1]);return true;
+        }
+        output->chain(node_bookends[parity][owner][0]);return false;
+    }
+    void end_node(int owner,const HudStats& stats){nodes.end(size_t(owner),counts(),stats);output->chain(node_bookends[output->getParity()][owner][1]);}
     bool texture_size(int id,int& width,int& height){const auto* t=texture(id);if(!t)return false;width=t->width;height=t->height;return true;}
     void rectangle(int,int x0,int y0,int x1,int y1,const uint8_t* color){
         auto& f=rectangles[output->getParity()][used++];
@@ -138,6 +166,7 @@ public:
             return;
         }
         used=texts=rects=letters=pictures=turned=turned_textured=0;hud_stats={};
+        nodes.rebuild(parity);
         gpu.chain(bookends[parity][0]);
         int first[N],next[N];Fixed measured[N][2];hud_core::Rect rects[N];hud_core::Affine2 transforms[N];
         output=&gpu;
@@ -148,6 +177,6 @@ public:
         retained[parity]=true;retained_key[parity]=key;retained_stats[parity]=hud_stats;
     }
     // Scene switches rebuild both parities; slot reuse alone is covered by the key.
-    void invalidate(){retained[0]=retained[1]=false;}
+    void invalidate(){retained[0]=retained[1]=false;nodes.invalidate();}
 };
 }

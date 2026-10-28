@@ -33,8 +33,8 @@ int main() {
         }
     }
     epok::ChunkVisibility grid{rows.data(),masks.data(),64,2,offset_min,step,32};
-    uint32_t combined[2]={},bounds_valid[2]={},bounds_result[2]={};
-    epok::ChunkVisibilityCache cache{combined,bounds_valid,bounds_result};
+    uint32_t combined[2]={},bounds_valid[2]={},bounds_result[2]={},bounds_inside[2]={};
+    epok::ChunkVisibilityCache cache{combined,bounds_valid,bounds_result,nullptr,nullptr,bounds_inside};
     auto cached_grid=grid;cached_grid.cache=&cache;
     uint32_t seed=0x1234abcdu;size_t rejected=0;
     auto random=[&](){seed=1664525u*seed+1013904223u;return seed;};
@@ -82,7 +82,8 @@ int main() {
         assert(second.reuse_matrix(matrix,translation));
         assert(second.bounds_cache_active());
         assert(second.cached_bounds(0)==-1);
-        second.remember_bounds(0,true);second.remember_bounds(63,false);
+        second.remember_bounds(0,true,true);second.remember_bounds(63,false);
+        assert(second.cached_inside(0)&&!second.cached_inside(63)&&!second.cached_inside(1));
         assert(second.cached_bounds(0)==1 && second.cached_bounds(63)==0);
         assert(second.cached_bounds(1)==-1 && second.cached_bounds(64)==-1);
         second.remember_bounds(64,true);
@@ -91,6 +92,7 @@ int main() {
         epok::ChunkVisibilityQuery third(&cached_grid);
         assert(third.reuse_matrix(matrix,translation));
         assert(third.cached_bounds(0)==1 && third.cached_bounds(63)==0);
+        assert(third.cached_inside(0));
     }
     translation[0]=8192;
     {
@@ -99,6 +101,7 @@ int main() {
         assert(!abandoned.reuse_matrix(matrix,translation));
         assert(!abandoned.bounds_cache_active());
         assert(abandoned.cached_bounds(0)==-1);
+        assert(!abandoned.cached_inside(0));
         abandoned.add_plane(4096,0,0,translation[0]);
     }
     {

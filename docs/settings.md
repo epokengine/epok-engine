@@ -9,10 +9,11 @@ These settings live in the root `.epokproject` YAML descriptor and travel with t
 | Category | Options |
 | --- | --- |
 | Project / Description | Project name shown in the Hub, the default SoundBank and the default scene Blueprint parent |
-| Project / Maps & Build | Startup scene, automatic asset reports (on by default), [Build/Play profile, scene selection and loading transitions](play.md) |
+| Project / Maps & Build | Startup scene, the [scene table](scene-files.md) (startup scene and which scenes stay in the EXE), automatic asset reports (on by default), [Build/Play profile, scene selection and loading transitions](play.md) |
 | Engine / Rendering | Native output resolution, retained packets and precomputed visibility |
 | Engine / Streaming | Geometry streaming, page pool, RAM budget and disc music behavior |
 | Engine / Debug | Independent runtime FPS, CPU, Geometry/GTE, GPU DMA and SPU RAM overlays |
+| Engine / Controls | Four logical pads, reusable keyboard/mouse/gamepad profiles and current-session Native PC device assignment |
 
 **Default Scene Blueprint Parent** names the class proposed in Map Settings when a map's
 scene Blueprint is created. It is a suggestion only: changing it never modifies a map that
@@ -140,18 +141,35 @@ to off, its pool to four pages, its triangle budget to 4096 and preloading to on
 without changing rendering. A startup-scene
 change takes effect when the project is reopened.
 
+Controls keeps button and axis profiles in the project. The **Native PC / current
+session** device selector assigns a physical gamepad to one logical pad at a
+time. Assigning it elsewhere removes its previous assignment; disconnected
+devices lose their held input and motor output. Device IDs are not saved into
+the game. Pad 1 initially selects the first available gamepad, while the other
+pads require an explicit assignment. Session device assignment takes effect
+immediately; profile edits still use Apply. **Test Rumble (150 ms)** is available for
+an assigned device that reports motor support while Play is stopped. Closing or
+leaving the Controls panel stops the test. PCSX-Redux keeps its own device
+assignment in its controller settings.
+
 ## Editor Preferences
 
 Preferences are stored in the user's Epok data directory (`%LOCALAPPDATA%/Epok/Editor.epokprefs` on Windows). They apply across projects and are not included in game exports.
 
 | Category | Options |
 | --- | --- |
-| General / Viewports | Default grid visibility and flight speed |
-| General / Play | Integer scaling in Game and smoothing in the external emulator window |
+| General / Viewports | Default grid visibility, Camera Speed (1–8), speed scalar and distance-based navigation |
+| General / Play | Game scaling, smoothing in the external emulator window and controller rumble enable |
 | General / Integrations / MCP | Enable the local MCP server, choose its port, rotate the access key and copy HTTP/stdio client configurations |
 
 Applying viewport preferences updates the current view. A template's saved starting view can override the navigation defaults on opening. Integer scaling uses whole display-scale steps when space allows; smaller Game panels fit the image instead. Game always uses point filtering.
 
 **Smooth Image** controls PCSX-Redux's external debugger window and takes effect on the next Play. It is off by default to keep pixels crisp. Other emulator settings are preserved.
+
+**Rumble** defaults on and controls Native PC, emulator Play and the explicit
+controller test. Disabling it cancels output; enabling it does not revive an old
+pulse. In-game accessibility settings can independently disable each pad. See
+[controller rumble](input-collision.md#controller-rumble) for motor semantics and
+platform availability.
 
 **Enable MCP Server** is off by default. Apply starts or stops the server for the open project; MCP preferences can be applied while Play is running. The access key stays in local editor preferences. See [Integrations / MCP](mcp.md) for available tools, screenshots and connection instructions.

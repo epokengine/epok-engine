@@ -520,6 +520,12 @@ void size_report() {
 }  // namespace
 
 int main() {
+    for(int32_t raw=0;raw<detail::degrees_per_quarter_raw;++raw){
+        const int index=raw/detail::sine_step_raw,fraction=raw-index*detail::sine_step_raw;
+        const int low=detail::sine_table_2d.values[index],high=detail::sine_table_2d.values[index+1];
+        const int reference=low+int32_t(int64_t(high-low)*fraction/detail::sine_step_raw);
+        assert(detail::sine_quarter_2d(raw)==reference);
+    }
 #ifdef _MSC_VER
     _set_error_mode(_OUT_TO_STDERR);
     _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);

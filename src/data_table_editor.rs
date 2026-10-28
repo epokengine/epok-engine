@@ -368,10 +368,10 @@ fn body(ui: &Ui, e: &mut Editor, w: &mut Window) {
                         .ok()
                         .map(|record| record.path.clone());
                     let disabled = ui.begin_disabled(path.is_none());
-                    if ui.button_with_size("\u{ea6d}##find-in-project", [browse_width, 0.]) {
-                        if let Some(path) = &path {
-                            crate::project_browser::State::select_asset(e, path);
-                        }
+                    if ui.button_with_size("\u{ea6d}##find-in-project", [browse_width, 0.])
+                        && let Some(path) = &path
+                    {
+                        crate::project_browser::State::select_asset(e, path);
                     }
                     drop(disabled);
                     if ui.is_item_hovered_with_flags(imgui::ItemHoveredFlags::ALLOW_WHEN_DISABLED) {

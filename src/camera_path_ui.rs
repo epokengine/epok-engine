@@ -1080,7 +1080,7 @@ pub fn overlay(
         && mouse[1] >= clip[0][1]
         && mouse[1] <= clip[1][1];
     // Keys under the mouse: the nearest within a few pixels, only while editing.
-    let hovered = (state.open && inside && !state.preview)
+    let hovered = (state.open && inside && !state.preview && !e.scene_orientation.owns_pointer)
         .then(|| {
             track
                 .path

@@ -21,7 +21,7 @@ This module covers static and blob shadow rendering. It documents 1 public calla
 **Exact declaration**
 
 ```cpp
-template<size_t N,typename Table> #ifdef __mips__ __attribute__((noinline,optimize("O3"))) #endif void draw(int parity,Table& table,const std::array<ActorData,N>& objects,const std::array<Affine<Fixed>,N>& world,size_t count,const CameraSpace<Fixed>& view)
+template<size_t N,typename Table> __attribute__((noinline,optimize("O3"))) void draw(int parity,Table& table,const std::array<ActorData,N>& objects,const std::array<Affine<Fixed>,N>& world,size_t count,const CameraSpace<Fixed>& view)
 ```
 
 - **Declared at:** [line 16](../../../runtime/shadows.hpp#L16)

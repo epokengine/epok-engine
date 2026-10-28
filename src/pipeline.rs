@@ -26,14 +26,23 @@ pub enum Event {
     SerialIssue(String),
     LightingBaked(crate::lighting::Bake),
     Built(PathBuf),
+    /// A validated PS-EXE package was published at this path.
+    Packaged(PathBuf),
     Running(u32),
     SerialConnected,
     SerialCommandPending(bool),
+    /// Reported runtime/monitor failure; `halted` requires a resident halt notice.
+    RuntimeIssue {
+        message: String,
+        halted: bool,
+    },
     Paused(bool),
     Finished(Result<(), String>),
 }
 pub enum Control {
     Stop,
+    /// Explicit user Stop on a connected physical PSX; shutdown still disconnects.
+    StopAndReset,
     Pause,
     Resume,
     Reset,
@@ -66,7 +75,8 @@ impl Job {
                 summary.verify_inputs(&root)?;
                 if matches!(
                     rx.try_recv(),
-                    Ok(Control::Stop) | Err(mpsc::TryRecvError::Disconnected)
+                    Ok(Control::Stop | Control::StopAndReset)
+                        | Err(mpsc::TryRecvError::Disconnected)
                 ) {
                     return Err("Report generation cancelled.".into());
                 }
@@ -101,7 +111,10 @@ impl Job {
                     settings.executable.clear();
                 }
                 let found = crate::serial_support::discover(&mut settings, &task);
-                if action == crate::serial_ui::Action::Test {
+                if action == crate::serial_ui::Action::Reset {
+                    found?;
+                    crate::serial_support::reset(&settings, &task)?;
+                } else if action == crate::serial_ui::Action::Test {
                     found?;
                     crate::serial_support::probe(&settings, &task)?;
                 } else if let Err(message) = found {
@@ -116,7 +129,9 @@ impl Job {
                     return Ok(());
                 }
                 let _ = tx.send(Event::SerialStatus(
-                    if action == crate::serial_ui::Action::Test {
+                    if action == crate::serial_ui::Action::Reset {
+                        "PSX acknowledged reset. Wait for the Unirom loader before Play."
+                    } else if action == crate::serial_ui::Action::Test {
                         "Unirom responded. Ready to Play."
                     } else if action == crate::serial_ui::Action::Prepare {
                         "Tools ready. Choose your adapter and start Unirom, then Play."
@@ -177,6 +192,44 @@ impl Job {
     }
     pub fn analyze(root: PathBuf, scene: crate::scene_dependencies::Input, debug: bool) -> Self {
         Self::start_request(root, scene, false, debug, false, true)
+    }
+    /// Build only, then package the outputs this worker validated. No serial
+    /// port, emulator or editor bridge is opened.
+    pub fn export_ps_exe(root: PathBuf, request: crate::ps_exe_export::Request) -> Self {
+        let (tx, events) = mpsc::channel();
+        let (controls, rx) = mpsc::channel();
+        let worker = thread::spawn(move || {
+            let result = (|| {
+                let built = build(&root, &request.input, false, false, false, &tx, &rx)?;
+                let _ = tx.send(Event::Stage("Packaging PS-EXE".into()));
+                let archive = crate::ps_exe_export::package(
+                    &request,
+                    &built,
+                    &mut |line| {
+                        let _ = tx.send(Event::Log(line));
+                    },
+                    &|| cancelled(&rx),
+                )?;
+                let _ = tx.send(Event::Packaged(archive));
+                Ok(())
+            })();
+            if let Err(error) = &result
+                && let Ok(mut log) = fs::OpenOptions::new()
+                    .append(true)
+                    .open(root.join(".epok/Build.log"))
+            {
+                let _ = writeln!(log, "Export PS-EXE failed: {error}");
+            }
+            let _ = tx.send(Event::Finished(result));
+        });
+        Self {
+            bridge: None,
+            native: None,
+            events,
+            controls,
+            stopping: Cell::new(false),
+            worker: Some(worker),
+        }
     }
     fn start_request(
         root: PathBuf,
@@ -249,7 +302,7 @@ impl Job {
         }
     }
     pub fn control(&self, control: Control) {
-        if matches!(control, Control::Stop) {
+        if matches!(control, Control::Stop | Control::StopAndReset) {
             self.stopping.set(true);
         }
         let _ = self.controls.send(control);
@@ -422,7 +475,7 @@ fn compile_command(
     loop {
         if matches!(
             rx.try_recv(),
-            Ok(Control::Stop) | Err(mpsc::TryRecvError::Disconnected)
+            Ok(Control::Stop | Control::StopAndReset) | Err(mpsc::TryRecvError::Disconnected)
         ) {
             stop(&mut child);
             return Err("Build cancelled".into());
@@ -454,39 +507,37 @@ fn compile_command(
     }
 }
 
-#[allow(clippy::too_many_arguments)]
-fn execute(
+fn cancelled(rx: &Receiver<Control>) -> bool {
+    matches!(
+        rx.try_recv(),
+        Ok(Control::Stop | Control::StopAndReset) | Err(mpsc::TryRecvError::Disconnected)
+    )
+}
+
+/// A validated PSX build, returned by the worker that produced it so callers
+/// never reconstruct its outputs from Console events or a later build.
+pub struct Built {
+    pub config: Config,
+    pub build: PathBuf,
+    pub exe: PathBuf,
+    pub disc: Option<PathBuf>,
+    pub summary: crate::build_report::Summary,
+    /// Staged files certified together with the executable, such as GEOMETRY.BIN.
+    pub certified: crate::staging_files::Files,
+}
+
+/// Compile, certify and validate the PSX program without running it.
+fn build(
     root: &Path,
     input: &crate::scene_dependencies::Input,
-    run: bool,
     debug: bool,
     physical_disc: bool,
     analyze: bool,
-    bridge_script: Option<&Path>,
     tx: &Sender<Event>,
     rx: &Receiver<Control>,
-) -> Result<(), String> {
+) -> Result<Built, String> {
     let scene = &input.scene;
     let profile = input.play.as_ref();
-    let serial = run && profile.is_some_and(|p| p.target == crate::play::Target::Serial);
-    let mut serial_settings = serial
-        .then(|| crate::settings::Preferences::load().map(|p| p.serial))
-        .transpose()?;
-    if let Some(settings) = &mut serial_settings {
-        if debug {
-            return Err("Blueprint debugging is available only in the emulator. Disable it before Serial Play.".into());
-        }
-        let task = crate::serial_support::Task { tx, rx };
-        (|| {
-            crate::serial_support::prepare(settings, &task)?;
-            settings.executable.clear();
-            crate::serial_support::discover(settings, &task)?;
-            crate::serial_support::check_port(settings)
-        })()
-        .inspect_err(|e| {
-            let _ = tx.send(Event::SerialIssue(e.clone()));
-        })?;
-    }
     let _ = tx.send(Event::Stage("Building PSX program".into()));
     let config = Config::load(root)?;
     let log_path = root.join(".epok/Build.log");
@@ -549,7 +600,7 @@ fn execute(
     } else {
         None
     };
-    let (exe, disc) = if let Some(outputs) = cached {
+    let (exe, disc, certified) = if let Some(outputs) = cached {
         outputs
     } else {
         timing.stage("Preparing scene and build files", &mut report);
@@ -615,7 +666,13 @@ fn execute(
             root,
             &build,
             patches.finish(),
-            crate::scene_dependencies::hash((&config, debug, physical_disc, profile)),
+            crate::scene_dependencies::hash((
+                &config,
+                debug,
+                physical_disc,
+                profile,
+                input.debug_overlay,
+            )),
         )?;
         let invocation = crate::build_inputs::Invocation::new(root, &build, &config)?;
         let mut run_make = |arguments: &[std::ffi::OsString]| {
@@ -655,6 +712,8 @@ fn execute(
         timing.stage("Compiling and linking game", &mut report);
         let _ = tx.send(Event::Log("Compiling C++ / PsyQo for MIPS...".into()));
         run_make(&native.arguments())?;
+        // External scenes: save each linked image and record it in the EXE.
+        crate::scene_files::finish_link(&build)?;
         let exe = build.join("epok.ps-exe");
         let bytes = fs::read(&exe).map_err(|e| format!("Missing PSX executable: {e}"))?;
         if !bytes.starts_with(b"PS-X EXE") {
@@ -665,6 +724,7 @@ fn execute(
         native.verify(root, &build, &config, &invocation, &mut run_make)?;
         timing.stage("Certifying build sources and output", &mut report);
         let certificate = ticket.clone();
+        let certified = ticket.files().clone();
         ticket.complete(root, &build, &bytes)?;
         timing.stage("Preparing disc image", &mut report);
         let disc = if profile.is_some_and(|p| p.data == crate::play::DataSource::Host) {
@@ -673,7 +733,8 @@ fn execute(
             crate::disc::build(root, &build, || {
                 matches!(
                     rx.try_recv(),
-                    Ok(Control::Stop) | Err(mpsc::TryRecvError::Disconnected)
+                    Ok(Control::Stop | Control::StopAndReset)
+                        | Err(mpsc::TryRecvError::Disconnected)
                 )
             })?
         };
@@ -685,7 +746,7 @@ fn execute(
                 disc.as_deref(),
             )?;
         }
-        (exe, disc)
+        (exe, disc, certified)
     };
     for warning in crate::memory::build_warnings(&build)? {
         let line = format!("Warning: {warning}");
@@ -717,9 +778,58 @@ fn execute(
     summary.save(root)?;
     let _ = tx.send(Event::MemoryReport(Box::new(generated_report)));
     let _ = tx.send(Event::Log(format!("Build sizes: {}", summary.status())));
-    let _ = tx.send(Event::BuildSummary(Box::new(summary)));
+    let _ = tx.send(Event::BuildSummary(Box::new(summary.clone())));
     let _ = tx.send(Event::Built(disc.clone().unwrap_or_else(|| exe.clone())));
     timing.finish("PSX build ready", &mut report);
+    Ok(Built {
+        config,
+        build,
+        exe,
+        disc,
+        summary,
+        certified,
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn execute(
+    root: &Path,
+    input: &crate::scene_dependencies::Input,
+    run: bool,
+    debug: bool,
+    physical_disc: bool,
+    analyze: bool,
+    bridge_script: Option<&Path>,
+    tx: &Sender<Event>,
+    rx: &Receiver<Control>,
+) -> Result<(), String> {
+    let profile = input.play.as_ref();
+    let serial = run && profile.is_some_and(|p| p.target == crate::play::Target::Serial);
+    let mut serial_settings = serial
+        .then(|| crate::settings::Preferences::load().map(|p| p.serial))
+        .transpose()?;
+    if let Some(settings) = &mut serial_settings {
+        if debug {
+            return Err("Blueprint debugging is available only in the emulator. Disable it before Serial Play.".into());
+        }
+        let task = crate::serial_support::Task { tx, rx };
+        (|| {
+            crate::serial_support::prepare(settings, &task)?;
+            settings.executable.clear();
+            crate::serial_support::discover(settings, &task)?;
+            crate::serial_support::check_port(settings)
+        })()
+        .inspect_err(|e| {
+            let _ = tx.send(Event::SerialIssue(e.clone()));
+        })?;
+    }
+    let Built {
+        config,
+        build,
+        exe,
+        disc,
+        ..
+    } = self::build(root, input, debug, physical_disc, analyze, tx, rx)?;
     if !run {
         return Ok(());
     }
@@ -734,6 +844,7 @@ fn execute(
         );
     }
     crate::pocketstation::write_link_config(root, &build)?;
+    crate::rumble::write_emulator_config(root, &build)?;
     if debug {
         let map = fs::read_to_string(build.join("epok.map"))
             .map_err(|e| format!("Blueprint debug link map: {e}"))?;
@@ -761,7 +872,7 @@ fn execute(
     }
     if matches!(
         rx.try_recv(),
-        Ok(Control::Stop) | Err(mpsc::TryRecvError::Disconnected)
+        Ok(Control::Stop | Control::StopAndReset) | Err(mpsc::TryRecvError::Disconnected)
     ) {
         return Err("Play cancelled".into());
     }
@@ -876,7 +987,7 @@ fn execute(
             }
         }
         match rx.try_recv() {
-            Ok(Control::Stop) | Err(mpsc::TryRecvError::Disconnected) => {
+            Ok(Control::Stop | Control::StopAndReset) | Err(mpsc::TryRecvError::Disconnected) => {
                 return Ok(());
             }
             Ok(Control::Pause) => match request(config.web_port, "pause") {

@@ -20,6 +20,8 @@ inline bool music_prepared = false, music_booting = false, music_ready = false,
 // Geometry reads and XA share the physical controller and ISO parser. The
 // owner flag prevents XA lookup/start until the outstanding data read finishes.
 inline bool music_data_owner = false, music_boot_failed = false;
+// An external scene file is being read (scene_files.hpp); geometry reads wait.
+inline bool music_scene_reading = false;
 inline uint32_t music_request_serial = 0, music_active_serial = 0;
 enum class XAState : uint8_t {
   IDLE,

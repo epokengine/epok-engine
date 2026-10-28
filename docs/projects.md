@@ -27,7 +27,23 @@ The flavor is a generation choice, never a project mode. A Lua project can gain 
 | Blueprint | A project-owned graph under `assets/Blueprints` | The backend generates native code; the source you edit stays visual |
 | Lua | Project-owned `.lua` under `assets/scripts` | Built with the project's Lua execution setting, which starts on the ahead-of-time native mode |
 
-Every template accepts every flavor, and the three share one scene: the same actors, transforms, colliders and assets, with only the class the Player binds differing. Basic writes no gameplay in any flavor, and its card says so. A template that ever gains an unimplemented pair disables that flavor in the selector and explains why; creation never silently falls back to another language.
+Starter templates accept every flavor and share one scene: the same actors, transforms, colliders and assets, with only the gameplay implementation differing. Basic writes no gameplay in any flavor. **Dungeon Complete** preserves its finished C++ game and Pocket Lua miner; its unavailable Blueprint/Lua variants are disabled in the selector. All created projects can still use the three systems together.
+
+### Dungeon Complete
+
+![Dungeon Complete running in the PlayStation emulator](images/dungeon-complete.png)
+
+**Dungeon Complete** is the finished Reactor Station action game: pooled enemies,
+a boss, camera-relative controls, inventory, healing items, upgrades, persistent
+trading and the Asteroid Catcher PocketStation minigame. It includes only the
+level's referenced assets and project-owned C++ sources, with editable import
+sources and asset notices. Its SoundFont keeps the three MIDI presets used by
+the song, preserving their samples and settings.
+
+New projects start in the embedded PSX emulator with PC-on-demand geometry,
+320x240 output and the game's bounded render pools. No serial adapter settings,
+memory cards, captures, build outputs or personal editor layout are copied.
+The separate [Dungeon starter](dungeon-template.md) remains available.
 
 Opening a project shows a centered, borderless 640 × 400 splash with abstract
 retro artwork, the original Epok logo, the project name and live loading stage.
@@ -69,6 +85,7 @@ cargo run --locked
 cargo run --locked -- --create-project "D:/Games/My Game" --template basic
 cargo run --locked -- --create-project "D:/Games/My Demo" --template sample --name "My Demo"
 cargo run --locked -- --create-project "D:/Games/My Hero" --template third-person --gameplay lua
+cargo run --locked -- --create-project "D:/Games/My Complete Game" --template dungeon-complete
 cargo run --locked -- --project "D:/Games/My Game"
 cargo run --locked -- --project "D:/Games/My Game/My Game.epokproject"
 cargo run --locked -- --project "D:/Games/My Game" --build-psx

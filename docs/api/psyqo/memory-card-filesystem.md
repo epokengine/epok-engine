@@ -1,10 +1,10 @@
 # PsyQo API: Memory Card Filesystem
 
-> **Header:** `"psyqo/memory-card-filesystem.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/memory-card-filesystem.hh)
+> **Header:** `"psyqo/memory-card-filesystem.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/memory-card-filesystem.hh)
 
 This module covers asynchronous Memory Card access and files. It documents 20 public callables declared directly in this header.
 
-PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552d`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
+PsyQo is pinned through Nugget revision `c702235f366fb1cd8c18e0a5a5392e0acae8a079`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
 
 ## Declared types
 
@@ -45,7 +45,7 @@ PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552
 void deleteFile(Port port, const char *name, eastl::function<void(Error)> &&callback)
 ```
 
-- **Declared at:** [line 219](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/memory-card-filesystem.hh#L219)
+- **Declared at:** [line 219](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/memory-card-filesystem.hh#L219)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -91,7 +91,7 @@ object.deleteFile(port, name, callback);
 Error deleteFileBlocking(GPU &gpu, Port port, const char *name)
 ```
 
-- **Declared at:** [line 235](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/memory-card-filesystem.hh#L235)
+- **Declared at:** [line 235](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/memory-card-filesystem.hh#L235)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -137,7 +137,7 @@ auto result = object.deleteFileBlocking(gpu, port, name);
 void fileExists(Port port, const char *name, bool *outExists, eastl::function<void(Error)> &&callback)
 ```
 
-- **Declared at:** [line 162](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/memory-card-filesystem.hh#L162)
+- **Declared at:** [line 162](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/memory-card-filesystem.hh#L162)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -185,7 +185,7 @@ object.fileExists(port, name, outExists, callback);
 Error fileExistsBlocking(GPU &gpu, Port port, const char *name, bool *outExists)
 ```
 
-- **Declared at:** [line 230](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/memory-card-filesystem.hh#L230)
+- **Declared at:** [line 230](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/memory-card-filesystem.hh#L230)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -235,7 +235,7 @@ auto result = object.fileExistsBlocking(gpu, port, name, outExists);
 void format(Port port, eastl::function<void(Error)> &&callback)
 ```
 
-- **Declared at:** [line 142](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/memory-card-filesystem.hh#L142)
+- **Declared at:** [line 142](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/memory-card-filesystem.hh#L142)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -279,7 +279,7 @@ object.format(port, callback);
 Error formatBlocking(GPU &gpu, Port port)
 ```
 
-- **Declared at:** [line 227](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/memory-card-filesystem.hh#L227)
+- **Declared at:** [line 227](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/memory-card-filesystem.hh#L227)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -323,7 +323,7 @@ auto result = object.formatBlocking(gpu, port);
 void getCardState(Port port, eastl::function<void(Error)> &&callback)
 ```
 
-- **Declared at:** [line 133](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/memory-card-filesystem.hh#L133)
+- **Declared at:** [line 133](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/memory-card-filesystem.hh#L133)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -369,7 +369,7 @@ object.getCardState(port, callback);
 Error getCardStateBlocking(GPU &gpu, Port port)
 ```
 
-- **Declared at:** [line 226](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/memory-card-filesystem.hh#L226)
+- **Declared at:** [line 226](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/memory-card-filesystem.hh#L226)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -413,7 +413,7 @@ auto result = object.getCardStateBlocking(gpu, port);
 void getFreeBlockCount(Port port, uint32_t *outFreeBlocks, eastl::function<void(Error)> &&callback)
 ```
 
-- **Declared at:** [line 147](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/memory-card-filesystem.hh#L147)
+- **Declared at:** [line 147](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/memory-card-filesystem.hh#L147)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -459,7 +459,7 @@ object.getFreeBlockCount(port, outFreeBlocks, callback);
 Error getFreeBlockCountBlocking(GPU &gpu, Port port, uint32_t *outFreeBlocks)
 ```
 
-- **Declared at:** [line 228](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/memory-card-filesystem.hh#L228)
+- **Declared at:** [line 228](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/memory-card-filesystem.hh#L228)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -505,7 +505,7 @@ auto result = object.getFreeBlockCountBlocking(gpu, port, outFreeBlocks);
 bool isIdle() const
 ```
 
-- **Declared at:** [line 118](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/memory-card-filesystem.hh#L118)
+- **Declared at:** [line 118](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/memory-card-filesystem.hh#L118)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -538,7 +538,7 @@ auto result = object.isIdle();
 void listFiles(Port port, FileEntry *out, uint32_t maxEntries, uint32_t *outCount, eastl::function<void(Error)> &&callback)
 ```
 
-- **Declared at:** [line 156](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/memory-card-filesystem.hh#L156)
+- **Declared at:** [line 156](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/memory-card-filesystem.hh#L156)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -588,7 +588,7 @@ object.listFiles(port, out, maxEntries, outCount, callback);
 Error listFilesBlocking(GPU &gpu, Port port, FileEntry *out, uint32_t maxEntries, uint32_t *outCount)
 ```
 
-- **Declared at:** [line 229](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/memory-card-filesystem.hh#L229)
+- **Declared at:** [line 229](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/memory-card-filesystem.hh#L229)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -638,7 +638,7 @@ auto result = object.listFilesBlocking(gpu, port, out, maxEntries, outCount);
 explicit MemoryCardFileSystem(MemoryCard &card) : m
 ```
 
-- **Declared at:** [line 113](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/memory-card-filesystem.hh#L113)
+- **Declared at:** [line 113](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/memory-card-filesystem.hh#L113)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -678,7 +678,7 @@ psyqo::MemoryCardFileSystem value(card);
 void readFile(Port port, const char *name, void *buffer, uint32_t maxLen, uint32_t *outLen, eastl::function<void(Error)> &&callback)
 ```
 
-- **Declared at:** [line 176](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/memory-card-filesystem.hh#L176)
+- **Declared at:** [line 176](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/memory-card-filesystem.hh#L176)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -730,7 +730,7 @@ object.readFile(port, name, buffer, maxLen, outLen, callback);
 Error readFileBlocking(GPU &gpu, Port port, const char *name, void *buffer, uint32_t maxLen, uint32_t *outLen)
 ```
 
-- **Declared at:** [line 231](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/memory-card-filesystem.hh#L231)
+- **Declared at:** [line 231](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/memory-card-filesystem.hh#L231)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -784,7 +784,7 @@ auto result = object.readFileBlocking(gpu, port, name, buffer, maxLen, outLen);
 void readFileInfo(Port port, const char *name, FileInfo *out, eastl::function<void(Error)> &&callback)
 ```
 
-- **Declared at:** [line 193](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/memory-card-filesystem.hh#L193)
+- **Declared at:** [line 193](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/memory-card-filesystem.hh#L193)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -832,7 +832,7 @@ object.readFileInfo(port, name, out, callback);
 Error readFileInfoBlocking(GPU &gpu, Port port, const char *name, FileInfo *out)
 ```
 
-- **Declared at:** [line 232](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/memory-card-filesystem.hh#L232)
+- **Declared at:** [line 232](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/memory-card-filesystem.hh#L232)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -882,7 +882,7 @@ auto result = object.readFileInfoBlocking(gpu, port, name, out);
 void writeFile(Port port, const char *name, const char *title, const Icon &icon, const void *data, uint32_t dataLen, eastl::function<void(Error)> &&callback)
 ```
 
-- **Declared at:** [line 213](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/memory-card-filesystem.hh#L213)
+- **Declared at:** [line 213](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/memory-card-filesystem.hh#L213)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -936,7 +936,7 @@ object.writeFile(port, name, title, icon, data, dataLen, callback);
 Error writeFileBlocking(GPU &gpu, Port port, const char *name, const char *title, const Icon &icon, const void *data, uint32_t dataLen)
 ```
 
-- **Declared at:** [line 233](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/memory-card-filesystem.hh#L233)
+- **Declared at:** [line 233](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/memory-card-filesystem.hh#L233)
 - **Kind:** `cxx method`
 
 **Parameters**

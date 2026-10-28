@@ -2,6 +2,25 @@
 #include <stdint.h>
 #include <limits.h>
 namespace epok {
+// Default cube face numbers: -Z,+Z,-X,+X,+Y,-Y. For an axis-aligned
+// closed box, a camera on the inner side of a face cannot see that exterior
+// face. Keep a world-space rounding margin; unsupported bases keep all faces.
+inline uint8_t closed_cube_faces(const int32_t basis[3][3],const int32_t* position,const int32_t* camera){
+    constexpr unsigned negative[3]={2,5,0},positive[3]={3,4,1};
+    uint8_t result=63,rows=0;
+    for(unsigned c=0;c<3;++c){
+        int axis=-1;
+        for(unsigned r=0;r<3;++r)if(basis[r][c]){if(axis>=0)return 63;axis=int(r);}
+        if(axis<0||(rows&(1u<<axis)))return 63;
+        rows|=uint8_t(1u<<axis);
+        const int64_t coefficient=basis[axis][c];
+        const int64_t radius=(coefficient<0?-coefficient:coefficient)/2;
+        const int64_t delta=coefficient<0?int64_t(position[axis])-camera[axis]:int64_t(camera[axis])-position[axis];
+        if(delta>-radius+64)result&=uint8_t(~(1u<<negative[c]));
+        if(delta<radius-64)result&=uint8_t(~(1u<<positive[c]));
+    }
+    return result;
+}
 constexpr int frustum_gcd(int a,int b){return b?frustum_gcd(b,a%b):a;}
 // GTE-space X/Y already contain the aspect/FOV row scale. H is common to
 // both axes; the clipping planes must match the actual drawing-area extents.
@@ -31,12 +50,12 @@ inline bool chunk_bounds_isolated_x(const int32_t rows[3][3]) {
 }
 // Q12 bounds. A margin also covers Q12->Q8 GTE input and translation rounding.
 // The near guard avoids the GTE H/2 divide-overflow interval at 320x240.
-template<class Frustum=ScreenFrustum<320,240>> inline bool chunk_fully_inside(const int32_t* center,const int32_t* extent,int32_t focal) {
+template<class Frustum=ScreenFrustum<320,240>,class Number=int64_t> inline bool chunk_fully_inside(const int32_t* center,const int32_t* extent,int32_t focal) {
     constexpr int32_t margin=256;
-    const int64_t near_z=int64_t(center[2])-extent[2],far_z=int64_t(center[2])+extent[2];
+    const Number near_z=Number(center[2])-extent[2],far_z=Number(center[2])+extent[2];
     if(near_z<(focal/2+1)*16+margin || near_z<1024+margin || far_z>=128*4096-margin)return false;
-    const int64_t x=int64_t(center[0]<0?-int64_t(center[0]):center[0])+extent[0];
-    const int64_t y=int64_t(center[1]<0?-int64_t(center[1]):center[1])+extent[1];
+    const Number x=Number(center[0]<0?-Number(center[0]):center[0])+extent[0];
+    const Number y=Number(center[1]<0?-Number(center[1]):center[1])+extent[1];
     return Frustum::xz*near_z-Frustum::xx*x>margin*(Frustum::xz+Frustum::xx) &&
         Frustum::yz*near_z-Frustum::yy*y>margin*(Frustum::yz+Frustum::yy);
 }

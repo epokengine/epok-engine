@@ -124,7 +124,7 @@ where
     let mut best = (lowest_recipe, lowest);
     while candidates.len() < limit && low < high {
         check_cancelled(cancelled)?;
-        let mid = low + (high - low + 1) / 2;
+        let mid = low + (high - low).div_ceil(2);
         let candidate_recipe = lowered_recipe(recipe, mid);
         let report = evaluate(&candidate_recipe, cancelled)?;
         check_cancelled(cancelled)?;
@@ -192,9 +192,11 @@ mod tests {
     use super::*;
 
     fn test_recipe() -> Recipe {
-        let mut recipe = Recipe::default();
-        recipe.preset = Preset::Custom;
-        recipe.bank_budget_bytes = 12_000;
+        let mut recipe = Recipe {
+            preset: Preset::Custom,
+            bank_budget_bytes: 12_000,
+            ..Default::default()
+        };
         recipe.optimization.minimum_sample_rate = 8_000;
         recipe.optimization.max_candidates = 32;
         recipe

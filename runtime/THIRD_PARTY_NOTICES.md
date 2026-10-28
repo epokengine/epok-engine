@@ -2,8 +2,12 @@
 
 The accompanying Epok runtime sources are licensed under the included Epok MIT license. This license does not assign a license to user-authored game scripts or assets.
 
-The supported SDK is Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552d`:
-https://github.com/pcsx-redux/nugget/tree/6186b131aacc5853a9161fb076ed34ffe504552d
+The supported SDK is the Epok Nugget fork at revision `c702235f366fb1cd8c18e0a5a5392e0acae8a079`:
+https://github.com/epokengine/nugget/tree/c702235f366fb1cd8c18e0a5a5392e0acae8a079
+
+It is based on upstream Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552d`,
+with exact fixed-point division optimizations, optional asynchronous memory-card recovery
+and a host-only workaround for a Microsoft compiler miscompile of fixed-point conditionals.
 
 | Component | Attribution | License text |
 | --- | --- | --- |
@@ -26,5 +30,10 @@ Preserve these notices with redistributed builds. Changing the SDK or adding lib
 The exported Makefile links the MIPS compiler's `libgcc.a` for 64-bit integer division used by collision, clipping and measured time. The GCC runtime source applies the Runtime Library Exception: [libgcc2.c](https://github.com/gcc-mirror/gcc/blob/master/libgcc/libgcc2.c), [exception text](https://github.com/gcc-mirror/gcc/blob/master/COPYING.RUNTIME). The exception permits eligible compiled programs to use the covered runtime with independently chosen licensing for their own modules.
 
 A project whose Lua execution mode is "Native C++" links no interpreter at all. The two Lua VM modes link one archive built by `lua.mk` from `third_party/psxlua`, the pinned Lua 5.2 fork carried by Nugget at revision `abed030e686b4e34987851bd0a028c93b1f73967`; Lua is MIT licensed and its notice must be preserved with such a build. `libpsyqo-lua.a` is never linked.
+
+`controller_pad.hpp` adapts the SIO0 transport and controller interface of PsyQo
+AdvancedPad (Copyright 2025 PCSX-Redux authors), under the MIT license reproduced
+in that file. It adds bounded transfers, direct multitap addressing and DualShock
+motor negotiation in the exported Epok runtime without modifying the pinned SDK.
 
 Except for that archive in the two VM modes, the standalone game does not contain the desktop editor's icon fonts, its Rust libraries, the Lua adapter or the PCSX-Redux emulator.

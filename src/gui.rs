@@ -13,6 +13,74 @@ const SEARCH: &str = "\u{ea6d}";
 // codepoint. Reuse the verified glyph so hierarchy rows never degrade to `?`.
 const ACTOR: &str = CUBE;
 
+/// Shared by the viewport dropdown and the user's default navigation settings.
+pub(crate) fn camera_speed_controls(ui: &imgui::Ui, view: &mut crate::viewport::View) -> bool {
+    let before = (
+        view.fly_speed,
+        view.camera_speed_scalar,
+        view.distance_scaled_speed,
+    );
+    ui.text("Camera Speed");
+    ui.set_next_item_width(260.);
+    let mut level = view.camera_speed_level();
+    if ui
+        .slider_config("##camera-speed-level", 1., 8.)
+        .display_format("%.1f")
+        .build(&mut level)
+    {
+        view.set_camera_speed_level(level);
+    }
+    #[cfg(test)]
+    record_script_control(ui, "Camera Speed");
+    if ui.is_item_hovered() {
+        ui.tooltip_text("Slow to fast: 1 to 8. Ctrl+click to enter a value.\nRMB + mouse wheel changes the same speed while flying.");
+    }
+    ui.text("Camera Speed Scalar");
+    ui.set_next_item_width(260.);
+    if Drag::new("##camera-speed-scalar")
+        .speed(0.1)
+        .range(1., 128.)
+        .display_format("%.2f")
+        .build(ui, &mut view.camera_speed_scalar)
+    {
+        view.camera_speed_scalar = view.camera_speed_scalar.clamp(1., 128.);
+    }
+    #[cfg(test)]
+    record_script_control(ui, "Camera Speed Scalar");
+    if ui.is_item_hovered() {
+        ui.tooltip_text(
+            "Multiplies camera movement speed. Drag to adjust or click to type. Range: 1 to 128.",
+        );
+    }
+    ui.checkbox(
+        "Distance Based Camera Speed",
+        &mut view.distance_scaled_speed,
+    );
+    #[cfg(test)]
+    record_script_control(ui, "Distance Based Camera Speed");
+    if ui.is_item_hovered() {
+        ui.tooltip_text("Scale navigation speed by the distance to the orbit pivot.\nMove more slowly near the pivot and faster when farther away.");
+    }
+    ui.separator();
+    ui.text_disabled(format!(
+        "{:.2} units/s | Shift: 4x",
+        view.navigation_speed()
+    ));
+    if ui.button("Reset Speed") {
+        view.fly_speed = 5.;
+        view.camera_speed_scalar = 1.;
+        view.distance_scaled_speed = false;
+    }
+    #[cfg(test)]
+    record_script_control(ui, "Reset Speed");
+    before
+        != (
+            view.fly_speed,
+            view.camera_speed_scalar,
+            view.distance_scaled_speed,
+        )
+}
+
 pub fn configure_input(io: &mut imgui::Io) {
     // Scene/HUD handles are drawn over images rather than ImGui buttons.
     // Their drags must never also move or undock the containing panel.
@@ -155,6 +223,15 @@ fn build_menu(ui: &imgui::Ui, e: &mut Editor) {
         {
             e.action("export-disc");
         }
+        if ui
+            .menu_item_config("Export PS-EXE...")
+            .enabled(enabled)
+            .build()
+        {
+            e.action("export-ps-exe");
+        }
+        #[cfg(test)]
+        record_script_control(ui, "Export PS-EXE...");
         if ui
             .menu_item_config("Export PsyQo Project...")
             .enabled(enabled)
@@ -651,6 +728,7 @@ pub(crate) fn icon(ui: &imgui::Ui, glyph: &str, id: &str, tip: &str, active: boo
     }
     result
 }
+#[allow(clippy::too_many_arguments)]
 pub fn draw(
     ui: &imgui::Ui,
     e: &mut Editor,
@@ -667,6 +745,7 @@ pub fn draw(
         e.scene_look = false;
         e.raw_look = None;
         e.drag_axis = None;
+        e.scene_orientation.cancel();
         e.hud_drag = None;
         e.game_capture = false;
         crate::busy_ui::background(ui, || {
@@ -824,20 +903,14 @@ fn draw_workspace(
         });
         ui.menu("GameObject", || {
             let actors = placeable_actor_classes(e);
-            let mode = e.scene_view_mode.domain();
             let mut actor_class = None;
-            if let Some(command) = creation_menu(ui, false, mode, &actors, &mut actor_class) {
+            if let Some(command) = creation_menu(ui, false, &actors, &mut actor_class) {
                 e.action(command);
             }
             if let Some(class) = actor_class {
                 e.create_actor(&class);
             }
-            if ui.menu_item("Terrain") {
-                e.action("terrain-create");
-            }
-            if ui.menu_item(format!("{} Dungeon Generator", crate::dungeon_editor::ICON)) {
-                e.action("dungeon-create");
-            }
+            ui.separator();
             let room_root = e
                 .selected_actor
                 .filter(|id| e.scene.actors.iter().any(|a| a.logical_parent == Some(*id)));
@@ -852,9 +925,9 @@ fn draw_workspace(
             {
                 crate::dungeon_room_editor::save_selection(e, id);
             }
-            if ui.is_item_hovered() {
+            if ui.is_item_hovered_with_flags(imgui::ItemHoveredFlags::ALLOW_WHEN_DISABLED) {
                 ui.tooltip_text(
-                    "Rooms, corridors and walls generated from a seed and baked into the map.",
+                    "Make the selected actor's children a room the Dungeon Generator can place.",
                 );
             }
         });
@@ -999,6 +1072,24 @@ fn draw_workspace(
                         }
                     });
                 }
+            } else if e.play_profile.runtime == crate::play::Runtime::PlayStation
+                && e.play_profile.target == crate::play::Target::Serial
+            {
+                ui.same_line_with_spacing(0., 3.);
+                ui.disabled(
+                    e.job.is_some() || e.critical_busy() || e.assets.busy || e.bake_job.is_some(),
+                    || {
+                        if icon(
+                            ui,
+                            "R",
+                            "reset-psx",
+                            "Reset PSX (reconnect to the selected adapter)",
+                            false,
+                        ) {
+                            e.action("serial-reset");
+                        }
+                    },
+                );
             }
             ui.same_line_with_pos(size[0] - 270.);
             if ui.button("Build") {
@@ -1207,6 +1298,7 @@ fn draw_workspace(
     crate::pocketstation_ui::service_link(e);
     crate::pocketstation_ui::window(ui, e);
     crate::export_ui::window(ui, e);
+    crate::ps_exe_export_ui::window(ui, e);
     script_creation_dialog(ui, e);
     lua_creation_dialog(ui, e);
     crate::blueprint_workflow::draw(ui, e);
@@ -1358,6 +1450,7 @@ fn placeable_actor_classes(e: &Editor) -> Vec<ActorClass> {
 /// The domain of a legacy entity. UI and 3D authoring data claim their
 /// respective spatial domain; a bare Empty with only shared components such as
 /// scripts or audio is domain-neutral and remains available in every view.
+#[cfg(test)]
 fn entity_domain(entity: &crate::scene::Actor) -> crate::reflection_schema::Domain {
     use crate::reflection_schema::Domain;
     if entity.canvas.is_some() || entity.rect.is_some() {
@@ -1419,8 +1512,8 @@ mod hierarchy_domain_tests {
         assert!(!domain_visible(Domain::UI, Domain::World3D));
     }
 
-    /// The creation menu offers the UI submenu only in the Canvas view, and
-    /// every command it can emit reaches a recipe rather than being ignored.
+    /// UI actors belong to the Canvas view, and every command the creation
+    /// menu's UI submenu can emit reaches a recipe rather than being ignored.
     #[test]
     fn every_ui_widget_command_creates_its_widget() {
         assert!(domain_visible(Domain::UI, Domain::UI));
@@ -1478,44 +1571,48 @@ const UI_WIDGETS: [(&str, &str); 14] = [
 ];
 /// The containers start here; the menu rules a line above them.
 const UI_CONTAINERS: usize = 9;
+/// The creation menu: ready-made actors first, grouped like the components
+/// they carry, then the class picker for everything else. Every group is
+/// offered in every view; a recipe switches the Scene window to the view that
+/// shows what it created.
 fn creation_menu(
     ui: &imgui::Ui,
     child: bool,
-    mode: crate::reflection_schema::Domain,
     actors: &[ActorClass],
     actor: &mut Option<String>,
 ) -> Option<&'static str> {
     use crate::reflection_schema::Domain;
+    use crate::world3d_presets::Preset;
     let mut action = None;
-    if ui.menu_item(if child {
-        "Instantiate Child Actor..."
-    } else {
-        "Instantiate Actor..."
-    }) {
-        action = Some(if child {
-            "instantiate-child-actor"
-        } else {
-            "instantiate-actor"
-        });
-    }
-    // HUD widgets only make sense where the Canvas editor is showing; the
-    // recipes switch the Scene window into it, so offering them elsewhere would
-    // move the author out of the view they were working in.
-    if domain_visible(Domain::UI, mode)
-        && let Some(_menu) = ui.begin_menu("UI")
-    {
-        for (index, (label, command)) in UI_WIDGETS.into_iter().enumerate() {
-            if index == UI_CONTAINERS {
-                ui.separator();
-            }
-            if ui.menu_item(label) {
-                action = Some(command);
+    let preset_item = |preset: Preset, action: &mut Option<&'static str>| {
+        if ui.menu_item(preset.label()) {
+            *action = Some(preset.command());
+        }
+        #[cfg(test)]
+        record_script_control(ui, preset.command());
+        if ui.is_item_hovered() {
+            ui.tooltip_text(preset.description());
+        }
+    };
+    let presets_menu = |name: &str, action: &mut Option<&'static str>| {
+        let menu = ui.begin_menu(name);
+        #[cfg(test)]
+        record_script_control(ui, &format!("Create {name} menu"));
+        if let Some(_menu) = menu {
+            for preset in Preset::ALL
+                .into_iter()
+                .filter(|p| p.category() == Some(name))
+            {
+                preset_item(preset, action);
             }
         }
-    }
-    if domain_visible(Domain::World2D, mode)
-        && let Some(_menu) = ui.begin_menu("2D Node")
-    {
+    };
+    preset_item(Preset::Empty, &mut action);
+    presets_menu("3D Object", &mut action);
+    let objects_2d = ui.begin_menu("2D Object");
+    #[cfg(test)]
+    record_script_control(ui, "Create 2D Object menu");
+    if let Some(_menu) = objects_2d {
         let mut category = "";
         for preset in crate::world2d::Preset::ALL {
             if preset.category() != category {
@@ -1537,7 +1634,44 @@ fn creation_menu(
             }
         }
     }
-    if let Some(_menu) = ui.begin_menu("Actor") {
+    for name in ["Light", "Audio", "Effects", "Physics"] {
+        presets_menu(name, &mut action);
+    }
+    let widgets = ui.begin_menu("UI");
+    #[cfg(test)]
+    record_script_control(ui, "Create UI menu");
+    if let Some(_menu) = widgets {
+        for (index, (label, command)) in UI_WIDGETS.into_iter().enumerate() {
+            if index == UI_CONTAINERS {
+                ui.separator();
+            }
+            if ui.menu_item(label) {
+                action = Some(command);
+            }
+            #[cfg(test)]
+            record_script_control(ui, command);
+        }
+    }
+    preset_item(Preset::Camera, &mut action);
+    ui.separator();
+    let instantiate = if child {
+        "instantiate-child-actor"
+    } else {
+        "instantiate-actor"
+    };
+    if ui.menu_item(if child {
+        "Instantiate Child Actor..."
+    } else {
+        "Instantiate Actor..."
+    }) {
+        action = Some(instantiate);
+    }
+    #[cfg(test)]
+    record_script_control(ui, instantiate);
+    let actor_menu = ui.begin_menu("Actor");
+    #[cfg(test)]
+    record_script_control(ui, "Create Actor menu");
+    if let Some(_menu) = actor_menu {
         if actors.is_empty() {
             ui.text_disabled("No placeable classes");
             muted(ui, "Reflection data for this project did not resolve.");
@@ -1551,30 +1685,22 @@ fn creation_menu(
                 if !actors.iter().any(|c| c.domain == domain) {
                     continue;
                 }
-                if let Some(_group) = ui.begin_menu(group) {
+                let group_menu = ui.begin_menu(group);
+                #[cfg(test)]
+                record_script_control(ui, &format!("Create group {group}"));
+                if let Some(_group) = group_menu {
                     for class in actors.iter().filter(|c| c.domain == domain) {
                         if ui.menu_item(&class.label) {
                             *actor = Some(class.class.clone());
                         }
+                        #[cfg(test)]
+                        record_script_control(ui, &format!("Create {}", class.class));
                     }
                 }
             }
-            ui.separator();
-            ui.text_disabled("Actors are created at the map root");
         }
     }
     action
-}
-/// Everything the Hierarchy computes once per frame and every node reads.
-struct HierarchyContext<'a> {
-    children: &'a [Vec<usize>],
-    /// Matched the search filter, directly or through a descendant.
-    visible: &'a [bool],
-    /// Belongs to the current view mode or is domain-neutral.
-    in_domain: &'a [bool],
-    /// Has a descendant in that domain, so it is drawn as a presentation root.
-    passthrough: &'a [bool],
-    actors: &'a [ActorClass],
 }
 #[derive(Default)]
 struct HierarchyResult {
@@ -1585,173 +1711,18 @@ struct HierarchyResult {
     actor_class: Option<String>,
     open_map_settings: bool,
 }
-fn hierarchy_node(
-    ui: &imgui::Ui,
-    e: &mut Editor,
-    index: usize,
-    cx: &HierarchyContext,
-    out: &mut HierarchyResult,
-) {
-    if !cx.visible[index] || (!cx.in_domain[index] && !cx.passthrough[index]) {
-        return;
-    }
-    let entity = &e.scene.actors[index];
-    let label = format!(
-        "{} {}###entity{}",
-        if entity.kind == "Camera" {
-            CAMERA
-        } else {
-            CUBE
-        },
-        entity.name,
-        index
-    );
-    let mut flags = imgui::TreeNodeFlags::SPAN_AVAIL_WIDTH
-        | imgui::TreeNodeFlags::OPEN_ON_ARROW
-        | imgui::TreeNodeFlags::DEFAULT_OPEN;
-    if cx.children[index].is_empty() {
-        flags |= imgui::TreeNodeFlags::LEAF;
-    }
-    // An ancestor of another domain keeps the branch's shape and order without
-    // becoming selectable, a rename target or a drop target.
-    if !cx.in_domain[index] {
-        let _muted = ui.push_style_color(C::Text, gray(120));
-        let node = ui
-            .tree_node_config(label)
-            .flags(flags & !imgui::TreeNodeFlags::LEAF)
-            .push();
-        drop(_muted);
-        if ui.is_item_hovered() {
-            ui.tooltip_text(format!(
-                "{} is not part of the {} view; shown so its children keep their place.",
-                e.scene.actors[index].name,
-                e.scene_view_mode.label()
-            ));
-        }
-        if let Some(_node) = node {
-            for child in &cx.children[index] {
-                hierarchy_node(ui, e, *child, cx, out);
-            }
-        }
-        return;
-    }
-    if e.selected == Some(index) {
-        flags |= imgui::TreeNodeFlags::SELECTED;
-    }
-    let mut config = ui.tree_node_config(label).flags(flags);
-    if !e.search.is_empty()
-        || e.reveal_selected && e.selected.is_some_and(|i| e.scene.is_descendant(i, index))
-    {
-        config = config.opened(true, Condition::Always);
-    }
-    let node = config.push();
-    if e.reveal_selected && e.selected == Some(index) {
-        ui.set_scroll_here_y();
-    }
-    if ui.is_item_hovered() {
-        ui.tooltip_text(&e.scene.actors[index].name);
-    }
-    if ui.is_item_clicked() && !ui.is_item_toggled_open() {
-        e.selected_asset = None;
-        e.selected_actor = None;
-        e.selected = Some(index);
-        e.view_dirty = true;
-        if ui.is_mouse_double_clicked(imgui::MouseButton::Left) {
-            e.action("frame-selected");
-        }
-    }
-    if !e.playing {
-        if let Some(_source) = ui
-            .drag_drop_source_config("EPOK_ENTITY")
-            .begin_payload(index)
-        {
-            ui.text(&e.scene.actors[index].name);
-            ui.text_disabled("Drop on parent; drop on scene to unparent");
-        }
-        if let Some(target) = ui.drag_drop_target()
-            && let Some(Ok(payload)) =
-                target.accept_payload::<usize, _>("EPOK_ENTITY", imgui::DragDropFlags::empty())
-            && payload.delivery
-        {
-            out.reparent = Some((payload.data, Some(index), true));
-        }
-    }
-    if let Some(_popup) = ui.begin_popup_context_item() {
-        e.selected_asset = None;
-        e.selected_actor = None;
-        e.selected = Some(index);
-        e.view_dirty = true;
-        let mode = e.scene_view_mode.domain();
-        ui.disabled(e.playing, || {
-            if ui.menu_item("Rename") {
-                e.begin_rename(index);
-            }
-            ui.separator();
-            let mut actor_class = None;
-            if let Some(command) = creation_menu(ui, true, mode, cx.actors, &mut actor_class) {
-                out.action = Some((index, command));
-            }
-            if actor_class.is_some() {
-                out.actor_class = actor_class;
-            }
-            ui.separator();
-            if let Some(_menu) = ui.begin_menu("Parent > Keep World")
-                && let Some(parent) = parent_menu(ui, e, index, true)
-            {
-                out.reparent = Some((index, parent, true));
-            }
-            if let Some(_menu) = ui.begin_menu("Parent > Keep Local")
-                && let Some(parent) = parent_menu(ui, e, index, false)
-            {
-                out.reparent = Some((index, parent, false));
-            }
-            ui.separator();
-            if ui.menu_item("Duplicate") {
-                out.action = Some((index, "duplicate"));
-            }
-            if ui.menu_item("Delete") {
-                out.action = Some((index, "delete"));
-            }
-            if !cx.children[index].is_empty() {
-                ui.text_disabled("Duplicate / Delete includes children");
-            }
-        });
-    }
-    if e.rename.as_ref().is_some_and(|(i, _)| *i == index) {
-        ui.set_next_item_width(-1.);
-        let focus_requested = e.rename_focus;
-        if focus_requested {
-            ui.set_keyboard_focus_here();
-            e.rename_focus = false;
-        }
-        let submit = ui
-            .input_text(
-                format!("##rename{index}"),
-                &mut e.rename.as_mut().unwrap().1,
-            )
-            .auto_select_all(true)
-            .enter_returns_true(true)
-            .build();
-        if let Some(commit) = hierarchy_rename_finished(ui, submit, focus_requested) {
-            e.finish_rename(commit);
-        }
-    }
-    if let Some(_node) = node {
-        for child in &cx.children[index] {
-            hierarchy_node(ui, e, *child, cx, out);
-        }
-    }
-}
 /// Domain-filtered document actors, drawn under the legacy actors.
-struct ActorContext {
+struct ActorContext<'a> {
     children: Vec<Vec<usize>>,
     visible: Vec<bool>,
     in_domain: Vec<bool>,
     passthrough: Vec<bool>,
     resolved: Vec<bool>,
     roots: Vec<usize>,
+    /// The placeable classes the actor menu's creation items offer.
+    classes: &'a [ActorClass],
 }
-fn actor_context(e: &Editor) -> ActorContext {
+fn actor_context<'a>(e: &Editor, classes: &'a [ActorClass]) -> ActorContext<'a> {
     let actors = &e.scene.actors;
     let model = e.object_model();
     let mode = e.scene_view_mode.domain();
@@ -1764,6 +1735,7 @@ fn actor_context(e: &Editor) -> ActorContext {
         passthrough: vec![false; actors.len()],
         resolved: vec![false; actors.len()],
         roots: Vec::new(),
+        classes,
     };
     let mut parent = vec![None; actors.len()];
     for (i, actor) in actors.iter().enumerate() {
@@ -1814,10 +1786,22 @@ fn actor_context(e: &Editor) -> ActorContext {
 struct ActorResult {
     /// `(child, new parent)`; `None` parent is the map root.
     reparent: Option<(uuid::Uuid, Option<uuid::Uuid>)>,
+    /// The clicked actor of Duplicate, Delete and Move to Map Root, which act
+    /// on the whole selection when the clicked actor is part of it.
     duplicate: Option<uuid::Uuid>,
     delete: Option<uuid::Uuid>,
+    to_root: Option<uuid::Uuid>,
+    select_children: Option<uuid::Uuid>,
+    /// `(clicked actor, Ctrl held)` of a Shift+click, applied once `rows` is complete.
+    select_range: Option<(uuid::Uuid, bool)>,
+    /// The selectable actor rows drawn this frame, top to bottom.
+    rows: Vec<uuid::Uuid>,
     rename: Option<uuid::Uuid>,
     rename_input_drawn: bool,
+    /// `(parent, creation command)` picked in an actor's menu.
+    create: Option<(uuid::Uuid, &'static str)>,
+    /// `(parent, actor class)` picked in an actor's menu.
+    create_class: Option<(uuid::Uuid, String)>,
 }
 fn actor_node(
     ui: &imgui::Ui,
@@ -1857,12 +1841,17 @@ fn actor_node(
         }
         return;
     }
-    if e.selected_actor == Some(id) {
+    if e.is_actor_selected(id) {
         flags |= imgui::TreeNodeFlags::SELECTED;
     }
     let node = ui.tree_node_config(label).flags(flags).push();
+    out.rows.push(id);
     #[cfg(test)]
     record_script_control(ui, &format!("Hierarchy actor {id}"));
+    #[cfg(test)]
+    if flags.contains(imgui::TreeNodeFlags::SELECTED) {
+        record_script_control(ui, &format!("Hierarchy highlighted {id}"));
+    }
     // A 2D node that will not work as authored carries a warning sign at the row's end.
     let warnings = crate::world2d_warnings::of(&e.scene, index);
     let row = [ui.item_rect_min(), ui.item_rect_max()];
@@ -1902,9 +1891,17 @@ fn actor_node(
         }
     }
     if ui.is_item_clicked() && !ui.is_item_toggled_open() {
-        e.select_actor(Some(id));
-        if ui.is_mouse_double_clicked(imgui::MouseButton::Left) {
-            e.action("frame-selected");
+        // Shift selects a range of rows, Ctrl toggles one; a plain click
+        // selects this actor alone.
+        if ui.io().key_shift {
+            out.select_range = Some((id, ui.io().key_ctrl));
+        } else if ui.io().key_ctrl {
+            e.toggle_actor_selection(id);
+        } else {
+            e.select_actor(Some(id));
+            if ui.is_mouse_double_clicked(imgui::MouseButton::Left) {
+                e.action("frame-selected");
+            }
         }
     }
     if !e.playing {
@@ -1924,46 +1921,86 @@ fn actor_node(
             out.reparent = Some((child, Some(id)));
         }
     }
+    // Edit commands with their shortcuts, then structure, then creation, whose
+    // results become this actor's children. Nothing here is explanatory text: a
+    // command that does not apply stays in place, disabled, with a tooltip.
     if let Some(_popup) = ui.begin_popup_context_item() {
-        e.select_actor(Some(id));
+        // Right-clicking inside the selection keeps it, so the commands below
+        // reach every selected actor; elsewhere it selects this actor alone.
+        if e.is_actor_selected(id) {
+            e.selected_asset = None;
+        } else {
+            e.select_actor(Some(id));
+        }
+        let leaf = cx.children[index].is_empty();
         ui.disabled(e.playing, || {
             if ui.menu_item_config("Rename").shortcut("F2").build() {
                 out.rename = Some(id);
             }
             #[cfg(test)]
             record_script_control(ui, "Hierarchy Rename");
-            ui.separator();
-            if ui.menu_item("Duplicate") {
+            if ui.menu_item_config("Duplicate").shortcut("Ctrl+D").build() {
                 out.duplicate = Some(id);
             }
-            if ui.menu_item("Delete") {
+            #[cfg(test)]
+            record_script_control(ui, "Hierarchy Duplicate");
+            if ui.menu_item_config("Delete").shortcut("Del").build() {
                 out.delete = Some(id);
             }
-            if !cx.children[index].is_empty() {
-                ui.text_disabled("Duplicate / Delete includes child actors");
+            #[cfg(test)]
+            record_script_control(ui, "Hierarchy Delete");
+            if ui
+                .menu_item_config("Select Children")
+                .enabled(!leaf)
+                .build()
+            {
+                out.select_children = Some(id);
+            }
+            #[cfg(test)]
+            record_script_control(ui, "Hierarchy Select Children");
+            if ui.is_item_hovered_with_flags(imgui::ItemHoveredFlags::ALLOW_WHEN_DISABLED) {
+                ui.tooltip_text(if leaf {
+                    "This actor has no children to select."
+                } else {
+                    "Select this actor and every actor under it."
+                });
             }
             ui.separator();
             if ui.menu_item("Move to Map Root") {
-                out.reparent = Some((id, None));
+                out.to_root = Some(id);
             }
-            ui.text_disabled("Parent by dragging an actor onto another");
+            #[cfg(test)]
+            record_script_control(ui, "Hierarchy Move to Map Root");
             ui.separator();
-            if ui.menu_item("Instantiate Child Actor...") {
-                e.action("instantiate-child-actor");
-            }
             if ui.menu_item("Convert to Actor Blueprint...") {
                 crate::actor_workflow::begin_convert(e, id);
             }
-            if !cx.children[index].is_empty() {
-                if ui.menu_item(format!(
+            if ui
+                .menu_item_config(format!(
                     "{} Save as Dungeon Room...",
                     crate::dungeon_room_editor::ICON
-                )) {
-                    crate::dungeon_room_editor::save_selection(e, id);
-                }
-                if ui.is_item_hovered() {
-                    ui.tooltip_text("Make this actor's children a room the Dungeon Generator can place, from this actor's origin towards +X and +Z.");
-                }
+                ))
+                .enabled(!leaf)
+                .build()
+            {
+                crate::dungeon_room_editor::save_selection(e, id);
+            }
+            #[cfg(test)]
+            record_script_control(ui, "Hierarchy Save as Dungeon Room");
+            if ui.is_item_hovered_with_flags(imgui::ItemHoveredFlags::ALLOW_WHEN_DISABLED) {
+                ui.tooltip_text(if leaf {
+                    "A room is made from an actor's children; this actor has none."
+                } else {
+                    "Make this actor's children a room the Dungeon Generator can place, from this actor's origin towards +X and +Z."
+                });
+            }
+            ui.separator();
+            let mut class = None;
+            if let Some(command) = creation_menu(ui, true, cx.classes, &mut class) {
+                out.create = Some((id, command));
+            }
+            if let Some(class) = class {
+                out.create_class = Some((id, class));
             }
         });
     }
@@ -2016,7 +2053,6 @@ fn hierarchy_rename_finished(ui: &imgui::Ui, submit: bool, focus_requested: bool
 }
 pub(crate) fn hierarchy(ui: &imgui::Ui, e: &mut Editor) {
     let actors = placeable_actor_classes(e);
-    let mode = e.scene_view_mode.domain();
     ui.window("\u{eb86} Hierarchy###Hierarchy").build(|| {
         let mut out = HierarchyResult::default();
         let mut actor_out = ActorResult::default();
@@ -2034,7 +2070,7 @@ pub(crate) fn hierarchy(ui: &imgui::Ui, e: &mut Editor) {
         ui.popup("create-object", || {
             ui.disabled(e.playing, || {
                 let mut actor_class = None;
-                if let Some(command) = creation_menu(ui, false, mode, &actors, &mut actor_class) {
+                if let Some(command) = creation_menu(ui, false, &actors, &mut actor_class) {
                     e.action(command);
                 }
                 if let Some(class) = actor_class {
@@ -2075,8 +2111,7 @@ pub(crate) fn hierarchy(ui: &imgui::Ui, e: &mut Editor) {
             if let Some(_popup) = ui.begin_popup_context_item() {
                 ui.disabled(e.playing, || {
                     let mut actor_class = None;
-                    if let Some(command) = creation_menu(ui, false, mode, &actors, &mut actor_class)
-                    {
+                    if let Some(command) = creation_menu(ui, false, &actors, &mut actor_class) {
                         out.root_action = Some(command);
                     }
                     if actor_class.is_some() {
@@ -2089,7 +2124,7 @@ pub(crate) fn hierarchy(ui: &imgui::Ui, e: &mut Editor) {
                 });
             }
             if let Some(_scene) = scene_node {
-                let actor_cx = actor_context(e);
+                let actor_cx = actor_context(e, &actors);
                 if !actor_cx.roots.is_empty() {
                     for root in actor_cx.roots.clone() {
                         actor_node(ui, e, root, &actor_cx, &mut actor_out);
@@ -2122,8 +2157,7 @@ pub(crate) fn hierarchy(ui: &imgui::Ui, e: &mut Editor) {
             if let Some(_popup) = ui.begin_popup_context_item() {
                 ui.disabled(e.playing, || {
                     let mut actor_class = None;
-                    if let Some(command) = creation_menu(ui, false, mode, &actors, &mut actor_class)
-                    {
+                    if let Some(command) = creation_menu(ui, false, &actors, &mut actor_class) {
                         out.root_action = Some(command);
                     }
                     if actor_class.is_some() {
@@ -2157,14 +2191,29 @@ pub(crate) fn hierarchy(ui: &imgui::Ui, e: &mut Editor) {
             // Collapsing or filtering the branch must also end its hidden edit.
             e.finish_actor_rename(true);
         }
+        if let Some((id, extend)) = actor_out.select_range {
+            e.select_actor_range(&actor_out.rows, id, extend);
+        }
+        if let Some(id) = actor_out.select_children {
+            e.select_actor_children(id);
+        }
         if let Some((child, parent)) = actor_out.reparent {
             e.reparent_actor(child, parent);
         }
+        if let Some(id) = actor_out.to_root {
+            e.reparent_actors(&e.actor_command_targets(id), None);
+        }
         if let Some(id) = actor_out.duplicate {
-            e.duplicate_actor(id);
+            e.duplicate_actors(&e.actor_command_targets(id));
         }
         if let Some(id) = actor_out.delete {
-            e.delete_actor(id);
+            e.delete_actors(&e.actor_command_targets(id));
+        }
+        if let Some((parent, command)) = actor_out.create {
+            e.create_child(command, parent);
+        }
+        if let Some((parent, class)) = actor_out.create_class {
+            e.create_actor_under(&class, Some(parent));
         }
         if ui.is_window_focused_with_flags(imgui::WindowFocusedFlags::ROOT_AND_CHILD_WINDOWS)
             && !ui.io().want_text_input
@@ -2173,7 +2222,7 @@ pub(crate) fn hierarchy(ui: &imgui::Ui, e: &mut Editor) {
             // The Hierarchy's Delete key follows the selection, whichever kind
             // of node holds it.
             match e.selected_actor {
-                Some(id) => e.delete_actor(id),
+                Some(_) => e.delete_actors(&e.selected_actors()),
                 None => e.action("delete"),
             }
         }
@@ -3192,6 +3241,7 @@ fn scene_view(
     }
     let _compact_padding =
         compact.then(|| ui.push_style_var(imgui::StyleVar::WindowPadding([0., 0.])));
+    let mut orientation_visible = false;
     window.build(|| {
         if !compact {
             for mode in crate::scene_view_mode::SceneViewMode::ALL {
@@ -3241,12 +3291,24 @@ fn scene_view(
             if ui.button("Reset View") {
                 e.action("reset-view");
             }
-            inline_width(ui, 125.);
-            ui.set_next_item_width(70.);
-            crate::gui::Drag::new("Speed")
-                .speed(0.1)
-                .range(0.1, 100.)
-                .build(ui, &mut e.view.fly_speed);
+            inline_width(ui, 130.);
+            let right = ui.window_content_region_max()[0] - 130.;
+            if right > ui.cursor_pos()[0] {
+                ui.set_cursor_pos([right, ui.cursor_pos()[1]]);
+            }
+            if ui.button_with_size(format!("{CAMERA} {:.1}  \u{eab4}##camera-speed", e.view.camera_speed_level()), [130., 0.]) {
+                ui.open_popup("scene-camera-speed");
+            }
+            #[cfg(test)]
+            record_script_control(ui, "Camera Speed Menu");
+            if ui.is_item_hovered() {
+                ui.tooltip_text(format!("Camera Speed\nRMB + mouse wheel: adjust speed\nCurrent movement: {:.2} units/s", e.view.navigation_speed()));
+            }
+            ui.popup("scene-camera-speed", || {
+                if camera_speed_controls(ui, &mut e.view) {
+                    e.view_dirty = true;
+                }
+            });
             muted(ui, "RMB + WASD: fly | Q/E: down/up | Alt + LMB: orbit");
             crate::lighting_editor::preview_status(ui, e);
             crate::baked_preview::ui(ui, e);
@@ -3282,18 +3344,28 @@ fn scene_view(
         // A text field may own ActiveId until navigation explicitly relinquishes it.
         let navigation_hovered = ui
             .is_item_hovered_with_flags(imgui::ItemHoveredFlags::ALLOW_WHEN_BLOCKED_BY_ACTIVE_ITEM);
-        if hovered && ui.io().mouse_wheel != 0. {
+        let right = ui.is_mouse_down(imgui::MouseButton::Right);
+        let middle = ui.is_mouse_down(imgui::MouseButton::Middle);
+        let orientation_position = [
+            position[0] + available[0] - crate::gizmo::ORIENTATION_SIZE - 9.,
+            position[1] + 8.,
+        ];
+        orientation_visible = true;
+        let orientation_enabled = !e.critical_busy() && e.drag_axis.is_none() && !right && !middle;
+        if e.scene_orientation.interact(ui, &mut e.view, orientation_position, orientation_enabled) {
+            e.view_dirty = true;
+        }
+        let over_orientation = e.scene_orientation.owns_pointer;
+        if hovered && !over_orientation && ui.io().mouse_wheel != 0. {
             if ui.is_mouse_down(imgui::MouseButton::Right) {
-                e.view.fly_speed =
-                    (e.view.fly_speed * 1.2_f32.powf(ui.io().mouse_wheel)).clamp(0.1, 100.);
+                e.view.adjust_camera_speed(ui.io().mouse_wheel);
             } else {
                 e.view.dolly(ui.io().mouse_wheel);
             }
             e.view_dirty = true;
         }
-        let right = ui.is_mouse_down(imgui::MouseButton::Right);
-        let middle = ui.is_mouse_down(imgui::MouseButton::Middle);
         if navigation_hovered
+            && !over_orientation
             && (ui.is_mouse_clicked(imgui::MouseButton::Right)
                 || ui.is_mouse_clicked(imgui::MouseButton::Middle))
         {
@@ -3326,7 +3398,7 @@ fn scene_view(
             e.view.fly(axes, ui.io().delta_time, ui.io().key_shift);
             e.view_dirty = true;
         }
-        if hovered && ui.is_mouse_dragging(imgui::MouseButton::Left) && ui.io().key_alt {
+        if hovered && !over_orientation && ui.is_mouse_dragging(imgui::MouseButton::Left) && ui.io().key_alt {
             e.view.look(ui.io().mouse_delta, true);
             e.view_dirty = true;
         }
@@ -3355,6 +3427,7 @@ fn scene_view(
         let eligible = hovered
             && !over_tools
             && !over_axes
+            && !over_orientation
             && !over_path_key
             && !e.playing
             && !ui.io().key_alt
@@ -3393,7 +3466,7 @@ fn scene_view(
                 e.search.clear();
             }
         }
-        if ui.is_window_focused() && !ui.io().want_text_input && !right && !middle {
+        if ui.is_window_focused() && !ui.io().want_text_input && !right && !middle && !over_orientation {
             crate::mesh_editor::geometry_shortcuts(ui, e);
             crate::terrain_editor::brush_shortcuts(ui, e);
             for (i, key) in [imgui::Key::Q, imgui::Key::W, imgui::Key::E, imgui::Key::R]
@@ -3428,14 +3501,11 @@ fn scene_view(
             });
         drop(tool_spacing);
         drop(tool_padding);
-        let orientation_position = [
-            position[0] + available[0] - crate::gizmo::ORIENTATION_SIZE - 9.,
-            position[1] + 8.,
-        ];
-        if crate::gizmo::draw_orientation(ui, &mut e.view, orientation_position) {
-            e.view_dirty = true;
-        }
+        crate::gizmo::draw_orientation(ui, &e.view, &e.scene_orientation, orientation_position);
     });
+    if !orientation_visible {
+        e.scene_orientation.cancel();
+    }
 }
 fn game_view(
     ui: &imgui::Ui,
@@ -3446,17 +3516,24 @@ fn game_view(
     let mut visible = false;
     ui.window("\u{ec17} Game###Game").build(|| {
         visible = true;
-        if e.active_play_runtime == crate::play::Runtime::PlayStation
+        if (e.active_play_runtime == crate::play::Runtime::PlayStation
             && e.active_play_target == crate::play::Target::Serial
-            && e.job.is_some()
+            && e.job.is_some())
+            || (e.job.is_none() && e.play_profile.runtime == crate::play::Runtime::PlayStation
+                && e.play_profile.target == crate::play::Target::Serial)
         {
-            ui.text_wrapped("PSX serial session. The picture is on the console's display; use its controller. Upload progress and TTY messages appear in Console.");
-            ui.text_wrapped("Stop disconnects NOTPSXSerial. It does not reset or halt the console.");
-            ui.disabled(!e.playing || e.serial_ui.command_pending, || {
+            ui.text_wrapped(if e.playing {
+                "PSX serial session. The picture is on the console's display; use its controller. Stop requests a console reset before disconnecting."
+            } else {
+                "PSX via serial. Start Play from the Unirom loader. Reset PSX can reconnect to recover a previous execution if its resident handler still responds."
+            });
+            ui.disabled(!e.playing || e.serial_ui.command_pending || e.job.as_ref().is_some_and(crate::pipeline::Job::stopping), || {
                 if ui.button("Pause PSX") { e.action("serial-pause"); }
                 ui.same_line();
                 if ui.button("Continue PSX") { e.action("serial-resume"); }
-                ui.same_line();
+            });
+            ui.same_line();
+            ui.disabled(e.serial_ui.command_pending || e.job.as_ref().is_some_and(|job| !e.playing || job.stopping()) || e.critical_busy() || e.assets.busy || e.bake_job.is_some(), || {
                 if ui.button("Reset PSX") { e.action("serial-reset"); }
             });
             if e.serial_ui.command_pending { ui.text_disabled("Waiting for Unirom..."); }
@@ -3585,6 +3662,129 @@ fn game_view(
 #[cfg(test)]
 mod interaction_tests {
     use super::*;
+
+    #[test]
+    fn camera_speed_dropdown_changes_navigation_and_preserves_scene_data() {
+        let mut context = crate::gui::tests::imgui_context();
+        configure_input(context.io_mut());
+        context.set_ini_filename(None);
+        context.io_mut().display_size = [1200., 800.];
+        context.io_mut().delta_time = 1. / 60.;
+        context
+            .fonts()
+            .add_font(&[imgui::FontSource::DefaultFontData { config: None }]);
+        context.fonts().build_rgba32_texture();
+        context.load_ini_settings("[Window][###Scene]\nPos=10,10\nSize=1100,700\nCollapsed=0\n");
+        let root = crate::workspace::tests::temp("camera-speed-dropdown");
+        let mut editor = Editor::new(root.clone());
+        editor.auto_build = false;
+        editor.view = Default::default();
+        let scene = editor.scene.clone();
+        let dirty = editor.dirty;
+        let undo = (editor.can_undo_scene(), editor.can_redo_scene());
+        fn frame(context: &mut imgui::Context, editor: &mut Editor) {
+            clear_script_controls();
+            let ui = context.frame();
+            scene_view(
+                ui,
+                editor,
+                imgui::TextureId::new(999),
+                imgui::TextureId::new(1000),
+                [960., 600.],
+            );
+            context.render();
+        }
+        fn click(context: &mut imgui::Context, editor: &mut Editor, point: [f32; 2]) {
+            context.io_mut().add_mouse_pos_event(point);
+            frame(context, editor);
+            context
+                .io_mut()
+                .add_mouse_button_event(imgui::MouseButton::Left, true);
+            frame(context, editor);
+            context
+                .io_mut()
+                .add_mouse_button_event(imgui::MouseButton::Left, false);
+            frame(context, editor);
+        }
+        frame(&mut context, &mut editor);
+        frame(&mut context, &mut editor);
+        let menu = script_control("Camera Speed Menu").unwrap();
+        click(&mut context, &mut editor, menu);
+        // Popups at the right edge settle their auto-fit position on the next frame.
+        frame(&mut context, &mut editor);
+        frame(&mut context, &mut editor);
+        let slider = script_control("Camera Speed").expect("Camera Speed dropdown opens");
+        click(&mut context, &mut editor, [slider[0] + 80., slider[1]]);
+        assert!(
+            editor.view.camera_speed_level() > 6.,
+            "level={}, slider={slider:?}, current={:?}",
+            editor.view.camera_speed_level(),
+            script_control("Camera Speed")
+        );
+        let scalar = script_control("Camera Speed Scalar").unwrap();
+        context.io_mut().add_mouse_pos_event(scalar);
+        frame(&mut context, &mut editor);
+        context
+            .io_mut()
+            .add_mouse_button_event(imgui::MouseButton::Left, true);
+        frame(&mut context, &mut editor);
+        context
+            .io_mut()
+            .add_mouse_pos_event([scalar[0] + 60., scalar[1]]);
+        frame(&mut context, &mut editor);
+        context
+            .io_mut()
+            .add_mouse_button_event(imgui::MouseButton::Left, false);
+        frame(&mut context, &mut editor);
+        assert!(editor.view.camera_speed_scalar > 1.);
+        let toggle = script_control("Distance Based Camera Speed").unwrap();
+        click(&mut context, &mut editor, toggle);
+        assert!(editor.view.distance_scaled_speed);
+        let chosen = (editor.view.fly_speed, editor.view.camera_speed_scalar);
+        editor.action("reset-view");
+        assert_eq!(
+            (editor.view.fly_speed, editor.view.camera_speed_scalar),
+            chosen
+        );
+        assert!(editor.view.distance_scaled_speed);
+        context.io_mut().add_key_event(imgui::Key::Escape, true);
+        frame(&mut context, &mut editor);
+        context.io_mut().add_key_event(imgui::Key::Escape, false);
+        frame(&mut context, &mut editor);
+        let before = editor.view;
+        context.io_mut().add_mouse_pos_event([300., 330.]);
+        frame(&mut context, &mut editor);
+        context
+            .io_mut()
+            .add_mouse_button_event(imgui::MouseButton::Right, true);
+        frame(&mut context, &mut editor);
+        context.io_mut().add_mouse_wheel_event([0., -1.]);
+        frame(&mut context, &mut editor);
+        assert!(editor.view.fly_speed < before.fly_speed);
+        assert_eq!(
+            editor.view.center, before.center,
+            "Speed wheel must not dolly"
+        );
+        assert_eq!(editor.view.camera_speed_scalar, before.camera_speed_scalar);
+        context
+            .io_mut()
+            .add_mouse_button_event(imgui::MouseButton::Right, false);
+        frame(&mut context, &mut editor);
+        let menu = script_control("Camera Speed Menu").unwrap();
+        click(&mut context, &mut editor, menu);
+        frame(&mut context, &mut editor);
+        frame(&mut context, &mut editor);
+        let reset = script_control("Reset Speed").unwrap();
+        click(&mut context, &mut editor, reset);
+        assert_eq!(editor.view.fly_speed, 5.);
+        assert_eq!(editor.view.camera_speed_scalar, 1.);
+        assert!(!editor.view.distance_scaled_speed);
+        assert_eq!(editor.scene, scene);
+        assert_eq!(editor.dirty, dirty);
+        assert_eq!((editor.can_undo_scene(), editor.can_redo_scene()), undo);
+        drop(editor);
+        std::fs::remove_dir_all(root).unwrap();
+    }
 
     #[test]
     fn hierarchy_double_click_frames_and_rename_respects_focus_and_outside_clicks() {
@@ -3861,6 +4061,428 @@ mod interaction_tests {
             "Leaf rows also frame on double click"
         );
         assert!(editor.actor_rename.is_none());
+    }
+
+    /// The actor menu keeps Save as Dungeon Room in place, disabled on a leaf,
+    /// and what its Actor submenu creates becomes the clicked actor's child.
+    #[test]
+    fn actor_context_menu_disables_leaf_room_and_creates_children() {
+        let mut context = crate::gui::tests::imgui_context();
+        configure_input(context.io_mut());
+        context.io_mut().display_size = [900., 650.];
+        context.io_mut().delta_time = 1. / 60.;
+        context
+            .fonts()
+            .add_font(&[imgui::FontSource::DefaultFontData { config: None }]);
+        context.fonts().build_rgba32_texture();
+        context.load_ini_settings("[Window][###Hierarchy]\nPos=10,10\nSize=360,600\nCollapsed=0\n");
+        let root = crate::workspace::tests::temp("hierarchy-actor-menu");
+        let mut editor = Editor::new(root.clone());
+        editor.auto_build = false;
+        editor.scene.actors.clear();
+        editor.catalog = crate::mcp_tests::actor_catalog();
+        editor.class_registry =
+            crate::blueprint::registry_from_catalog(&editor.root, &editor.catalog);
+        editor.registry_revision += 1;
+        editor.create_actor("epok::Actor3D");
+        let hero = editor.selected_actor.unwrap();
+        editor.select_actor(None);
+
+        fn frame(ctx: &mut imgui::Context, e: &mut Editor) {
+            SCRIPT_BUTTONS.with(|buttons| buttons.borrow_mut().clear());
+            let ui = ctx.frame();
+            hierarchy(ui, e);
+            ctx.render();
+        }
+        fn hover(ctx: &mut imgui::Context, e: &mut Editor, point: [f32; 2]) {
+            ctx.io_mut().add_mouse_pos_event(point);
+            for _ in 0..10 {
+                frame(ctx, e);
+            }
+        }
+        fn click_at(
+            ctx: &mut imgui::Context,
+            e: &mut Editor,
+            point: [f32; 2],
+            button: imgui::MouseButton,
+        ) {
+            hover(ctx, e, point);
+            ctx.io_mut().add_mouse_button_event(button, true);
+            frame(ctx, e);
+            ctx.io_mut().add_mouse_button_event(button, false);
+            frame(ctx, e);
+            frame(ctx, e);
+        }
+        let point = |label: &str| {
+            SCRIPT_BUTTONS
+                .with(|buttons| buttons.borrow().get(label).copied())
+                .unwrap_or_else(|| {
+                    panic!(
+                        "{label} was not drawn; drawn: {:?}",
+                        script_control_labels()
+                    )
+                })
+        };
+        for _ in 0..3 {
+            frame(&mut context, &mut editor);
+        }
+        let row = point(&format!("Hierarchy actor {hero}"));
+        click_at(&mut context, &mut editor, row, imgui::MouseButton::Right);
+        let save_room = point("Hierarchy Save as Dungeon Room");
+        click_at(
+            &mut context,
+            &mut editor,
+            save_room,
+            imgui::MouseButton::Left,
+        );
+        assert!(
+            script_control("Hierarchy Duplicate").is_some(),
+            "A leaf's Save as Dungeon Room is disabled, so clicking it keeps the menu open"
+        );
+
+        let count = editor.scene.actors.len();
+        hover(&mut context, &mut editor, point("Create Actor menu"));
+        hover(&mut context, &mut editor, point("Create group 3D"));
+        let class = point("Create epok::Actor3D");
+        click_at(&mut context, &mut editor, class, imgui::MouseButton::Left);
+        assert!(editor.last_error.is_none(), "{:?}", editor.last_error);
+        assert_eq!(editor.scene.actors.len(), count + 1);
+        let child = editor.selected_actor.unwrap();
+        assert_ne!(child, hero);
+        let index = editor.scene.actor_index(child).unwrap();
+        assert_eq!(editor.scene.actors[index].logical_parent, Some(hero));
+        drop(editor);
+        if root.exists() {
+            std::fs::remove_dir_all(root).unwrap();
+        }
+    }
+
+    /// Shift+click and Ctrl+click select several Hierarchy rows, every one of
+    /// them highlighted; the actor menu then acts on all of them, and Select
+    /// Children is disabled on a leaf.
+    #[test]
+    fn hierarchy_multi_selection_highlights_rows_and_menu_commands_take_all_of_it() {
+        use std::collections::BTreeSet;
+        let mut context = crate::gui::tests::imgui_context();
+        configure_input(context.io_mut());
+        context.io_mut().display_size = [900., 650.];
+        context.io_mut().delta_time = 1. / 60.;
+        context
+            .fonts()
+            .add_font(&[imgui::FontSource::DefaultFontData { config: None }]);
+        context.fonts().build_rgba32_texture();
+        context.load_ini_settings("[Window][###Hierarchy]\nPos=10,10\nSize=360,600\nCollapsed=0\n");
+        let root = crate::workspace::tests::temp("hierarchy-multi-selection");
+        let mut editor = Editor::new(root.clone());
+        editor.auto_build = false;
+        editor.scene.actors.clear();
+        editor.catalog = crate::mcp_tests::actor_catalog();
+        editor.class_registry =
+            crate::blueprint::registry_from_catalog(&editor.root, &editor.catalog);
+        editor.registry_revision += 1;
+        editor.create_actor("epok::Actor3D");
+        let hero = editor.selected_actor.unwrap();
+        editor.create_actor("epok::Actor3D");
+        let crate_actor = editor.selected_actor.unwrap();
+        editor.create_actor("epok::Actor3D");
+        let lamp = editor.selected_actor.unwrap();
+        editor.create_actor_under("epok::Actor3D", Some(hero));
+        let child = editor.selected_actor.unwrap();
+        editor.select_actor(None);
+
+        fn frame(ctx: &mut imgui::Context, e: &mut Editor) {
+            SCRIPT_BUTTONS.with(|buttons| buttons.borrow_mut().clear());
+            let ui = ctx.frame();
+            hierarchy(ui, e);
+            ctx.render();
+        }
+        fn click_at(
+            ctx: &mut imgui::Context,
+            e: &mut Editor,
+            point: [f32; 2],
+            button: imgui::MouseButton,
+            modifier: Option<imgui::Key>,
+        ) {
+            if let Some(modifier) = modifier {
+                ctx.io_mut().add_key_event(modifier, true);
+            }
+            ctx.io_mut().add_mouse_pos_event(point);
+            for _ in 0..10 {
+                frame(ctx, e);
+            }
+            ctx.io_mut().add_mouse_button_event(button, true);
+            frame(ctx, e);
+            ctx.io_mut().add_mouse_button_event(button, false);
+            frame(ctx, e);
+            if let Some(modifier) = modifier {
+                ctx.io_mut().add_key_event(modifier, false);
+            }
+            frame(ctx, e);
+        }
+        let point = |label: &str| {
+            SCRIPT_BUTTONS
+                .with(|buttons| buttons.borrow().get(label).copied())
+                .unwrap_or_else(|| {
+                    panic!(
+                        "{label} was not drawn; drawn: {:?}",
+                        script_control_labels()
+                    )
+                })
+        };
+        let row = |id: uuid::Uuid| point(&format!("Hierarchy actor {id}"));
+        let highlighted = || {
+            script_control_labels()
+                .iter()
+                .filter_map(|label| label.strip_prefix("Hierarchy highlighted "))
+                .map(|id| id.parse::<uuid::Uuid>().unwrap())
+                .collect::<BTreeSet<_>>()
+        };
+        let left = imgui::MouseButton::Left;
+        let right = imgui::MouseButton::Right;
+        for _ in 0..3 {
+            frame(&mut context, &mut editor);
+        }
+
+        // Rows read hero, its child, crate, lamp. A plain click, then Shift.
+        click_at(&mut context, &mut editor, row(child), left, None);
+        click_at(
+            &mut context,
+            &mut editor,
+            row(crate_actor),
+            left,
+            Some(imgui::Key::ModShift),
+        );
+        assert_eq!(editor.selected_actors(), vec![crate_actor, child]);
+        assert_eq!(editor.selected_actor, Some(crate_actor));
+        assert_eq!(highlighted(), BTreeSet::from([crate_actor, child]));
+        click_at(
+            &mut context,
+            &mut editor,
+            row(lamp),
+            left,
+            Some(imgui::Key::ModCtrl),
+        );
+        assert_eq!(editor.selected_actors(), vec![crate_actor, lamp, child]);
+        assert_eq!(
+            editor.selected_actor,
+            Some(lamp),
+            "Ctrl+click makes the actor primary"
+        );
+        assert_eq!(highlighted(), BTreeSet::from([crate_actor, lamp, child]));
+
+        // Right-clicking inside the selection keeps it; Move to Map Root takes
+        // every selected actor in one step.
+        let before = editor.scene.clone();
+        click_at(&mut context, &mut editor, row(crate_actor), right, None);
+        assert_eq!(editor.selected_actors().len(), 3);
+        click_at(
+            &mut context,
+            &mut editor,
+            point("Hierarchy Move to Map Root"),
+            left,
+            None,
+        );
+        let parent =
+            |e: &Editor, id| e.scene.actors[e.scene.actor_index(id).unwrap()].logical_parent;
+        assert_eq!(parent(&editor, child), None);
+        editor.undo_scene().unwrap();
+        assert_eq!(editor.scene, before, "Moving the selection is one step");
+        frame(&mut context, &mut editor);
+
+        // Duplicate copies the three selected actors in one step.
+        click_at(&mut context, &mut editor, row(crate_actor), right, None);
+        click_at(
+            &mut context,
+            &mut editor,
+            point("Hierarchy Duplicate"),
+            left,
+            None,
+        );
+        assert!(editor.last_error.is_none(), "{:?}", editor.last_error);
+        assert_eq!(editor.scene.actors.len(), before.actors.len() + 3);
+        assert_eq!(editor.selected_actors().len(), 3, "The copies are selected");
+        let copies = highlighted();
+        assert_eq!(copies.len(), 3, "Every copy is highlighted");
+        assert!(copies.iter().all(|id| before.actor_index(*id).is_none()));
+        editor.undo_scene().unwrap();
+        assert_eq!(
+            editor.scene, before,
+            "Duplicating the selection is one step"
+        );
+        frame(&mut context, &mut editor);
+
+        // Right-clicking outside the selection selects that actor alone. A leaf's
+        // Select Children is disabled: clicking it keeps the menu open.
+        editor.select_actor(Some(lamp));
+        editor.toggle_actor_selection(crate_actor);
+        frame(&mut context, &mut editor);
+        click_at(&mut context, &mut editor, row(child), right, None);
+        assert_eq!(editor.selected_actors(), vec![child]);
+        click_at(
+            &mut context,
+            &mut editor,
+            point("Hierarchy Select Children"),
+            left,
+            None,
+        );
+        assert_eq!(editor.selected_actors(), vec![child]);
+        assert!(
+            script_control("Hierarchy Delete").is_some(),
+            "A leaf's Select Children is disabled, so clicking it keeps the menu open"
+        );
+        click_at(&mut context, &mut editor, [180., 500.], left, None);
+
+        // Select Children takes the clicked actor's branch, and Delete in the
+        // Hierarchy removes the whole selection in one step.
+        click_at(&mut context, &mut editor, row(hero), right, None);
+        click_at(
+            &mut context,
+            &mut editor,
+            point("Hierarchy Select Children"),
+            left,
+            None,
+        );
+        assert_eq!(editor.selected_actors(), vec![hero, child]);
+        assert_eq!(editor.selected_actor, Some(hero));
+        assert_eq!(highlighted(), BTreeSet::from([hero, child]));
+        click_at(&mut context, &mut editor, [180., 500.], left, None);
+        context.io_mut().add_key_event(imgui::Key::Delete, true);
+        frame(&mut context, &mut editor);
+        context.io_mut().add_key_event(imgui::Key::Delete, false);
+        frame(&mut context, &mut editor);
+        assert_eq!(editor.scene.actors.len(), before.actors.len() - 2);
+        assert!(editor.selected_actors().is_empty());
+        editor.undo_scene().unwrap();
+        assert_eq!(editor.scene, before, "Deleting the selection is one step");
+        drop(editor);
+        if root.exists() {
+            std::fs::remove_dir_all(root).unwrap();
+        }
+    }
+
+    /// The Hierarchy's creation menu offers ready-made actors in every view: a
+    /// Point Light from the Light submenu, a Cube under it from its own menu,
+    /// and a UI Button from the 3D view.
+    #[test]
+    fn hierarchy_creation_menu_creates_ready_made_actors_in_every_view() {
+        let mut context = crate::gui::tests::imgui_context();
+        configure_input(context.io_mut());
+        context.io_mut().display_size = [900., 650.];
+        context.io_mut().delta_time = 1. / 60.;
+        context
+            .fonts()
+            .add_font(&[imgui::FontSource::DefaultFontData { config: None }]);
+        context.fonts().build_rgba32_texture();
+        context.load_ini_settings("[Window][###Hierarchy]\nPos=10,10\nSize=360,600\nCollapsed=0\n");
+        let root = crate::workspace::tests::temp("hierarchy-ready-made-actors");
+        let project =
+            crate::workspace::create(&root, "Presets", crate::workspace::Template::Basic).unwrap();
+        let mut editor = Editor::open(project).unwrap();
+        editor.auto_build = false;
+        editor.scene.actors.clear();
+        editor.select_actor(None);
+        editor.set_scene_view_mode(crate::scene_view_mode::SceneViewMode::ThreeD);
+
+        fn frame(ctx: &mut imgui::Context, e: &mut Editor) {
+            SCRIPT_BUTTONS.with(|buttons| buttons.borrow_mut().clear());
+            let ui = ctx.frame();
+            hierarchy(ui, e);
+            ctx.render();
+        }
+        fn hover(ctx: &mut imgui::Context, e: &mut Editor, point: [f32; 2]) {
+            ctx.io_mut().add_mouse_pos_event(point);
+            for _ in 0..10 {
+                frame(ctx, e);
+            }
+        }
+        fn click_at(
+            ctx: &mut imgui::Context,
+            e: &mut Editor,
+            point: [f32; 2],
+            button: imgui::MouseButton,
+        ) {
+            hover(ctx, e, point);
+            ctx.io_mut().add_mouse_button_event(button, true);
+            frame(ctx, e);
+            ctx.io_mut().add_mouse_button_event(button, false);
+            frame(ctx, e);
+            frame(ctx, e);
+        }
+        let point = |label: &str| {
+            SCRIPT_BUTTONS
+                .with(|buttons| buttons.borrow().get(label).copied())
+                .unwrap_or_else(|| {
+                    panic!(
+                        "{label} was not drawn; drawn: {:?}",
+                        script_control_labels()
+                    )
+                })
+        };
+        let left = imgui::MouseButton::Left;
+        let right = imgui::MouseButton::Right;
+        let empty_space = [180., 500.];
+        for _ in 0..3 {
+            frame(&mut context, &mut editor);
+        }
+
+        // Every group is offered in the 3D view, not only the 3D ones.
+        click_at(&mut context, &mut editor, empty_space, right);
+        for menu in [
+            "3D Object",
+            "2D Object",
+            "Light",
+            "Audio",
+            "Effects",
+            "Physics",
+            "UI",
+        ] {
+            point(&format!("Create {menu} menu"));
+        }
+        point("create-3d-empty");
+        point("create-3d-camera");
+        hover(&mut context, &mut editor, point("Create Light menu"));
+        let point_light = point("create-3d-point-light");
+        click_at(&mut context, &mut editor, point_light, left);
+        assert!(editor.last_error.is_none(), "{:?}", editor.last_error);
+        let light = editor.selected_actor.expect("the new light is selected");
+        let index = editor.scene.actor_index(light).unwrap();
+        assert_eq!(editor.scene.actors[index].name, "Point Light");
+        assert_eq!(
+            editor.scene.actors[index].light.as_ref().unwrap().kind,
+            crate::lighting::LightType::Point
+        );
+
+        // The same items on an actor's menu create its children.
+        click_at(
+            &mut context,
+            &mut editor,
+            point(&format!("Hierarchy actor {light}")),
+            right,
+        );
+        hover(&mut context, &mut editor, point("Create 3D Object menu"));
+        let cube = point("create-3d-cube");
+        click_at(&mut context, &mut editor, cube, left);
+        assert!(editor.last_error.is_none(), "{:?}", editor.last_error);
+        let child = editor.selected_actor.unwrap();
+        assert_ne!(child, light);
+        let index = editor.scene.actor_index(child).unwrap();
+        assert_eq!(editor.scene.actors[index].logical_parent, Some(light));
+        assert_eq!(editor.scene.actors[index].kind, "Mesh");
+
+        // A UI widget picked in the 3D view switches the Scene window to UI.
+        click_at(&mut context, &mut editor, empty_space, right);
+        hover(&mut context, &mut editor, point("Create UI menu"));
+        let button = point("ui-button");
+        click_at(&mut context, &mut editor, button, left);
+        assert_eq!(
+            editor.scene_view_mode,
+            crate::scene_view_mode::SceneViewMode::UI
+        );
+        assert!(editor.scene.actors.iter().any(|a| a.name == "Button"));
+        drop(editor);
+        if root.exists() {
+            std::fs::remove_dir_all(root).unwrap();
+        }
     }
 
     #[test]
@@ -4932,7 +5554,7 @@ mod interaction_tests {
             .add_mouse_button_event(imgui::MouseButton::Left, false);
         frame(&mut context, &mut editor, &mut initial);
         assert_eq!(editor.selected, None);
-        // Right-click empty Hierarchy space, then click Create Empty in its popup.
+        // Right-click empty Hierarchy space, then click Instantiate Actor... in its popup.
         context.io_mut().add_mouse_pos_event([80., 400.]);
         frame(&mut context, &mut editor, &mut initial);
         context
@@ -4945,7 +5567,10 @@ mod interaction_tests {
         frame(&mut context, &mut editor, &mut initial);
         frame(&mut context, &mut editor, &mut initial);
         let count = editor.scene.actors.len();
-        context.io_mut().add_mouse_pos_event([110., 410.]);
+        let instantiate_item = SCRIPT_BUTTONS
+            .with(|b| b.borrow().get("instantiate-actor").copied())
+            .expect("The empty-space menu offers Instantiate Actor...");
+        context.io_mut().add_mouse_pos_event(instantiate_item);
         frame(&mut context, &mut editor, &mut initial);
         context
             .io_mut()

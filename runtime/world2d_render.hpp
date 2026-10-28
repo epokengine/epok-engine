@@ -1,8 +1,15 @@
 #pragma once
-// World2D renderer (World2D initiative). Sprites and tile layers are drawn after the 3D
-// world and before the HUD, back to front by canvas layer, then a stable key: z-index (the
-// owner's draw_order plus the drawable's z_index) first, then, for y-sorted sprites, the
-// world Y of their origin; equal keys keep creation order.
+// World2D renderer (World2D initiative). Sprites and tile layers are drawn back to front by
+// canvas layer, then a stable key: z-index (the owner's draw_order plus the drawable's
+// z_index) first, then, for y-sorted sprites, the world Y of their origin; equal keys keep
+// creation order.
+//
+// A frame draws in three phases around the 3D world. `begin` collects the screen view;
+// `draw_under` chains the under_3d canvases over the sky, before the 3D ordering tables;
+// `insert_depth` puts the Depth2D sprites and tile layers into the 3D table at their
+// buckets, before any 3D packet, so 3D packets of the same bucket draw first; `draw_over`
+// chains the rest after the 3D world and before the HUD. Packets inside the table carry
+// their own drawing page, set with the 3D world's dithering.
 //
 // An unrotated, unscaled, unflipped sprite seen through an unrotated camera at zoom 1 is
 // emitted as a GP0 rectangle (`Sprite`: exact texels, less setup); everything else becomes
@@ -24,6 +31,7 @@
 #include "frame_clear.hpp"
 #include "psyqo/fragments.hh"
 #include "psyqo/gpu.hh"
+#include "psyqo/ordering-table.hh"
 #include "psyqo/primitives/control.hh"
 #include "psyqo/primitives/quads.hh"
 #include "psyqo/primitives/sprites.hh"
@@ -38,6 +46,14 @@ namespace epok {
 namespace world2d {
 
 // ---- renderer --------------------------------------------------------------------------
+// The 3D world's ordering table, which Depth2D entries join.
+using DepthTable = psyqo::OrderingTable<depth_buckets>;
+// A rectangle and the drawing page it samples, as one packet.
+template<class Prim> struct PagedRectangle {
+    psyqo::Prim::TPage page;
+    Prim shape;
+};
+
 class Renderer {
     alignas(4) uint8_t arena[2][EPOK_WORLD2D_ARENA_BYTES];
     SpriteDraw draws[EPOK_WORLD2D_DRAW_ITEMS];
@@ -45,7 +61,17 @@ class Renderer {
     size_t used = 0;
     unsigned parity = 0;
     uint32_t current_page = 0xffffffffu;
+    // The screen view `begin` collected: its pass and its sorted entries.
+    RenderPass main;
+    size_t count = 0;
+    // While `insert_depth` runs: the 3D table packets join instead of the chain, at `bucket`.
+    DepthTable* table = nullptr;
+    int bucket = 0;
 
+    template<class Fragment> void submit(psyqo::GPU& gpu, Fragment& fragment) {
+        if (table) table->insert(fragment, bucket);
+        else gpu.chain(fragment);
+    }
     template<class Fragment> Fragment* allocate() {
         constexpr size_t size = (sizeof(Fragment) + 3) & ~size_t(3);
         if (used + size > EPOK_WORLD2D_ARENA_BYTES) { ++stats.dropped; return nullptr; }
@@ -63,9 +89,10 @@ class Renderer {
         return {{.r = uint8_t((unsigned(color[0]) + 1) / 2), .g = uint8_t((unsigned(color[1]) + 1) / 2),
                  .b = uint8_t((unsigned(color[2]) + 1) / 2)}};
     }
-    // Rectangles draw with the current texture page: change it only when it differs.
+    // Rectangles draw with the current texture page: change it only when it differs. Inside
+    // the 3D table the page a previous packet left is unknown; each rectangle brings its own.
     bool use_page(psyqo::GPU& gpu, uint16_t page) {
-        if (page == current_page) return true;
+        if (table || page == current_page) return true;
         auto* fragment = allocate<psyqo::Fragments::SimpleFragment<psyqo::Prim::TPage>>();
         if (!fragment) return false;
         fragment->primitive.attr.setPageX(page & 15).setPageY((page >> 4) & 1)
@@ -83,18 +110,29 @@ class Renderer {
     // A fixed-size or sized GP0 rectangle with exact texels.
     template<class Prim> bool rectangle(psyqo::GPU& gpu, const Texture& t, BlendMode blend, const uint8_t* color, int16_t x, int16_t y,
                                         uint16_t u, uint16_t v, uint16_t w, uint16_t h) {
-        auto* fragment = allocate<psyqo::Fragments::SimpleFragment<Prim>>();
-        if (!fragment) return false;
-        auto& p = fragment->primitive;
-        p.setColor(color_of(color));
-        if (blend == BlendMode::Cutout) p.setOpaque();
-        else p.setSemiTrans();
-        p.position = {{.x = x, .y = y}};
-        if constexpr (requires { p.size; }) p.size = {{.w = int16_t(w), .h = int16_t(h)}};
-        p.texInfo.u = uint8_t(texture_base_u(t) + u);
-        p.texInfo.v = uint8_t((t.y & 255) + v);
-        p.texInfo.clut = texture_clut(t);
-        gpu.chain(*fragment);
+        auto fill = [&](Prim& p) {
+            p.setColor(color_of(color));
+            if (blend == BlendMode::Cutout) p.setOpaque();
+            else p.setSemiTrans();
+            p.position = {{.x = x, .y = y}};
+            if constexpr (requires { p.size; }) p.size = {{.w = int16_t(w), .h = int16_t(h)}};
+            p.texInfo.u = uint8_t(texture_base_u(t) + u);
+            p.texInfo.v = uint8_t((t.y & 255) + v);
+            p.texInfo.clut = texture_clut(t);
+        };
+        if (table) {
+            // The page keeps the 3D world's dithering for the 3D packets drawn after it.
+            auto* fragment = allocate<psyqo::Fragments::SimpleFragment<PagedRectangle<Prim>>>();
+            if (!fragment) return false;
+            fragment->primitive.page.attr = texture_page(t, blend, dither_3d);
+            fill(fragment->primitive.shape);
+            table->insert(*fragment, bucket);
+        } else {
+            auto* fragment = allocate<psyqo::Fragments::SimpleFragment<Prim>>();
+            if (!fragment) return false;
+            fill(fragment->primitive);
+            gpu.chain(*fragment);
+        }
         ++stats.rectangles;
         return true;
     }
@@ -130,7 +168,7 @@ class Renderer {
         q.setColor(color_of(color));
         if (blend == BlendMode::Cutout) q.setOpaque();
         else q.setSemiTrans();
-        gpu.chain(*fragment);
+        submit(gpu, *fragment);
         current_page = page_word(t, blend);  // a textured polygon also sets the drawing texpage
         ++stats.quads;
         return true;
@@ -267,46 +305,62 @@ class Renderer {
         fragment->primitive.setColor(flat_color(color)).setOpaque();
         gpu.chain(*fragment);
     }
-    // Collects the current render pass and chains its packets.
-    void view(psyqo::GPU& gpu) {
-        const size_t count = collect_sprites(draws, items, scratch, EPOK_WORLD2D_DRAW_ITEMS, [](int index, uint16_t& w, uint16_t& h) {
+    // Resolves the current render pass into the sorted draw list.
+    size_t collect() {
+        return collect_sprites(draws, items, scratch, EPOK_WORLD2D_DRAW_ITEMS, [](int index, uint16_t& w, uint16_t& h) {
             const Texture* t = texture(index);
             if (!t) return false;
             w = t->width;
             h = t->height;
             return true;
         });
-        for (size_t i = 0; i < count; ++i) {
-            const SpriteDraw& d = draws[items[i].index];
-            if (d.kind == DrawKind::Line) {
-                lines(gpu, d);
-                continue;
-            }
-            if (d.kind == DrawKind::Polygon) {
-                polygon(gpu, d);
-                continue;
-            }
-            Texture picture;
-            const Texture* t = d.texture == -2 ? picture_of(d, picture) : texture(int(d.texture));
-            if (!t) continue;
-            if (d.kind == DrawKind::Tiles) tiles(gpu, d, *t);
-            else if (d.kind == DrawKind::Particles) each_particle(d, t->width, t->height, [&](const SpriteDraw& p) { sprite(gpu, p, *t); });
-            else sprite(gpu, d, *t);
-        }
     }
+    // Emits one entry's packets.
+    void entry(psyqo::GPU& gpu, const SpriteDraw& d) {
+        if (d.kind == DrawKind::Line) {
+            lines(gpu, d);
+            return;
+        }
+        if (d.kind == DrawKind::Polygon) {
+            polygon(gpu, d);
+            return;
+        }
+        Texture picture;
+        const Texture* t = d.texture == -2 ? picture_of(d, picture) : texture(int(d.texture));
+        if (!t) return;
+        if (d.kind == DrawKind::Tiles) tiles(gpu, d, *t);
+        else if (d.kind == DrawKind::Particles) each_particle(d, t->width, t->height, [&](const SpriteDraw& p) { sprite(gpu, p, *t); });
+        else sprite(gpu, d, *t);
+    }
+    // Collects the current render pass and chains its packets.
+    void view(psyqo::GPU& gpu) {
+        const size_t n = collect();
+        for (size_t i = 0; i < n; ++i) entry(gpu, draws[items[i].index]);
+    }
+    // Chains the screen view's entries of one phase.
+    void main_phase(psyqo::GPU& gpu, DrawPhase phase) {
+        size_t first, last;
+        phase_range(items, count, phase, first, last);
+        render_pass = main;
+        current_page = 0xffffffffu;
+        for (size_t i = first; i < last; ++i) entry(gpu, draws[items[i].index]);
+        render_pass = RenderPass{};
+    }
+    // The framebuffer chained packets draw into: the one after the one on screen.
+    int16_t framebuffer_y() const { return display_interlaced ? int16_t(0) : int16_t(parity ? 0 : 256); }
 
 public:
-    // Builds and chains this frame's 2D packets. Call after the 3D ordering table and
-    // before the HUD.
-    void draw(psyqo::GPU& gpu) {
+    // Starts this frame's 2D packets: draws the SubViewport2D pictures into VRAM, then
+    // collects the screen view. With `with_3d` (a 3D camera is active) and no split screen,
+    // Depth2D entries are kept for `insert_depth`. Call before the 3D world's packets.
+    void begin(psyqo::GPU& gpu, bool with_3d) {
         parity = gpu.getParity();
         used = 0;
         current_page = 0xffffffffu;
         stats.drawn = stats.rectangles = stats.quads = stats.pages = 0;
-        // Chained packets draw into the framebuffer after the one on screen.
-        const int16_t base = display_interlaced ? int16_t(0) : int16_t(parity ? 0 : 256);
+        const int16_t base = framebuffer_y();
         const int16_t width = int16_t(display_width), height = int16_t(display_height);
-        RenderPass main;
+        main = RenderPass{};
         bool moved = false;
         subviewports.each([&](SubViewport2DComponent& picture) {
             if (picture.hide_layer && picture.layer != every_layer) main.hide(int8_t(picture.layer));
@@ -340,6 +394,41 @@ public:
             scissor(gpu, 0, base, width, height, 0, base);
             current_page = 0xffffffffu;
         }
+        // A split screen draws the world canvases per half, over the 3D world; the screen
+        // view then holds only the screen canvases.
+        const bool split = active_split() != nullptr;
+        main.world = !split;
+        main.depth = with_3d && !split;
+        render_pass = main;
+        count = collect();
+        render_pass = RenderPass{};
+    }
+    // Chains the under_3d canvases of the screen view. Call before the 3D ordering tables.
+    void draw_under(psyqo::GPU& gpu) { main_phase(gpu, DrawPhase::Under3D); }
+    // Inserts the screen view's Depth2D entries into the 3D ordering table, each at the bucket
+    // `bucket_of(depth2d)` returns. Call before any 3D packet joins the table: a bucket draws
+    // its packets in reverse insertion order, so the 3D packets of a bucket draw first.
+    template<class BucketOf> void insert_depth(psyqo::GPU& gpu, DepthTable& target, BucketOf&& bucket_of) {
+        size_t first, last;
+        phase_range(items, count, DrawPhase::Depth3D, first, last);
+        if (first == last) return;
+        render_pass = main;
+        table = &target;
+        // The last entry goes in first, so entries sharing a bucket keep their 2D order.
+        for (size_t i = last; i-- > first;) {
+            const SpriteDraw& d = draws[items[i].index];
+            bucket = bucket_of(*d.depth);
+            entry(gpu, d);
+        }
+        table = nullptr;
+        render_pass = RenderPass{};
+    }
+    // Chains everything else: the halves of a split screen, then the screen view's canvases
+    // over the 3D world. Call after the 3D ordering tables and before the HUD.
+    void draw_over(psyqo::GPU& gpu) {
+        current_page = 0xffffffffu;
+        const int16_t base = framebuffer_y();
+        const int16_t width = int16_t(display_width), height = int16_t(display_height);
         if (SplitScreen2DComponent* split = active_split()) {
             for (int i = 0; i < 2; ++i) {
                 Camera2D through;
@@ -349,6 +438,7 @@ public:
                 if (Camera2DComponent* camera = camera_on(split->cameras[i])) panel(gpu, r[0], r[1], r[2], r[3], camera->background);
                 RenderPass pass = main;
                 pass.camera = &through;
+                pass.world = true;
                 pass.screen = false;
                 for (int k = 0; k < 4; ++k) pass.clip[k] = r[k];
                 render_pass = pass;
@@ -361,11 +451,11 @@ public:
                 if (split->side_by_side) panel(gpu, first[2], 0, int16_t(split->divider), height, split->divider_color);
                 else panel(gpu, 0, first[3], width, int16_t(split->divider), split->divider_color);
             }
-            main.world = false;
+            // The halves reused the draw list: collect the screen view again.
+            render_pass = main;
+            count = collect();
         }
-        render_pass = main;
-        view(gpu);
-        render_pass = RenderPass{};
+        main_phase(gpu, DrawPhase::Over3D);
         stats.arena_bytes = uint32_t(used);
     }
 };

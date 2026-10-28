@@ -258,16 +258,20 @@ mod tests {
     use super::*;
     #[test]
     fn psx_music_presets_roundtrip_without_changing_intent_or_other_targets() {
-        let mut settings = crate::sequence::Settings::default();
-        settings.role = crate::audio_import::AudioRole::Ambience;
+        let mut settings = crate::sequence::Settings {
+            role: crate::audio_import::AudioRole::Ambience,
+            ..Default::default()
+        };
         settings
             .target_overrides
             .insert("future_console".into(), serde_json::json!({"keep":17}));
         settings
             .target_overrides
             .insert("psx".into(), serde_json::json!({"future_option":42}));
-        let mut recipe = Recipe::default();
-        recipe.other_resident_bytes = 65536;
+        let mut recipe = Recipe {
+            other_resident_bytes: 65536,
+            ..Default::default()
+        };
         recipe
             .optimization
             .extra

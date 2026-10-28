@@ -31,23 +31,6 @@ pub struct Prepared {
     pub source: timeline::TimelineAsset,
     pub compiled: timeline_compile::Compiled,
 }
-pub fn remap(
-    component: &mut Component,
-    identities: &BTreeMap<Uuid, Uuid>,
-    strict: bool,
-) -> Result<(), String> {
-    for target in component.bindings.values_mut() {
-        let Some(id) = *target else { continue };
-        if let Some(replacement) = identities.get(&id) {
-            *target = Some(*replacement);
-        } else if strict {
-            return Err(format!(
-                "Timeline template binding {id} points outside its subtree; clear or replace it first"
-            ));
-        }
-    }
-    Ok(())
-}
 #[derive(Default)]
 pub struct Inspector {
     assets: Vec<(std::path::PathBuf, timeline::TimelineAsset)>,

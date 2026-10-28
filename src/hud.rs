@@ -223,6 +223,7 @@ pub struct Image {
     /// Atlas pixel rectangle. Zero width and height select the entire texture.
     pub region: [u16; 4],
     /// Nine-slice borders in source pixels: left, top, right, bottom.
+    /// Without a texture, these are hollow-frame widths in HUD pixels.
     pub borders: [u16; 4],
     /// How the source region fills the rect. With nine-slice borders only the
     /// centre piece tiles; the corners and edges keep their stretch.
@@ -805,6 +806,10 @@ pub fn validate(scene: &Scene) -> Result<(), String> {
 /// `size` is the resolved rect in HUD pixels; it is only an upper bound for a
 /// nine-sliced centre, which is smaller than the whole rect.
 fn image_primitives(image: &Image, dimensions: [u16; 2], size: [f32; 2]) -> usize {
+    if image.texture.is_none() {
+        let edges = image.borders.iter().filter(|b| **b > 0).count();
+        return edges.max(1);
+    }
     let source = [0usize, 1].map(|i| {
         if image.region[i + 2] > 0 {
             u32::from(image.region[i + 2])
@@ -974,6 +979,7 @@ mod tests {
     #[test]
     fn nine_slice_preserves_borders_and_checks_budget() {
         let mut scene = fixture();
+        scene.actors[1].image.as_mut().unwrap().texture = Some(uuid::Uuid::new_v4());
         scene.actors[1].image.as_mut().unwrap().borders = [4; 4];
         scene.hud_budget.rectangles = 8;
         assert!(scene.validate().unwrap_err().contains("budget"));
@@ -1006,6 +1012,26 @@ mod tests {
         let (commands, stats) = crate::hud_native::compile(&scene);
         assert_eq!(stats[3], 4);
         assert_eq!(&commands[0].0[3..11], &[12, 12, 14, 14, 0, 0, 3, 3]);
+    }
+    #[test]
+    fn untextured_frame_keeps_the_center_clear_and_accounts_for_edges() {
+        let mut scene = fixture();
+        scene.actors[1].image.as_mut().unwrap().borders = [6; 4];
+        let (commands, stats) = crate::hud_native::compile(&scene);
+        assert_eq!(stats[0], 4);
+        assert_eq!(stats[3], 0);
+        assert_eq!(commands.len(), 4);
+        for command in &commands {
+            let rect = &command.0[3..7];
+            assert!(
+                !(rect[0] <= 100 && 100 < rect[2] && rect[1] <= 44 && 44 < rect[3]),
+                "A hollow frame must not draw over its center"
+            );
+        }
+        scene.hud_budget.rectangles = 3;
+        assert!(scene.validate().unwrap_err().contains("budget"));
+        scene.hud_budget.rectangles = 4;
+        scene.validate().unwrap();
     }
     fn fixture() -> Scene {
         let mut c = Actor::cube("Canvas".into());

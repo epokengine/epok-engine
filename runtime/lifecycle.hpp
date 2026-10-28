@@ -6,6 +6,16 @@
 // generation so destroying/reusing a slot cannot revive a reference.
 namespace epok {
 inline bool lifecycle_tearing_down=false;
+// Rendering is a read-only actor phase. Capture activation once after scripts
+// through HUD focus-state updates/drawing and resource counters. End it before
+// the next gameplay dispatch; focus updates only write UI event/value fields.
+inline bool render_activation_snapshot=false;
+inline bool render_active_slots[objects.size()]={};
+struct SlotActivationMemo {
+    const Actor* owner=nullptr;const ObjectRegistry* registry=nullptr;
+    uint32_t identity=0,revision=0;bool active=false,owner_active=false;
+};
+inline SlotActivationMemo slot_activation_memos[objects.size()]={};
 inline int entity_index(const ActorData* entity) {
     if(!entity)return -1;
     // Slots are contiguous and never move. Integer range/alignment checks also
@@ -26,10 +36,17 @@ ActorData* DataHandle::get() const {
     return index<object_count&&objects[index].alive&&objects[index].generation==generation?&objects[index]:nullptr;
 }
 bool is_active_slot(size_t index) {
+    if(render_activation_snapshot)return index<object_count&&render_active_slots[index];
+    if(index>=object_count||!objects[index].alive)return false;
     if(index<object_count && objects[index].owner && active_object_registry) {
         auto* owner=objects[index].owner;
+        const auto id=owner->id();const uint32_t identity=uint32_t(id.index)|(uint32_t(id.generation)<<16);
+        auto& memo=slot_activation_memos[index];
+        const bool owner_active=owner->active();
+        if(memo.owner==owner&&memo.registry==active_object_registry&&memo.identity==identity&&memo.revision==actor_activation_revision&&memo.owner_active==owner_active)return memo.active;
         auto* level=active_object_registry->resolve<Level>(owner->level_id());
-        return objects[index].alive && level && level->actor_active(*owner);
+        const bool active=level&&level->actor_active(*owner);
+        memo={owner,active_object_registry,identity,actor_activation_revision,active,owner_active};return active;
     }
     int i=int(index);
     for(size_t depth=0;i>=0&&depth<=objects.size();++depth){
@@ -39,6 +56,12 @@ bool is_active_slot(size_t index) {
     }
     return false;
 }
+inline void begin_render_activation_snapshot(){
+    render_activation_snapshot=false;
+    for(size_t i=0;i<object_count;++i)render_active_slots[i]=is_active_slot(i);
+    render_activation_snapshot=true;
+}
+inline void end_render_activation_snapshot(){render_activation_snapshot=false;}
 bool is_active(const ActorData* entity) {
     int i=entity_index(entity);
     return i>=0&&is_active_slot(size_t(i));

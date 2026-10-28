@@ -63,11 +63,32 @@ const HOTSPOTS: [(Button, [f32; 2], [f32; 2]); 16] = [
     (Button::R3, [620., 405.], [48., 48.]),
 ];
 
+#[cfg(test)]
 pub fn page(
     ui: &imgui::Ui,
     settings: &mut Settings,
     state: &mut State,
     capture: &mut Option<(usize, Control)>,
+) {
+    page_inner(ui, settings, state, capture, None, false);
+}
+pub fn live_page(
+    ui: &imgui::Ui,
+    settings: &mut Settings,
+    state: &mut State,
+    capture: &mut Option<(usize, Control)>,
+    host: &mut crate::controls::HostInput,
+    playing: bool,
+) {
+    page_inner(ui, settings, state, capture, Some(host), playing);
+}
+fn page_inner(
+    ui: &imgui::Ui,
+    settings: &mut Settings,
+    state: &mut State,
+    capture: &mut Option<(usize, Control)>,
+    host: Option<&mut crate::controls::HostInput>,
+    playing: bool,
 ) {
     let _styles = [
         V::FramePadding([9., 5.]),
@@ -101,6 +122,9 @@ pub fn page(
     }
     ui.same_line();
     ui.checkbox("Connected", &mut settings.pads[state.pad].enabled);
+    if let Some(host) = host {
+        device_controls(ui, host, state.pad, playing);
+    }
     ui.align_text_to_frame_padding();
     ui.text_colored(MUTED, "Profile");
     ui.same_line();
@@ -310,6 +334,80 @@ pub fn page(
             ui.close_current_popup();
         }
     }
+}
+
+fn device_controls(
+    ui: &imgui::Ui,
+    host: &mut crate::controls::HostInput,
+    port: usize,
+    playing: bool,
+) {
+    host.rumble_panel_port = ui
+        .is_window_focused_with_flags(imgui::WindowFocusedFlags::ROOT_AND_CHILD_WINDOWS)
+        .then_some(port);
+    let devices: Vec<_> = host.devices().cloned().collect();
+    let selected = host.assignment(port);
+    let label = devices
+        .iter()
+        .find(|d| Some(d.id) == selected)
+        .map(|d| format!("{} (device {})", d.name, d.id))
+        .unwrap_or_else(|| "No gamepad".into());
+    ui.text_colored(MUTED, "Native PC / current session");
+    ui.set_next_item_width((ui.content_region_avail()[0] - 145.).max(150.));
+    if let Some(_combo) = ui.begin_combo("Gamepad##physical-device", &label) {
+        if ui
+            .selectable_config("No gamepad")
+            .selected(selected.is_none())
+            .build()
+        {
+            host.assign(port, None);
+        }
+        for device in &devices {
+            if ui
+                .selectable_config(format!(
+                    "{} (device {})##physical-{}",
+                    device.name, device.id, device.id
+                ))
+                .selected(selected == Some(device.id))
+                .build()
+            {
+                host.assign(port, Some(device.id));
+            }
+        }
+    }
+    let capable = devices
+        .iter()
+        .find(|d| Some(d.id) == host.assignment(port))
+        .is_some_and(|d| d.rumble_supported);
+    let backend_error = host.rumble_errors[port].as_deref();
+    let disabled = ui.begin_disabled(!capable || !host.rumble_allowed || playing);
+    if ui.button("Test Rumble (150 ms)") {
+        host.rumble_test = Some(port);
+    }
+    drop(disabled);
+    ui.same_line();
+    ui.text_colored(
+        MUTED,
+        if !host.rumble_allowed {
+            "Disabled in Editor Preferences > Play"
+        } else if selected.is_none() {
+            "Assign a gamepad to this pad"
+        } else if backend_error.is_some() {
+            "Output failed; Test Rumble retries"
+        } else if playing {
+            "Stop Play to test this device"
+        } else if capable {
+            "Rumble supported by this device/backend"
+        } else {
+            "Rumble unavailable on this device/backend"
+        },
+    );
+    if ui.is_item_hovered()
+        && let Some(error) = backend_error
+    {
+        ui.tooltip_text(error);
+    }
+    ui.spacing();
 }
 
 fn groups() -> [(&'static str, Vec<Control>); 5] {

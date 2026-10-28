@@ -1,10 +1,10 @@
 # PsyQo API: Primitives / Quads
 
-> **Header:** `"psyqo/primitives/quads.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/quads.hh)
+> **Header:** `"psyqo/primitives/quads.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/quads.hh)
 
 This module covers typed PlayStation GPU primitives. It documents 60 public callables declared directly in this header.
 
-PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552d`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
+PsyQo is pinned through Nugget revision `c702235f366fb1cd8c18e0a5a5392e0acae8a079`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
 
 ## Declared types
 
@@ -85,7 +85,7 @@ PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552
 Color getColorA() const
 ```
 
-- **Declared at:** [line 176](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/quads.hh#L176)
+- **Declared at:** [line 176](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/quads.hh#L176)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `Color`. Check the purpose and failure notes before using the value.
@@ -118,7 +118,7 @@ auto result = object.getColorA();
 Color getColorB() const
 ```
 
-- **Declared at:** [line 177](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/quads.hh#L177)
+- **Declared at:** [line 177](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/quads.hh#L177)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `Color`. Check the purpose and failure notes before using the value.
@@ -151,7 +151,7 @@ auto result = object.getColorB();
 Color getColorC() const
 ```
 
-- **Declared at:** [line 178](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/quads.hh#L178)
+- **Declared at:** [line 178](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/quads.hh#L178)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `Color`. Check the purpose and failure notes before using the value.
@@ -184,7 +184,7 @@ auto result = object.getColorC();
 Color getColorD() const
 ```
 
-- **Declared at:** [line 179](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/quads.hh#L179)
+- **Declared at:** [line 179](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/quads.hh#L179)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `Color`. Check the purpose and failure notes before using the value.
@@ -219,7 +219,7 @@ auto result = object.getColorD();
 uint32_t getCommandWord() const
 ```
 
-- **Declared at:** [line 195](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/quads.hh#L195)
+- **Declared at:** [line 195](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/quads.hh#L195)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
@@ -252,7 +252,7 @@ auto result = object.getCommandWord();
 GouraudQuad() : c
 ```
 
-- **Declared at:** [line 156](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/quads.hh#L156)
+- **Declared at:** [line 156](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/quads.hh#L156)
 - **Kind:** `constructor`
 
 **Use it when.** You need typed PlayStation GPU primitives and the preconditions in the declaration are already satisfied.
@@ -281,7 +281,7 @@ psyqo::Prim::GouraudQuad value();
 GouraudQuad(Color c) : c
 ```
 
-- **Declared at:** [line 157](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/quads.hh#L157)
+- **Declared at:** [line 157](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/quads.hh#L157)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -319,7 +319,7 @@ psyqo::Prim::GouraudQuad value(c);
 GouraudQuad(const GouraudQuad& other, Color c) : c
 ```
 
-- **Declared at:** [line 158](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/quads.hh#L158)
+- **Declared at:** [line 158](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/quads.hh#L158)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -359,7 +359,7 @@ psyqo::Prim::GouraudQuad value(other, c);
 template <Transparency transparency = Transparency::Auto> void interpolateColors(Color a, Color b, Color c, Color d)
 ```
 
-- **Declared at:** [line 250](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/quads.hh#L250)
+- **Declared at:** [line 250](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/quads.hh#L250)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -410,7 +410,7 @@ object.interpolateColors<transparency>(a, b, c, d);
 template <Transparency transparency = Transparency::Auto> void interpolateColors(const Color* a, const Color* b, const Color* c, const Color* d)
 ```
 
-- **Declared at:** [line 229](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/quads.hh#L229)
+- **Declared at:** [line 229](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/quads.hh#L229)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -461,7 +461,7 @@ object.interpolateColors<transparency>(a, b, c, d);
 bool isSemiTrans() const
 ```
 
-- **Declared at:** [line 211](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/quads.hh#L211)
+- **Declared at:** [line 211](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/quads.hh#L211)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -494,7 +494,7 @@ auto result = object.isSemiTrans();
 GouraudQuad& setColorA(Color c)
 ```
 
-- **Declared at:** [line 159](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/quads.hh#L159)
+- **Declared at:** [line 159](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/quads.hh#L159)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -538,7 +538,7 @@ auto result = object.setColorA(c);
 GouraudQuad& setColorAPacked(uint32_t packed)
 ```
 
-- **Declared at:** [line 203](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/quads.hh#L203)
+- **Declared at:** [line 203](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/quads.hh#L203)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -580,7 +580,7 @@ auto result = object.setColorAPacked(packed);
 GouraudQuad& setColorB(Color c)
 ```
 
-- **Declared at:** [line 164](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/quads.hh#L164)
+- **Declared at:** [line 164](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/quads.hh#L164)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -622,7 +622,7 @@ auto result = object.setColorB(c);
 GouraudQuad& setColorC(Color c)
 ```
 
-- **Declared at:** [line 168](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/quads.hh#L168)
+- **Declared at:** [line 168](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/quads.hh#L168)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -664,7 +664,7 @@ auto result = object.setColorC(c);
 GouraudQuad& setColorD(Color c)
 ```
 
-- **Declared at:** [line 172](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/quads.hh#L172)
+- **Declared at:** [line 172](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/quads.hh#L172)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -706,7 +706,7 @@ auto result = object.setColorD(c);
 GouraudQuad& setOpaque()
 ```
 
-- **Declared at:** [line 180](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/quads.hh#L180)
+- **Declared at:** [line 180](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/quads.hh#L180)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `GouraudQuad &`. Check the purpose and failure notes before using the value.
@@ -739,7 +739,7 @@ auto result = object.setOpaque();
 GouraudQuad& setPointA(Vertex v)
 ```
 
-- **Declared at:** [line 212](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/quads.hh#L212)
+- **Declared at:** [line 212](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/quads.hh#L212)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -781,7 +781,7 @@ auto result = object.setPointA(v);
 GouraudQuad& setPointB(Vertex v)
 ```
 
-- **Declared at:** [line 216](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/quads.hh#L216)
+- **Declared at:** [line 216](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/quads.hh#L216)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -823,7 +823,7 @@ auto result = object.setPointB(v);
 GouraudQuad& setPointC(Vertex v)
 ```
 
-- **Declared at:** [line 220](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/quads.hh#L220)
+- **Declared at:** [line 220](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/quads.hh#L220)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -865,7 +865,7 @@ auto result = object.setPointC(v);
 GouraudQuad& setPointD(Vertex v)
 ```
 
-- **Declared at:** [line 224](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/quads.hh#L224)
+- **Declared at:** [line 224](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/quads.hh#L224)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -907,7 +907,7 @@ auto result = object.setPointD(v);
 GouraudQuad& setSemiTrans()
 ```
 
-- **Declared at:** [line 207](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/quads.hh#L207)
+- **Declared at:** [line 207](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/quads.hh#L207)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `GouraudQuad &`. Check the purpose and failure notes before using the value.
@@ -940,7 +940,7 @@ auto result = object.setSemiTrans();
 Color getColorA() const
 ```
 
-- **Declared at:** [line 321](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/quads.hh#L321)
+- **Declared at:** [line 321](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/quads.hh#L321)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `Color`. Check the purpose and failure notes before using the value.
@@ -973,7 +973,7 @@ auto result = object.getColorA();
 Color getColorB() const
 ```
 
-- **Declared at:** [line 322](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/quads.hh#L322)
+- **Declared at:** [line 322](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/quads.hh#L322)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `Color`. Check the purpose and failure notes before using the value.
@@ -1006,7 +1006,7 @@ auto result = object.getColorB();
 Color getColorC() const
 ```
 
-- **Declared at:** [line 323](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/quads.hh#L323)
+- **Declared at:** [line 323](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/quads.hh#L323)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `Color`. Check the purpose and failure notes before using the value.
@@ -1039,7 +1039,7 @@ auto result = object.getColorC();
 Color getColorD() const
 ```
 
-- **Declared at:** [line 324](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/quads.hh#L324)
+- **Declared at:** [line 324](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/quads.hh#L324)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `Color`. Check the purpose and failure notes before using the value.
@@ -1074,7 +1074,7 @@ auto result = object.getColorD();
 uint32_t getCommandWord() const
 ```
 
-- **Declared at:** [line 336](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/quads.hh#L336)
+- **Declared at:** [line 336](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/quads.hh#L336)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
@@ -1107,7 +1107,7 @@ auto result = object.getCommandWord();
 GouraudTexturedQuad() : c
 ```
 
-- **Declared at:** [line 301](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/quads.hh#L301)
+- **Declared at:** [line 301](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/quads.hh#L301)
 - **Kind:** `constructor`
 
 **Use it when.** You need typed PlayStation GPU primitives and the preconditions in the declaration are already satisfied.
@@ -1136,7 +1136,7 @@ psyqo::Prim::GouraudTexturedQuad value();
 GouraudTexturedQuad(Color c) : c
 ```
 
-- **Declared at:** [line 302](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/quads.hh#L302)
+- **Declared at:** [line 302](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/quads.hh#L302)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -1174,7 +1174,7 @@ psyqo::Prim::GouraudTexturedQuad value(c);
 GouraudTexturedQuad(const GouraudTexturedQuad& other, Color c) : c
 ```
 
-- **Declared at:** [line 303](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/quads.hh#L303)
+- **Declared at:** [line 303](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/quads.hh#L303)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -1214,7 +1214,7 @@ psyqo::Prim::GouraudTexturedQuad value(other, c);
 template <Transparency transparency = Transparency::Auto> void interpolateColors(Color a, Color b, Color c, Color d)
 ```
 
-- **Declared at:** [line 375](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/quads.hh#L375)
+- **Declared at:** [line 375](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/quads.hh#L375)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -1265,7 +1265,7 @@ object.interpolateColors<transparency>(a, b, c, d);
 template <Transparency transparency = Transparency::Auto> void interpolateColors(const Color* a, const Color* b, const Color* c, const Color* d)
 ```
 
-- **Declared at:** [line 354](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/quads.hh#L354)
+- **Declared at:** [line 354](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/quads.hh#L354)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -1316,7 +1316,7 @@ object.interpolateColors<transparency>(a, b, c, d);
 bool isSemiTrans() const
 ```
 
-- **Declared at:** [line 352](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/quads.hh#L352)
+- **Declared at:** [line 352](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/quads.hh#L352)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -1349,7 +1349,7 @@ auto result = object.isSemiTrans();
 GouraudTexturedQuad& setColorA(Color c)
 ```
 
-- **Declared at:** [line 304](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/quads.hh#L304)
+- **Declared at:** [line 304](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/quads.hh#L304)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1393,7 +1393,7 @@ auto result = object.setColorA(c);
 GouraudTexturedQuad& setColorAPacked(uint32_t packed)
 ```
 
-- **Declared at:** [line 344](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/quads.hh#L344)
+- **Declared at:** [line 344](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/quads.hh#L344)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1435,7 +1435,7 @@ auto result = object.setColorAPacked(packed);
 GouraudTexturedQuad& setColorB(Color c)
 ```
 
-- **Declared at:** [line 309](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/quads.hh#L309)
+- **Declared at:** [line 309](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/quads.hh#L309)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1477,7 +1477,7 @@ auto result = object.setColorB(c);
 GouraudTexturedQuad& setColorC(Color c)
 ```
 
-- **Declared at:** [line 313](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/quads.hh#L313)
+- **Declared at:** [line 313](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/quads.hh#L313)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1519,7 +1519,7 @@ auto result = object.setColorC(c);
 GouraudTexturedQuad& setColorD(Color c)
 ```
 
-- **Declared at:** [line 317](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/quads.hh#L317)
+- **Declared at:** [line 317](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/quads.hh#L317)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1561,7 +1561,7 @@ auto result = object.setColorD(c);
 GouraudTexturedQuad& setOpaque()
 ```
 
-- **Declared at:** [line 325](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/quads.hh#L325)
+- **Declared at:** [line 325](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/quads.hh#L325)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `GouraudTexturedQuad &`. Check the purpose and failure notes before using the value.
@@ -1594,7 +1594,7 @@ auto result = object.setOpaque();
 GouraudTexturedQuad& setSemiTrans()
 ```
 
-- **Declared at:** [line 348](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/quads.hh#L348)
+- **Declared at:** [line 348](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/quads.hh#L348)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `GouraudTexturedQuad &`. Check the purpose and failure notes before using the value.
@@ -1627,7 +1627,7 @@ auto result = object.setSemiTrans();
 Color getColor() const
 ```
 
-- **Declared at:** [line 61](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/quads.hh#L61)
+- **Declared at:** [line 61](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/quads.hh#L61)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `Color`. Check the purpose and failure notes before using the value.
@@ -1660,7 +1660,7 @@ auto result = object.getColor();
 bool isSemiTrans() const
 ```
 
-- **Declared at:** [line 70](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/quads.hh#L70)
+- **Declared at:** [line 70](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/quads.hh#L70)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -1693,7 +1693,7 @@ auto result = object.isSemiTrans();
 Quad() : c
 ```
 
-- **Declared at:** [line 53](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/quads.hh#L53)
+- **Declared at:** [line 53](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/quads.hh#L53)
 - **Kind:** `constructor`
 
 **Use it when.** You need typed PlayStation GPU primitives and the preconditions in the declaration are already satisfied.
@@ -1722,7 +1722,7 @@ psyqo::Prim::Quad value();
 Quad(Color c) : c
 ```
 
-- **Declared at:** [line 54](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/quads.hh#L54)
+- **Declared at:** [line 54](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/quads.hh#L54)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -1760,7 +1760,7 @@ psyqo::Prim::Quad value(c);
 Quad(const Quad& other, Color c) : c
 ```
 
-- **Declared at:** [line 55](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/quads.hh#L55)
+- **Declared at:** [line 55](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/quads.hh#L55)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -1800,7 +1800,7 @@ psyqo::Prim::Quad value(other, c);
 Quad& setColor(Color c)
 ```
 
-- **Declared at:** [line 56](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/quads.hh#L56)
+- **Declared at:** [line 56](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/quads.hh#L56)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1842,7 +1842,7 @@ auto result = object.setColor(c);
 Quad& setOpaque()
 ```
 
-- **Declared at:** [line 62](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/quads.hh#L62)
+- **Declared at:** [line 62](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/quads.hh#L62)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `Quad &`. Check the purpose and failure notes before using the value.
@@ -1875,7 +1875,7 @@ auto result = object.setOpaque();
 Quad& setPointA(Vertex v)
 ```
 
-- **Declared at:** [line 71](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/quads.hh#L71)
+- **Declared at:** [line 71](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/quads.hh#L71)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1917,7 +1917,7 @@ auto result = object.setPointA(v);
 Quad& setPointB(Vertex v)
 ```
 
-- **Declared at:** [line 75](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/quads.hh#L75)
+- **Declared at:** [line 75](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/quads.hh#L75)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1959,7 +1959,7 @@ auto result = object.setPointB(v);
 Quad& setPointC(Vertex v)
 ```
 
-- **Declared at:** [line 79](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/quads.hh#L79)
+- **Declared at:** [line 79](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/quads.hh#L79)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -2001,7 +2001,7 @@ auto result = object.setPointC(v);
 Quad& setPointD(Vertex v)
 ```
 
-- **Declared at:** [line 83](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/quads.hh#L83)
+- **Declared at:** [line 83](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/quads.hh#L83)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -2043,7 +2043,7 @@ auto result = object.setPointD(v);
 Quad& setSemiTrans()
 ```
 
-- **Declared at:** [line 66](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/quads.hh#L66)
+- **Declared at:** [line 66](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/quads.hh#L66)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `Quad &`. Check the purpose and failure notes before using the value.
@@ -2076,7 +2076,7 @@ auto result = object.setSemiTrans();
 Color getColor() const
 ```
 
-- **Declared at:** [line 119](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/quads.hh#L119)
+- **Declared at:** [line 119](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/quads.hh#L119)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `Color`. Check the purpose and failure notes before using the value.
@@ -2109,7 +2109,7 @@ auto result = object.getColor();
 bool isSemiTrans() const
 ```
 
-- **Declared at:** [line 128](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/quads.hh#L128)
+- **Declared at:** [line 128](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/quads.hh#L128)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -2142,7 +2142,7 @@ auto result = object.isSemiTrans();
 TexturedQuad& setColor(Color c)
 ```
 
-- **Declared at:** [line 114](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/quads.hh#L114)
+- **Declared at:** [line 114](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/quads.hh#L114)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -2184,7 +2184,7 @@ auto result = object.setColor(c);
 TexturedQuad& setOpaque()
 ```
 
-- **Declared at:** [line 120](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/quads.hh#L120)
+- **Declared at:** [line 120](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/quads.hh#L120)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `TexturedQuad &`. Check the purpose and failure notes before using the value.
@@ -2217,7 +2217,7 @@ auto result = object.setOpaque();
 TexturedQuad& setSemiTrans()
 ```
 
-- **Declared at:** [line 124](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/quads.hh#L124)
+- **Declared at:** [line 124](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/quads.hh#L124)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `TexturedQuad &`. Check the purpose and failure notes before using the value.
@@ -2250,7 +2250,7 @@ auto result = object.setSemiTrans();
 TexturedQuad() : c
 ```
 
-- **Declared at:** [line 111](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/quads.hh#L111)
+- **Declared at:** [line 111](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/quads.hh#L111)
 - **Kind:** `constructor`
 
 **Use it when.** You need typed PlayStation GPU primitives and the preconditions in the declaration are already satisfied.
@@ -2279,7 +2279,7 @@ psyqo::Prim::TexturedQuad value();
 TexturedQuad(Color c) : c
 ```
 
-- **Declared at:** [line 112](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/quads.hh#L112)
+- **Declared at:** [line 112](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/quads.hh#L112)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -2317,7 +2317,7 @@ psyqo::Prim::TexturedQuad value(c);
 TexturedQuad(const TexturedQuad& other, Color c) : c
 ```
 
-- **Declared at:** [line 113](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/quads.hh#L113)
+- **Declared at:** [line 113](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/quads.hh#L113)
 - **Kind:** `constructor`
 
 **Parameters**

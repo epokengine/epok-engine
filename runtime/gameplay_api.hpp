@@ -28,6 +28,12 @@ struct EPOK_VALUE(Id="705a2b8f-7aa1-455d-830c-1af43e2a4a52") TimeSnapshot {
     Fixed fixed_delta=Fixed(0.0);
 };
 
+struct EPOK_VALUE(Id="cc7e971c-0dbe-4388-a93a-c25f24690011") RumbleSnapshot {
+    bool connected=false,supported=false,probing=false,enabled=false,active=false;
+    uint32_t large=0,remaining_ms=0,revision=0;
+    bool small=false;
+};
+
 struct EPOK_VALUE(Id="1a95f3e5-4d5b-4bcb-90ac-34d7fb61bc77") GameplayVector3 {
     Fixed x=0.0,y=0.0,z=0.0;
 };
@@ -158,6 +164,22 @@ inline GameplayVector3TweenState gameplay_vector_tween(GameplayVector3 from,Game
 inline GameplayVector3 gameplay_vector_tween_value(GameplayVector3TweenState state){const auto alpha=gameplay_tween(state.timing).alpha();return {lerp(state.from.x,state.to.x,alpha),lerp(state.from.y,state.to.y,alpha),lerp(state.from.z,state.to.z,alpha)};}
 
 struct EPOK_FUNCTION_LIBRARY(Category="Input", Id="d6963400-e105-4af5-826c-e4b2edfc09df") InputLibrary {
+    // Finite DualShock-style output. Large is 0..255; small is on/off.
+    EPOK_FUNCTION(BlueprintCallable, Capability="rumble", Id="3a10edaf-40c0-4313-ad34-ceae96aab861")
+    static bool rumble(uint32_t large,bool small,uint32_t duration_ms,uint32_t port) {
+        return epok::rumble.play(large,small,duration_ms,port);
+    }
+    EPOK_FUNCTION(BlueprintCallable, Capability="rumble", Id="70640db9-306e-413c-b33d-bfc6489e5b58")
+    static void stop_rumble(uint32_t port){epok::rumble.stop(port);}
+    EPOK_FUNCTION(BlueprintPure, Capability="rumble", Id="156b6d05-c40b-4b40-ad2f-c5272b78b5a4")
+    static bool rumble_supported(uint32_t port){return epok::rumble.supported(port);}
+    EPOK_FUNCTION(BlueprintCallable, Capability="rumble", Id="8fdb3a8c-1c2c-46ad-8d29-41d804ec7a43")
+    static void set_rumble_enabled(bool enabled,uint32_t port){epok::rumble.set_enabled(enabled,port);}
+    EPOK_FUNCTION(BlueprintPure, Capability="rumble", Id="2c375c9d-78e6-45b1-a405-b4e5b0d02d19")
+    static RumbleSnapshot rumble_snapshot(uint32_t port){
+        const auto s=epok::rumble.snapshot(port);
+        return {s.connected,s.supported,s.probing,s.enabled,s.active,s.large,s.remaining_ms,s.revision,s.small};
+    }
     EPOK_FUNCTION(BlueprintPure, Id="8c11a90e-5791-40f8-89d7-1092c6376b48")
     static bool connected(uint32_t port) { return input.connected(port); }
     EPOK_FUNCTION(BlueprintPure, Id="d46fcfd7-f356-4f90-a2cc-271cff74391e")

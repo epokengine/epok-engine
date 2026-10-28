@@ -1,10 +1,10 @@
 # PsyQo API: Spu
 
-> **Header:** `"psyqo/spu.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/spu.hh)
+> **Header:** `"psyqo/spu.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/spu.hh)
 
 This module covers SPU RAM, voices, ADSR and sound transfer. It documents 7 public callables declared directly in this header.
 
-PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552d`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
+PsyQo is pinned through Nugget revision `c702235f366fb1cd8c18e0a5a5392e0acae8a079`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
 
 ## Declared types
 
@@ -34,7 +34,7 @@ PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552
 static void dmaWrite(uint32_t spuAddress, const void* ramAddress, size_t dataSize, size_t blockSize = 0)
 ```
 
-- **Declared at:** [line 101](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/spu.hh#L101)
+- **Declared at:** [line 101](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/spu.hh#L101)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**
@@ -82,7 +82,7 @@ psyqo::SPU::dmaWrite(spuAddress, ramAddress, dataSize, blockSize);
 void dmaWrite(uint32_t spuAddress, const void* ramAddress, size_t dataSize, eastl::function<void()>&& callback, DMA::DmaCallback dmaCallback = DMA::FROM_MAIN_LOOP)
 ```
 
-- **Declared at:** [line 120](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/spu.hh#L120)
+- **Declared at:** [line 120](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/spu.hh#L120)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -132,7 +132,7 @@ object.dmaWrite(spuAddress, ramAddress, dataSize, callback, dmaCallback);
 static uint32_t getNextFreeChannel()
 ```
 
-- **Declared at:** [line 139](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/spu.hh#L139)
+- **Declared at:** [line 139](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/spu.hh#L139)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
@@ -165,7 +165,7 @@ auto result = psyqo::SPU::getNextFreeChannel();
 void initAsync()
 ```
 
-- **Declared at:** [line 78](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/spu.hh#L78)
+- **Declared at:** [line 78](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/spu.hh#L78)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -200,7 +200,7 @@ object.initAsync();
 static void initialize()
 ```
 
-- **Declared at:** [line 69](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/spu.hh#L69)
+- **Declared at:** [line 69](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/spu.hh#L69)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -231,7 +231,7 @@ psyqo::SPU::initialize();
 static void playADPCM(uint8_t channelId, uint32_t spuRamAddress, const ChannelPlaybackConfig& config, bool hardCut)
 ```
 
-- **Declared at:** [line 138](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/spu.hh#L138)
+- **Declared at:** [line 138](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/spu.hh#L138)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**
@@ -277,7 +277,7 @@ psyqo::SPU::playADPCM(channelId, spuRamAddress, config, hardCut);
 static void silenceChannels(uint32_t channelMask)
 ```
 
-- **Declared at:** [line 85](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/spu.hh#L85)
+- **Declared at:** [line 85](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/spu.hh#L85)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**

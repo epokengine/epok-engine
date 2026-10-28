@@ -198,7 +198,7 @@ pub fn cook(
     texture_ids: &[uuid::Uuid],
     palette: &crate::vertex_colors::Palette,
 ) -> Result<Cooked, String> {
-    if pool_pages < 3 || pool_pages > 8 {
+    if !(3..=8).contains(&pool_pages) {
         return Err("Ordered drawing needs 3..8 streaming pages".into());
     }
     let layout = crate::texture::layout(scene)?.textures;
@@ -305,8 +305,8 @@ pub fn cook(
                     put32(&mut out.bytes, at + word * 4, value);
                 }
             } else {
-                for axis in 0..3 {
-                    put32(&mut out.bytes, at + axis * 4, point[axis] as u32);
+                for (axis, &value) in point.iter().enumerate() {
+                    put32(&mut out.bytes, at + axis * 4, value as u32);
                 }
             }
         }
@@ -523,8 +523,8 @@ mod tests {
         assert_eq!(membership, (0..70).map(|i| i / 64).collect::<Vec<_>>());
         assert_eq!(jobs.iter().map(|j| j.count).sum::<usize>(), points.len());
         for (id, job) in jobs.iter().enumerate() {
-            for index in job.first..job.first + job.count {
-                assert_eq!(membership[index], id);
+            for &member in &membership[job.first..job.first + job.count] {
+                assert_eq!(member, id);
             }
             let mut end = 0;
             for span in &job.projections {
@@ -604,9 +604,9 @@ mod tests {
             };
             let (xy, z) = (word(0), word(1));
             let relative = [xy as u16 as i16, (xy >> 16) as u16 as i16, z as u16 as i16];
-            for axis in 0..3 {
-                assert!(block.low[axis] <= relative[axis] && relative[axis] <= block.high[axis]);
-                let q12 = (i32::from(relative[axis]) + block.center[axis]) * 16
+            for (axis, &value) in relative.iter().enumerate() {
+                assert!(block.low[axis] <= value && value <= block.high[axis]);
+                let q12 = (i32::from(value) + block.center[axis]) * 16
                     + ((z >> (16 + 4 * axis)) & 15) as i32;
                 assert_eq!(q12, resolved.points[0][corner][axis]);
             }

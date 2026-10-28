@@ -68,6 +68,10 @@ struct Scratch {
     Affine<Fixed> bones[64];
     int16_t vertices[512][3];
     MeshGeometry geometry{};
+    const SkeletalMesh* cached_model=nullptr;const Bone* cached_bones=nullptr;
+    const AnimationClip* cached_clip=nullptr;const BoneTrack* cached_tracks=nullptr;
+    uint32_t cached_frame=0,cached_generation=0;size_t cached_count=0;
+    int16_t cached_aim=-1,cached_stops[2]={-1,-1};Fixed cached_pitch=0.0;
     static uint32_t frame_index(const AnimationClip* clip,const Animator& animator) {
         if(!clip)return 0;
         uint32_t frame=animator.ticks/2;
@@ -79,14 +83,23 @@ struct Scratch {
 #ifdef __mips__
     __attribute__((noinline,optimize("O3")))
 #endif
-    void pose_bones(const SkeletalMesh& model,const Animator& animator,int16_t aim_bone,const int16_t* aim_stop_bones,Fixed aim_pitch) {
+    // A nonzero generation opts immutable cooked assets into reuse. Callers
+    // with mutable pose tables retain the original behavior with the default.
+    size_t pose_bones(const SkeletalMesh& model,const Animator& animator,int16_t aim_bone,const int16_t* aim_stop_bones,Fixed aim_pitch,uint32_t generation=0) {
         const AnimationClip* clip=animator.clip>=0 && size_t(animator.clip)<model.clip_count?&model.clips[animator.clip]:nullptr;
         uint32_t frame=frame_index(clip,animator);
+        const int16_t stops[2]={aim_stop_bones?aim_stop_bones[0]:int16_t(-1),aim_stop_bones?aim_stop_bones[1]:int16_t(-1)};
+        const auto* tracks=clip?clip->tracks:nullptr;
+        if(generation&&cached_generation==generation&&cached_model==&model&&cached_bones==model.bones&&cached_count==model.bone_count&&
+           cached_clip==clip&&cached_tracks==tracks&&cached_frame==frame&&cached_aim==aim_bone&&cached_pitch==aim_pitch&&cached_stops[0]==stops[0]&&cached_stops[1]==stops[1])return 0;
+        cached_model=&model;cached_bones=model.bones;cached_count=model.bone_count;cached_clip=clip;cached_tracks=tracks;cached_frame=frame;
+        cached_generation=generation;cached_aim=aim_bone;cached_pitch=aim_pitch;cached_stops[0]=stops[0];cached_stops[1]=stops[1];
         for(size_t i=0;i<model.bone_count;++i){
             const auto& bone=model.bones[i];const BonePose* p=&bone.bind;
             if(clip&&clip->tracks){const auto& track=clip->tracks[i];p=&track.poses[track.constant?0:frame];}
             auto local=local_pose_matrix(*p,aim_bone,aim_stop_bones,aim_pitch,i);bones[i]=bone.parent<0?local:bones[bone.parent].compose(local);
         }
+        return model.bone_count;
     }
     void skin_vertices(const SkeletalMesh& model) {
         for(size_t i=0;i<model.geometry->vertex_count;++i){
@@ -121,7 +134,7 @@ struct Scratch {
     }
 };
 #ifdef __mips__
-static_assert(sizeof(Scratch)==64*48+512*6+84,"Shared skeletal scratch layout changed; update the editor's size constants");
+static_assert(sizeof(Scratch)==64*48+512*6+84+40,"Shared skeletal scratch layout changed; update the editor's size constants");
 #endif
 inline Scratch scratch;
 }

@@ -25,7 +25,7 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 tools="$root/.tools/linux"
 archives="$tools/archives"
 sdk="$root/third_party/nugget"
-sdk_revision="6186b131aacc5853a9161fb076ed34ffe504552d"
+sdk_revision="c702235f366fb1cd8c18e0a5a5392e0acae8a079"
 psxlua="$root/third_party/nugget/third_party/psxlua"
 psxlua_revision="abed030e686b4e34987851bd0a028c93b1f73967"
 
@@ -207,7 +207,7 @@ if selected mkpsxiso; then
     install_zip "$(download mkpsxiso-2.30-Linux.zip https://github.com/Lameguy64/mkpsxiso/releases/download/v2.30/mkpsxiso-2.30-Linux.zip 8e387e6db51dee3eb7cb08f4d59293a24c48f58bd541631acf9301d78015a1fc)" "$tools/mkpsxiso"
 fi
 if selected redux; then
-    install_zip "$(download pcsx-redux-dd0b35d1-linux-x86_64.zip https://distrib.app/storage/assets/aa6/6fc/129/f58473c46a3b85efd5e6c86660166a8093780728652a7e0b8e21f6d/PCSX-Redux-dd0b35d1-linux-x86_64.zip 018dcadaaeb62b60b567479e0e2add67bac13e158ae1e295527bb6181131c422)" "$tools/redux"
+    install_zip "$(download pcsx-redux-997b6898-linux-x86_64.zip https://distrib.app/storage/assets/59e/248/99b/0f06f1744041f1a36f0a19c9d02fdbcf2feef39e6b7e06b4386e9d2/PCSX-Redux-997b6898-linux-x86_64.zip 89d8a2e29b539ef01acc5d3412870392ee615a7a5b62785f5e3793ad574b672d)" "$tools/redux"
 fi
 if selected libclang; then
     install_zip "$(download libclang-18.1.1-manylinux2010-x86_64.whl https://files.pythonhosted.org/packages/1d/fc/716c1e62e512ef1c160e7984a73a5fc7df45166f2ff3f254e71c58076f7c/libclang-18.1.1-py2.py3-none-manylinux2010_x86_64.whl c533091d8a3bbf7460a00cb6c1a71da93bffe148f172c7d03b1c31fbf8aa2a0b)" "$tools/libclang"

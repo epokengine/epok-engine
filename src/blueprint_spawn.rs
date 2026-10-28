@@ -55,6 +55,7 @@ pub fn header(catalog: &[Script]) -> Result<String, String> {
     let registry = crate::blueprint::registry_from_catalog(std::path::Path::new(""), catalog);
     header_with_templates(catalog, &[], false, &registry)
 }
+#[cfg(test)]
 pub fn header_with_templates(
     catalog: &[Script],
     templates: &[CookedTemplate],
@@ -84,6 +85,7 @@ pub fn object_class_table(catalog: &[Script]) -> Result<String, String> {
 /// Emit the runtime object table from the same authoritative registry used to resolve
 /// actor records. Real projects need SDK-native classes that intentionally stay out of
 /// the project script catalog, including the default `epok::SceneScriptActor`.
+#[cfg(test)]
 pub fn object_class_table_with_registry(
     registry: &crate::blueprint::Registry,
 ) -> Result<String, String> {
@@ -309,7 +311,7 @@ fn object_class_table_with_capacities(
         };
         let callbacks = if class.family == crate::reflection_schema::ClassFamily::Component {
             format!(
-                ",0,nullptr,epok::ComponentCallbacks<{name}>::tick,epok::ComponentCallbacks<{name}>::frame"
+                ",0,nullptr,epok::ComponentCallbacks<{name}>::tick,epok::ComponentCallbacks<{name}>::frame,epok::ActivationCallbacks<{name},epok::ActorComponent>::value"
             )
         } else if class.family == crate::reflection_schema::ClassFamily::Actor {
             let prefix = if defaults.is_empty() {
@@ -318,7 +320,7 @@ fn object_class_table_with_capacities(
                 ""
             };
             format!(
-                "{prefix},epok::ActorCallbacks<{name}>::tick,epok::ActorCallbacks<{name}>::frame"
+                "{prefix},epok::ActorCallbacks<{name}>::tick,epok::ActorCallbacks<{name}>::frame,epok::ActivationCallbacks<{name},epok::Actor>::value"
             )
         } else {
             String::new()
@@ -504,11 +506,11 @@ mod tests {
         // Abstract bases stay in the table so `object_class_is_a` can walk them, but
         // carry no storage at all.
         assert!(text.contains(&format!(
-            "{{UINT64_C({actor_id}),UINT64_C({object_id}),epok::ObjectFamily::Actor,epok::ObjectDomain::None,0,1,nullptr,nullptr,0,0,nullptr,nullptr,0,nullptr,epok::ActorCallbacks<epok::Actor>::tick,epok::ActorCallbacks<epok::Actor>::frame}},"
+            "{{UINT64_C({actor_id}),UINT64_C({object_id}),epok::ObjectFamily::Actor,epok::ObjectDomain::None,0,1,nullptr,nullptr,0,0,nullptr,nullptr,0,nullptr,epok::ActorCallbacks<epok::Actor>::tick,epok::ActorCallbacks<epok::Actor>::frame,epok::ActivationCallbacks<epok::Actor,epok::Actor>::value}},"
         )));
         // Concrete actor: placeable|spawnable, pool-backed, placement-new pair exposed.
         assert!(text.contains(&format!(
-            "{{UINT64_C({actor3d_id}),UINT64_C({actor_id}),epok::ObjectFamily::Actor,epok::ObjectDomain::World3D,0,6,&epok::object_construct<epok::Actor3D>,&epok::object_destruct,sizeof(epok::Actor3D),alignof(epok::Actor3D),&epok::ObjectPool<epok::Actor3D,4>::acquire,&epok::ObjectPool<epok::Actor3D,4>::release,0,nullptr,epok::ActorCallbacks<epok::Actor3D>::tick,epok::ActorCallbacks<epok::Actor3D>::frame}},"
+            "{{UINT64_C({actor3d_id}),UINT64_C({actor_id}),epok::ObjectFamily::Actor,epok::ObjectDomain::World3D,0,6,&epok::object_construct<epok::Actor3D>,&epok::object_destruct,sizeof(epok::Actor3D),alignof(epok::Actor3D),&epok::ObjectPool<epok::Actor3D,4>::acquire,&epok::ObjectPool<epok::Actor3D,4>::release,0,nullptr,epok::ActorCallbacks<epok::Actor3D>::tick,epok::ActorCallbacks<epok::Actor3D>::frame,epok::ActivationCallbacks<epok::Actor3D,epok::Actor>::value}},"
         )));
         // Component: owners mask World3D|World2D|UI = 7, Multiple cardinality = flag 32.
         assert!(text.contains("epok::ComponentCallbacks<epok::AudioComponent>::tick"));

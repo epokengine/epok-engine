@@ -93,13 +93,20 @@ pub fn create_3d(e: &mut Editor) {
         e.log("Stop the emulator before editing.");
         return;
     }
+    create_3d_under(e, None);
+}
+/// Creates a 3D Dungeon Generator under `parent` (`None` is the map root) and
+/// generates its first layout, returning the generator's root actor.
+pub fn create_3d_under(e: &mut Editor, parent: Option<Uuid>) -> Uuid {
     let mut root = crate::scene::Actor::cube(e.scene.unique_actor_name("Dungeon"));
     root.kind = "Empty".into();
     root.position = [0.; 3];
     let id = root.id;
     e.scene.actors.push(root);
     e.scene.refresh_actor_hierarchy();
+    e.parent_new_actor(id, parent);
     attach(e, id);
+    id
 }
 
 /// Makes actor `id` a Dungeon Generator, selects it and generates a first dungeon so

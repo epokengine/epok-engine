@@ -14,7 +14,7 @@ pub struct Info {
     preview: &'static [u8],
 }
 
-pub const CATALOG: [Info; 5] = [
+pub const CATALOG: [Info; 6] = [
     Info {
         template: Template::Basic,
         title: "Basic",
@@ -87,6 +87,21 @@ Inspector for another dungeon, or copy the recipe and style to make it yours.",
         ],
         preview: include_bytes!("../resources/templates/previews/dungeon.png"),
     },
+    Info {
+        template: Template::DungeonComplete,
+        title: "Dungeon Complete",
+        summary: "A complete action game with PocketStation mining.",
+        description: "Explore Reactor Station, fight robot guards and the reactor boss, collect \
+asteroids on PocketStation and trade them for upgrades. Includes the finished C++ gameplay, \
+inventory, save system, MIDI music, sound effects and streamed geometry.",
+        features: &[
+            "Complete level, enemy pools, boss fight and game flow",
+            "PocketStation miner with persistent ore and transfers",
+            "Inventory, trading terminal, healing items and upgrades",
+            "MIDI music and geometry streaming for CD or PCDrv",
+        ],
+        preview: include_bytes!("../resources/templates/previews/dungeon-complete.png"),
+    },
 ];
 
 pub fn info(template: Template) -> &'static Info {
@@ -102,15 +117,17 @@ impl Info {
     pub fn preview(&self) -> Option<(Vec<u8>, u32, u32)> {
         crate::branding::decode(self.preview).ok()
     }
-    /// Every template accepts every flavor today. The check exists so an
-    /// unimplemented pair can be disabled in one place instead of silently
-    /// generating something the author did not choose.
-    pub fn supports(&self, _flavor: GameplayFlavor) -> bool {
-        true
+    /// Finished examples keep their authored implementation; unavailable
+    /// variants are disabled instead of relabelling C++ as another language.
+    pub fn supports(&self, flavor: GameplayFlavor) -> bool {
+        self.template.supports(flavor)
     }
     /// What the selected flavor will actually write for this template. One
     /// short line: it sits under the two lists, not in place of the manual.
     pub fn gameplay_note(&self, flavor: GameplayFlavor) -> &'static str {
+        if self.template == Template::DungeonComplete {
+            return "Includes project-owned C++ gameplay and the Pocket Lua mining game.";
+        }
         if self.template == Template::Basic {
             return "Basic writes no gameplay. Every project can use all three.";
         }
@@ -140,7 +157,7 @@ mod tests {
             assert_eq!(width * 9, height * 16, "{} preview is not 16:9", info.title);
             for flavor in GameplayFlavor::ALL {
                 assert!(!info.gameplay_note(flavor).is_empty());
-                assert!(info.supports(flavor));
+                assert_eq!(info.supports(flavor), template.supports(flavor));
             }
         }
     }

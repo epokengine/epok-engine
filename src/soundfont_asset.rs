@@ -162,13 +162,13 @@ pub fn prepare(
         .library
         .take()
         .or_else(|| previous_definition.clone())
-        .unwrap_or_else(|| Definition::detected(library.format.clone()));
+        .unwrap_or_else(|| Definition::detected(library.format));
     if let Some(previous) = previous_definition {
         for (key, value) in previous.extra {
             definition.extra.entry(key).or_insert(value);
         }
     }
-    definition.format = library.format.clone();
+    definition.format = library.format;
     let source_hash = assets::hash(&bytes);
     if source_hash == REFERENCE_HASH {
         // Identification requires the complete checksum, never a name or GM label.
@@ -260,7 +260,7 @@ mod tests {
         let old_list_size = u32::from_le_bytes(source[sdta - 4..sdta].try_into().unwrap()) as usize;
         source.splice(
             data_start + previous..data_start + previous,
-            std::iter::repeat(0).take(sample_bytes - previous),
+            std::iter::repeat_n(0, sample_bytes - previous),
         );
         source[smpl + 4..smpl + 8].copy_from_slice(&(sample_bytes as u32).to_le_bytes());
         source[sdta - 4..sdta]

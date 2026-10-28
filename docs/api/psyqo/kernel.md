@@ -1,10 +1,10 @@
 # PsyQo API: Kernel
 
-> **Header:** `"psyqo/kernel.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/kernel.hh)
+> **Header:** `"psyqo/kernel.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/kernel.hh)
 
 This module covers PSX kernel ownership, interrupts and low-level services. It documents 29 public callables declared directly in this header.
 
-PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552d`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
+PsyQo is pinned through Nugget revision `c702235f366fb1cd8c18e0a5a5392e0acae8a079`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
 
 ## Declared types
 
@@ -54,7 +54,7 @@ PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552
 static inline void abort(const char* msg, std::source_location location = std::source_location::current())
 ```
 
-- **Declared at:** [line 151](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/kernel.hh#L151)
+- **Declared at:** [line 151](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/kernel.hh#L151)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Parameters**
@@ -96,7 +96,7 @@ psyqo::Kernel::abort(msg, location);
 inline void assert(bool condition, const char* message, std::source_location location = std::source_location::current())
 ```
 
-- **Declared at:** [line 357](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/kernel.hh#L357)
+- **Declared at:** [line 357](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/kernel.hh#L357)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -140,7 +140,7 @@ psyqo::Kernel::assert(condition, message, location);
 void disableDma(DMA channel)
 ```
 
-- **Declared at:** [line 284](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/kernel.hh#L284)
+- **Declared at:** [line 284](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/kernel.hh#L284)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -180,7 +180,7 @@ psyqo::Kernel::disableDma(channel);
 void enableDma(DMA channel, unsigned priority = 7)
 ```
 
-- **Declared at:** [line 277](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/kernel.hh#L277)
+- **Declared at:** [line 277](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/kernel.hh#L277)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -224,7 +224,7 @@ psyqo::Kernel::enableDma(channel, priority);
 static inline void fastEnterCriticalSection()
 ```
 
-- **Declared at:** [line 92](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/kernel.hh#L92)
+- **Declared at:** [line 92](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/kernel.hh#L92)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** false if the critical section was already entered, true otherwise.
@@ -257,7 +257,7 @@ psyqo::Kernel::fastEnterCriticalSection();
 static inline void fastLeaveCriticalSection()
 ```
 
-- **Declared at:** [line 103](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/kernel.hh#L103)
+- **Declared at:** [line 103](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/kernel.hh#L103)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -290,7 +290,7 @@ psyqo::Kernel::fastLeaveCriticalSection();
 void flushCache()
 ```
 
-- **Declared at:** [line 269](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/kernel.hh#L269)
+- **Declared at:** [line 269](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/kernel.hh#L269)
 - **Kind:** `function decl`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -323,7 +323,7 @@ psyqo::Kernel::flushCache();
 void installCrashHandler()
 ```
 
-- **Declared at:** [line 216](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/kernel.hh#L216)
+- **Declared at:** [line 216](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/kernel.hh#L216)
 - **Kind:** `function decl`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -354,7 +354,7 @@ psyqo::Kernel::installCrashHandler();
 void abort()
 ```
 
-- **Declared at:** [line 82](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/kernel.hh#L82)
+- **Declared at:** [line 82](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/kernel.hh#L82)
 - **Kind:** `function decl`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -385,7 +385,7 @@ psyqo::Kernel::Internal::abort();
 void abort(const char* msg, std::source_location location = std::source_location::current())
 ```
 
-- **Declared at:** [line 81](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/kernel.hh#L81)
+- **Declared at:** [line 81](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/kernel.hh#L81)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -427,7 +427,7 @@ psyqo::Kernel::Internal::abort(msg, location);
 void addInitializer(eastl::function<void(Application&)>&& lambda)
 ```
 
-- **Declared at:** [line 348](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/kernel.hh#L348)
+- **Declared at:** [line 348](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/kernel.hh#L348)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -467,7 +467,7 @@ psyqo::Kernel::Internal::addInitializer(lambda);
 void addOnFrame(eastl::function<void()>&& lambda)
 ```
 
-- **Declared at:** [line 349](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/kernel.hh#L349)
+- **Declared at:** [line 349](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/kernel.hh#L349)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -507,7 +507,7 @@ psyqo::Kernel::Internal::addOnFrame(lambda);
 void beginFrame()
 ```
 
-- **Declared at:** [line 350](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/kernel.hh#L350)
+- **Declared at:** [line 350](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/kernel.hh#L350)
 - **Kind:** `function decl`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -538,7 +538,7 @@ psyqo::Kernel::Internal::beginFrame();
 void crashHandler(uint32_t exceptionCode, uint32_t* kernelRegisters)
 ```
 
-- **Declared at:** [line 351](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/kernel.hh#L351)
+- **Declared at:** [line 351](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/kernel.hh#L351)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -580,7 +580,7 @@ psyqo::Kernel::Internal::crashHandler(exceptionCode, kernelRegisters);
 static inline uint32_t getCop0Status()
 ```
 
-- **Declared at:** [line 65](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/kernel.hh#L65)
+- **Declared at:** [line 65](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/kernel.hh#L65)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
@@ -611,7 +611,7 @@ auto result = psyqo::Kernel::Internal::getCop0Status();
 void prepare(Application&)
 ```
 
-- **Declared at:** [line 347](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/kernel.hh#L347)
+- **Declared at:** [line 347](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/kernel.hh#L347)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -651,7 +651,7 @@ psyqo::Kernel::Internal::prepare(arg1);
 void pumpCallbacks()
 ```
 
-- **Declared at:** [line 346](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/kernel.hh#L346)
+- **Declared at:** [line 346](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/kernel.hh#L346)
 - **Kind:** `function decl`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -682,7 +682,7 @@ psyqo::Kernel::Internal::pumpCallbacks();
 static inline void setCop0Status(uint32_t r)
 ```
 
-- **Declared at:** [line 75](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/kernel.hh#L75)
+- **Declared at:** [line 75](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/kernel.hh#L75)
 - **Kind:** `function decl`; qualifiers: `static`
 
 **Parameters**
@@ -722,7 +722,7 @@ psyqo::Kernel::Internal::setCop0Status(r);
 bool isKernelTakenOver()
 ```
 
-- **Declared at:** [line 198](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/kernel.hh#L198)
+- **Declared at:** [line 198](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/kernel.hh#L198)
 - **Kind:** `function decl`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -755,7 +755,7 @@ auto result = psyqo::Kernel::isKernelTakenOver();
 uint32_t openEvent(uint32_t classId, uint32_t spec, uint32_t mode, eastl::function<void()>&& lambda)
 ```
 
-- **Declared at:** [line 246](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/kernel.hh#L246)
+- **Declared at:** [line 246](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/kernel.hh#L246)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -803,7 +803,7 @@ auto result = psyqo::Kernel::openEvent(classId, spec, mode, lambda);
 void queueCallback(eastl::function<void()>&& lambda)
 ```
 
-- **Declared at:** [line 303](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/kernel.hh#L303)
+- **Declared at:** [line 303](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/kernel.hh#L303)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -845,7 +845,7 @@ psyqo::Kernel::queueCallback(lambda);
 void queueCallbackFromISR(eastl::function<void()>&& lambda)
 ```
 
-- **Declared at:** [line 314](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/kernel.hh#L314)
+- **Declared at:** [line 314](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/kernel.hh#L314)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -887,7 +887,7 @@ psyqo::Kernel::queueCallbackFromISR(lambda);
 void queueIRQHandler(IRQ irq, eastl::function<void()>&& lambda)
 ```
 
-- **Declared at:** [line 235](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/kernel.hh#L235)
+- **Declared at:** [line 235](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/kernel.hh#L235)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -929,7 +929,7 @@ psyqo::Kernel::queueIRQHandler(irq, lambda);
 void queuePsyqoBreakHandler(eastl::function<bool(uint32_t)>&& handler)
 ```
 
-- **Declared at:** [line 343](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/kernel.hh#L343)
+- **Declared at:** [line 343](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/kernel.hh#L343)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -971,7 +971,7 @@ psyqo::Kernel::queuePsyqoBreakHandler(handler);
 unsigned registerDmaEvent(DMA channel, eastl::function<void()>&& lambda)
 ```
 
-- **Declared at:** [line 261](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/kernel.hh#L261)
+- **Declared at:** [line 261](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/kernel.hh#L261)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1015,7 +1015,7 @@ auto result = psyqo::Kernel::registerDmaEvent(channel, lambda);
 void setBreakHandler(unsigned category, eastl::function<bool(uint32_t)>&& handler)
 ```
 
-- **Declared at:** [line 336](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/kernel.hh#L336)
+- **Declared at:** [line 336](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/kernel.hh#L336)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1059,7 +1059,7 @@ psyqo::Kernel::setBreakHandler(category, handler);
 void takeOverKernel()
 ```
 
-- **Declared at:** [line 193](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/kernel.hh#L193)
+- **Declared at:** [line 193](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/kernel.hh#L193)
 - **Kind:** `function decl`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1090,7 +1090,7 @@ psyqo::Kernel::takeOverKernel();
 void unregisterDmaEvent(unsigned slot)
 ```
 
-- **Declared at:** [line 291](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/kernel.hh#L291)
+- **Declared at:** [line 291](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/kernel.hh#L291)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1130,7 +1130,7 @@ psyqo::Kernel::unregisterDmaEvent(slot);
 template <typename T> static void waitForStatus(T mask, T expected, const volatile T* value)
 ```
 
-- **Declared at:** [line 118](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/kernel.hh#L118)
+- **Declared at:** [line 118](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/kernel.hh#L118)
 - **Kind:** `function template`; qualifiers: `static, template`
 
 **Parameters**

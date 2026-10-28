@@ -1,8 +1,8 @@
 # PsyQo API
 
-The complete callable surface found in the pinned `psyqo/` headers at Nugget `6186b131aacc5853a9161fb076ed34ffe504552d`. High-level modules come first; hardware and internal modules are clearly marked.
+The complete callable surface found in the pinned `psyqo/` headers at Nugget `c702235f366fb1cd8c18e0a5a5392e0acae8a079`. High-level modules come first; hardware and internal modules are clearly marked.
 
-**Coverage:** 53 headers · 944 public callables.
+**Coverage:** 53 headers · 945 public callables.
 
 ## Modules
 
@@ -30,7 +30,7 @@ The complete callable surface found in the pinned `psyqo/` headers at Nugget `61
 | [Iso9660 Parser](psyqo/iso9660-parser.md) | `iso9660-parser.hh` | 18 | Pinned PsyQo API |
 | [Kernel](psyqo/kernel.md) | `kernel.hh` | 29 | Pinned PsyQo API |
 | [Matrix](psyqo/matrix.md) | `matrix.hh` | 0 | Pinned PsyQo API |
-| [Memory Card](psyqo/memory-card.md) | `memory-card.hh` | 23 | Pinned PsyQo API |
+| [Memory Card](psyqo/memory-card.md) | `memory-card.hh` | 24 | Pinned PsyQo API |
 | [Memory Card Filesystem](psyqo/memory-card-filesystem.md) | `memory-card-filesystem.hh` | 20 | Pinned PsyQo API |
 | [Msf](psyqo/msf.md) | `msf.hh` | 13 | Pinned PsyQo API |
 | [Ordering Table](psyqo/ordering-table.md) | `ordering-table.hh` | 4 | Pinned PsyQo API |

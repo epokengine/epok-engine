@@ -2,7 +2,7 @@
 
 > **Header:** `"collision.hpp"` · **Tier:** Epok runtime API · **Source:** [open header](../../../runtime/collision.hpp)
 
-This module covers bounded AABB collision queries and movement. It documents 18 public callables declared directly in this header.
+This module covers bounded AABB collision queries and movement. It documents 19 public callables declared directly in this header.
 
 ## Declared types
 
@@ -13,18 +13,19 @@ This module covers bounded AABB collision queries and movement. It documents 18 
 - [`epok::aabb_may_touch`](#epok-aabb-may-touch-1) — Performs `aabb may touch` as part of bounded AABB collision queries and movement.
 - [`epok::aabb_overlap`](#epok-aabb-overlap-1) — Performs `aabb overlap` as part of bounded AABB collision queries and movement.
 - [`epok::collider_bounds`](#epok-collider-bounds-1) — Performs `collider bounds` as part of bounded AABB collision queries and movement.
+- [`epok::collision_fraction24`](#epok-collision-fraction24-1) — Exact Q24 fraction for 0 <= numerator <= denominator.
 - [`epok::CollisionWorld::begin_sync`](#epok-collisionworld-begin-sync-1) — Begins sync as part of bounded AABB collision queries and movement.
 - [`epok::CollisionWorld::bounds`](#epok-collisionworld-bounds-1) — Performs `bounds` as part of bounded AABB collision queries and movement.
 - [`epok::CollisionWorld::clear`](#epok-collisionworld-clear-1) — Clears clear as part of bounded AABB collision queries and movement.
 - [`epok::CollisionWorld::ground`](#epok-collisionworld-ground-1) — Downward box sweep uses the complete footprint, including ledges missed by a center ray.
 - [`epok::CollisionWorld::has_trigger_pairs`](#epok-collisionworld-has-trigger-pairs-1) — Reports whether trigger pairs as part of bounded AABB collision queries and movement.
 - [`epok::CollisionWorld::move_and_slide`](#epok-collisionworld-move-and-slide-1) — Performs `move and slide` as part of bounded AABB collision queries and movement.
-- [`epok::CollisionWorld::note_enabled`](#epok-collisionworld-note-enabled-1) — Performs `note enabled` as part of bounded AABB collision queries and movement.
 - [`epok::CollisionWorld::overlap`](#epok-collisionworld-overlap-1) — Returns total matches; only the first output_capacity indices are written.
 - [`epok::CollisionWorld::raycast`](#epok-collisionworld-raycast-1) — Segment query: delta is the complete displacement, not a unit direction.
 - [`epok::CollisionWorld::raycast_batch`](#epok-collisionworld-raycast-batch-1) — Performs `raycast batch` as part of bounded AABB collision queries and movement.
 - [`epok::CollisionWorld::set`](#epok-collisionworld-set-1) — Sets set as part of bounded AABB collision queries and movement.
 - [`epok::CollisionWorld::set_cached`](#epok-collisionworld-set-cached-1) — Returns whether bounds were rebuilt.
+- [`epok::CollisionWorld::translate`](#epok-collisionworld-translate-1) — A root actor's movement changes only translation.
 - [`epok::CollisionWorld::update_triggers`](#epok-collisionworld-update-triggers-1) — Updates triggers as part of bounded AABB collision queries and movement.
 - [`epok::SpatialHitT::operator bool`](#epok-spatialhitt-operator-bool-1) — Performs `operator  bool` as part of bounded AABB collision queries and movement.
 - [`epok::swept_bounds`](#epok-swept-bounds-1) — Performs `swept bounds` as part of bounded AABB collision queries and movement.
@@ -41,7 +42,7 @@ This module covers bounded AABB collision queries and movement. It documents 18 
 template<class Number> inline bool aabb_may_touch(const AabbT<Number>& a,const AabbT<Number>& b)
 ```
 
-- **Declared at:** [line 72](../../../runtime/collision.hpp#L72)
+- **Declared at:** [line 86](../../../runtime/collision.hpp#L86)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -86,7 +87,7 @@ auto result = epok::aabb_may_touch<Number>(a, b);
 template<class Number> inline bool aabb_overlap(const AabbT<Number>& a,const AabbT<Number>& b)
 ```
 
-- **Declared at:** [line 68](../../../runtime/collision.hpp#L68)
+- **Declared at:** [line 82](../../../runtime/collision.hpp#L82)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -131,7 +132,7 @@ auto result = epok::aabb_overlap<Number>(a, b);
 template<class Number> inline AabbT<Number> collider_bounds(const ColliderT<Number>& c,const Affine<Number>& world)
 ```
 
-- **Declared at:** [line 84](../../../runtime/collision.hpp#L84)
+- **Declared at:** [line 98](../../../runtime/collision.hpp#L98)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -164,6 +165,50 @@ auto result = epok::collider_bounds<Number>(c, world);
 
 **Trade-offs and warnings.** Every instantiated type must satisfy the header's compile-time requirements; extra instantiations can increase code size. Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
 
+<a id="epok-collision-fraction24-1"></a>
+
+## `epok::collision_fraction24`
+
+**Purpose.** Exact Q24 fraction for 0 <= numerator <= denominator.
+
+**Details.** Splitting at 16/8 bits keeps ordinary local queries on the R3000's native 32-bit DIV instead of calling the software 64-bit divider for every slab intersection.
+
+**Exact declaration**
+
+```cpp
+inline int64_t collision_fraction24(uint64_t numerator,uint64_t denominator)
+```
+
+- **Declared at:** [line 23](../../../runtime/collision.hpp#L23)
+- **Kind:** `function decl`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `numerator` | `uint64_t` | Input | Value supplied for `numerator`. See the exact type and module contract. |
+| `denominator` | `uint64_t` | Input | Value supplied for `denominator`. See the exact type and module contract. |
+
+**Returns.** Returns `int64_t`. Check the purpose and failure notes before using the value.
+
+**Use it when.** Splitting at 16/8 bits keeps ordinary local queries on the R3000's native 32-bit DIV instead of calling the software 64-bit divider for every slab intersection.
+
+**Usage pattern**
+
+```cpp
+#include "collision.hpp"
+
+// Assume these named values have been initialized with valid data:
+// uint64_t numerator
+// uint64_t denominator
+
+auto result = epok::collision_fraction24(numerator, denominator);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to bounded AABB collision queries and movement. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
 <a id="epok-collisionworld-begin-sync-1"></a>
 
 ## `epok::CollisionWorld::begin_sync`
@@ -176,7 +221,7 @@ auto result = epok::collider_bounds<Number>(c, world);
 void begin_sync()
 ```
 
-- **Declared at:** [line 259](../../../runtime/collision.hpp#L259)
+- **Declared at:** [line 321](../../../runtime/collision.hpp#L321)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -209,7 +254,7 @@ object.begin_sync();
 const AabbT<Number>* bounds(size_t index) const
 ```
 
-- **Declared at:** [line 297](../../../runtime/collision.hpp#L297)
+- **Declared at:** [line 360](../../../runtime/collision.hpp#L360)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -251,7 +296,7 @@ auto result = object.bounds(index);
 void clear()
 ```
 
-- **Declared at:** [line 258](../../../runtime/collision.hpp#L258)
+- **Declared at:** [line 320](../../../runtime/collision.hpp#L320)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -286,7 +331,7 @@ object.clear();
 SpatialHitT<Number> ground(const AabbT<Number>& box,Number distance,uint32_t mask=0xffffffffu,int ignore=-1) const
 ```
 
-- **Declared at:** [line 331](../../../runtime/collision.hpp#L331)
+- **Declared at:** [line 402](../../../runtime/collision.hpp#L402)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -334,7 +379,7 @@ auto result = object.ground(box, distance, mask, ignore);
 bool has_trigger_pairs() const
 ```
 
-- **Declared at:** [line 257](../../../runtime/collision.hpp#L257)
+- **Declared at:** [line 319](../../../runtime/collision.hpp#L319)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -367,7 +412,7 @@ auto result = object.has_trigger_pairs();
 MoveResultT<Number> move_and_slide(AabbT<Number> box,const Number* displacement,uint32_t mask=0xffffffffu,int ignore=-1) const
 ```
 
-- **Declared at:** [line 351](../../../runtime/collision.hpp#L351)
+- **Declared at:** [line 422](../../../runtime/collision.hpp#L422)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -403,48 +448,6 @@ auto result = object.move_and_slide(box, displacement, mask, ignore);
 
 **Trade-offs and warnings.** Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
 
-<a id="epok-collisionworld-note-enabled-1"></a>
-
-## `epok::CollisionWorld::note_enabled`
-
-**Purpose.** Performs `note enabled` as part of bounded AABB collision queries and movement.
-
-**Exact declaration**
-
-```cpp
-void note_enabled(size_t index)
-```
-
-- **Declared at:** [line 260](../../../runtime/collision.hpp#L260)
-- **Kind:** `cxx method`
-
-**Parameters**
-
-| Name | Type | Role | Meaning |
-| --- | --- | --- | --- |
-| `index` | `size_t` | Input | Value supplied for `index`. See the exact type and module contract. |
-
-**Returns.** No value is returned; observe the documented state change or callback.
-
-**Use it when.** You need bounded AABB collision queries and movement and the preconditions in the declaration are already satisfied.
-
-**Usage pattern**
-
-```cpp
-#include "collision.hpp"
-
-// Assume these named values have been initialized with valid data:
-// size_t index
-
-epok::CollisionWorld& object = /* obtain a valid instance */;
-
-object.note_enabled(index);
-```
-
-**Why choose it.** It provides direct, allocation-conscious access to bounded AABB collision queries and movement. No exception-based error path is implied by the signature.
-
-**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
-
 <a id="epok-collisionworld-overlap-1"></a>
 
 ## `epok::CollisionWorld::overlap`
@@ -457,7 +460,7 @@ object.note_enabled(index);
 size_t overlap(const AabbT<Number>& box,uint16_t* output,size_t output_capacity,uint32_t mask=0xffffffffu,int ignore=-1,bool triggers=true) const
 ```
 
-- **Declared at:** [line 299](../../../runtime/collision.hpp#L299)
+- **Declared at:** [line 370](../../../runtime/collision.hpp#L370)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -509,7 +512,7 @@ auto result = object.overlap(box, output, output_capacity, mask, ignore, trigger
 SpatialHitT<Number> raycast(const Number* origin,const Number* delta,uint32_t mask=0xffffffffu,int ignore=-1,bool triggers=false) const
 ```
 
-- **Declared at:** [line 308](../../../runtime/collision.hpp#L308)
+- **Declared at:** [line 379](../../../runtime/collision.hpp#L379)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -559,7 +562,7 @@ auto result = object.raycast(origin, delta, mask, ignore, triggers);
 void raycast_batch(const RaycastQueryT<Number>* queries,SpatialHitT<Number>* results,size_t count, uint32_t mask=0xffffffffu,int ignore=-1,bool triggers=false) const
 ```
 
-- **Declared at:** [line 324](../../../runtime/collision.hpp#L324)
+- **Declared at:** [line 395](../../../runtime/collision.hpp#L395)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -611,7 +614,7 @@ object.raycast_batch(queries, results, count, mask, ignore, triggers);
 void set(size_t index,const ColliderT<Number>& collider,const Affine<Number>& matrix,bool active=true,uint32_t generation=0)
 ```
 
-- **Declared at:** [line 261](../../../runtime/collision.hpp#L261)
+- **Declared at:** [line 322](../../../runtime/collision.hpp#L322)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -663,7 +666,7 @@ object.set(index, collider, matrix, active, generation);
 bool set_cached(size_t index,const ColliderT<Number>& collider,const Affine<Number>& matrix,uint32_t revision,bool active=true,uint32_t generation=0)
 ```
 
-- **Declared at:** [line 277](../../../runtime/collision.hpp#L277)
+- **Declared at:** [line 339](../../../runtime/collision.hpp#L339)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -703,6 +706,52 @@ auto result = object.set_cached(index, collider, matrix, revision, active, gener
 
 **Trade-offs and warnings.** Check the return value; `false` is part of normal control flow for many PSX resource operations. Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
 
+<a id="epok-collisionworld-translate-1"></a>
+
+## `epok::CollisionWorld::translate`
+
+**Purpose.** A root actor's movement changes only translation.
+
+**Details.** Publish that exact world displacement without recomputing its unchanged rotated extents. A later ordinary synchronization still observes every direct source edit.
+
+**Exact declaration**
+
+```cpp
+void translate(size_t index,const Number* delta)
+```
+
+- **Declared at:** [line 364](../../../runtime/collision.hpp#L364)
+- **Kind:** `cxx method`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `index` | `size_t` | Input | Value supplied for `index`. See the exact type and module contract. |
+| `delta` | `const Number *` | Input | Value supplied for `delta`. See the exact type and module contract. |
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** Publish that exact world displacement without recomputing its unchanged rotated extents. A later ordinary synchronization still observes every direct source edit.
+
+**Usage pattern**
+
+```cpp
+#include "collision.hpp"
+
+// Assume these named values have been initialized with valid data:
+// size_t index
+// const Number * delta
+
+epok::CollisionWorld& object = /* obtain a valid instance */;
+
+object.translate(index, delta);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to bounded AABB collision queries and movement. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
+
 <a id="epok-collisionworld-update-triggers-1"></a>
 
 ## `epok::CollisionWorld::update_triggers`
@@ -715,7 +764,7 @@ auto result = object.set_cached(index, collider, matrix, revision, active, gener
 template<class Callback> void update_triggers(Callback&& callback)
 ```
 
-- **Declared at:** [line 418](../../../runtime/collision.hpp#L418)
+- **Declared at:** [line 489](../../../runtime/collision.hpp#L489)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -760,7 +809,7 @@ object.update_triggers<Callback>(callback);
 explicit operator bool() const
 ```
 
-- **Declared at:** [line 59](../../../runtime/collision.hpp#L59)
+- **Declared at:** [line 73](../../../runtime/collision.hpp#L73)
 - **Kind:** `conversion function`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -793,7 +842,7 @@ auto result = object.operator bool();
 template<class Number> inline AabbT<Number> swept_bounds(AabbT<Number> box,const Number* delta)
 ```
 
-- **Declared at:** [line 76](../../../runtime/collision.hpp#L76)
+- **Declared at:** [line 90](../../../runtime/collision.hpp#L90)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**

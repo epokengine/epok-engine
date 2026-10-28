@@ -38,6 +38,17 @@ Texture layout and page packing are prepared offline; see
 meshes keep their existing storage paths. Geometry can move with its entity.
 Retained packets remain available within the configured budget.
 
+The generated `stream_geometry_page_count` excludes upload-only texture pages.
+For an untracked, unordered world whose complete geometry fits the pool, the
+renderer keeps that complete page set instead of rescoring every chunk against
+the camera each frame. Texture loading still borrows and releases the same pool;
+page checksums, readiness and pins remain required. Larger worlds and visibility
+tracks keep their existing bounded selection policy.
+
+Retained-packet prewarming also supports streamed meshes whose pages are already
+verified and ready. It pins each payload while consuming it and never starts I/O
+to prepare an off-screen mesh. A queued request waits if its page is unavailable.
+
 Mesh cooking preserves authored faces and UV corners: it does not subdivide
 polygons merely to fit a storage coordinate range. Each chunk uses either
 six-byte `int16[3]` or twelve-byte `int32[3]` Q12 positions. Both retain exactly

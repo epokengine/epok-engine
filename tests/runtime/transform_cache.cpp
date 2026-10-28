@@ -27,7 +27,26 @@ static void check(const std::array<Object,8>& objects,const std::array<Matrix,8>
     }
 }
 int main(){
+    epok::Affine<double> floating=epok::Affine<double>::identity();
+    floating.values[0][1]=0.5;floating.values[1][3]=4.0;
+    const auto floating_squared=floating.compose(floating);
+    assert(floating_squared.values[0][1]==1.0&&floating_squared.values[0][3]==2.0&&floating_squared.values[1][3]==8.0);
     uint32_t random=19231;
+    for(int sample=0;sample<100000;++sample){
+        Matrix a,b,expected;
+        for(int r=0;r<3;++r)for(int c=0;c<4;++c){
+            random=random*1664525u+1013904223u;int32_t x=int32_t(random);
+            random=random*1664525u+1013904223u;int32_t y=int32_t(random);
+            if(sample%2==0){x=int32_t(uint32_t(x)%16387)-8193;y=int32_t(uint32_t(y)%262147)-131073;}
+            a.values[r][c]=Q(x,Q::RAW);b.values[r][c]=Q(y,Q::RAW);
+        }
+        for(int r=0;r<3;++r)for(int c=0;c<4;++c){
+            int64_t sum=c==3?a.values[r][3].raw():0;
+            for(int k=0;k<3;++k)sum+=int64_t(a.values[r][k].raw())*b.values[k][c].raw()/4096;
+            expected.values[r][c]=Q(int32_t(sum),Q::RAW);
+        }
+        assert(equal(a.compose(b),expected));
+    }
     for(int sample=0;sample<10000;++sample){
         Matrix a,b,expected;
         for(int r=0;r<3;++r)for(int c=0;c<4;++c){
@@ -37,6 +56,7 @@ int main(){
         if(sample%2==0)for(int r=0;r<3;++r)for(int c=0;c<3;++c)if(r!=c)b.values[r][c]=0.;
         if(sample%4==0)for(int k=0;k<3;++k)b.values[k][k]=1.;
         if(sample%3==0)for(int k=0;k<3;++k)b.values[k][3]=0.;
+        if(sample%5==0)for(int r=0;r<3;++r)for(int c=0;c<3;++c)a.values[r][c]=Q(r==c?4096:0,Q::RAW);
         for(int r=0;r<3;++r)for(int c=0;c<4;++c){
             if(c==3)expected.values[r][c]=a.values[r][3];
             for(int k=0;k<3;++k)expected.values[r][c]+=a.values[r][k]*b.values[k][c];
@@ -125,6 +145,28 @@ int main(){
         assert(basis_builds==3&&equal(matrices[0],local(moving[0].transform)));
     }
     auto m=Matrix::identity();
+    {
+        std::array<Object,8> nodes;std::array<Matrix,8> path_worlds;
+        epok::TransformCache<Q,8> paths;paths.sync(nodes,path_worlds,8,local);
+        for(unsigned step=0;step<10000;++step){
+            random=random*1664525u+1013904223u;const unsigned changed=random%8;
+            auto& node=nodes[changed];
+            node.transform.position[step%3]=Q(int32_t(random%32000)-16000,Q::RAW);
+            if(step%3==0)node.transform.rotation[(step+1)%3]=Q(int32_t(random%1024)-512,Q::RAW);
+            if(step%7==0)node.parent=int((random>>8)%11)-2;
+            if(step%11==0){node.alive=!node.alive;++node.generation;}
+            const size_t target=(random>>16)%8;
+            if(!paths.sync_path(nodes,path_worlds,8,target,local))paths.sync(nodes,path_worlds,8,local);
+            Matrix expected=Matrix::identity();int chain[33],depth=0,current=int(target);
+            if(nodes[target].alive){
+                while(current>=0&&size_t(current)<8&&depth<33){chain[depth++]=current;current=nodes[current].parent;}
+                if(current<0)while(depth)expected=expected.compose(local(nodes[chain[--depth]].transform));
+            }
+            assert(equal(path_worlds[target],expected));
+            if(step%17==0){paths.sync(nodes,path_worlds,8,local);check(nodes,path_worlds,8);}
+        }
+        paths.sync(nodes,path_worlds,8,local);check(nodes,path_worlds,8);
+    }
     assert(collisions.set_cached(0,box,m,1));
     collisions.begin_sync();assert(!collisions.set_cached(0,box,m,1));assert(collisions.bounds(0));
     box.center[0]=2.;assert(collisions.set_cached(0,box,m,1));assert(collisions.bounds(0)->min[0]==1.5);
@@ -136,5 +178,16 @@ int main(){
     assert(!collisions.set_cached(0,box,m,2,true,8));assert(collisions.raycast(origin,delta,2).generation==8);
     collisions.clear();assert(collisions.set_cached(0,box,m,2));
     collisions.set(0,box,m);assert(collisions.set_cached(0,box,m,2));
+    {
+        epok::CollisionWorld<Q,1> shifted;epok::ColliderT<Q> compound;compound.enabled=true;
+        static const int16_t part[]={0,0,0,256,256,256};compound.boxes=part;compound.box_count=1;
+        for(int k=0;k<3;++k){compound.center[k]=.5;compound.half_extents[k]=.5;}
+        auto matrix=Matrix::identity();shifted.set_cached(0,compound,matrix,1);
+        const Q start[3]={-2.,.5,.5},ray[3]={4.,0.,0.},offset[3]={1.,0.,0.};
+        assert(shifted.raycast(start,ray).point[0]==0.);
+        shifted.translate(0,offset);assert(shifted.raycast(start,ray).point[0]==1.);
+        matrix.values[0][3]=1.;assert(shifted.set_cached(0,compound,matrix,1));
+        assert(shifted.raycast(start,ray).point[0]==1.);
+    }
     std::puts("Transform cache hierarchy, direct writes, lifecycle and cached collision tests passed.");
 }

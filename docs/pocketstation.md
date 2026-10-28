@@ -211,9 +211,27 @@ puts `P` as the seventh character of PocketStation programs (for example
 
 Every PocketStation app in the project is embedded in the game (about 8 KiB per
 block), so the game can copy it to a PocketStation and start it. Each call below is
-one short blocking transaction on the memory card bus (a few milliseconds); call
+one blocking operation on the memory card bus, including a roughly 16 ms
+deselected recovery interval before each command; call
 them from gameplay code, not from interrupts. Port 0 is the first memory card
-slot.
+slot; port 1 selects the second slot on hardware. Physical transfers reserve
+PSYQo's `SIO0Bus`, so controller polling cannot change the selected port or consume
+acknowledgements midway through a command. If an asynchronous memory card
+operation already owns that bus, the request returns `PocketError::Busy` without
+touching it. Receive waits are bounded and release ownership on failure.
+The polled SIO path acknowledges only I_STAT's controller bit, before resetting
+the SIO interrupt source. It preserves DMA, music-timer and VBlank edges that
+arrive during a card transaction.
+
+For frame-based code, `PocketRequest` in `pocketstation_async.hpp` queues one
+command. Call `poll(dt_us)` each tick until it is ready, then inspect `error()`,
+`received()` and `reply()`. On hardware it reserves SIO0 with the card deselected
+for at least 270 HSyncs (about 17 ms) before sending the command. Rendering and
+music continue during that interval; simulation catch-up ticks cannot shorten
+it. An unanswered address is retried at most three times with a fresh recovery
+interval. Commands that have already been sent are not automatically repeated.
+The bus reservation is released on completion or destruction and transferred
+when the request is moved. A pending request cannot be copied.
 
 ### Blueprints and Lua
 
@@ -245,6 +263,11 @@ number, date and time), `launch`, `receive`, `set_value`, `read_memory`,
 `write_memory`, `set_time`, `set_led`, `find`, `install` and the raw `call` for
 link functions written in assembly. Errors are `epok::PocketError` values with
 `epok::pocket_error_message`.
+
+Generated `PocketApp` entries include `save_offset`, the byte offset of Pocket
+Lua's 128-byte persistent sector (zero when absent). An installer that migrates
+saves can use this compiler-provided offset as the program's code size changes.
+Custom three-field `PocketApp` initializers remain valid and default it to zero.
 
 ### The link protocol
 
@@ -283,8 +306,10 @@ computer's time.
 
 Not emulated or not yet available: infrared, the program snapshots of `MCX1`
 files, and audible sound in the editor (the device shows when the speaker plays).
-Programs and games have been verified on the emulators; transfers to a physical
-PocketStation and a physical console have not been tested yet.
+Programs and games have been verified on the emulators. Dungeon's installation,
+save-preserving upgrade, save-and-exit and transfer from the native menu have also
+been verified on a physical PocketStation in slot 2 of a PSX running over serial.
+Other link operations remain primarily validated in emulation.
 
 ## Command line
 

@@ -2,7 +2,7 @@
 
 > **Header:** `"retained.hpp"` · **Tier:** Engine internal · **Source:** [open header](../../../runtime/retained.hpp)
 
-This module covers the retained module. It documents 19 public callables declared directly in this header.
+This module covers the retained module. It documents 23 public callables declared directly in this header.
 
 ## Declared types
 
@@ -15,6 +15,7 @@ This module covers the retained module. It documents 19 public callables declare
 - [`epok::FramePacketSlots::begin_frame`](#epok-framepacketslots-begin-frame-1) — Begins frame as part of the retained module.
 - [`epok::FramePacketSlots::claim`](#epok-framepacketslots-claim-1) — Performs `claim` as part of the retained module.
 - [`epok::FramePacketSlots::dynamic_low`](#epok-framepacketslots-dynamic-low-1) — Performs `dynamic low` as part of the retained module.
+- [`epok::FramePacketSlots::range_claimed`](#epok-framepacketslots-range-claimed-1) — Performs `range claimed` as part of the retained module.
 - [`epok::FramePacketSlots::run_floor`](#epok-framepacketslots-run-floor-1) — A pass emitting many packets may bump through the current free run [run_floor(), dynamic_low()) itself, exactly as allocate_dynamic(_pair) would, and store its new low end before any other allocation.
 - [`epok::FramePacketSlots::set_dynamic_low`](#epok-framepacketslots-set-dynamic-low-1) — Sets dynamic low as part of the retained module.
 - [`epok::mesh_faces_unlit`](#epok-mesh-faces-unlit-1) — An imported editable mesh owns per-face materials.
@@ -22,13 +23,16 @@ This module covers the retained module. It documents 19 public callables declare
 - [`epok::retain_mesh_packets`](#epok-retain-mesh-packets-1) — Performs `retain mesh packets` as part of the retained module.
 - [`epok::RetainedGeometry::allocate`](#epok-retainedgeometry-allocate-1) — `limit_slot` is the packet-buffer capacity.
 - [`epok::RetainedGeometry::first_slot`](#epok-retainedgeometry-first-slot-1) — Performs `first slot` as part of the retained module.
-- [`epok::RetainedGeometry::forget`](#epok-retainedgeometry-forget-1) — A reused entity slot keeps its quads; a different geometry reallocates.
-- [`epok::RetainedGeometry::invalidate_borrowed`](#epok-retainedgeometry-invalidate-borrowed-1) — Dynamic writes can replace dormant cached packets.
+- [`epok::RetainedGeometry::forget`](#epok-retainedgeometry-forget-1) — A reused entity slot keeps its resident range, including across LODs.
+- [`epok::RetainedGeometry::invalidate_borrowed`](#epok-retainedgeometry-invalidate-borrowed-1) — A descending allocation can cross protected chunks without writing them.
+- [`epok::RetainedGeometry::invalidate_borrowed`](#epok-retainedgeometry-invalidate-borrowed-2) — Dynamic writes can replace dormant cached packets.
+- [`epok::RetainedGeometry::prepare_key`](#epok-retainedgeometry-prepare-key-1) — Performs `prepare key` as part of the retained module.
 - [`epok::RetainedGeometry::quads`](#epok-retainedgeometry-quads-1) — Performs `quads` as part of the retained module.
 - [`epok::RetainedGeometry::reset`](#epok-retainedgeometry-reset-1) — Resets reset as part of the retained module.
 - [`epok::RetainedGeometry::slot_top`](#epok-retainedgeometry-slot-top-1) — First preferred fragment slot beyond the cache (not a per-frame reservation).
 - [`epok::RetainedGeometry::state`](#epok-retainedgeometry-state-1) — Performs `state` as part of the retained module.
 - [`epok::RetainedKey::operator==`](#epok-retainedkey-operator-1) — Performs `operator ==` as part of the retained module.
+- [`epok::RetainedKey::same_attributes`](#epok-retainedkey-same-attributes-1) — Performs `same attributes` as part of the retained module.
 
 <a id="epok-framepacketslots-allocate-dynamic-1"></a>
 
@@ -42,7 +46,7 @@ This module covers the retained module. It documents 19 public callables declare
 uint32_t allocate_dynamic()
 ```
 
-- **Declared at:** [line 102](../../../runtime/retained.hpp#L102)
+- **Declared at:** [line 126](../../../runtime/retained.hpp#L126)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
@@ -77,7 +81,7 @@ auto result = object.allocate_dynamic();
 uint32_t allocate_dynamic_pair()
 ```
 
-- **Declared at:** [line 111](../../../runtime/retained.hpp#L111)
+- **Declared at:** [line 135](../../../runtime/retained.hpp#L135)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
@@ -110,7 +114,7 @@ auto result = object.allocate_dynamic_pair();
 void begin_frame()
 ```
 
-- **Declared at:** [line 86](../../../runtime/retained.hpp#L86)
+- **Declared at:** [line 101](../../../runtime/retained.hpp#L101)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -143,7 +147,7 @@ object.begin_frame();
 bool claim(uint32_t first,uint32_t count)
 ```
 
-- **Declared at:** [line 93](../../../runtime/retained.hpp#L93)
+- **Declared at:** [line 117](../../../runtime/retained.hpp#L117)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -187,7 +191,7 @@ auto result = object.claim(first, count);
 uint32_t dynamic_low() const
 ```
 
-- **Declared at:** [line 87](../../../runtime/retained.hpp#L87)
+- **Declared at:** [line 102](../../../runtime/retained.hpp#L102)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
@@ -208,6 +212,50 @@ auto result = object.dynamic_low();
 
 **Trade-offs and warnings.** This is classified as **Engine internal**. Prefer a higher-level Epok service unless you need this exact control.
 
+<a id="epok-framepacketslots-range-claimed-1"></a>
+
+## `epok::FramePacketSlots::range_claimed`
+
+**Purpose.** Performs `range claimed` as part of the retained module.
+
+**Exact declaration**
+
+```cpp
+bool range_claimed(uint32_t first,uint32_t count) const
+```
+
+- **Declared at:** [line 103](../../../runtime/retained.hpp#L103)
+- **Kind:** `cxx method`; qualifiers: `const`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `first` | `uint32_t` | Input | Value supplied for `first`. See the exact type and module contract. |
+| `count` | `uint32_t` | Input | Value supplied for `count`. See the exact type and module contract. |
+
+**Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the retained module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "retained.hpp"
+
+// Assume these named values have been initialized with valid data:
+// uint32_t first
+// uint32_t count
+
+epok::FramePacketSlots& object = /* obtain a valid instance */;
+
+auto result = object.range_claimed(first, count);
+```
+
+**Why choose it.** The method is `const`, so it does not mutate the object through this API surface. The boolean result makes success, availability or state explicit without exceptions.
+
+**Trade-offs and warnings.** Check the return value; `false` is part of normal control flow for many PSX resource operations. This is classified as **Engine internal**. Prefer a higher-level Epok service unless you need this exact control.
+
 <a id="epok-framepacketslots-run-floor-1"></a>
 
 ## `epok::FramePacketSlots::run_floor`
@@ -220,7 +268,7 @@ auto result = object.dynamic_low();
 uint32_t run_floor() const
 ```
 
-- **Declared at:** [line 91](../../../runtime/retained.hpp#L91)
+- **Declared at:** [line 115](../../../runtime/retained.hpp#L115)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
@@ -253,7 +301,7 @@ auto result = object.run_floor();
 void set_dynamic_low(uint32_t low)
 ```
 
-- **Declared at:** [line 92](../../../runtime/retained.hpp#L92)
+- **Declared at:** [line 116](../../../runtime/retained.hpp#L116)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -337,7 +385,7 @@ auto result = epok::mesh_faces_unlit(geometry);
 bool faces_unlit(const MeshGeometry* source)
 ```
 
-- **Declared at:** [line 33](../../../runtime/retained.hpp#L33)
+- **Declared at:** [line 34](../../../runtime/retained.hpp#L34)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -379,7 +427,7 @@ auto result = object.faces_unlit(source);
 inline bool retain_mesh_packets(bool skeletal,bool object_lit,bool baked_colors)
 ```
 
-- **Declared at:** [line 38](../../../runtime/retained.hpp#L38)
+- **Declared at:** [line 49](../../../runtime/retained.hpp#L49)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -425,7 +473,7 @@ auto result = epok::retain_mesh_packets(skeletal, object_lit, baked_colors);
 bool allocate(size_t index,const MeshGeometry* geometry,size_t quads,uint32_t limit_slot)
 ```
 
-- **Declared at:** [line 163](../../../runtime/retained.hpp#L163)
+- **Declared at:** [line 205](../../../runtime/retained.hpp#L205)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -473,7 +521,7 @@ auto result = object.allocate(index, geometry, quads, limit_slot);
 uint32_t first_slot(size_t index) const
 ```
 
-- **Declared at:** [line 182](../../../runtime/retained.hpp#L182)
+- **Declared at:** [line 257](../../../runtime/retained.hpp#L257)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -507,7 +555,7 @@ auto result = object.first_slot(index);
 
 ## `epok::RetainedGeometry::forget`
 
-**Purpose.** A reused entity slot keeps its quads; a different geometry reallocates.
+**Purpose.** A reused entity slot keeps its resident range, including across LODs.
 
 **Exact declaration**
 
@@ -515,7 +563,7 @@ auto result = object.first_slot(index);
 void forget(size_t index)
 ```
 
-- **Declared at:** [line 157](../../../runtime/retained.hpp#L157)
+- **Declared at:** [line 181](../../../runtime/retained.hpp#L181)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -549,6 +597,59 @@ object.forget(index);
 
 ## `epok::RetainedGeometry::invalidate_borrowed`
 
+**Purpose.** A descending allocation can cross protected chunks without writing them.
+
+**Details.** Keep their attributes and invalidate only the dormant chunks it borrowed.
+
+**Exact declaration**
+
+```cpp
+template<size_t Capacity,class Borrowed> void invalidate_borrowed(unsigned parity,uint32_t first_slot, const FramePacketSlots<Capacity>& slots,Borrowed borrowed)
+```
+
+- **Declared at:** [line 231](../../../runtime/retained.hpp#L231)
+- **Kind:** `function template`; qualifiers: `template`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `parity` | `unsigned int` | Input | Value supplied for `parity`. See the exact type and module contract. |
+| `first_slot` | `uint32_t` | Input | Value supplied for `first_slot`. See the exact type and module contract. |
+| `slots` | `const FramePacketSlots<Capacity> &` | Input | Value supplied for `slots`. See the exact type and module contract. |
+| `borrowed` | `Borrowed` | Input | Value supplied for `borrowed`. See the exact type and module contract. |
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** Keep their attributes and invalidate only the dormant chunks it borrowed.
+
+**Usage pattern**
+
+```cpp
+#include "retained.hpp"
+
+// Replace these template arguments with types or values accepted by the declaration:
+// Capacity, Borrowed
+
+// Assume these named values have been initialized with valid data:
+// unsigned int parity
+// uint32_t first_slot
+// const FramePacketSlots<Capacity> & slots
+// Borrowed borrowed
+
+epok::RetainedGeometry& object = /* obtain a valid instance */;
+
+object.invalidate_borrowed<Capacity, Borrowed>(parity, first_slot, slots, borrowed);
+```
+
+**Why choose it.** Template dispatch is resolved at compile time and normally adds no runtime indirection.
+
+**Trade-offs and warnings.** Every instantiated type must satisfy the header's compile-time requirements; extra instantiations can increase code size. This is classified as **Engine internal**. Prefer a higher-level Epok service unless you need this exact control. Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
+
+<a id="epok-retainedgeometry-invalidate-borrowed-2"></a>
+
+## `epok::RetainedGeometry::invalidate_borrowed`
+
 **Purpose.** Dynamic writes can replace dormant cached packets.
 
 **Details.** Invalidate their keys after rendering, even for invisible objects; leave the other parity alone. The descending allocator's low watermark is conservative across claimed gaps.
@@ -559,7 +660,7 @@ object.forget(index);
 void invalidate_borrowed(unsigned parity,uint32_t first_slot)
 ```
 
-- **Declared at:** [line 175](../../../runtime/retained.hpp#L175)
+- **Declared at:** [line 222](../../../runtime/retained.hpp#L222)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -591,6 +692,54 @@ object.invalidate_borrowed(parity, first_slot);
 
 **Trade-offs and warnings.** This is classified as **Engine internal**. Prefer a higher-level Epok service unless you need this exact control.
 
+<a id="epok-retainedgeometry-prepare-key-1"></a>
+
+## `epok::RetainedGeometry::prepare_key`
+
+**Purpose.** Performs `prepare key` as part of the retained module.
+
+**Exact declaration**
+
+```cpp
+void prepare_key(size_t index,unsigned parity,const RetainedKey& key,bool allow_recolor)
+```
+
+- **Declared at:** [line 182](../../../runtime/retained.hpp#L182)
+- **Kind:** `cxx method`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `index` | `size_t` | Input | Value supplied for `index`. See the exact type and module contract. |
+| `parity` | `unsigned int` | Input | Value supplied for `parity`. See the exact type and module contract. |
+| `key` | `const RetainedKey &` | Input | Value supplied for `key`. See the exact type and module contract. |
+| `allow_recolor` | `bool` | Input | Value supplied for `allow_recolor`. See the exact type and module contract. |
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** You need the retained module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "retained.hpp"
+
+// Assume these named values have been initialized with valid data:
+// size_t index
+// unsigned int parity
+// const RetainedKey & key
+// bool allow_recolor
+
+epok::RetainedGeometry& object = /* obtain a valid instance */;
+
+object.prepare_key(index, parity, key, allow_recolor);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to the retained module. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** This is classified as **Engine internal**. Prefer a higher-level Epok service unless you need this exact control. Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
+
 <a id="epok-retainedgeometry-quads-1"></a>
 
 ## `epok::RetainedGeometry::quads`
@@ -603,7 +752,7 @@ object.invalidate_borrowed(parity, first_slot);
 RetainedQuad* quads(size_t index)
 ```
 
-- **Declared at:** [line 181](../../../runtime/retained.hpp#L181)
+- **Declared at:** [line 256](../../../runtime/retained.hpp#L256)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -645,7 +794,7 @@ auto result = object.quads(index);
 void reset()
 ```
 
-- **Declared at:** [line 155](../../../runtime/retained.hpp#L155)
+- **Declared at:** [line 179](../../../runtime/retained.hpp#L179)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -678,7 +827,7 @@ object.reset();
 uint32_t slot_top() const
 ```
 
-- **Declared at:** [line 159](../../../runtime/retained.hpp#L159)
+- **Declared at:** [line 201](../../../runtime/retained.hpp#L201)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
@@ -711,7 +860,7 @@ auto result = object.slot_top();
 State& state(size_t index)
 ```
 
-- **Declared at:** [line 180](../../../runtime/retained.hpp#L180)
+- **Declared at:** [line 255](../../../runtime/retained.hpp#L255)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -753,7 +902,7 @@ auto result = object.state(index);
 bool operator==(const RetainedKey& o) const
 ```
 
-- **Declared at:** [line 47](../../../runtime/retained.hpp#L47)
+- **Declared at:** [line 63](../../../runtime/retained.hpp#L63)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -777,6 +926,48 @@ bool operator==(const RetainedKey& o) const
 epok::RetainedKey& object = /* obtain a valid instance */;
 
 auto result = object.operator==(o);
+```
+
+**Why choose it.** The method is `const`, so it does not mutate the object through this API surface. The boolean result makes success, availability or state explicit without exceptions.
+
+**Trade-offs and warnings.** Check the return value; `false` is part of normal control flow for many PSX resource operations. This is classified as **Engine internal**. Prefer a higher-level Epok service unless you need this exact control. Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
+
+<a id="epok-retainedkey-same-attributes-1"></a>
+
+## `epok::RetainedKey::same_attributes`
+
+**Purpose.** Performs `same attributes` as part of the retained module.
+
+**Exact declaration**
+
+```cpp
+bool same_attributes(const RetainedKey& o) const
+```
+
+- **Declared at:** [line 58](../../../runtime/retained.hpp#L58)
+- **Kind:** `cxx method`; qualifiers: `const`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `o` | `const RetainedKey &` | Input | Value supplied for `o`. See the exact type and module contract. |
+
+**Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the retained module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "retained.hpp"
+
+// Assume these named values have been initialized with valid data:
+// const RetainedKey & o
+
+epok::RetainedKey& object = /* obtain a valid instance */;
+
+auto result = object.same_attributes(o);
 ```
 
 **Why choose it.** The method is `const`, so it does not mutate the object through this API surface. The boolean result makes success, availability or state explicit without exceptions.

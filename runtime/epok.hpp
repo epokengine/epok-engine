@@ -13,6 +13,7 @@
 #include "display.hh"
 #include "text.hpp"
 #include "input.hpp"
+#include "rumble.hpp"
 #include "memory_card.hpp"
 #include "time.hpp"
 #include "collision.hpp"
@@ -103,7 +104,9 @@ struct PerformanceStats {
            skeletal_scanlines=0,skeletal_bone_matrices=0,
            skeletal_cpu_vertices=0,skeletal_decoded_vertices=0,
            // Visible chunks intentionally omitted by the bounded page working set.
-           stream_budget_skipped_chunks=0;
+           stream_budget_skipped_chunks=0,
+           scripts_scanlines=0,animation_scanlines=0,motion_scanlines=0,
+           audio_scanlines=0,static_mesh_scanlines=0,dynamic_mesh_scanlines=0;
 };
 extern PerformanceStats performance_stats;
 struct SkeletalQueryStats {
@@ -327,6 +330,9 @@ bool set_active(ActorData* entity,bool active);
 bool is_active(const ActorData* entity);
 // Same test for a slot index; skips the pointer validation of is_active.
 bool is_active_slot(size_t index);
+// Size and FNV-1a hash of an external scene's SCENEnn.BIN. The editor writes
+// them into the linked executable, so a file from another build never loads.
+struct SceneFileRecord {uint32_t bytes,hash;};
 bool request_scene(size_t index);
 bool request_scene(const char* name);
 bool request_scene(size_t index,const TransitionOptions& options);
@@ -349,8 +355,35 @@ size_t overlap(const Aabb& box,DataHandle* output,size_t capacity,uint32_t mask=
 SpatialHit query_ground(const ActorData& entity,Fixed distance,uint32_t mask=0xffffffffu);
 inline DataHandle hit_entity(const SpatialHit& hit) { return hit.entity<0?DataHandle{}:DataHandle{uint16_t(hit.entity),hit.generation}; }
 MoveResult move_and_slide(ActorData& entity,const Fixed* world_displacement,uint32_t mask=0xffffffffu);
+// Explicit batch: synchronize the world once, then update only actors changed
+// during this batch. Movement publishes its new bounds for subsequent queries.
+// Call sync() after other direct collider/transform edits. Do not keep across ticks.
+class SpatialQueryBatch {
+  mutable bool ready=false;
+  void ensure() const;
+public:
+  SpatialQueryBatch()=default;
+  void sync(ActorData& entity);
+    // Publish edits only if this batch has already observed the world. Before
+    // its first query a full synchronization will see those edits naturally.
+    void changed(ActorData& entity){if(ready)sync(entity);}
+  SpatialHit raycast(const Fixed* origin,const Fixed* displacement,uint32_t mask=0xffffffffu,const ActorData* ignore=nullptr,bool triggers=false) const;
+  void raycast_batch(const RaycastQuery* queries,SpatialHit* results,size_t count,uint32_t mask=0xffffffffu,const ActorData* ignore=nullptr,bool triggers=false) const;
+  MoveResult move_and_slide(ActorData& entity,const Fixed* displacement,uint32_t mask=0xffffffffu);
+};
 // Call after an intentional teleport/cut to snap visual position history.
 void reset_motion_interpolation();
+// Queue resident baked/unlit geometry, including inactive unlit actor pools,
+// for bounded packet preparation. Animated lighting remains on the normal path.
+// Both GPU parities are prepared opportunistically; visible meshes still draw
+// completely through the normal path if a request has not finished yet.
+bool prewarm_geometry(ActorData* entity);
+// Coarse diagnostic for the most recently completed draw of this data slot.
+uint32_t rendered_actor_scanlines(size_t index);
+// Opaque menus can hide 3D geometry, billboards and shadows while keeping the
+// camera, audio, scene state and authored HUD alive. Scene changes reset this.
+inline bool world3d_visible=true;
+inline void set_world3d_visible(bool visible){world3d_visible=visible;}
 bool collider_aabb(const ActorData& entity,Aabb& output);
 VertexSample skeletal_sample_vertex(const ActorData* entity,uint32_t vertex,PoseKind pose,CoordinateSpace space);
 VertexSamples4 skeletal_sample_vertices(const ActorData* entity,VertexIndexBatch4 indices,PoseKind pose,CoordinateSpace space);

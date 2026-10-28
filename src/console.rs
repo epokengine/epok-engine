@@ -4,6 +4,7 @@ use imgui::{InputTextCallbackHandler, InputTextMultilineCallback, TextCallbackDa
 use std::path::{Path, PathBuf};
 
 pub struct State {
+    pub error: Option<String>,
     snapshot: Vec<(String, String)>,
     text: String,
     cursor: usize,
@@ -18,6 +19,7 @@ pub struct State {
 impl Default for State {
     fn default() -> Self {
         Self {
+            error: None,
             snapshot: Vec::new(),
             text: String::new(),
             cursor: 0,
@@ -117,6 +119,12 @@ pub fn draw(ui: &Ui, e: &mut Editor) {
         ui.same_line();
         ui.text_disabled("Select text / Ctrl+C to copy");
         ui.separator();
+        if let Some(error) = &e.console.error {
+            let _color = ui.push_style_color(imgui::StyleColor::Text, [1., 0.3, 0.3, 1.]);
+            let _wrap = ui.push_text_wrap_pos();
+            ui.text(format!("Error: {error}"));
+            ui.separator();
+        }
         let size = ui.content_region_avail().map(|v| v.max(1.));
         let _background = ui.push_style_color(imgui::StyleColor::FrameBg, crate::gui::gray(28));
         ui.input_text_multiline("##console-output", &mut e.console.text, size)

@@ -2,11 +2,11 @@
 
 > **Header:** `"epok.hpp"` · **Tier:** Epok runtime API · **Source:** [open header](../../../runtime/epok.hpp)
 
-This module covers the epok module. It documents 54 public callables declared directly in this header.
+This module covers the epok module. It documents 63 public callables declared directly in this header.
 
 ## Declared types
 
-`epok::Aabb`, `epok::Actor`, `epok::ActorData`, `epok::AnimationClip`, `epok::Animator`, `epok::AudioSource`, `epok::BlobShadow`, `epok::Bone`, `epok::BonePose`, `epok::BoneSample`, `epok::BoneTrack`, `epok::CameraSettings`, `epok::Canvas`, `epok::ChunkVisibility`, `epok::Collider`, `epok::CoordinateSpace`, `epok::DataHandle`, `epok::Fixed`, `epok::Focusable`, `epok::FocusKind`, `epok::Image`, `epok::ImageTiling`, `epok::LayoutContainer`, `epok::LayoutElement`, `epok::LayoutKind`, `epok::Light`, `epok::LightingEnvironment`, `epok::LightingStats`, `epok::LightMode`, `epok::LightType`, `epok::Material`, `epok::MaterialSnapshot`, `epok::MeshDataState`, `epok::MeshGeometry`, `epok::MeshLighting`, `epok::MeshQuad`, `epok::MeshStats`, `epok::MeshVertexError`, `epok::MeshVertexSample`, `epok::MoveResult`, `epok::MusicStats`, `epok::PaletteAnimationState`, `epok::ParticleEmitterState`, `epok::PerformanceStats`, `epok::PoseKind`, `epok::ProgressBar`, `epok::RaycastQuery`, `epok::ReceiveLighting`, `epok::RectTransform`, `epok::SkeletalError`, `epok::SkeletalMesh`, `epok::SkeletalPlaybackState`, `epok::SkeletalQueryStats`, `epok::SkeletalStorage`, `epok::SpatialHit`, `epok::SpritePlaybackState`, `epok::Transform`, `epok::VertexFrame`, `epok::VertexIndexBatch4`, `epok::VertexSample`, `epok::VertexSamples4`, `epok::WorldAffineSample`
+`epok::Aabb`, `epok::Actor`, `epok::ActorData`, `epok::AnimationClip`, `epok::Animator`, `epok::AudioSource`, `epok::BlobShadow`, `epok::Bone`, `epok::BonePose`, `epok::BoneSample`, `epok::BoneTrack`, `epok::CameraSettings`, `epok::Canvas`, `epok::ChunkVisibility`, `epok::Collider`, `epok::CoordinateSpace`, `epok::DataHandle`, `epok::Fixed`, `epok::Focusable`, `epok::FocusKind`, `epok::Image`, `epok::ImageTiling`, `epok::LayoutContainer`, `epok::LayoutElement`, `epok::LayoutKind`, `epok::Light`, `epok::LightingEnvironment`, `epok::LightingStats`, `epok::LightMode`, `epok::LightType`, `epok::Material`, `epok::MaterialSnapshot`, `epok::MeshDataState`, `epok::MeshGeometry`, `epok::MeshLighting`, `epok::MeshQuad`, `epok::MeshStats`, `epok::MeshVertexError`, `epok::MeshVertexSample`, `epok::MoveResult`, `epok::MusicStats`, `epok::PaletteAnimationState`, `epok::ParticleEmitterState`, `epok::PerformanceStats`, `epok::PoseKind`, `epok::ProgressBar`, `epok::RaycastQuery`, `epok::ReceiveLighting`, `epok::RectTransform`, `epok::SceneFileRecord`, `epok::SkeletalError`, `epok::SkeletalMesh`, `epok::SkeletalPlaybackState`, `epok::SkeletalQueryStats`, `epok::SkeletalStorage`, `epok::SpatialHit`, `epok::SpatialQueryBatch`, `epok::SpritePlaybackState`, `epok::Transform`, `epok::VertexFrame`, `epok::VertexIndexBatch4`, `epok::VertexSample`, `epok::VertexSamples4`, `epok::WorldAffineSample`
 
 ## Callable index
 
@@ -42,10 +42,12 @@ This module covers the epok module. It documents 54 public callables declared di
 - [`epok::mesh_geometry_state`](#epok-mesh-geometry-state-1) — These are public gameplay entry points invoked from generated script translation units.
 - [`epok::move_and_slide`](#epok-move-and-slide-1) — Performs `move and slide` as part of the epok module.
 - [`epok::overlap`](#epok-overlap-1) — Performs `overlap` as part of the epok module.
+- [`epok::prewarm_geometry`](#epok-prewarm-geometry-1) — Queue resident baked/unlit geometry, including inactive unlit actor pools, for bounded packet preparation.
 - [`epok::query_ground`](#epok-query-ground-1) — Performs `query ground` as part of the epok module.
 - [`epok::raycast`](#epok-raycast-1) — Spatial queries use world coordinates.
 - [`epok::raycast_batch`](#epok-raycast-batch-1) — One synchronized world snapshot for independent queries.
 - [`epok::remove_runtime_owner`](#epok-remove-runtime-owner-1) — Removes runtime owner as part of the epok module.
+- [`epok::rendered_actor_scanlines`](#epok-rendered-actor-scanlines-1) — Coarse diagnostic for the most recently completed draw of this data slot.
 - [`epok::request_mesh_geometry`](#epok-request-mesh-geometry-1) — Requests mesh geometry as part of the epok module.
 - [`epok::request_scene`](#epok-request-scene-1) — Requests scene as part of the epok module.
 - [`epok::request_scene`](#epok-request-scene-2) — Requests scene as part of the epok module.
@@ -60,10 +62,17 @@ This module covers the epok module. It documents 54 public callables declared di
 - [`epok::scene_waiting`](#epok-scene-waiting-1) — Performs `scene waiting` as part of the epok module.
 - [`epok::set_active`](#epok-set-active-1) — Sets active as part of the epok module.
 - [`epok::set_active_camera`](#epok-set-active-camera-1) — Sets active camera as part of the epok module.
+- [`epok::set_world3d_visible`](#epok-set-world3d-visible-1) — Sets world3d visible as part of the epok module.
 - [`epok::skeletal_sample_bone`](#epok-skeletal-sample-bone-1) — Performs `skeletal sample bone` as part of the epok module.
 - [`epok::skeletal_sample_vertex`](#epok-skeletal-sample-vertex-1) — Performs `skeletal sample vertex` as part of the epok module.
 - [`epok::skeletal_sample_vertices`](#epok-skeletal-sample-vertices-1) — Performs `skeletal sample vertices` as part of the epok module.
 - [`epok::skeletal_world_point`](#epok-skeletal-world-point-1) — Performs `skeletal world point` as part of the epok module.
+- [`epok::SpatialQueryBatch::changed`](#epok-spatialquerybatch-changed-1) — Publish edits only if this batch has already observed the world.
+- [`epok::SpatialQueryBatch::move_and_slide`](#epok-spatialquerybatch-move-and-slide-1) — Performs `move and slide` as part of the epok module.
+- [`epok::SpatialQueryBatch::raycast`](#epok-spatialquerybatch-raycast-1) — Performs `raycast` as part of the epok module.
+- [`epok::SpatialQueryBatch::raycast_batch`](#epok-spatialquerybatch-raycast-batch-1) — Performs `raycast batch` as part of the epok module.
+- [`epok::SpatialQueryBatch::SpatialQueryBatch`](#epok-spatialquerybatch-spatialquerybatch-1) — Constructs `epok::SpatialQueryBatch` for the epok module.
+- [`epok::SpatialQueryBatch::sync`](#epok-spatialquerybatch-sync-1) — Performs `sync` as part of the epok module.
 
 <a id="epok-activate-texture-bank-1"></a>
 
@@ -77,7 +86,7 @@ This module covers the epok module. It documents 54 public callables declared di
 void activate_texture_bank(const Texture* textures)
 ```
 
-- **Declared at:** [line 341](../../../runtime/epok.hpp#L341)
+- **Declared at:** [line 348](../../../runtime/epok.hpp#L348)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -117,7 +126,7 @@ epok::activate_texture_bank(textures);
 DataHandle active_camera()
 ```
 
-- **Declared at:** [line 339](../../../runtime/epok.hpp#L339)
+- **Declared at:** [line 346](../../../runtime/epok.hpp#L346)
 - **Kind:** `function decl`
 
 **Returns.** Returns `DataHandle`. Check the purpose and failure notes before using the value.
@@ -148,7 +157,7 @@ auto result = epok::active_camera();
 template<class T>T& add()
 ```
 
-- **Declared at:** [line 287](../../../runtime/epok.hpp#L287)
+- **Declared at:** [line 291](../../../runtime/epok.hpp#L291)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Returns.** Returns `T &`. Check the purpose and failure notes before using the value.
@@ -184,7 +193,7 @@ auto result = object.add<T>();
 template<class T>T& component()
 ```
 
-- **Declared at:** [line 285](../../../runtime/epok.hpp#L285)
+- **Declared at:** [line 289](../../../runtime/epok.hpp#L289)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Returns.** Returns `T &`. Check the purpose and failure notes before using the value.
@@ -220,7 +229,7 @@ auto result = object.component<T>();
 template<class T>T* get()
 ```
 
-- **Declared at:** [line 286](../../../runtime/epok.hpp#L286)
+- **Declared at:** [line 290](../../../runtime/epok.hpp#L290)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Returns.** Returns `T *`. Check the purpose and failure notes before using the value.
@@ -256,7 +265,7 @@ auto result = object.get<T>();
 template<class T>void remove()
 ```
 
-- **Declared at:** [line 288](../../../runtime/epok.hpp#L288)
+- **Declared at:** [line 292](../../../runtime/epok.hpp#L292)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -292,7 +301,7 @@ object.remove<T>();
 void set_name(const char* value)
 ```
 
-- **Declared at:** [line 284](../../../runtime/epok.hpp#L284)
+- **Declared at:** [line 288](../../../runtime/epok.hpp#L288)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -334,7 +343,7 @@ object.set_name(value);
 ActorData* allocate_actor_data(const char* name,ActorData* parent=nullptr)
 ```
 
-- **Declared at:** [line 317](../../../runtime/epok.hpp#L317)
+- **Declared at:** [line 321](../../../runtime/epok.hpp#L321)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -376,7 +385,7 @@ auto result = epok::allocate_actor_data(name, parent);
 void advance()
 ```
 
-- **Declared at:** [line 264](../../../runtime/epok.hpp#L264)
+- **Declared at:** [line 268](../../../runtime/epok.hpp#L268)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -409,7 +418,7 @@ object.advance();
 void pause()
 ```
 
-- **Declared at:** [line 263](../../../runtime/epok.hpp#L263)
+- **Declared at:** [line 267](../../../runtime/epok.hpp#L267)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -442,7 +451,7 @@ object.pause();
 bool play(int index,bool loop=true)
 ```
 
-- **Declared at:** [line 262](../../../runtime/epok.hpp#L262)
+- **Declared at:** [line 266](../../../runtime/epok.hpp#L266)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -486,7 +495,7 @@ auto result = object.play(index, loop);
 void resume()
 ```
 
-- **Declared at:** [line 263](../../../runtime/epok.hpp#L263)
+- **Declared at:** [line 267](../../../runtime/epok.hpp#L267)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -519,7 +528,7 @@ object.resume();
 void stop()
 ```
 
-- **Declared at:** [line 263](../../../runtime/epok.hpp#L263)
+- **Declared at:** [line 267](../../../runtime/epok.hpp#L267)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -552,7 +561,7 @@ object.stop();
 bool is_playing() const
 ```
 
-- **Declared at:** [line 61](../../../runtime/epok.hpp#L61)
+- **Declared at:** [line 63](../../../runtime/epok.hpp#L63)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -585,7 +594,7 @@ auto result = object.is_playing();
 void play()
 ```
 
-- **Declared at:** [line 61](../../../runtime/epok.hpp#L61)
+- **Declared at:** [line 63](../../../runtime/epok.hpp#L63)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -618,7 +627,7 @@ object.play();
 void stop()
 ```
 
-- **Declared at:** [line 61](../../../runtime/epok.hpp#L61)
+- **Declared at:** [line 63](../../../runtime/epok.hpp#L63)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -651,7 +660,7 @@ object.stop();
 bool camera_project(const Fixed* world_point,Fixed* screen_xy)
 ```
 
-- **Declared at:** [line 340](../../../runtime/epok.hpp#L340)
+- **Declared at:** [line 347](../../../runtime/epok.hpp#L347)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -693,7 +702,7 @@ auto result = epok::camera_project(world_point, screen_xy);
 bool collider_aabb(const ActorData& entity,Aabb& output)
 ```
 
-- **Declared at:** [line 353](../../../runtime/epok.hpp#L353)
+- **Declared at:** [line 387](../../../runtime/epok.hpp#L387)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -735,7 +744,7 @@ auto result = epok::collider_aabb(entity, output);
 size_t current_scene()
 ```
 
-- **Declared at:** [line 333](../../../runtime/epok.hpp#L333)
+- **Declared at:** [line 340](../../../runtime/epok.hpp#L340)
 - **Kind:** `function decl`
 
 **Returns.** Returns `size_t`. Check the purpose and failure notes before using the value.
@@ -766,7 +775,7 @@ auto result = epok::current_scene();
 ActorData* get() const
 ```
 
-- **Declared at:** [line 320](../../../runtime/epok.hpp#L320)
+- **Declared at:** [line 324](../../../runtime/epok.hpp#L324)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `ActorData *`. Check the purpose and failure notes before using the value.
@@ -799,7 +808,7 @@ auto result = object.get();
 explicit operator bool() const
 ```
 
-- **Declared at:** [line 321](../../../runtime/epok.hpp#L321)
+- **Declared at:** [line 325](../../../runtime/epok.hpp#L325)
 - **Kind:** `conversion function`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -832,7 +841,7 @@ auto result = object.operator bool();
 bool destroy_actor_data(ActorData* entity)
 ```
 
-- **Declared at:** [line 324](../../../runtime/epok.hpp#L324)
+- **Declared at:** [line 328](../../../runtime/epok.hpp#L328)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -874,7 +883,7 @@ auto result = epok::destroy_actor_data(entity);
 int entity_index(const ActorData* entity)
 ```
 
-- **Declared at:** [line 316](../../../runtime/epok.hpp#L316)
+- **Declared at:** [line 320](../../../runtime/epok.hpp#L320)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -914,7 +923,7 @@ auto result = epok::entity_index(entity);
 ActorData* find_actor_data(const char* name)
 ```
 
-- **Declared at:** [line 312](../../../runtime/epok.hpp#L312)
+- **Declared at:** [line 316](../../../runtime/epok.hpp#L316)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -954,7 +963,7 @@ auto result = epok::find_actor_data(name);
 WorldAffineSample gameplay_world_affine(const ActorData* entity)
 ```
 
-- **Declared at:** [line 361](../../../runtime/epok.hpp#L361)
+- **Declared at:** [line 395](../../../runtime/epok.hpp#L395)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -994,7 +1003,7 @@ auto result = epok::gameplay_world_affine(entity);
 DataHandle handle(const ActorData* entity)
 ```
 
-- **Declared at:** [line 323](../../../runtime/epok.hpp#L323)
+- **Declared at:** [line 327](../../../runtime/epok.hpp#L327)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1034,7 +1043,7 @@ auto result = epok::handle(entity);
 inline DataHandle hit_entity(const SpatialHit& hit)
 ```
 
-- **Declared at:** [line 349](../../../runtime/epok.hpp#L349)
+- **Declared at:** [line 356](../../../runtime/epok.hpp#L356)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1074,7 +1083,7 @@ auto result = epok::hit_entity(hit);
 bool is_active(const ActorData* entity)
 ```
 
-- **Declared at:** [line 326](../../../runtime/epok.hpp#L326)
+- **Declared at:** [line 330](../../../runtime/epok.hpp#L330)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1114,7 +1123,7 @@ auto result = epok::is_active(entity);
 bool is_active_slot(size_t index)
 ```
 
-- **Declared at:** [line 328](../../../runtime/epok.hpp#L328)
+- **Declared at:** [line 332](../../../runtime/epok.hpp#L332)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1156,7 +1165,7 @@ auto result = epok::is_active_slot(index);
 MeshDataState mesh_geometry_state(const MeshGeometry* geometry)
 ```
 
-- **Declared at:** [line 358](../../../runtime/epok.hpp#L358)
+- **Declared at:** [line 392](../../../runtime/epok.hpp#L392)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1196,7 +1205,7 @@ auto result = epok::mesh_geometry_state(geometry);
 MoveResult move_and_slide(ActorData& entity,const Fixed* world_displacement,uint32_t mask=0xffffffffu)
 ```
 
-- **Declared at:** [line 350](../../../runtime/epok.hpp#L350)
+- **Declared at:** [line 357](../../../runtime/epok.hpp#L357)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1240,7 +1249,7 @@ auto result = epok::move_and_slide(entity, world_displacement, mask);
 size_t overlap(const Aabb& box,DataHandle* output,size_t capacity,uint32_t mask=0xffffffffu,const ActorData* ignore=nullptr,bool triggers=true)
 ```
 
-- **Declared at:** [line 347](../../../runtime/epok.hpp#L347)
+- **Declared at:** [line 354](../../../runtime/epok.hpp#L354)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1278,6 +1287,48 @@ auto result = epok::overlap(box, output, capacity, mask, ignore, triggers);
 
 **Trade-offs and warnings.** Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
 
+<a id="epok-prewarm-geometry-1"></a>
+
+## `epok::prewarm_geometry`
+
+**Purpose.** Queue resident baked/unlit geometry, including inactive unlit actor pools, for bounded packet preparation.
+
+**Details.** Animated lighting remains on the normal path. Both GPU parities are prepared opportunistically; visible meshes still draw completely through the normal path if a request has not finished yet.
+
+**Exact declaration**
+
+```cpp
+bool prewarm_geometry(ActorData* entity)
+```
+
+- **Declared at:** [line 380](../../../runtime/epok.hpp#L380)
+- **Kind:** `function decl`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `entity` | `ActorData *` | Input/output; inspect the function contract | Value supplied for `entity`. See the exact type and module contract. |
+
+**Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
+
+**Use it when.** Animated lighting remains on the normal path. Both GPU parities are prepared opportunistically; visible meshes still draw completely through the normal path if a request has not finished yet.
+
+**Usage pattern**
+
+```cpp
+#include "epok.hpp"
+
+// Assume these named values have been initialized with valid data:
+// ActorData * entity
+
+auto result = epok::prewarm_geometry(entity);
+```
+
+**Why choose it.** The boolean result makes success, availability or state explicit without exceptions.
+
+**Trade-offs and warnings.** Check the return value; `false` is part of normal control flow for many PSX resource operations. Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
+
 <a id="epok-query-ground-1"></a>
 
 ## `epok::query_ground`
@@ -1290,7 +1341,7 @@ auto result = epok::overlap(box, output, capacity, mask, ignore, triggers);
 SpatialHit query_ground(const ActorData& entity,Fixed distance,uint32_t mask=0xffffffffu)
 ```
 
-- **Declared at:** [line 348](../../../runtime/epok.hpp#L348)
+- **Declared at:** [line 355](../../../runtime/epok.hpp#L355)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1336,7 +1387,7 @@ auto result = epok::query_ground(entity, distance, mask);
 SpatialHit raycast(const Fixed* origin,const Fixed* displacement,uint32_t mask=0xffffffffu,const ActorData* ignore=nullptr,bool triggers=false)
 ```
 
-- **Declared at:** [line 343](../../../runtime/epok.hpp#L343)
+- **Declared at:** [line 350](../../../runtime/epok.hpp#L350)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1386,7 +1437,7 @@ auto result = epok::raycast(origin, displacement, mask, ignore, triggers);
 void raycast_batch(const RaycastQuery* queries,SpatialHit* results,size_t count,uint32_t mask=0xffffffffu,const ActorData* ignore=nullptr,bool triggers=false)
 ```
 
-- **Declared at:** [line 346](../../../runtime/epok.hpp#L346)
+- **Declared at:** [line 353](../../../runtime/epok.hpp#L353)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1436,7 +1487,7 @@ epok::raycast_batch(queries, results, count, mask, ignore, triggers);
 void remove_runtime_owner(size_t index)
 ```
 
-- **Declared at:** [line 363](../../../runtime/epok.hpp#L363)
+- **Declared at:** [line 397](../../../runtime/epok.hpp#L397)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1464,6 +1515,46 @@ epok::remove_runtime_owner(index);
 
 **Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
 
+<a id="epok-rendered-actor-scanlines-1"></a>
+
+## `epok::rendered_actor_scanlines`
+
+**Purpose.** Coarse diagnostic for the most recently completed draw of this data slot.
+
+**Exact declaration**
+
+```cpp
+uint32_t rendered_actor_scanlines(size_t index)
+```
+
+- **Declared at:** [line 382](../../../runtime/epok.hpp#L382)
+- **Kind:** `function decl`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `index` | `size_t` | Input | Value supplied for `index`. See the exact type and module contract. |
+
+**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the epok module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "epok.hpp"
+
+// Assume these named values have been initialized with valid data:
+// size_t index
+
+auto result = epok::rendered_actor_scanlines(index);
+```
+
+**Why choose it.** The API maps closely to PSX GPU work, giving predictable ordering and low overhead.
+
+**Trade-offs and warnings.** Respect packet lifetime, ordering-table direction and per-frame GPU/VRAM budgets; submission is not a desktop immediate-mode draw call.
+
 <a id="epok-request-mesh-geometry-1"></a>
 
 ## `epok::request_mesh_geometry`
@@ -1476,7 +1567,7 @@ epok::remove_runtime_owner(index);
 bool request_mesh_geometry(const MeshGeometry* geometry)
 ```
 
-- **Declared at:** [line 359](../../../runtime/epok.hpp#L359)
+- **Declared at:** [line 393](../../../runtime/epok.hpp#L393)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1516,7 +1607,7 @@ auto result = epok::request_mesh_geometry(geometry);
 bool request_scene(const char* name)
 ```
 
-- **Declared at:** [line 330](../../../runtime/epok.hpp#L330)
+- **Declared at:** [line 337](../../../runtime/epok.hpp#L337)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1556,7 +1647,7 @@ auto result = epok::request_scene(name);
 bool request_scene(const char* name,const TransitionOptions& options)
 ```
 
-- **Declared at:** [line 332](../../../runtime/epok.hpp#L332)
+- **Declared at:** [line 339](../../../runtime/epok.hpp#L339)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1598,7 +1689,7 @@ auto result = epok::request_scene(name, options);
 bool request_scene(size_t index)
 ```
 
-- **Declared at:** [line 329](../../../runtime/epok.hpp#L329)
+- **Declared at:** [line 336](../../../runtime/epok.hpp#L336)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1638,7 +1729,7 @@ auto result = epok::request_scene(index);
 bool request_scene(size_t index,const TransitionOptions& options)
 ```
 
-- **Declared at:** [line 331](../../../runtime/epok.hpp#L331)
+- **Declared at:** [line 338](../../../runtime/epok.hpp#L338)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1680,7 +1771,7 @@ auto result = epok::request_scene(index, options);
 void reset_motion_interpolation()
 ```
 
-- **Declared at:** [line 352](../../../runtime/epok.hpp#L352)
+- **Declared at:** [line 375](../../../runtime/epok.hpp#L375)
 - **Kind:** `function decl`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1711,7 +1802,7 @@ epok::reset_motion_interpolation();
 void reset_runtime_services()
 ```
 
-- **Declared at:** [line 362](../../../runtime/epok.hpp#L362)
+- **Declared at:** [line 396](../../../runtime/epok.hpp#L396)
 - **Kind:** `function decl`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1742,7 +1833,7 @@ epok::reset_runtime_services();
 MeshVertexSample sample_mesh_vertex(const ActorData* entity,uint32_t vertex,CoordinateSpace space)
 ```
 
-- **Declared at:** [line 360](../../../runtime/epok.hpp#L360)
+- **Declared at:** [line 394](../../../runtime/epok.hpp#L394)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1786,7 +1877,7 @@ auto result = epok::sample_mesh_vertex(entity, vertex, space);
 bool scene_loading()
 ```
 
-- **Declared at:** [line 334](../../../runtime/epok.hpp#L334)
+- **Declared at:** [line 341](../../../runtime/epok.hpp#L341)
 - **Kind:** `function decl`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -1817,7 +1908,7 @@ auto result = epok::scene_loading();
 uint32_t scene_rejected_count()
 ```
 
-- **Declared at:** [line 336](../../../runtime/epok.hpp#L336)
+- **Declared at:** [line 343](../../../runtime/epok.hpp#L343)
 - **Kind:** `function decl`
 
 **Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
@@ -1848,7 +1939,7 @@ auto result = epok::scene_rejected_count();
 uint32_t scene_transition_count()
 ```
 
-- **Declared at:** [line 335](../../../runtime/epok.hpp#L335)
+- **Declared at:** [line 342](../../../runtime/epok.hpp#L342)
 - **Kind:** `function decl`
 
 **Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
@@ -1879,7 +1970,7 @@ auto result = epok::scene_transition_count();
 bool scene_waiting()
 ```
 
-- **Declared at:** [line 337](../../../runtime/epok.hpp#L337)
+- **Declared at:** [line 344](../../../runtime/epok.hpp#L344)
 - **Kind:** `function decl`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -1910,7 +2001,7 @@ auto result = epok::scene_waiting();
 bool set_active(ActorData* entity,bool active)
 ```
 
-- **Declared at:** [line 325](../../../runtime/epok.hpp#L325)
+- **Declared at:** [line 329](../../../runtime/epok.hpp#L329)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1952,7 +2043,7 @@ auto result = epok::set_active(entity, active);
 bool set_active_camera(ActorData* camera)
 ```
 
-- **Declared at:** [line 338](../../../runtime/epok.hpp#L338)
+- **Declared at:** [line 345](../../../runtime/epok.hpp#L345)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1980,6 +2071,46 @@ auto result = epok::set_active_camera(camera);
 
 **Trade-offs and warnings.** Check the return value; `false` is part of normal control flow for many PSX resource operations. Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
 
+<a id="epok-set-world3d-visible-1"></a>
+
+## `epok::set_world3d_visible`
+
+**Purpose.** Sets world3d visible as part of the epok module.
+
+**Exact declaration**
+
+```cpp
+inline void set_world3d_visible(bool visible)
+```
+
+- **Declared at:** [line 386](../../../runtime/epok.hpp#L386)
+- **Kind:** `function decl`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `visible` | `bool` | Input | Value supplied for `visible`. See the exact type and module contract. |
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** You need the epok module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "epok.hpp"
+
+// Assume these named values have been initialized with valid data:
+// bool visible
+
+epok::set_world3d_visible(visible);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to the epok module. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
 <a id="epok-skeletal-sample-bone-1"></a>
 
 ## `epok::skeletal_sample_bone`
@@ -1992,7 +2123,7 @@ auto result = epok::set_active_camera(camera);
 BoneSample skeletal_sample_bone(const ActorData* entity,uint32_t bone,PoseKind pose,CoordinateSpace space)
 ```
 
-- **Declared at:** [line 356](../../../runtime/epok.hpp#L356)
+- **Declared at:** [line 390](../../../runtime/epok.hpp#L390)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -2038,7 +2169,7 @@ auto result = epok::skeletal_sample_bone(entity, bone, pose, space);
 VertexSample skeletal_sample_vertex(const ActorData* entity,uint32_t vertex,PoseKind pose,CoordinateSpace space)
 ```
 
-- **Declared at:** [line 354](../../../runtime/epok.hpp#L354)
+- **Declared at:** [line 388](../../../runtime/epok.hpp#L388)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -2084,7 +2215,7 @@ auto result = epok::skeletal_sample_vertex(entity, vertex, pose, space);
 VertexSamples4 skeletal_sample_vertices(const ActorData* entity,VertexIndexBatch4 indices,PoseKind pose,CoordinateSpace space)
 ```
 
-- **Declared at:** [line 355](../../../runtime/epok.hpp#L355)
+- **Declared at:** [line 389](../../../runtime/epok.hpp#L389)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -2130,7 +2261,7 @@ auto result = epok::skeletal_sample_vertices(entity, indices, pose, space);
 bool skeletal_world_point(const ActorData& entity,const Fixed* model,Fixed* world)
 ```
 
-- **Declared at:** [line 357](../../../runtime/epok.hpp#L357)
+- **Declared at:** [line 391](../../../runtime/epok.hpp#L391)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -2161,3 +2292,266 @@ auto result = epok::skeletal_world_point(entity, model, world);
 **Why choose it.** The boolean result makes success, availability or state explicit without exceptions.
 
 **Trade-offs and warnings.** Check the return value; `false` is part of normal control flow for many PSX resource operations. Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
+
+<a id="epok-spatialquerybatch-changed-1"></a>
+
+## `epok::SpatialQueryBatch::changed`
+
+**Purpose.** Publish edits only if this batch has already observed the world.
+
+**Details.** Before its first query a full synchronization will see those edits naturally.
+
+**Exact declaration**
+
+```cpp
+void changed(ActorData& entity)
+```
+
+- **Declared at:** [line 369](../../../runtime/epok.hpp#L369)
+- **Kind:** `cxx method`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `entity` | `ActorData &` | Input/output; inspect the function contract | Value supplied for `entity`. See the exact type and module contract. |
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** Before its first query a full synchronization will see those edits naturally.
+
+**Usage pattern**
+
+```cpp
+#include "epok.hpp"
+
+// Assume these named values have been initialized with valid data:
+// ActorData & entity
+
+epok::SpatialQueryBatch& object = /* obtain a valid instance */;
+
+object.changed(entity);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to the epok module. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
+
+<a id="epok-spatialquerybatch-move-and-slide-1"></a>
+
+## `epok::SpatialQueryBatch::move_and_slide`
+
+**Purpose.** Performs `move and slide` as part of the epok module.
+
+**Exact declaration**
+
+```cpp
+MoveResult move_and_slide(ActorData& entity,const Fixed* displacement,uint32_t mask=0xffffffffu)
+```
+
+- **Declared at:** [line 372](../../../runtime/epok.hpp#L372)
+- **Kind:** `cxx method`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `entity` | `ActorData &` | Input/output; inspect the function contract | Value supplied for `entity`. See the exact type and module contract. |
+| `displacement` | `const Fixed *` | Input | Value supplied for `displacement`. See the exact type and module contract. |
+| `mask` | `uint32_t` | Input | Value supplied for `mask`. See the exact type and module contract. |
+
+**Returns.** Returns `MoveResult`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the epok module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "epok.hpp"
+
+// Assume these named values have been initialized with valid data:
+// ActorData & entity
+// const Fixed * displacement
+// uint32_t mask
+
+epok::SpatialQueryBatch& object = /* obtain a valid instance */;
+
+auto result = object.move_and_slide(entity, displacement, mask);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to the epok module. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
+
+<a id="epok-spatialquerybatch-raycast-1"></a>
+
+## `epok::SpatialQueryBatch::raycast`
+
+**Purpose.** Performs `raycast` as part of the epok module.
+
+**Exact declaration**
+
+```cpp
+SpatialHit raycast(const Fixed* origin,const Fixed* displacement,uint32_t mask=0xffffffffu,const ActorData* ignore=nullptr,bool triggers=false) const
+```
+
+- **Declared at:** [line 370](../../../runtime/epok.hpp#L370)
+- **Kind:** `cxx method`; qualifiers: `const`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `origin` | `const Fixed *` | Input | Value supplied for `origin`. See the exact type and module contract. |
+| `displacement` | `const Fixed *` | Input | Value supplied for `displacement`. See the exact type and module contract. |
+| `mask` | `uint32_t` | Input | Value supplied for `mask`. See the exact type and module contract. |
+| `ignore` | `const ActorData *` | Input | Value supplied for `ignore`. See the exact type and module contract. |
+| `triggers` | `bool` | Input | Value supplied for `triggers`. See the exact type and module contract. |
+
+**Returns.** Returns `SpatialHit`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the epok module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "epok.hpp"
+
+// Assume these named values have been initialized with valid data:
+// const Fixed * origin
+// const Fixed * displacement
+// uint32_t mask
+// const ActorData * ignore
+// bool triggers
+
+epok::SpatialQueryBatch& object = /* obtain a valid instance */;
+
+auto result = object.raycast(origin, displacement, mask, ignore, triggers);
+```
+
+**Why choose it.** The method is `const`, so it does not mutate the object through this API surface.
+
+**Trade-offs and warnings.** Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
+
+<a id="epok-spatialquerybatch-raycast-batch-1"></a>
+
+## `epok::SpatialQueryBatch::raycast_batch`
+
+**Purpose.** Performs `raycast batch` as part of the epok module.
+
+**Exact declaration**
+
+```cpp
+void raycast_batch(const RaycastQuery* queries,SpatialHit* results,size_t count,uint32_t mask=0xffffffffu,const ActorData* ignore=nullptr,bool triggers=false) const
+```
+
+- **Declared at:** [line 371](../../../runtime/epok.hpp#L371)
+- **Kind:** `cxx method`; qualifiers: `const`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `queries` | `const RaycastQuery *` | Input | Value supplied for `queries`. See the exact type and module contract. |
+| `results` | `SpatialHit *` | Input/output; inspect the function contract | Value supplied for `results`. See the exact type and module contract. |
+| `count` | `size_t` | Input | Value supplied for `count`. See the exact type and module contract. |
+| `mask` | `uint32_t` | Input | Value supplied for `mask`. See the exact type and module contract. |
+| `ignore` | `const ActorData *` | Input | Value supplied for `ignore`. See the exact type and module contract. |
+| `triggers` | `bool` | Input | Value supplied for `triggers`. See the exact type and module contract. |
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** You need the epok module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "epok.hpp"
+
+// Assume these named values have been initialized with valid data:
+// const RaycastQuery * queries
+// SpatialHit * results
+// size_t count
+// uint32_t mask
+// const ActorData * ignore
+// bool triggers
+
+epok::SpatialQueryBatch& object = /* obtain a valid instance */;
+
+object.raycast_batch(queries, results, count, mask, ignore, triggers);
+```
+
+**Why choose it.** The method is `const`, so it does not mutate the object through this API surface.
+
+**Trade-offs and warnings.** Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
+
+<a id="epok-spatialquerybatch-spatialquerybatch-1"></a>
+
+## `epok::SpatialQueryBatch::SpatialQueryBatch`
+
+**Purpose.** Constructs `epok::SpatialQueryBatch` for the epok module.
+
+**Exact declaration**
+
+```cpp
+SpatialQueryBatch()=default
+```
+
+- **Declared at:** [line 365](../../../runtime/epok.hpp#L365)
+- **Kind:** `constructor`
+
+**Use it when.** You need the epok module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "epok.hpp"
+
+epok::SpatialQueryBatch value();
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to the epok module. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-spatialquerybatch-sync-1"></a>
+
+## `epok::SpatialQueryBatch::sync`
+
+**Purpose.** Performs `sync` as part of the epok module.
+
+**Exact declaration**
+
+```cpp
+void sync(ActorData& entity)
+```
+
+- **Declared at:** [line 366](../../../runtime/epok.hpp#L366)
+- **Kind:** `cxx method`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `entity` | `ActorData &` | Input/output; inspect the function contract | Value supplied for `entity`. See the exact type and module contract. |
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** You need the epok module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "epok.hpp"
+
+// Assume these named values have been initialized with valid data:
+// ActorData & entity
+
+epok::SpatialQueryBatch& object = /* obtain a valid instance */;
+
+object.sync(entity);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to the epok module. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.

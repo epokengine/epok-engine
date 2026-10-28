@@ -33,8 +33,10 @@ pub fn class_id(flavor: GameplayFlavor) -> &'static str {
 }
 
 pub fn create(root: &Path, flavor: GameplayFlavor) -> Result<Scene, String> {
-    let mut scene = Scene::default();
-    scene.name = "SampleScene".into();
+    let mut scene = Scene {
+        name: "SampleScene".into(),
+        ..Default::default()
+    };
     scene.actors[1].components.push(ComponentInstance::new(
         uuid::Uuid::new_v4(),
         ClassReference::new(CLASS_NAME, class_id(flavor)),

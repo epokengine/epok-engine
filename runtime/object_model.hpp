@@ -25,6 +25,10 @@
 #endif
 
 namespace epok {
+// Actor activation is private state, changed only through Level. Spatial and
+// render services can memoize inherited activation until one of these edits.
+inline uint32_t actor_activation_revision=1;
+inline void invalidate_actor_activation(){if(!++actor_activation_revision)++actor_activation_revision;}
 class Object;
 class Actor;
 class ActorComponent;
@@ -160,7 +164,7 @@ struct ClassDescriptor {
     NativeComponentDefault (*default_component)(Object&,size_t)=nullptr;
     // Legacy hand-written tables remain conservative. Cooked tables detect
     // inherited no-op callbacks at compile time, including inherited overrides.
-    bool component_tick=true,component_frame=true;
+    bool component_tick=true,component_frame=true,component_activation=true;
 };
 // Emitted by the Rust cook next to the scene banks. Host tests provide their own table.
 extern const ClassDescriptor object_classes[];
@@ -245,6 +249,7 @@ struct ObjectSlot {
     bool used = false;
     bool releasing = false;
     bool owns_storage = false;
+    uint8_t callbacks=0;
 };
 struct ObjectStats { uint32_t alive = 0, peak = 0, rejected = 0, spawned = 0, deferred = 0, quarantined = 0; };
 
@@ -387,6 +392,7 @@ private:
         record.used = true;
         record.releasing = false;
         record.owns_storage = owned;
+        record.callbacks=uint8_t(type.component_tick?1:0)|uint8_t(type.component_frame?2:0);
         instance->m_id = ObjectId{index, record.generation};
         instance->m_state = ObjectState::Reserved;
         instance->m_runtime_class_id = type.id;
@@ -471,8 +477,8 @@ protected:
     // Immutable callback capabilities, refreshed only when component order or
     // ownership changes. Avoid resolving every inert render/collider component
     // just to rediscover that it has no tick or frame callback.
-    uint8_t m_tick_components = 0, m_frame_components = 0;
-    bool m_actor_tick = true, m_actor_frame = true;
+    uint8_t m_tick_components = 0, m_frame_components = 0, m_activation_components=0;
+    bool m_actor_tick = true, m_actor_frame = true, m_actor_activation=true;
     bool m_active = true;
     bool m_wants_tick = true;
     bool m_begun = false, m_ended = false, m_doomed = false;
@@ -541,6 +547,11 @@ template<class T> struct ActorCallbacks<T,std::void_t<decltype(&T::tick),
 };
 
 inline bool attach_component(ObjectId child,ObjectId parent);
+template<class T,class Base,class=void> struct ActivationCallbacks {static constexpr bool value=true;};
+template<class T,class Base> struct ActivationCallbacks<T,Base,std::void_t<decltype(&T::on_enable),decltype(&T::on_disable)>> {
+    static constexpr bool value=!std::is_same_v<decltype(&T::on_enable),decltype(&Base::on_enable)>||
+        !std::is_same_v<decltype(&T::on_disable),decltype(&Base::on_disable)>;
+};
 
 class EPOK_CLASS(Blueprintable, Root, Domain=World3D, Owners=World3D, Id="ed73d249-b6cb-4a3c-a0e8-696de55e286f") SceneComponent3D : public ActorComponent {
 public:
@@ -1054,7 +1065,7 @@ public:
             if(!ancestor || ancestor->level_id()!=actor->level_id())return false;
             current=ancestor->logical_parent();
         }
-        actor->m_logical_parent=parent;return true;
+        actor->m_logical_parent=parent;invalidate_actor_activation();return true;
     }
 
     // ---- spawning ------------------------------------------------------------------
@@ -1094,6 +1105,7 @@ public:
             actor->m_level = id();
             actor->m_active = requests[i].active;
             actor->m_logical_parent = requests[i].logical_parent;
+            invalidate_actor_activation();
             actor->set_name(requests[i].name);
             if (!install_default_root(*actor)) { ok = false; break; }
         }
@@ -1161,6 +1173,7 @@ public:
         auto* instance = m_registry->resolve<Actor>(actor);
         if (!instance || instance->m_doomed) return false;
         instance->m_doomed = true;
+        invalidate_actor_activation();
         if (m_registry->dispatch) {
             if (m_pending_count >= level_pending_capacity) { ++m_registry->stats.rejected; return false; }
             auto& pending = m_pending[m_pending_count++];
@@ -1192,7 +1205,7 @@ public:
         ObjectId snapshot[level_actor_capacity] = {};
         const size_t count = m_actor_count;
         for (size_t i = 0; i < count; ++i) snapshot[i] = m_actors[i];
-        for (size_t i = 0; i < count; ++i) tick_actor(snapshot[i], delta);
+        for (size_t i = 0; i < count; ++i) {const auto* record=m_registry->slot(snapshot[i]);if(record&&(record->callbacks&1))tick_actor(snapshot[i], delta);}
         tick_actor(m_scene_script, delta);
         flush_pending();
     }
@@ -1202,7 +1215,7 @@ public:
         ObjectId snapshot[level_actor_capacity] = {};
         const size_t count = m_actor_count;
         for (size_t i = 0; i < count; ++i) snapshot[i] = m_actors[i];
-        for (size_t i = 0; i < count; ++i) frame_update_actor(snapshot[i], elapsed);
+        for (size_t i = 0; i < count; ++i) {const auto* record=m_registry->slot(snapshot[i]);if(record&&(record->callbacks&2))frame_update_actor(snapshot[i], elapsed);}
         frame_update_actor(m_scene_script, elapsed);
         flush_pending();
     }
@@ -1221,12 +1234,27 @@ public:
         if (!m_registry) return false;
         auto* instance = m_registry->resolve<Actor>(actor);
         if (!instance || instance->m_doomed) return false;
+        if(instance->m_active==active)return true;
+        if(!instance->m_actor_activation&&!instance->m_activation_components&&instance->m_level==id()&&actor!=m_scene_script){
+            bool children=false;
+            for(size_t i=0;i<m_actor_count;++i){const auto* other=m_registry->resolve<Actor>(m_actors[i]);
+                if(other&&other->m_logical_parent==actor){children=true;break;}
+            }
+            if(!children){
+                // An inert leaf cannot change anybody else's effective state
+                // or run a callback that mutates the hierarchy. Slot activation
+                // memos observe its own active flag directly; no global expiry.
+                instance->m_active=active;if(instance->m_data)instance->m_data->active=active;
+                flush_pending();return true;
+            }
+        }
         bool before[level_actor_capacity] = {};
         for (size_t i = 0; i < m_actor_count; ++i) {
             auto* other = m_registry->resolve<Actor>(m_actors[i]);
             before[i] = other && actor_active(*other);
         }
         instance->m_active = active;
+        invalidate_actor_activation();
         if(instance->m_data)instance->m_data->active=active;
         for (size_t i = 0; i < m_actor_count; ++i) {
             auto* other = m_registry->resolve<Actor>(m_actors[i]);
@@ -1328,7 +1356,7 @@ protected:
     }
     bool install_default_root(Actor& actor) {
         const auto* actor_type=find_object_class(actor.class_id());
-        if(actor_type){actor.m_actor_tick=actor_type->component_tick;actor.m_actor_frame=actor_type->component_frame;}
+        if(actor_type){actor.m_actor_tick=actor_type->component_tick;actor.m_actor_frame=actor_type->component_frame;actor.m_actor_activation=actor_type->component_activation;}
         if(actor_type && actor_type->default_component && actor_type->default_component_count) {
             if(actor_type->default_component_count>actor_component_capacity)return false;
             for(size_t c=0;c<actor_type->default_component_count;++c) {
@@ -1395,13 +1423,15 @@ protected:
     }
     void refresh_component_callbacks(Actor& owner) {
         static_assert(actor_component_capacity<=8,"Widen the callback masks with the component capacity");
-        owner.m_tick_components=owner.m_frame_components=0;
+        owner.m_tick_components=owner.m_frame_components=owner.m_activation_components=0;
         for(size_t c=0;c<owner.m_component_count;++c){
             const auto* type=m_registry->class_of(owner.m_components[c]);
             if(!type)continue;
             if(type->component_tick)owner.m_tick_components|=uint8_t(1u<<c);
             if(type->component_frame)owner.m_frame_components|=uint8_t(1u<<c);
+            if(type->component_activation)owner.m_activation_components|=uint8_t(1u<<c);
         }
+        if(auto* record=m_registry->slot(owner.id()))record->callbacks=uint8_t((owner.m_tick_components||owner.m_actor_tick)?1:0)|uint8_t((owner.m_frame_components||owner.m_actor_frame)?2:0);
     }
     bool order_components(Actor& actor,const ObjectId* ids,size_t count) {
         if(count!=actor.m_component_count)return false;
@@ -1488,6 +1518,7 @@ protected:
         auto* actor = m_registry->resolve<Actor>(id);
         if (!actor) { forget_actor(id); return; }
         actor->m_doomed = true;
+        invalidate_actor_activation();
         // Logical children belong to the placement; remove them before releasing
         // their parent so no child retains a dead parent or spatial root.
         ObjectId children[level_actor_capacity]={};size_t child_count=0;

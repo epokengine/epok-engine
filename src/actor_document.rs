@@ -450,10 +450,9 @@ pub fn remap_actor(actor: &mut ActorInstance, map: &IdentityMap) {
         instance.overrides = edits;
         if let Some(crate::blueprint_templates::ParentOverride::Actor { entity }) =
             &mut instance.parent
+            && let Some(id) = map.get(entity)
         {
-            if let Some(id) = map.get(entity) {
-                *entity = *id;
-            }
+            *entity = *id;
         }
     }
     actor.data.id = actor.id;

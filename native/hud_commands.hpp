@@ -29,6 +29,9 @@ struct EpokHudSink {
     void clip(int x0,int y0,int x1,int y1){commands.push_back({{6,-1,-1,x0,y0,x1,y1,0,0,0,0,0,0,0,0,0}});}
     void begin_picture(int index,int w,int h,const uint8_t* c){commands.push_back({{7,-1,index,0,0,w,h,0,0,0,0,c[0],c[1],c[2],0,0}});}
     void end_picture(){commands.push_back({{8,-1,-1,0,0,0,0,0,0,0,0,0,0,0,0,0}});}
+    // Draw what follows into a screen layer composed with the 3D image, until end_picture:
+    // bucket -1 lies under the 3D world, 0 to 511 joins it at that ordering-table bucket.
+    void begin_layer(int bucket){commands.push_back({{9,-1,bucket,0,0,0,0,0,0,0,0,0,0,0,0,0}});}
     // Rebuild the runtime descriptors from the flat wire table. VRAM placement
     // is absent there: nothing on this side draws from real VRAM.
     void load_fonts(const int32_t* table,uint32_t words){

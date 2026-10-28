@@ -109,11 +109,17 @@ object.list(p, output, count, owner, complete);
 **Exact declaration**
 
 ```cpp
-void prepare()
+void prepare(psyqo::GPU& gpu)
 ```
 
 - **Declared at:** [line 15](../../../runtime/memory_card_backend.hpp#L15)
 - **Kind:** `cxx method`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `gpu` | `psyqo::GPU &` | Input/output; inspect the function contract | Value supplied for `gpu`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -124,14 +130,17 @@ void prepare()
 ```cpp
 #include "memory_card_backend.hpp"
 
+// Assume these named values have been initialized with valid data:
+// psyqo::GPU & gpu
+
 epok::PsyqoMemoryCardDriver& object = /* obtain a valid instance */;
 
-object.prepare();
+object.prepare(gpu);
 ```
 
 **Why choose it.** The API exposes the hardware service without hiding latency or bounded memory.
 
-**Trade-offs and warnings.** Treat device absence, busy state and I/O failure as expected outcomes; do not block the frame loop waiting for hardware.
+**Trade-offs and warnings.** Treat device absence, busy state and I/O failure as expected outcomes; do not block the frame loop waiting for hardware. Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
 
 <a id="epok-psyqomemorycarddriver-probe-1"></a>
 

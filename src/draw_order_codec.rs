@@ -70,6 +70,7 @@ pub fn encode(previous: &[u32], next: &[u32]) -> Result<Vec<u8>, String> {
 
 /// Caller explicitly marks camera cuts/route anchors as reset checkpoints.
 /// Periodic checkpoints bound random seek/reverse replay to 31 deltas.
+#[cfg(test)]
 pub fn pack<'a>(
     lists: impl IntoIterator<Item = (&'a [u32], bool)>,
 ) -> Result<(Vec<Span>, Vec<u8>), String> {

@@ -3,8 +3,14 @@
 // region lookup, note matching, envelope fitting, LFO or SoundFont arithmetic.
 namespace psx_audio {
 inline void native_flush_keyoffs(){
+    if(!native_keyoffs)return;
     if(native_keyoffs&0xffff)SPU_KEY_OFF_LOW=uint16_t(native_keyoffs);
     if(native_keyoffs>>16)SPU_KEY_OFF_HIGH=uint16_t(native_keyoffs>>16);
+    audio_record_keyoffs(native_keyoffs);
+#ifndef EPOK_SEQUENCE_HOST_TEST
+    const uint16_t off=counter_ticks();
+    for(int p=0;p<24;++p)if(native_keyoffs&(1u<<p))physical[p].off_ticks=off;
+#endif
     native_keyoffs=0;
 }
 inline void Instance::native_parameters(int n){
@@ -28,12 +34,22 @@ inline void Instance::native_advance(uint32_t elapsed){
         }
         if(e.op==End){++music_sequence_stats.ends;retire(*this);return;}
         if(e.op==Group){
-            instrument::allocation::Slot slots[24]{};uint8_t ceiling=uint8_t(asset->voices());
+            uint8_t ceiling=uint8_t(asset->voices());
             for(const auto& i:instances)if((i.phase==Phase::Active || i.phase==Phase::Queued) && i.asset && i.asset->voices()>ceiling)ceiling=uint8_t(i.asset->voices());
-            for(int p=0;p<24;++p){const auto& av=audio_voices[p];if(av.owner)slots[p]={true,av.sequence>=0,uint8_t(av.sequence>=0?av.sequence:0),av.note,av.priority,physical[p].generation,av.started};}
-            const auto plan=instrument::allocation::reserve(slots,{index,parameters.priority,uint8_t(e.value),uint8_t(asset->voices()),ceiling,generation});
+            uint32_t free_mask=0;unsigned own=0,music=0;
+            for(int p=0;p<24;++p){const auto& av=audio_voices[p];
+                if(!av.owner)free_mask|=1u<<p;
+                else if(av.sequence>=0){++music;if(av.sequence==index&&physical[p].generation==generation)++own;}
+            }
+            const instrument::allocation::Request request{index,parameters.priority,uint8_t(e.value),uint8_t(asset->voices()),ceiling,generation};
+            auto plan=instrument::allocation::reserve_free(free_mask,own,music,request);
+            if(!plan.fits){
+                instrument::allocation::Slot slots[24]{};
+                for(int p=0;p<24;++p){const auto& av=audio_voices[p];if(av.owner)slots[p]={true,av.sequence>=0,uint8_t(av.sequence>=0?av.sequence:0),av.note,av.priority,physical[p].generation,av.started};}
+                plan=instrument::allocation::reserve(slots,request);
+            }
             if(!plan.fits){++music_sequence_stats.denied_notes;for(unsigned z=0;z<e.value;++z)native_lanes[commands[native_cursor++].lane]=-1;continue;}
-            for(int p=0;p<24;++p)if((plan.evict_mask&(1u<<p)) && audio_voices[p].owner){
+            if(plan.evict_mask)for(int p=0;p<24;++p)if((plan.evict_mask&(1u<<p)) && audio_voices[p].owner){
                 if(audio_voices[p].sequence>=0)stolen(p);
                 else{native_keyoffs|=1u<<p;audio_voices[p]={};physical[p].reset_metadata();++music_sequence_stats.steals;}
             }

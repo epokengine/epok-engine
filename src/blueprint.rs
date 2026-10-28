@@ -257,26 +257,6 @@ impl Registry {
             self.named(&binding.name)
         }
     }
-    pub fn upgrade_binding(&self, binding: &mut crate::scene::ClassDefaults) {
-        if crate::script_backend::validate_binding(binding).is_err() {
-            return;
-        }
-        if let Some(class) = self.bound(binding) {
-            if binding.class_id.is_none() {
-                binding.class_id = Some(class.id.clone());
-                binding.provider = class.provider.clone();
-                binding.backend = class.backend.clone();
-            }
-            for property in self.properties(&class.cpp_name) {
-                if binding.properties.contains_key(&property.name) {
-                    binding
-                        .member_ids
-                        .entry(property.name.clone())
-                        .or_insert_with(|| property.id.clone());
-                }
-            }
-        }
-    }
     pub fn ancestry(&self, name: &str) -> Vec<&schema::Class> {
         let mut chain = vec![];
         let mut current = self.named(name);

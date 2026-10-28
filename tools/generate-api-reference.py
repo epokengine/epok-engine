@@ -28,6 +28,8 @@ CALLABLE_KINDS = {
 }
 
 MODULE_CONTEXT = {
+    "controller-pad": "SIO0 controller polling and DualShock configuration",
+    "rumble": "bounded controller motor pulses and cancellation",
     "affine": "fixed-point affine transforms and matrix composition",
     "audio": "SPU sound playback and voice ownership",
     "blueprint": "compiled Blueprint execution and object interaction",
@@ -207,7 +209,8 @@ def find_clang_binding(engine: Path, explicit: str | None) -> Path:
 
 def find_target_compiler(engine: Path, explicit: str | None) -> Path:
     candidates = [Path(explicit).resolve()] if explicit else []
-    candidates.extend(sorted(engine.glob(".tools/**/bin/mipsel-none-elf-g++")))
+    for name in ("mipsel-none-elf-g++", "mipsel-none-elf-g++.exe"):
+        candidates.extend(sorted(engine.glob(f".tools/**/bin/{name}")))
     located = shutil.which("mipsel-none-elf-g++")
     if located:
         candidates.append(Path(located).resolve())
@@ -371,6 +374,9 @@ def source_signature(cursor, source_text: str) -> str:
     snippet = "".join(selected)
     snippet = re.sub(r"/\*.*?\*/", " ", snippet, flags=re.S)
     snippet = re.sub(r"//[^\n]*", " ", snippet)
+    # A declaration split by conditional compilation keeps the branch the target
+    # compiler sees; the directive lines themselves are not part of it.
+    snippet = re.sub(r"^[ \t]*#[^\n]*", " ", snippet, flags=re.M)
     paren_depth = 0
     bracket_depth = 0
     stop = len(snippet)
@@ -492,7 +498,7 @@ def parse_module(cindex, family: str, header: Path, base: Path, engine: Path, nu
         stability = "Engine internal" if header.name in INTERNAL_EPOK_HEADERS else "Epok runtime API"
     else:
         include = f'#include "psyqo/{relative}"'
-        source_url = f"https://github.com/pcsx-redux/nugget/blob/{nugget_revision}/psyqo/{relative}"
+        source_url = f"https://github.com/epokengine/nugget/blob/{nugget_revision}/psyqo/{relative}"
         stability = "PsyQo low-level API" if relative.startswith(("hardware/", "internal/")) else "Pinned PsyQo API"
     return Module(
         family=family,
@@ -537,6 +543,8 @@ def parse_family(cindex, family: str, headers: list[Path], base: Path, engine: P
         "#include <array>\n#include <stddef.h>\n"
         "namespace epok { struct Texture; inline constexpr size_t texture_count=0;"
         " inline const Texture* texture_assets=nullptr; }\n"
+        '#include "epok.hpp"\n'
+        "namespace epok { inline std::array<ActorData,256> objects{}; }\n"
         if family == "epok"
         else "#include <array>\n"
     )
@@ -737,7 +745,7 @@ inline constexpr char stream_archive_path[]="";
             stability = "Engine internal" if header.name in INTERNAL_EPOK_HEADERS else "Epok runtime API"
         else:
             include = f'#include "psyqo/{relative}"'
-            source_url = f"https://github.com/pcsx-redux/nugget/blob/{nugget_revision}/psyqo/{relative}"
+            source_url = f"https://github.com/epokengine/nugget/blob/{nugget_revision}/psyqo/{relative}"
             stability = "PsyQo low-level API" if relative.startswith(("hardware/", "internal/")) else "Pinned PsyQo API"
         module_symbols = symbols[resolved]
         module_symbols.sort(key=lambda item: (item.qualified.lower(), item.signature, item.line))
@@ -1202,9 +1210,22 @@ def main() -> int:
     psyqo_modules = parse_family(cindex, "psyqo", psyqo_headers, psyqo_root, engine, nugget, nugget_revision, freestanding)
     output = engine / "docs" / "api"
     temporary = engine / ".epok-api-reference.tmp" if args.check else output
-    if temporary.exists():
+    # Normal regeneration preserves the directory and only removes obsolete
+    # pages identified by the previous generated inventory. No recursive delete
+    # of a user's documentation tree is needed to add/update an API module.
+    previous_coverage = output / "coverage.json"
+    if not args.check and previous_coverage.is_file():
+        previous = json.loads(previous_coverage.read_text(encoding="utf-8"))
+        expected = {(module.family, module.slug) for module in epok_modules + psyqo_modules}
+        for module in previous.get("modules", []):
+            family, slug = module.get("family", ""), module.get("slug", "")
+            if family in {"epok", "psyqo"} and re.fullmatch(r"[a-z0-9-]+", slug) and (family, slug) not in expected:
+                page = output / family / f"{slug}.md"
+                if page.is_file() and not page.is_symlink():
+                    page.unlink()
+    if args.check and temporary.exists():
         shutil.rmtree(temporary)
-    temporary.mkdir(parents=True)
+    temporary.mkdir(parents=True, exist_ok=True)
     write_if_changed(temporary / "index.md", render_root_index(epok_modules, psyqo_modules, nugget_revision), scrub)
     write_if_changed(temporary / "epok.md", render_family_index("epok", epok_modules, nugget_revision), scrub)
     write_if_changed(temporary / "psyqo.md", render_family_index("psyqo", psyqo_modules, nugget_revision), scrub)

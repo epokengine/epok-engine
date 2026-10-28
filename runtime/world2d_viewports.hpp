@@ -27,10 +27,17 @@ inline List<SubViewport2DComponent> subviewports;
 inline List<SplitScreen2DComponent> split_screens;
 inline constexpr int16_t every_layer = 0x7fff;
 
+// Where a draw item goes relative to the 3D world: under_3d canvases before it, Depth2D
+// drawables into its ordering table, everything else over it. Items sort by phase first.
+enum class DrawPhase : uint8_t { Under3D = 0, Depth3D = 1, Over3D = 2 };
+
 // What the view being collected draws.
 struct RenderPass {
     const Camera2D* camera = nullptr;  // null: the active camera
     bool world = true, screen = true;  // world canvases, screen canvases
+    // Depth2D drawables leave their canvas for the 3D ordering table: only the screen view
+    // of a frame with a 3D camera and no split screen sets this.
+    bool depth = false;
     int16_t only_layer = every_layer;
     int8_t hidden[4] = {};
     uint8_t hidden_count = 0;

@@ -489,7 +489,7 @@ pub fn build(
     catalog: &[Script],
     cancel: &AtomicBool,
 ) -> Result<PathBuf, String> {
-    build_runner(root, scene, catalog, cancel, Runner::HudPreview)
+    build_runner(root, scene, catalog, cancel, Runner::HudPreview, None)
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -521,8 +521,11 @@ pub(crate) fn build_runner(
     catalog: &[Script],
     cancel: &AtomicBool,
     runner: Runner,
+    banks: Option<&[Scene]>,
 ) -> Result<PathBuf, String> {
-    scene.validate()?;
+    for scene in banks.unwrap_or(std::slice::from_ref(scene)) {
+        scene.validate()?;
+    }
     // A Blueprint-driven entity gets its own diagnostic: the generic "unsupported
     // component" message reads as a missing feature, while this one has to say
     // that the logic does not run, so nothing is rendered as if it had.
@@ -572,14 +575,33 @@ pub(crate) fn build_runner(
     } else {
         crate::blueprint::registry_from_catalog(root, catalog)
     };
-    let mut header =
-        crate::project::scene_header_with_registry(scene, &used, scene, true, scene, &registry)?;
-    header += &crate::blueprint_refs::asset_table(scene)?;
-    header += &crate::data_table::header(&scene.reference_tables)?;
-    header += &crate::blueprint_spawn::object_class_table_for_scenes(
-        &registry,
-        std::slice::from_ref(scene),
-    )?;
+    let mut header = if let Some(banks) = banks {
+        crate::scene_bank::header_with_templates(
+            banks,
+            &used,
+            None,
+            &[],
+            None,
+            &[],
+            &[],
+            &registry,
+        )?
+    } else {
+        crate::project::scene_header_with_registry(scene, &used, scene, true, scene, &registry)?
+    };
+    if banks.is_none() {
+        header += &crate::blueprint_refs::asset_table(scene)?;
+        header += &crate::data_table::header(&scene.reference_tables)?;
+        header += &crate::blueprint_spawn::object_class_table_for_scenes(
+            &registry,
+            std::slice::from_ref(scene),
+        )?;
+    }
+    let registry_capacity = header
+        .lines()
+        .find_map(|line| line.strip_prefix("#define EPOK_OBJECT_REGISTRY_CAPACITY "))
+        .unwrap_or("256")
+        .to_owned();
     let mut files: BTreeMap<PathBuf, Vec<u8>> = crate::project::runtime_sources()
         .iter()
         .map(|(p, b)| (PathBuf::from(p), b.to_vec()))
@@ -627,6 +649,16 @@ pub(crate) fn build_runner(
         include_bytes!("../native/hud_preview.h").to_vec(),
     );
     if runner == Runner::NativePlay {
+        let transition = crate::workspace::optional_manifest(root)?
+            .map(|m| m.transition)
+            .unwrap_or_default();
+        transition.validate()?;
+        files.insert("transition-config.hh".into(), format!("#pragma once\n#define EPOK_TRANSITIONS 1\n#define EPOK_FADE_OUT_MS {}\n#define EPOK_FADE_IN_MS {}\n#define EPOK_LOADING_TEXT {}\n", transition.fade_out_ms, transition.fade_in_ms, serde_json::to_string(&transition.text).unwrap()).into_bytes());
+        let assets = crate::assets::scan(root, &mut Default::default());
+        files.insert(
+            "loading-image.hh".into(),
+            transition.image_header(&assets)?.0.into_bytes(),
+        );
         files.insert(
             "native_play_protocol.h".into(),
             include_bytes!("../native/native_play_protocol.h").to_vec(),
@@ -678,7 +710,7 @@ pub(crate) fn build_runner(
     files.extend(native.files);
     let compiler_signature = format!("{:?}", host_compiler()?);
     let compile_configuration = format!(
-        "runner={runner:?};blueprints={native_blueprints};registry=256;objects=1;platform={};flags=cpp20,exceptions,o2,editor-preview,no-warnings",
+        "runner={runner:?};blueprints={native_blueprints};registry={registry_capacity};objects=1;platform={};flags=cpp20,exceptions,o2,editor-preview,no-warnings",
         if cfg!(windows) { "msvc" } else { "posix" }
     );
     use sha2::{Digest, Sha256};
@@ -778,7 +810,9 @@ pub(crate) fn build_runner(
                     compiler.arg("/DEPOK_BLUEPRINTS");
                 }
                 if runner == Runner::NativePlay {
-                    compiler.arg("/DEPOK_OBJECT_REGISTRY_CAPACITY=256");
+                    compiler.arg(format!(
+                        "/DEPOK_OBJECT_REGISTRY_CAPACITY={registry_capacity}"
+                    ));
                 }
                 compiler
                     .arg(&source)
@@ -796,7 +830,9 @@ pub(crate) fn build_runner(
                     compiler.arg("-DEPOK_BLUEPRINTS");
                 }
                 if runner == Runner::NativePlay {
-                    compiler.arg("-DEPOK_OBJECT_REGISTRY_CAPACITY=256");
+                    compiler.arg(format!(
+                        "-DEPOK_OBJECT_REGISTRY_CAPACITY={registry_capacity}"
+                    ));
                 }
                 compiler.arg(&source).arg("-o").arg(&staged);
             }

@@ -121,6 +121,8 @@ class ActorPrivateTick:public Actor3D {void tick(Fixed)override{}};
 static_assert(!ActorCallbacks<Actor3D>::tick&&!ActorCallbacks<Actor3D>::frame);
 static_assert(ActorCallbacks<ActorFrameOnly>::frame&&!ActorCallbacks<ActorFrameOnly>::tick);
 static_assert(ActorCallbacks<ActorInheritedTick>::tick&&ActorCallbacks<ActorPrivateTick>::tick);
+static_assert(!ActivationCallbacks<Actor3D,Actor>::value&&!ActivationCallbacks<Mesh3DComponent,ActorComponent>::value);
+static_assert(ActivationCallbacks<ProbeActor,Actor>::value&&ActivationCallbacks<ProbeRoot,ActorComponent>::value);
 struct MaskActor:Actor3D {
     static constexpr uint64_t static_class_id=0x1011;
     uint64_t class_id()const override{return static_class_id;}
@@ -134,7 +136,7 @@ struct MaskActor:Actor3D {
 namespace epok {
 const ClassDescriptor object_classes[] = {
     {MaskActor::static_class_id,Actor3D::static_class_id,ObjectFamily::Actor,ObjectDomain::World3D,0,uint8_t(ObjectClassPlaceable|ObjectClassSpawnable),
-     &object_construct<MaskActor>,&object_destruct,sizeof(MaskActor),alignof(MaskActor),&ObjectPool<MaskActor,1>::acquire,&ObjectPool<MaskActor,1>::release,0,nullptr,false,false},
+     &object_construct<MaskActor>,&object_destruct,sizeof(MaskActor),alignof(MaskActor),&ObjectPool<MaskActor,1>::acquire,&ObjectPool<MaskActor,1>::release,0,nullptr,false,false,false},
     {MaskTick::static_class_id,ActorComponent::static_class_id,ObjectFamily::Component,ObjectDomain::None,object_domain_bit(ObjectDomain::World3D),0,
      &object_construct<MaskTick>,&object_destruct,sizeof(MaskTick),alignof(MaskTick),&ObjectPool<MaskTick,2>::acquire,&ObjectPool<MaskTick,2>::release,0,nullptr,true,false},
     {MaskFrame::static_class_id,ActorComponent::static_class_id,ObjectFamily::Component,ObjectDomain::None,object_domain_bit(ObjectDomain::World3D),0,
@@ -146,7 +148,7 @@ const ClassDescriptor object_classes[] = {
     {UIActor::static_class_id, Actor::static_class_id, ObjectFamily::Actor, ObjectDomain::UI, 0, uint8_t(ObjectClassPlaceable | ObjectClassSpawnable), nullptr, nullptr, sizeof(UIActor), alignof(UIActor), nullptr, nullptr},
     {SceneScriptActor::static_class_id, Actor::static_class_id, ObjectFamily::Actor, ObjectDomain::None, 0, ObjectClassSceneManaged, nullptr, nullptr, sizeof(SceneScriptActor), alignof(SceneScriptActor), nullptr, nullptr},
     {ActorComponent::static_class_id, Object::static_class_id, ObjectFamily::Component, ObjectDomain::None, 0, ObjectClassAbstract, nullptr, nullptr, sizeof(ActorComponent), alignof(ActorComponent), nullptr, nullptr},
-    {SceneComponent3D::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::World3D, object_domain_bit(ObjectDomain::World3D), ObjectClassRoot, &object_construct<SceneComponent3D>, &object_destruct, sizeof(SceneComponent3D), alignof(SceneComponent3D), &ObjectPool<SceneComponent3D, 4>::acquire, &ObjectPool<SceneComponent3D, 4>::release},
+    {SceneComponent3D::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::World3D, object_domain_bit(ObjectDomain::World3D), ObjectClassRoot, &object_construct<SceneComponent3D>, &object_destruct, sizeof(SceneComponent3D), alignof(SceneComponent3D), &ObjectPool<SceneComponent3D, 4>::acquire, &ObjectPool<SceneComponent3D, 4>::release,0,nullptr,false,false,false},
     {SceneComponent2D::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::World2D, object_domain_bit(ObjectDomain::World2D), ObjectClassRoot, &object_construct<SceneComponent2D>, &object_destruct, sizeof(SceneComponent2D), alignof(SceneComponent2D), &ObjectPool<SceneComponent2D, 4>::acquire, &ObjectPool<SceneComponent2D, 4>::release},
     {UIComponent::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::UI, object_domain_bit(ObjectDomain::UI), ObjectClassAbstract, nullptr, nullptr, sizeof(UIComponent), alignof(UIComponent), nullptr, nullptr},
     {RectTransformComponent::static_class_id, UIComponent::static_class_id, ObjectFamily::Component, ObjectDomain::UI, object_domain_bit(ObjectDomain::UI), ObjectClassRoot, &object_construct<RectTransformComponent>, &object_destruct, sizeof(RectTransformComponent), alignof(RectTransformComponent), &ObjectPool<RectTransformComponent, 4>::acquire, &ObjectPool<RectTransformComponent, 4>::release},
@@ -488,6 +490,20 @@ void callback_masks() {
     reset();auto* inert=registry_storage.resolve<MaskActor>(spawn(MaskActor::static_class_id,"Inert"));
     assert(inert);game_level.tick(Fixed(1.0));game_level.frame_update(1000);
     assert(inert->ticks==0&&inert->frames==0);
+    const auto activation_epoch=actor_activation_revision;
+    assert(game_level.set_active(inert->id(),false)&&!game_level.actor_active(*inert));
+    assert(game_level.set_active(inert->id(),true)&&game_level.actor_active(*inert));
+    assert(actor_activation_revision==activation_epoch); // inert leaf expires no unrelated memo
+    const auto child=spawn(ProbeActor::static_class_id,"Child",inert->id());
+    trace_reset();assert(game_level.set_active(inert->id(),false));
+    assert(actor_activation_revision!=activation_epoch);
+    assert(trace_is("Root.disable;Child.disable;"));
+    trace_reset();assert(game_level.set_active(inert->id(),true));
+    assert(trace_is("Root.enable;Child.enable;"));
+    assert(game_level.destroy_actor(child));
+    const auto leaf_epoch=actor_activation_revision;
+    assert(game_level.set_active(inert->id(),false)&&game_level.set_active(inert->id(),true));
+    assert(actor_activation_revision==leaf_epoch);
     auto* live=game_level.add_component<MaskTick>(*inert,"Live");assert(live);
     game_level.tick(Fixed(1.0));game_level.frame_update(1000);
     assert(live->ticks==1&&inert->ticks==0&&inert->frames==0);

@@ -92,9 +92,75 @@ void canvas_with(size_t children, int width, int height) {
 HudStats run(size_t count, bool emit, unsigned layout_budget = 64, unsigned rectangle_budget = 256, unsigned rotated_budget = 128) {
     sink.commands.clear();
     hud_core::Compiler compiler(sink, screen_width, screen_height, {layout_budget, rectangle_budget, 64, 1024, rotated_budget});
-    if (emit) compiler.draw(objects, count, first, next, measured, rects, transforms);
+    if (emit) {
+        compiler.draw(objects, count, first, next, measured, rects, transforms);
+        const auto commands=sink.commands;const auto stats=compiler.stats;
+        Rect previous[capacity];for(size_t i=0;i<count;++i)previous[i]=rects[i];
+        sink.commands.clear();
+        compiler.draw(objects,count,first,next,measured,rects,transforms,true);
+        assert(commands==sink.commands);
+        assert(stats.rectangles==compiler.stats.rectangles&&stats.texts==compiler.stats.texts&&stats.glyphs==compiler.stats.glyphs&&stats.images==compiler.stats.images&&stats.rotated==compiler.stats.rotated&&stats.dropped==compiler.stats.dropped);
+        for(size_t i=0;i<count;++i)assert(previous[i].x==rects[i].x&&previous[i].y==rects[i].y&&previous[i].w==rects[i].w&&previous[i].h==rects[i].h);
+    }
     else compiler.layout(objects, count, first, next, measured, rects, transforms);
     return compiler.stats;
+}
+struct CachedRecorder:Recorder {
+    hud_core::NodeCache<capacity> cache;
+    std::vector<Draw> saved[2][capacity];size_t starts[capacity]={};unsigned parity=0,hits=0;
+    static hud_core::NodeCache<capacity>::Counts counts(const HudStats& s){return {{s.rectangles,s.texts,s.glyphs,s.images,s.rotated,0}};}
+    bool begin_node(int owner,const Rect& r,const Affine2& m,const uint8_t* tint,HudStats& stats){
+        uint32_t key=2166136261u;auto hash=[&](const void* p,size_t n){auto* bytes=static_cast<const unsigned char*>(p);while(n--)key=(key^*bytes++)*16777619u;};
+        hash(&objects[owner],sizeof(ActorData));hash(&r,sizeof(r));hash(&m,sizeof(m));hash(tint,3);
+        auto c=counts(stats);if(cache.begin(owner,key,c,stats)){auto& previous=saved[parity][owner];commands.insert(commands.end(),previous.begin(),previous.end());++hits;return true;}
+        starts[owner]=commands.size();return false;
+    }
+    void end_node(int owner,const HudStats& stats){saved[parity][owner].assign(commands.begin()+starts[owner],commands.end());cache.end(owner,counts(stats),stats);}
+};
+void node_cache_matches_fresh_packets(){
+    canvas_with(3,160,32);
+    objects[1].text.enabled=true;objects[1].text.set_text("HEALTH 100");
+    objects[2].progress.enabled=true;objects[2].progress.value=1.0;
+    objects[3].text.enabled=true;objects[3].text.set_text("STATIC OBJECTIVE");
+    CachedRecorder cached;
+    for(unsigned frame=0;frame<120;++frame){
+        if(frame%5==0){char label[32];std::snprintf(label,sizeof(label),"HEALTH %u",frame%101);objects[1].text.set_text(label);objects[2].progress.value=Fixed(int32_t(frame%101)*4096/100,Fixed::RAW);}
+        objects[1].active=frame%11<7;
+        objects[2].rect.position[0]=Fixed(int(frame%17),0);
+        objects[0].rect.rotation=frame%19<8?Fixed(17.0):Fixed(0.0);
+        if(frame==80)cached.cache.invalidate();
+        auto expected=run(4,true,64,5,8);const auto commands=sink.commands;
+        cached.parity=frame&1;cached.cache.rebuild(cached.parity);cached.commands.clear();
+        hud_core::Compiler compiler(cached,screen_width,screen_height,{64,5,64,1024,8});
+        compiler.draw(objects,4,first,next,measured,rects,transforms);
+        assert(cached.commands==commands);
+        assert(expected.rectangles==compiler.stats.rectangles&&expected.texts==compiler.stats.texts&&expected.glyphs==compiler.stats.glyphs&&expected.images==compiler.stats.images&&expected.rotated==compiler.stats.rotated&&expected.dropped==compiler.stats.dropped);
+    }
+    assert(cached.hits>30);
+    // Slot ownership must expire even when a skipped node's key is unchanged.
+    hud_core::NodeCache<2> slots;hud_core::NodeCache<2>::Counts counts;HudStats stats;
+    slots.rebuild(0);assert(!slots.begin(0,42,counts,stats));counts.values[0]=5;stats.rectangles=5;slots.end(0,counts,stats);
+    slots.rebuild(0);counts={};stats={};assert(slots.begin(0,42,counts,stats));assert(counts.values[0]==5&&stats.rectangles==5);
+    slots.rebuild(0);counts={};stats={};assert(!slots.begin(1,7,counts,stats));counts.values[0]=9;slots.end(1,counts,stats);
+    slots.rebuild(0);counts={};stats={};assert(!slots.begin(0,42,counts,stats));slots.end(0,counts,stats);
+    slots.rebuild(1);assert(!slots.begin(0,42,counts,stats));slots.end(0,counts,stats);
+}
+void world_activation_cannot_change_hud_packets(){
+    canvas_with(1,160,32);objects[1].text.enabled=true;objects[1].text.set_text("READY");
+    objects[2].mesh=true;objects[3].parent=2;objects[3].rect.enabled=true;
+    objects[3].rect.size[0]=160.0;objects[3].rect.size[1]=32.0;
+    objects[3].text.enabled=true;objects[3].text.set_text("HIDDEN UNDER WORLD NODE");
+    const auto stats=run(4,true);const auto expected=sink.commands;
+    for(unsigned frame=0;frame<100;++frame){
+        auto& world=objects[2];world.active=frame&1;world.alive=frame%3;
+        world.parent=int(frame%3)-1;world.generation=frame;
+        world.transform.position[0]=Fixed(int(frame),0);
+        const auto actual=run(4,true);
+        assert(sink.commands==expected&&actual.glyphs==stats.glyphs&&actual.dropped==stats.dropped);
+    }
+    objects[2].alive=objects[2].active=true;objects[2].parent=-1;objects[2].canvas.enabled=true;
+    run(4,true);assert(sink.commands!=expected); // adding UI still changes the layout
+    objects[2].canvas.enabled=false;run(4,true);assert(sink.commands==expected);
 }
 bool same(const Rect& r, int x, int y, int w, int h) {
     if (r.x.raw() == x * 4096 && r.y.raw() == y * 4096 && r.w.raw() == w * 4096 && r.h.raw() == h * 4096) return true;
@@ -766,6 +832,8 @@ static_assert(sizeof(LayoutKind) == 1, "LayoutKind must fit the reflected 32-bit
 }  // namespace
 
 int main() {
+    node_cache_matches_fresh_packets();
+    world_activation_cannot_change_hud_packets();
     no_container_matches_the_anchor_chain();
     horizontal_expanders_split_the_leftover();
     vertical_puts_the_first_child_at_the_top();

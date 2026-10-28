@@ -12,6 +12,7 @@ struct ChunkVisibilityCache {
     uint32_t* bounds_result = nullptr;
     ChunkBasisBounds* basis_bounds = nullptr;
     uint32_t* basis_valid = nullptr;
+    uint32_t* bounds_inside = nullptr;
     int64_t planes[6][4] = {};
     const uint32_t* masks[6] = {};
     bool valid[6] = {};
@@ -131,11 +132,16 @@ public:
         if(!(cache->bounds_valid[chunk>>5]&bit))return -1;
         return (cache->bounds_result[chunk>>5]&bit)?1:0;
     }
-    void remember_bounds(size_t chunk,bool accepted) const {
+    bool cached_inside(size_t chunk) const {
+        return cached_bounds(chunk)==1&&grid->cache->bounds_inside&&
+            (grid->cache->bounds_inside[chunk>>5]&(uint32_t(1)<<(chunk&31)));
+    }
+    void remember_bounds(size_t chunk,bool accepted,bool inside=false) const {
         if(!bounds_active || chunk>=grid->chunk_count)return;
         auto* cache=grid->cache;
         const uint32_t bit=uint32_t(1)<<(chunk&31);
         if(accepted)cache->bounds_result[chunk>>5]|=bit;else cache->bounds_result[chunk>>5]&=~bit;
+        if(cache->bounds_inside){if(accepted&&inside)cache->bounds_inside[chunk>>5]|=bit;else cache->bounds_inside[chunk>>5]&=~bit;}
         cache->bounds_valid[chunk>>5]|=bit;
     }
     // x*local.x + y*local.y + z*local.z + d*4096 >= 0, all in Q12.

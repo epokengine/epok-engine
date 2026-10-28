@@ -170,7 +170,20 @@ pub fn external_file_bytes(build: &Path) -> Result<u64, String> {
     let manifest: Manifest =
         serde_json::from_slice(&fs::read(build.join(MANIFEST)).map_err(|e| e.to_string())?)
             .map_err(|e| e.to_string())?;
-    Ok(manifest.files.iter().map(|node| node.bytes).sum())
+    let mut total = 0;
+    for node in &manifest.files {
+        total += scene_file_bytes(build, node)?.unwrap_or(node.bytes);
+    }
+    Ok(total)
+}
+/// Scene files are written after linking; staging records them with no size.
+fn scene_file_bytes(build: &Path, node: &Node) -> Result<Option<u64>, String> {
+    if !crate::scene_files::is_file_name(&node.name) {
+        return Ok(None);
+    }
+    fs::metadata(build.join(&node.name))
+        .map(|m| Some(m.len()))
+        .map_err(|e| format!("Scene file {}: {e}", node.name))
 }
 pub fn external_file_paths(build: &Path) -> Result<Vec<String>, String> {
     let manifest: Manifest =
@@ -180,7 +193,7 @@ pub fn external_file_paths(build: &Path) -> Result<Vec<String>, String> {
         .files
         .iter()
         .map(|node| {
-            if node.name == "GEOMETRY.BIN" {
+            if node.name == "GEOMETRY.BIN" || crate::scene_files::is_file_name(&node.name) {
                 return Ok(node.name.clone());
             }
             node.name
@@ -356,6 +369,16 @@ pub fn stage(
             "External geometry/texture-upload archive; the shared RAM page pool is counted in the ELF",
         ));
     }
+    for file in crate::scene_files::staged(build) {
+        files.push(Node::leaf(
+            &file.name,
+            0,
+            format!(
+                "Scene file for {}: loads into the shared scene region when the scene starts",
+                file.scene
+            ),
+        ));
+    }
     for script in catalog {
         let mut node = Node::leaf(
             &script.name,
@@ -512,23 +535,25 @@ pub fn stage(
 }
 
 #[derive(Clone, Debug)]
-struct Section {
-    name: String,
-    address: u64,
-    size: u64,
-    flags: u32,
-    kind: u32,
+pub(crate) struct Section {
+    pub(crate) name: String,
+    pub(crate) address: u64,
+    pub(crate) size: u64,
+    pub(crate) flags: u32,
+    pub(crate) kind: u32,
+    /// File offset of the section's bytes; meaningless for NOBITS (kind 8).
+    pub(crate) offset: u64,
 }
 #[derive(Clone, Debug)]
-struct Symbol {
-    name: String,
-    address: u64,
-    size: u64,
-    section: usize,
+pub(crate) struct Symbol {
+    pub(crate) name: String,
+    pub(crate) address: u64,
+    pub(crate) size: u64,
+    pub(crate) section: usize,
 }
-struct Elf {
-    sections: Vec<Section>,
-    symbols: Vec<Symbol>,
+pub(crate) struct Elf {
+    pub(crate) sections: Vec<Section>,
+    pub(crate) symbols: Vec<Symbol>,
 }
 
 fn bytes(data: &[u8], offset: u64, count: u64) -> Result<&[u8], String> {
@@ -560,7 +585,7 @@ fn string(data: &[u8], offset: u64) -> Result<String, String> {
     Ok(String::from_utf8_lossy(&tail[..end]).into_owned())
 }
 impl Elf {
-    fn parse(data: &[u8]) -> Result<Self, String> {
+    pub(crate) fn parse(data: &[u8]) -> Result<Self, String> {
         if bytes(data, 0, 7)? != b"\x7fELF\x01\x01\x01"
             || u16_at(data, 16)? != 2
             || u16_at(data, 18)? != 8
@@ -596,6 +621,7 @@ impl Elf {
                 size: u64::from(u32_at(data, h + 20)?),
                 flags: u32_at(data, h + 8)?,
                 kind,
+                offset: u64::from(u32_at(data, h + 16)?),
             };
             // NOLOAD has a memory size but no corresponding file bytes.
             if kind != 8 {
@@ -818,6 +844,46 @@ pub fn analyze(
     let elf =
         Elf::parse(&fs::read(build.join("epok.elf")).map_err(|e| format!("Memory ELF: {e}"))?)?;
     let names = demangled_names(root, build, config);
+    // External scenes link at one address; their region is counted once, at the
+    // size of the largest, and each scene's own size is listed inside it.
+    let scene_files = crate::scene_files::staged(build);
+    let overlay = |s: &Section| s.name.starts_with(".epok_scene_");
+    let symbol = |name: &str| {
+        elf.symbols
+            .iter()
+            .find(|s| s.name == name)
+            .map(|s| s.address)
+    };
+    let region = match (
+        symbol("__epok_scene_region_start"),
+        symbol("__epok_scene_region_end"),
+    ) {
+        (Some(start), Some(end)) if end > start && !scene_files.is_empty() => Some((start, end)),
+        _ => None,
+    };
+    let region_node = |start: u64, end: u64| {
+        let mut children = Vec::new();
+        for file in &scene_files {
+            let section = format!(".epok_scene_{}", file.bank);
+            if let Some(s) = elf.sections.iter().find(|s| s.name == section) {
+                children.push(Node::leaf(
+                    format!("{} ({})", file.scene, file.name),
+                    s.size,
+                    "Occupies the region while this scene runs",
+                ));
+            }
+        }
+        children.sort_by(|a, b| b.bytes.cmp(&a.bytes).then(a.name.cmp(&b.name)));
+        Node {
+            name: "Scene file region".into(),
+            bytes: end - start,
+            detail: format!(
+                "0x{start:08x}..0x{end:08x} · one external scene at a time; sized for the largest"
+            ),
+            children,
+            ..Default::default()
+        }
+    };
     let mut allocated = elf
         .sections
         .iter()
@@ -826,6 +892,7 @@ pub fn analyze(
             s.flags & 2 != 0
                 && s.size > 0
                 && s.name != ".PSX_EXE_Header"
+                && !overlay(s)
                 && s.address >= 0x80000000
                 && s.address < 0x80800000
         })
@@ -836,7 +903,28 @@ pub fn analyze(
     }
     let mut nodes = Vec::new();
     let mut cursor = 0x80000000u64;
+    let mut pending_region = region;
+    let mut place_region = |nodes: &mut Vec<(String, Node)>, cursor: &mut u64, limit: u64| {
+        if let Some((start, end)) =
+            pending_region.filter(|(start, _)| *start >= *cursor && *start < limit)
+        {
+            if start > *cursor {
+                nodes.push((
+                    "Alignment / unattributed".into(),
+                    Node::leaf(
+                        format!("0x{:08x}..0x{start:08x}", *cursor),
+                        start - *cursor,
+                        "Gap before the scene file region",
+                    ),
+                ));
+            }
+            nodes.push(("External scenes".into(), region_node(start, end)));
+            *cursor = end;
+            pending_region = None;
+        }
+    };
     for (i, s) in allocated {
+        place_region(&mut nodes, &mut cursor, s.address);
         if s.address < cursor {
             return Err("Overlapping main-RAM ELF sections; cannot provide an exact total".into());
         }
@@ -862,6 +950,7 @@ pub fn analyze(
         nodes.extend(section_nodes(i, s, &elf.symbols, &manifest.hints, &names));
         cursor = s.address + s.size;
     }
+    place_region(&mut nodes, &mut cursor, u64::MAX);
     if let Some(heap) = elf.symbols.iter().find(|s| s.name == "__heap_start")
         && heap.address > cursor
     {
@@ -898,12 +987,17 @@ pub fn analyze(
         return Err("Memory analysis requires a valid PS-X EXE".into());
     }
     let mut files = manifest.files;
+    for node in &mut files {
+        if let Some(bytes) = scene_file_bytes(build, node)? {
+            node.bytes = bytes;
+        }
+    }
     files.push(Node::leaf(
         "epok.ps-exe",
         exe.len() as u64,
         "File bytes including PS-X EXE header and padding; BSS is excluded",
     ));
-    let mut warnings=vec!["Static allocations are measured from the linked ELF. Heap, stack and transition peaks are not measured; unassigned RAM is their remaining budget, not guaranteed free runtime memory.".into(),"Whole-game scene data stays prelinked. Shared resources and the reusable entity pool are counted once. VRAM is shown for each active bank.".into(),"File totals include the EXE and selected external payloads. Disc filesystem/sector overhead is not included.".into()];
+    let mut warnings=vec!["Static allocations are measured from the linked ELF. Heap, stack and transition peaks are not measured; unassigned RAM is their remaining budget, not guaranteed free runtime memory.".into(),if region.is_some(){"Scenes kept in the executable stay prelinked; external scenes share one region sized for the largest of them. Shared resources and the reusable entity pool are counted once. VRAM is shown for each active bank.".into()}else{"Whole-game scene data stays prelinked. Shared resources and the reusable entity pool are counted once. VRAM is shown for each active bank.".into()},"File totals include the EXE and selected external payloads. Disc filesystem/sector overhead is not included.".into()];
     warnings.extend(manifest.warnings);
     if profile.target == crate::play::Target::Serial {
         warnings.push("The external Unirom/PCDrv handler's RAM reservation is not described by this ELF and is not measured here.".into());
@@ -1084,6 +1178,7 @@ mod tests {
             size: 4096,
             flags: 3,
             kind: 8,
+            offset: 0,
         };
         let symbols = vec![
             Symbol {

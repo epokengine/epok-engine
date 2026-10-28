@@ -28,6 +28,7 @@ pub struct Encoded {
     pub improved: bool,
 }
 
+#[cfg(test)]
 pub fn encode(
     pcm: &[i16],
     loop_start_block: Option<usize>,
@@ -78,10 +79,10 @@ fn validate(pcm: &[i16], loop_blocks: Option<[usize; 2]>) -> Result<(), String> 
     }
     validate_pcm_len(pcm.len())?;
     let blocks = pcm.len().div_ceil(28);
-    if let Some([start, end]) = loop_blocks {
-        if start >= end || end == 0 || end > blocks {
-            return Err("PSX ADPCM repeat region lies outside PCM blocks".into());
-        }
+    if let Some([start, end]) = loop_blocks
+        && (start >= end || end == 0 || end > blocks)
+    {
+        return Err("PSX ADPCM repeat region lies outside PCM blocks".into());
     }
     Ok(())
 }

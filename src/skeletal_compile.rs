@@ -61,8 +61,8 @@ fn fixed_pose(p: &Pose) -> FixedMatrix {
         ],
     ];
     for row in &mut matrix {
-        for column in 0..3 {
-            row[column] = fixed_mul(row[column], i32::from(p.scale[column]));
+        for (value, scale) in row.iter_mut().zip(p.scale) {
+            *value = fixed_mul(*value, i32::from(scale));
         }
     }
     matrix
@@ -204,8 +204,11 @@ fn rigid_order(m: &Model) -> RigidOrder {
         .collect();
     let mut bone_offsets = vec![0_u16; m.skeleton.bones.len() + 1];
     let mut cursor = 0;
-    for bone in 0..m.skeleton.bones.len() {
-        bone_offsets[bone] = cursor as u16;
+    for (bone, offset) in bone_offsets[..m.skeleton.bones.len()]
+        .iter_mut()
+        .enumerate()
+    {
+        *offset = cursor as u16;
         while cursor < vertices.len() && vertices[cursor].bone as usize == bone {
             cursor += 1;
         }
@@ -360,11 +363,13 @@ pub const VERTEX_BYTES: usize = 6;
 /// One `Affine<Fixed>`: `Fixed values[3][4]`, `Fixed` being a 32-bit Q12 word.
 pub const AFFINE_BYTES: usize = 48;
 /// `skeletal_detail::Scratch` — the shared 64-matrix pose buffer, the shared
-/// 512-position decode buffer and one `MeshGeometry` copy. Allocated once for
+/// 512-position decode buffer, one `MeshGeometry` copy and 40 bytes of pose-cache
+/// identity. Allocated once for
 /// the whole executable, not per character.
 pub const SCRATCH_BYTES: usize = crate::skeletal::MAX_BONES * AFFINE_BYTES
     + crate::skeletal::MAX_VERTICES * VERTEX_BYTES
-    + MESH_GEOMETRY_BYTES;
+    + MESH_GEOMETRY_BYTES
+    + 40;
 
 /// Immutable query tables retained in addition to the selected render format.
 /// These flags are computed from the shared operation demand set before scene
@@ -375,6 +380,7 @@ pub struct QueryDemand {
     pub bones: bool,
 }
 impl QueryDemand {
+    #[cfg(test)]
     pub const NONE: Self = Self {
         vertices: false,
         bones: false,
@@ -456,10 +462,12 @@ fn checked(value: Option<usize>) -> Result<usize, String> {
 
 /// Byte accounting for a model in its selected storage mode. Fails when the
 /// host tracks or the generated target tables exceed the animation budget.
+#[cfg(test)]
 pub fn budget(m: &Model) -> Result<Budget, String> {
     budget_for(m, QueryDemand::NONE)
 }
 
+#[cfg(test)]
 pub fn budget_for(m: &Model, demand: QueryDemand) -> Result<Budget, String> {
     measure(m, demand).map(|(budget, _)| budget)
 }
@@ -639,6 +647,7 @@ pub fn validate_bounds(m: &Model) -> Result<(), String> {
 pub fn header(e: &Actor, id: usize) -> Result<String, String> {
     header_with_pages_for(e, id, &|_| None, QueryDemand::NONE)
 }
+#[cfg(test)]
 pub fn header_with_pages(
     e: &Actor,
     id: usize,

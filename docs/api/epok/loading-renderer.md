@@ -24,7 +24,7 @@ This module covers loading-screen rendering and transitions. It documents 1 publ
 void draw(psyqo::GPU& gpu)
 ```
 
-- **Declared at:** [line 18](../../../runtime/loading_renderer.hpp#L18)
+- **Declared at:** [line 19](../../../runtime/loading_renderer.hpp#L19)
 - **Kind:** `cxx method`
 
 **Parameters**

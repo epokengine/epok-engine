@@ -306,7 +306,7 @@ auto result = epok::ordered_gte_input_fits(world_q12, camera_q8);
 **Exact declaration**
 
 ```cpp
-template<class Number> #if defined(__GNUC__) && !defined(__clang__) __attribute__((noinline,optimize("O3"))) #elif defined(__GNUC__) __attribute__((noinline)) #endif bool ordered_projection_anchor(const Affine<Number>& matrix,const int32_t* base_offset, const int32_t* center,int32_t* offset,int32_t* translation)
+template<class Number> __attribute__((noinline,optimize("O3"))) __attribute__((noinline)) bool ordered_projection_anchor(const Affine<Number>& matrix,const int32_t* base_offset, const int32_t* center,int32_t* offset,int32_t* translation)
 ```
 
 - **Declared at:** [line 85](../../../runtime/ordered_projection.hpp#L85)
@@ -494,7 +494,7 @@ auto result = epok::ordered_screen_outside<Width, Height>(screen, quad);
 **Exact declaration**
 
 ```cpp
-template<class Units,int Width,int Height,class Number> #if defined(__GNUC__) && !defined(__clang__) __attribute__((noinline,optimize("O3"))) #elif defined(__GNUC__) __attribute__((noinline)) #endif bool project_ordered_cpu(const int32_t (*points)[3],unsigned count, const CameraSpace<Number>& view,const Number* row_scale, ProjectedVertex* projected,uint32_t* screen,int32_t* depth, const Affine<Number>* gte_matrix=nullptr,const int32_t* gte_offset=nullptr)
+template<class Units,int Width,int Height,class Number> __attribute__((noinline,optimize("O3"))) __attribute__((noinline)) bool project_ordered_cpu(const int32_t (*points)[3],unsigned count, const CameraSpace<Number>& view,const Number* row_scale, ProjectedVertex* projected,uint32_t* screen,int32_t* depth, const Affine<Number>* gte_matrix=nullptr,const int32_t* gte_offset=nullptr)
 ```
 
 - **Declared at:** [line 172](../../../runtime/ordered_projection.hpp#L172)

@@ -1,10 +1,10 @@
 # PsyQo API: Primitives / Triangles
 
-> **Header:** `"psyqo/primitives/triangles.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/triangles.hh)
+> **Header:** `"psyqo/primitives/triangles.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/triangles.hh)
 
 This module covers typed PlayStation GPU primitives. It documents 54 public callables declared directly in this header.
 
-PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552d`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
+PsyQo is pinned through Nugget revision `c702235f366fb1cd8c18e0a5a5392e0acae8a079`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
 
 ## Declared types
 
@@ -79,7 +79,7 @@ PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552
 Color getColorA() const
 ```
 
-- **Declared at:** [line 281](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/triangles.hh#L281)
+- **Declared at:** [line 281](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/triangles.hh#L281)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `Color`. Check the purpose and failure notes before using the value.
@@ -112,7 +112,7 @@ auto result = object.getColorA();
 Color getColorB() const
 ```
 
-- **Declared at:** [line 282](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/triangles.hh#L282)
+- **Declared at:** [line 282](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/triangles.hh#L282)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `Color`. Check the purpose and failure notes before using the value.
@@ -145,7 +145,7 @@ auto result = object.getColorB();
 Color getColorC() const
 ```
 
-- **Declared at:** [line 283](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/triangles.hh#L283)
+- **Declared at:** [line 283](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/triangles.hh#L283)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `Color`. Check the purpose and failure notes before using the value.
@@ -180,7 +180,7 @@ auto result = object.getColorC();
 uint32_t getCommandWord() const
 ```
 
-- **Declared at:** [line 295](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/triangles.hh#L295)
+- **Declared at:** [line 295](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/triangles.hh#L295)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
@@ -213,7 +213,7 @@ auto result = object.getCommandWord();
 GouraudTexturedTriangle() : c
 ```
 
-- **Declared at:** [line 264](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/triangles.hh#L264)
+- **Declared at:** [line 264](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/triangles.hh#L264)
 - **Kind:** `constructor`
 
 **Use it when.** You need typed PlayStation GPU primitives and the preconditions in the declaration are already satisfied.
@@ -242,7 +242,7 @@ psyqo::Prim::GouraudTexturedTriangle value();
 GouraudTexturedTriangle(Color c) : c
 ```
 
-- **Declared at:** [line 265](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/triangles.hh#L265)
+- **Declared at:** [line 265](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/triangles.hh#L265)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -280,7 +280,7 @@ psyqo::Prim::GouraudTexturedTriangle value(c);
 GouraudTexturedTriangle(const GouraudTexturedTriangle& other, Color c)
 ```
 
-- **Declared at:** [line 266](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/triangles.hh#L266)
+- **Declared at:** [line 266](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/triangles.hh#L266)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -320,7 +320,7 @@ psyqo::Prim::GouraudTexturedTriangle value(other, c);
 template <Transparency transparency = Transparency::Auto> void interpolateColors(Color a, Color b, Color c)
 ```
 
-- **Declared at:** [line 330](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/triangles.hh#L330)
+- **Declared at:** [line 330](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/triangles.hh#L330)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -369,7 +369,7 @@ object.interpolateColors<transparency>(a, b, c);
 template <Transparency transparency = Transparency::Auto> void interpolateColors(const Color* a, const Color* b, const Color* c)
 ```
 
-- **Declared at:** [line 313](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/triangles.hh#L313)
+- **Declared at:** [line 313](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/triangles.hh#L313)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -418,7 +418,7 @@ object.interpolateColors<transparency>(a, b, c);
 bool isSemiTrans() const
 ```
 
-- **Declared at:** [line 311](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/triangles.hh#L311)
+- **Declared at:** [line 311](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/triangles.hh#L311)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -451,7 +451,7 @@ auto result = object.isSemiTrans();
 GouraudTexturedTriangle& setColorA(Color c)
 ```
 
-- **Declared at:** [line 268](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/triangles.hh#L268)
+- **Declared at:** [line 268](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/triangles.hh#L268)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -495,7 +495,7 @@ auto result = object.setColorA(c);
 GouraudTexturedTriangle& setColorAPacked(uint32_t packed)
 ```
 
-- **Declared at:** [line 303](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/triangles.hh#L303)
+- **Declared at:** [line 303](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/triangles.hh#L303)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -537,7 +537,7 @@ auto result = object.setColorAPacked(packed);
 GouraudTexturedTriangle& setColorB(Color c)
 ```
 
-- **Declared at:** [line 273](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/triangles.hh#L273)
+- **Declared at:** [line 273](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/triangles.hh#L273)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -579,7 +579,7 @@ auto result = object.setColorB(c);
 GouraudTexturedTriangle& setColorC(Color c)
 ```
 
-- **Declared at:** [line 277](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/triangles.hh#L277)
+- **Declared at:** [line 277](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/triangles.hh#L277)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -621,7 +621,7 @@ auto result = object.setColorC(c);
 GouraudTexturedTriangle& setOpaque()
 ```
 
-- **Declared at:** [line 284](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/triangles.hh#L284)
+- **Declared at:** [line 284](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/triangles.hh#L284)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `GouraudTexturedTriangle &`. Check the purpose and failure notes before using the value.
@@ -654,7 +654,7 @@ auto result = object.setOpaque();
 GouraudTexturedTriangle& setSemiTrans()
 ```
 
-- **Declared at:** [line 307](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/triangles.hh#L307)
+- **Declared at:** [line 307](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/triangles.hh#L307)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `GouraudTexturedTriangle &`. Check the purpose and failure notes before using the value.
@@ -687,7 +687,7 @@ auto result = object.setSemiTrans();
 Color getColorA() const
 ```
 
-- **Declared at:** [line 159](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/triangles.hh#L159)
+- **Declared at:** [line 159](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/triangles.hh#L159)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `Color`. Check the purpose and failure notes before using the value.
@@ -720,7 +720,7 @@ auto result = object.getColorA();
 Color getColorB() const
 ```
 
-- **Declared at:** [line 160](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/triangles.hh#L160)
+- **Declared at:** [line 160](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/triangles.hh#L160)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `Color`. Check the purpose and failure notes before using the value.
@@ -753,7 +753,7 @@ auto result = object.getColorB();
 Color getColorC() const
 ```
 
-- **Declared at:** [line 161](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/triangles.hh#L161)
+- **Declared at:** [line 161](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/triangles.hh#L161)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `Color`. Check the purpose and failure notes before using the value.
@@ -788,7 +788,7 @@ auto result = object.getColorC();
 uint32_t getCommandWord() const
 ```
 
-- **Declared at:** [line 173](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/triangles.hh#L173)
+- **Declared at:** [line 173](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/triangles.hh#L173)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
@@ -821,7 +821,7 @@ auto result = object.getCommandWord();
 GouraudTriangle() : c
 ```
 
-- **Declared at:** [line 143](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/triangles.hh#L143)
+- **Declared at:** [line 143](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/triangles.hh#L143)
 - **Kind:** `constructor`
 
 **Use it when.** You need typed PlayStation GPU primitives and the preconditions in the declaration are already satisfied.
@@ -850,7 +850,7 @@ psyqo::Prim::GouraudTriangle value();
 GouraudTriangle(Color c) : c
 ```
 
-- **Declared at:** [line 144](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/triangles.hh#L144)
+- **Declared at:** [line 144](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/triangles.hh#L144)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -888,7 +888,7 @@ psyqo::Prim::GouraudTriangle value(c);
 GouraudTriangle(const GouraudTriangle& other, Color c) : c
 ```
 
-- **Declared at:** [line 145](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/triangles.hh#L145)
+- **Declared at:** [line 145](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/triangles.hh#L145)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -928,7 +928,7 @@ psyqo::Prim::GouraudTriangle value(other, c);
 template <Transparency transparency = Transparency::Auto> void interpolateColors(Color a, Color b, Color c)
 ```
 
-- **Declared at:** [line 220](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/triangles.hh#L220)
+- **Declared at:** [line 220](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/triangles.hh#L220)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -977,7 +977,7 @@ object.interpolateColors<transparency>(a, b, c);
 template <Transparency transparency = Transparency::Auto> void interpolateColors(const Color* a, const Color* b, const Color* c)
 ```
 
-- **Declared at:** [line 203](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/triangles.hh#L203)
+- **Declared at:** [line 203](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/triangles.hh#L203)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -1026,7 +1026,7 @@ object.interpolateColors<transparency>(a, b, c);
 bool isSemiTrans() const
 ```
 
-- **Declared at:** [line 189](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/triangles.hh#L189)
+- **Declared at:** [line 189](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/triangles.hh#L189)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -1059,7 +1059,7 @@ auto result = object.isSemiTrans();
 GouraudTriangle& setColorA(Color c)
 ```
 
-- **Declared at:** [line 146](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/triangles.hh#L146)
+- **Declared at:** [line 146](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/triangles.hh#L146)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1103,7 +1103,7 @@ auto result = object.setColorA(c);
 GouraudTriangle& setColorAPacked(uint32_t packed)
 ```
 
-- **Declared at:** [line 181](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/triangles.hh#L181)
+- **Declared at:** [line 181](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/triangles.hh#L181)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1145,7 +1145,7 @@ auto result = object.setColorAPacked(packed);
 GouraudTriangle& setColorB(Color c)
 ```
 
-- **Declared at:** [line 151](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/triangles.hh#L151)
+- **Declared at:** [line 151](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/triangles.hh#L151)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1187,7 +1187,7 @@ auto result = object.setColorB(c);
 GouraudTriangle& setColorC(Color c)
 ```
 
-- **Declared at:** [line 155](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/triangles.hh#L155)
+- **Declared at:** [line 155](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/triangles.hh#L155)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1229,7 +1229,7 @@ auto result = object.setColorC(c);
 GouraudTriangle& setOpaque()
 ```
 
-- **Declared at:** [line 162](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/triangles.hh#L162)
+- **Declared at:** [line 162](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/triangles.hh#L162)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `GouraudTriangle &`. Check the purpose and failure notes before using the value.
@@ -1262,7 +1262,7 @@ auto result = object.setOpaque();
 GouraudTriangle& setPointA(Vertex v)
 ```
 
-- **Declared at:** [line 190](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/triangles.hh#L190)
+- **Declared at:** [line 190](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/triangles.hh#L190)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1304,7 +1304,7 @@ auto result = object.setPointA(v);
 GouraudTriangle& setPointB(Vertex v)
 ```
 
-- **Declared at:** [line 194](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/triangles.hh#L194)
+- **Declared at:** [line 194](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/triangles.hh#L194)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1346,7 +1346,7 @@ auto result = object.setPointB(v);
 GouraudTriangle& setPointC(Vertex v)
 ```
 
-- **Declared at:** [line 198](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/triangles.hh#L198)
+- **Declared at:** [line 198](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/triangles.hh#L198)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1388,7 +1388,7 @@ auto result = object.setPointC(v);
 GouraudTriangle& setSemiTrans()
 ```
 
-- **Declared at:** [line 185](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/triangles.hh#L185)
+- **Declared at:** [line 185](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/triangles.hh#L185)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `GouraudTriangle &`. Check the purpose and failure notes before using the value.
@@ -1421,7 +1421,7 @@ auto result = object.setSemiTrans();
 Color getColor() const
 ```
 
-- **Declared at:** [line 108](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/triangles.hh#L108)
+- **Declared at:** [line 108](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/triangles.hh#L108)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `Color`. Check the purpose and failure notes before using the value.
@@ -1454,7 +1454,7 @@ auto result = object.getColor();
 bool isSemiTrans() const
 ```
 
-- **Declared at:** [line 117](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/triangles.hh#L117)
+- **Declared at:** [line 117](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/triangles.hh#L117)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -1487,7 +1487,7 @@ auto result = object.isSemiTrans();
 TexturedTriangle& setColor(Color c)
 ```
 
-- **Declared at:** [line 103](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/triangles.hh#L103)
+- **Declared at:** [line 103](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/triangles.hh#L103)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1529,7 +1529,7 @@ auto result = object.setColor(c);
 TexturedTriangle& setOpaque()
 ```
 
-- **Declared at:** [line 109](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/triangles.hh#L109)
+- **Declared at:** [line 109](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/triangles.hh#L109)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `TexturedTriangle &`. Check the purpose and failure notes before using the value.
@@ -1562,7 +1562,7 @@ auto result = object.setOpaque();
 TexturedTriangle& setSemiTrans()
 ```
 
-- **Declared at:** [line 113](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/triangles.hh#L113)
+- **Declared at:** [line 113](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/triangles.hh#L113)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `TexturedTriangle &`. Check the purpose and failure notes before using the value.
@@ -1595,7 +1595,7 @@ auto result = object.setSemiTrans();
 TexturedTriangle() : c
 ```
 
-- **Declared at:** [line 100](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/triangles.hh#L100)
+- **Declared at:** [line 100](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/triangles.hh#L100)
 - **Kind:** `constructor`
 
 **Use it when.** You need typed PlayStation GPU primitives and the preconditions in the declaration are already satisfied.
@@ -1624,7 +1624,7 @@ psyqo::Prim::TexturedTriangle value();
 TexturedTriangle(Color c) : c
 ```
 
-- **Declared at:** [line 101](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/triangles.hh#L101)
+- **Declared at:** [line 101](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/triangles.hh#L101)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -1662,7 +1662,7 @@ psyqo::Prim::TexturedTriangle value(c);
 TexturedTriangle(const TexturedTriangle& other, Color c) : c
 ```
 
-- **Declared at:** [line 102](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/triangles.hh#L102)
+- **Declared at:** [line 102](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/triangles.hh#L102)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -1702,7 +1702,7 @@ psyqo::Prim::TexturedTriangle value(other, c);
 Color getColor() const
 ```
 
-- **Declared at:** [line 54](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/triangles.hh#L54)
+- **Declared at:** [line 54](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/triangles.hh#L54)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `Color`. Check the purpose and failure notes before using the value.
@@ -1735,7 +1735,7 @@ auto result = object.getColor();
 bool isSemiTrans() const
 ```
 
-- **Declared at:** [line 63](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/triangles.hh#L63)
+- **Declared at:** [line 63](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/triangles.hh#L63)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -1768,7 +1768,7 @@ auto result = object.isSemiTrans();
 Triangle& setColor(Color c)
 ```
 
-- **Declared at:** [line 49](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/triangles.hh#L49)
+- **Declared at:** [line 49](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/triangles.hh#L49)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1810,7 +1810,7 @@ auto result = object.setColor(c);
 Triangle& setOpaque()
 ```
 
-- **Declared at:** [line 55](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/triangles.hh#L55)
+- **Declared at:** [line 55](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/triangles.hh#L55)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `Triangle &`. Check the purpose and failure notes before using the value.
@@ -1843,7 +1843,7 @@ auto result = object.setOpaque();
 Triangle& setPointA(Vertex v)
 ```
 
-- **Declared at:** [line 64](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/triangles.hh#L64)
+- **Declared at:** [line 64](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/triangles.hh#L64)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1885,7 +1885,7 @@ auto result = object.setPointA(v);
 Triangle& setPointB(Vertex v)
 ```
 
-- **Declared at:** [line 68](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/triangles.hh#L68)
+- **Declared at:** [line 68](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/triangles.hh#L68)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1927,7 +1927,7 @@ auto result = object.setPointB(v);
 Triangle& setPointC(Vertex v)
 ```
 
-- **Declared at:** [line 72](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/triangles.hh#L72)
+- **Declared at:** [line 72](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/triangles.hh#L72)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1969,7 +1969,7 @@ auto result = object.setPointC(v);
 Triangle& setSemiTrans()
 ```
 
-- **Declared at:** [line 59](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/triangles.hh#L59)
+- **Declared at:** [line 59](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/triangles.hh#L59)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `Triangle &`. Check the purpose and failure notes before using the value.
@@ -2002,7 +2002,7 @@ auto result = object.setSemiTrans();
 Triangle() : c
 ```
 
-- **Declared at:** [line 46](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/triangles.hh#L46)
+- **Declared at:** [line 46](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/triangles.hh#L46)
 - **Kind:** `constructor`
 
 **Use it when.** You need typed PlayStation GPU primitives and the preconditions in the declaration are already satisfied.
@@ -2031,7 +2031,7 @@ psyqo::Prim::Triangle value();
 Triangle(Color c) : c
 ```
 
-- **Declared at:** [line 47](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/triangles.hh#L47)
+- **Declared at:** [line 47](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/triangles.hh#L47)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -2069,7 +2069,7 @@ psyqo::Prim::Triangle value(c);
 Triangle(const Triangle& other, Color c) : c
 ```
 
-- **Declared at:** [line 48](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/triangles.hh#L48)
+- **Declared at:** [line 48](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/primitives/triangles.hh#L48)
 - **Kind:** `constructor`
 
 **Parameters**

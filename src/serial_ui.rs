@@ -5,6 +5,7 @@ pub enum Action {
     Scan,
     Prepare,
     Test,
+    Reset,
 }
 
 #[derive(Default)]
@@ -25,8 +26,18 @@ pub fn start(e: &mut Editor, action: Action) {
     }
     e.last_error = None;
     e.serial_ui.error = None;
-    e.serial_ui.status = "Checking connection...".into();
-    e.job_stage = "Preparing PSX connection".into();
+    if action == Action::Reset {
+        e.console.error = None;
+        e.focus_console = true;
+        e.active_play_runtime = crate::play::Runtime::PlayStation;
+        e.active_play_target = crate::play::Target::Serial;
+        e.serial_ui.play_after_prepare = false;
+        e.serial_ui.status = "Reconnecting to reset the PSX...".into();
+        e.job_stage = "Resetting PSX".into();
+    } else {
+        e.serial_ui.status = "Checking connection...".into();
+        e.job_stage = "Preparing PSX connection".into();
+    }
     e.job_progress = None;
     e.job = Some(crate::pipeline::Job::serial_setup(
         e.preferences.serial.clone(),
@@ -58,7 +69,7 @@ pub fn window(ui: &imgui::Ui, e: &mut Editor) {
             ui.text("PSX via serial");
             ui.text_disabled(crate::serial_support::host_label());
             if cfg!(target_os="linux") { ui.text_wrapped("Linux serial support is experimental. Mono and device access must be provided by your distribution."); }
-            ui.text_wrapped("Connect your adapter and start Unirom on the console. Play enables the resident debug handler, sends your program and keeps the monitor connected. Pause, Continue and Reset PSX are available in Game. Components are managed inside this Epok installation.");
+            ui.text_wrapped("Connect your adapter and start Unirom on the console. Play enables the resident debug handler, sends your program and keeps the monitor connected. Stop requests a console reset. Reset PSX can also reconnect after a lost session if the resident handler still responds. Components are managed inside this Epok installation.");
             ui.text(if state.tools_ready { "Serial components installed" } else { "Serial components need installation or repair" });
             ui.text_wrapped(format!("Tools: {}",crate::serial_support::managed_directory().display()));
             ui.separator();
@@ -97,6 +108,8 @@ pub fn window(ui: &imgui::Ui, e: &mut Editor) {
             }
             ui.separator();
             if ui.button(if state.tools_ready {"Play on PSX"} else {"Download and Play on PSX"}) { play=true; }
+            ui.same_line();
+            if ui.button("Reset PSX") { action=Some(Action::Reset); }
             ui.same_line();
             if ui.button("Close") {close=true;}
             drop(disabled);

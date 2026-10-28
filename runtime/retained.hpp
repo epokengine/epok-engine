@@ -29,9 +29,20 @@ inline bool mesh_faces_unlit(const MeshGeometry* geometry) {
 // invalidates the pointer; actor tint and lighting remain live renderer inputs.
 struct MeshMaterialCache {
     const MeshGeometry* geometry=nullptr;
-    bool unlit=false;
+    bool unlit=false,uniform=false;
+    uint32_t uniform_color=0;
     bool faces_unlit(const MeshGeometry* source) {
-        if(source!=geometry){geometry=source;unlit=mesh_faces_unlit(source);}
+        if(source!=geometry){
+            geometry=source;unlit=mesh_faces_unlit(source);uniform=unlit;
+            bool have=false;
+            if(unlit)for(auto* mesh=source;mesh;mesh=mesh->next)for(size_t q=0;q<mesh->quad_count;++q){
+                const auto& face=mesh->quads[q];
+                const uint32_t color=uint32_t(face.material.color[0])|uint32_t(face.material.color[1])<<8|uint32_t(face.material.color[2])<<16;
+                if(!have){uniform_color=color;have=true;}
+                if(face.vertex_colors||color!=uniform_color)uniform=false;
+            }
+            uniform&=have;
+        }
         return unlit;
     }
 };
@@ -44,12 +55,15 @@ struct RetainedKey {
     // All-zero defaults keep the pool in .bss; `valid` gates every comparison.
     uint8_t color[3]={};bool unlit=false;int texture=0;BlendMode blend=BlendMode(0);int16_t depth_bias=0;int32_t uv_scroll[2]={};
     bool lighting_enabled=false;ReceiveLighting receive=ReceiveLighting(0);bool valid=false;
-    bool operator==(const RetainedKey& o) const {
-        if(!valid||!o.valid)return false;
+    bool same_attributes(const RetainedKey& o) const {
         if(geometry!=o.geometry||bank!=o.bank||baked!=o.baked||baked_count!=o.baked_count||generation!=o.generation||light_signature!=o.light_signature)return false;
         for(int i=0;i<9;++i)if(basis[i]!=o.basis[i])return false;
-        for(int c=0;c<3;++c)if(color[c]!=o.color[c])return false;
         return unlit==o.unlit&&texture==o.texture&&blend==o.blend&&depth_bias==o.depth_bias&&uv_scroll[0]==o.uv_scroll[0]&&uv_scroll[1]==o.uv_scroll[1]&&lighting_enabled==o.lighting_enabled&&receive==o.receive;
+    }
+    bool operator==(const RetainedKey& o) const {
+        if(!valid||!o.valid||!same_attributes(o))return false;
+        for(int c=0;c<3;++c)if(color[c]!=o.color[c])return false;
+        return true;
     }
 };
 struct RetainedQuad {
@@ -62,9 +76,10 @@ struct RetainedQuad {
     // Only the first record of a chunk uses these two flags. They permit lazy
     // packet rebuilds without acquiring payloads for invisible streamed chunks.
     uint8_t valid_parities=0,chunk_dynamic=0,gpu_colors=0;
+    uint32_t attribute_revision=0; // first record only; UV/command source epoch
 };
 // Per-frame counters: retained objects drawn and packet rebuilds.
-struct RetainedStats {uint32_t objects=0,rebuilds=0;};
+struct RetainedStats {uint32_t objects=0,rebuilds=0,build_scanlines=0,quads=0,slot_top=0,dynamic_low=0;};
 inline RetainedStats retained_stats;
 
 // Packet cache addresses are not reservations of this frame's GPU budget.
@@ -85,6 +100,15 @@ template<size_t Capacity> class FramePacketSlots {
 public:
     void begin_frame(){claimed.fill(0);next=Capacity;available_begin=0;}
     uint32_t dynamic_low() const{return next;}
+    bool range_claimed(uint32_t first,uint32_t count) const {
+        if(!count||first>=Capacity||count>Capacity-first)return false;
+        const uint32_t end=first+count,last=(end-1)/32;
+        for(uint32_t w=first/32;w<=last;++w){
+            const auto bits=mask(first,end,w);
+            if((claimed[w]&bits)!=bits)return false;
+        }
+        return true;
+    }
     // A pass emitting many packets may bump through the current free run
     // [run_floor(), dynamic_low()) itself, exactly as allocate_dynamic(_pair)
     // would, and store its new low end before any other allocation.
@@ -145,7 +169,7 @@ private:
 };
 template<size_t Objects,size_t QuadCapacity> class RetainedGeometry {
 public:
-    struct State {RetainedKey key[2];const MeshGeometry* geometry=nullptr;uint32_t first_quad=0,quad_count=0;bool allocated=false,any_dynamic=false,stream_validated=false;};
+    struct State {RetainedKey key[2];const MeshGeometry* geometry=nullptr;uint32_t first_quad=0,quad_count=0,capacity=0,attribute_revision=0;uint8_t attribute_parity=0;bool allocated=false,any_dynamic=false,stream_validated=false,packets_invalid[2]={};};
 private:
     std::array<State,Objects> states{};
     std::array<RetainedQuad,QuadCapacity> records{};
@@ -153,8 +177,26 @@ private:
 public:
     static constexpr size_t quad_capacity=QuadCapacity;
     void reset(){for(auto& s:states)s=State{};next_quad=0;}
-    // A reused entity slot keeps its quads; a different geometry reallocates.
-    void forget(size_t index){if(index<Objects){states[index].key[0].valid=false;states[index].key[1].valid=false;}}
+    // A reused entity slot keeps its resident range, including across LODs.
+    void forget(size_t index){if(index<Objects){states[index].key[0].valid=false;states[index].key[1].valid=false;states[index].packets_invalid[0]=states[index].packets_invalid[1]=true;}}
+    void prepare_key(size_t index,unsigned parity,const RetainedKey& key,bool allow_recolor){
+        auto& s=states[index];if(s.key[parity]==key)return;
+        const bool recolor=allow_recolor&&!s.any_dynamic&&!s.packets_invalid[parity]&&
+            s.key[parity].geometry&&s.key[parity].same_attributes(key);
+        if(!s.attribute_revision||!s.key[s.attribute_parity].same_attributes(key)){
+            if(!++s.attribute_revision){s.attribute_revision=1;for(uint32_t q=0;q<s.quad_count;++q)records[s.first_quad+q].attribute_revision=0;}
+        }
+        if(s.key[1-parity].valid&&!(s.key[1-parity]==key))s.key[1-parity].valid=false;
+        s.key[parity]=key;s.attribute_parity=uint8_t(parity);s.any_dynamic=false;s.packets_invalid[parity]=false;
+        const uint8_t bit=uint8_t(1u<<parity),pending=uint8_t(bit<<2);
+        for(uint32_t q=0;q<s.quad_count;++q){
+            auto& r=records[s.first_quad+q];
+            // Only an owned packet and a chunk with the exact current command,
+            // UV and material epoch can keep those words during a tint change.
+            if(recolor&&(r.valid_parities&bit)&&r.attribute_revision==s.attribute_revision&&!r.chunk_dynamic)r.valid_parities|=pending;
+            else r.valid_parities&=uint8_t(~(bit|pending));
+        }
+    }
     // First preferred fragment slot beyond the cache (not a per-frame reservation).
     uint32_t slot_top() const {return next_quad*2;}
     // `limit_slot` is the packet-buffer capacity. Ranges describe cache addresses;
@@ -164,8 +206,13 @@ public:
         if(index>=Objects||!quads)return false;
         auto& s=states[index];
         if(s.allocated&&s.geometry==geometry&&s.quad_count==quads)return true;
+        if(s.allocated&&quads<=s.capacity){
+            const auto first=s.first_quad,capacity=s.capacity;
+            s=State{};s.geometry=geometry;s.first_quad=first;s.quad_count=uint32_t(quads);s.capacity=capacity;s.allocated=true;
+            return true;
+        }
         if(next_quad+quads>QuadCapacity||(next_quad+quads)*2>limit_slot)return false;
-        s=State{};s.geometry=geometry;s.first_quad=next_quad;s.quad_count=uint32_t(quads);s.allocated=true;
+        s=State{};s.geometry=geometry;s.first_quad=next_quad;s.quad_count=s.capacity=uint32_t(quads);s.allocated=true;
         next_quad+=uint32_t(quads);
         return true;
     }
@@ -174,8 +221,36 @@ public:
     // The descending allocator's low watermark is conservative across claimed gaps.
     void invalidate_borrowed(unsigned parity,uint32_t first_slot){
         if(first_slot>=slot_top())return;
-        for(auto& s:states)if(s.allocated&&(s.first_quad+s.quad_count)*2>first_slot)
-            s.key[parity&1].valid=false;
+        for(auto& s:states)if(s.allocated&&(s.first_quad+s.quad_count)*2>first_slot){
+            s.key[parity&1].valid=false;s.packets_invalid[parity&1]=true;
+        }
+    }
+    // A descending allocation can cross protected chunks without writing them.
+    // Keep their attributes and invalidate only the dormant chunks it borrowed.
+    template<size_t Capacity,class Borrowed>
+    void invalidate_borrowed(unsigned parity,uint32_t first_slot,
+                             const FramePacketSlots<Capacity>& slots,Borrowed borrowed){
+        if(first_slot>=slot_top())return;
+        parity&=1;const uint8_t bits=uint8_t((1u<<parity)|(4u<<parity));
+        for(size_t index=0;index<Objects;++index){
+            auto& s=states[index];
+            if(!s.allocated||(s.first_quad+s.quad_count)*2<=first_slot)continue;
+            uint32_t total=0;
+            for(auto* mesh=s.geometry;mesh;mesh=mesh->next)total+=uint32_t(mesh->quad_count);
+            if(total!=s.quad_count){
+                s.key[parity].valid=false;s.packets_invalid[parity]=true;
+                borrowed(index,0);continue;
+            }
+            uint32_t offset=0;
+            for(auto* mesh=s.geometry;mesh;mesh=mesh->next){
+                const uint32_t count=uint32_t(mesh->quad_count),first=(s.first_quad+offset)*2;
+                if(count&&first+count*2>first_slot&&!slots.range_claimed(first,count*2)){
+                    records[s.first_quad+offset].valid_parities&=uint8_t(~bits);
+                    borrowed(index,offset);
+                }
+                offset+=count;
+            }
+        }
     }
     State& state(size_t index){return states[index];}
     RetainedQuad* quads(size_t index){return records.data()+states[index].first_quad;}

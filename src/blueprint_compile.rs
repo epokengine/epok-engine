@@ -87,20 +87,20 @@ fn receiver_artifacts(
     files: &[AssetFile],
     artifacts: &mut Artifacts,
 ) -> Result<bool, Vec<Diagnostic>> {
-    let mut targets: BTreeMap<
-        (String, String),
-        (
-            &AssetFile,
-            schema::Type,
-            Vec<(schema::Type, schema::Direction)>,
-            String,
-        ),
-    > = BTreeMap::new();
+    // Per (class, function): the file declaring it, its return type, its parameters and
+    // their directions, and its C++ name.
+    type Target<'a> = (
+        &'a AssetFile,
+        schema::Type,
+        Vec<(schema::Type, schema::Direction)>,
+        String,
+    );
+    let mut targets: BTreeMap<(String, String), Target> = BTreeMap::new();
     for file in files {
         for graph in &file.asset.functions {
             for node in graph.compilation_nodes() {
                 if let asset::NodeKind::CallOn { class, function } = &node.kind {
-                    let f = ir::call_on_function(registry, &class, &function).map_err(|e| {
+                    let f = ir::call_on_function(registry, class, function).map_err(|e| {
                         vec![Diagnostic {
                             asset: file.path.clone(),
                             graph: Some(graph.id.clone()),
@@ -816,7 +816,7 @@ fn write_body(
     asset_id: &str,
     graph: &str,
     depth: usize,
-    kind: ir::SelfKind,
+    _kind: ir::SelfKind,
 ) {
     for s in body {
         match s {
@@ -863,14 +863,14 @@ fn write_body(
             )),
             Statement::Branch { condition, yes, no } => {
                 text.push_str(&format!("if ({}) {{\n", condition.cpp));
-                write_body(yes, text, asset_id, graph, depth + 1, kind);
+                write_body(yes, text, asset_id, graph, depth + 1, _kind);
                 text.push_str("} else {\n");
-                write_body(no, text, asset_id, graph, depth + 1, kind);
+                write_body(no, text, asset_id, graph, depth + 1, _kind);
                 text.push_str("}\n");
             }
             Statement::Loop { count, body } => {
                 text.push_str(&format!("for (uint32_t epok_loop_{depth}=0;epok_loop_{depth}<{count}u;++epok_loop_{depth}) {{\n"));
-                write_body(body, text, asset_id, graph, depth + 1, kind);
+                write_body(body, text, asset_id, graph, depth + 1, _kind);
                 text.push_str("}\n");
             }
         }

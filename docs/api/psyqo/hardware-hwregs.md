@@ -1,10 +1,10 @@
 # PsyQo API: Hardware / Hwregs
 
-> **Header:** `"psyqo/hardware/hwregs.hh"` · **Tier:** PsyQo low-level API · **Source:** [open header](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/hardware/hwregs.hh)
+> **Header:** `"psyqo/hardware/hwregs.hh"` · **Tier:** PsyQo low-level API · **Source:** [open header](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/hardware/hwregs.hh)
 
 This module covers the hardware/hwregs module. It documents 41 public callables declared directly in this header.
 
-PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552d`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
+PsyQo is pinned through Nugget revision `c702235f366fb1cd8c18e0a5a5392e0acae8a079`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
 
 ## Declared types
 
@@ -66,7 +66,7 @@ PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552
 static volatile T& access(int index = 0)
 ```
 
-- **Declared at:** [line 40](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/hardware/hwregs.hh#L40)
+- **Declared at:** [line 40](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/hardware/hwregs.hh#L40)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**
@@ -106,7 +106,7 @@ auto result = psyqo::Hardware::BasicAccess::access(index);
 static volatile T* accessPtr(int index = 0)
 ```
 
-- **Declared at:** [line 41](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/hardware/hwregs.hh#L41)
+- **Declared at:** [line 41](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/hardware/hwregs.hh#L41)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**
@@ -146,7 +146,7 @@ auto result = psyqo::Hardware::BasicAccess::accessPtr(index);
 volatile T& access(int index = 0) const
 ```
 
-- **Declared at:** [line 162](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/hardware/hwregs.hh#L162)
+- **Declared at:** [line 162](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/hardware/hwregs.hh#L162)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -188,7 +188,7 @@ auto result = object.access(index);
 operator T() const
 ```
 
-- **Declared at:** [line 49](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/hardware/hwregs.hh#L49)
+- **Declared at:** [line 49](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/hardware/hwregs.hh#L49)
 - **Kind:** `conversion function`; qualifiers: `const`
 
 **Returns.** Returns `T`. Check the purpose and failure notes before using the value.
@@ -221,7 +221,7 @@ auto result = object.operator type-parameter-0-1();
 T operator!() const
 ```
 
-- **Declared at:** [line 151](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/hardware/hwregs.hh#L151)
+- **Declared at:** [line 151](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/hardware/hwregs.hh#L151)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `T`. Check the purpose and failure notes before using the value.
@@ -254,7 +254,7 @@ auto result = object.operator!();
 bool operator!=(T value) const
 ```
 
-- **Declared at:** [line 155](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/hardware/hwregs.hh#L155)
+- **Declared at:** [line 155](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/hardware/hwregs.hh#L155)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -296,7 +296,7 @@ auto result = object.operator!=(value);
 T operator%(T value) const
 ```
 
-- **Declared at:** [line 144](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/hardware/hwregs.hh#L144)
+- **Declared at:** [line 144](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/hardware/hwregs.hh#L144)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -338,7 +338,7 @@ auto result = object.operator%(value);
 T operator%=(T value) const
 ```
 
-- **Declared at:** [line 122](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/hardware/hwregs.hh#L122)
+- **Declared at:** [line 122](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/hardware/hwregs.hh#L122)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -380,7 +380,7 @@ auto result = object.operator%=(value);
 T operator&(T value) const
 ```
 
-- **Declared at:** [line 147](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/hardware/hwregs.hh#L147)
+- **Declared at:** [line 147](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/hardware/hwregs.hh#L147)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -422,7 +422,7 @@ auto result = object.operator&(value);
 T operator&&(T value) const
 ```
 
-- **Declared at:** [line 152](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/hardware/hwregs.hh#L152)
+- **Declared at:** [line 152](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/hardware/hwregs.hh#L152)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -464,7 +464,7 @@ auto result = object.operator&&(value);
 T operator&=(T value) const
 ```
 
-- **Declared at:** [line 60](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/hardware/hwregs.hh#L60)
+- **Declared at:** [line 60](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/hardware/hwregs.hh#L60)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -506,7 +506,7 @@ auto result = object.operator&=(value);
 T operator*(T value) const
 ```
 
-- **Declared at:** [line 142](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/hardware/hwregs.hh#L142)
+- **Declared at:** [line 142](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/hardware/hwregs.hh#L142)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -548,7 +548,7 @@ auto result = object.operator*(value);
 T operator*=(T value) const
 ```
 
-- **Declared at:** [line 110](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/hardware/hwregs.hh#L110)
+- **Declared at:** [line 110](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/hardware/hwregs.hh#L110)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -590,7 +590,7 @@ auto result = object.operator*=(value);
 T operator+(T value) const
 ```
 
-- **Declared at:** [line 140](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/hardware/hwregs.hh#L140)
+- **Declared at:** [line 140](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/hardware/hwregs.hh#L140)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -632,7 +632,7 @@ auto result = object.operator+(value);
 T operator++() const
 ```
 
-- **Declared at:** [line 72](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/hardware/hwregs.hh#L72)
+- **Declared at:** [line 72](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/hardware/hwregs.hh#L72)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `T`. Check the purpose and failure notes before using the value.
@@ -665,7 +665,7 @@ auto result = object.operator++();
 T operator++(int) const
 ```
 
-- **Declared at:** [line 78](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/hardware/hwregs.hh#L78)
+- **Declared at:** [line 78](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/hardware/hwregs.hh#L78)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -707,7 +707,7 @@ auto result = object.operator++(arg1);
 T operator+=(T value) const
 ```
 
-- **Declared at:** [line 98](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/hardware/hwregs.hh#L98)
+- **Declared at:** [line 98](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/hardware/hwregs.hh#L98)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -749,7 +749,7 @@ auto result = object.operator+=(value);
 T operator-(T value) const
 ```
 
-- **Declared at:** [line 141](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/hardware/hwregs.hh#L141)
+- **Declared at:** [line 141](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/hardware/hwregs.hh#L141)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -791,7 +791,7 @@ auto result = object.operator-(value);
 T operator--() const
 ```
 
-- **Declared at:** [line 85](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/hardware/hwregs.hh#L85)
+- **Declared at:** [line 85](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/hardware/hwregs.hh#L85)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `T`. Check the purpose and failure notes before using the value.
@@ -824,7 +824,7 @@ auto result = object.operator--();
 T operator--(int) const
 ```
 
-- **Declared at:** [line 91](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/hardware/hwregs.hh#L91)
+- **Declared at:** [line 91](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/hardware/hwregs.hh#L91)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -866,7 +866,7 @@ auto result = object.operator--(arg1);
 T operator-=(T value) const
 ```
 
-- **Declared at:** [line 104](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/hardware/hwregs.hh#L104)
+- **Declared at:** [line 104](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/hardware/hwregs.hh#L104)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -908,7 +908,7 @@ auto result = object.operator-=(value);
 T operator/(T value) const
 ```
 
-- **Declared at:** [line 143](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/hardware/hwregs.hh#L143)
+- **Declared at:** [line 143](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/hardware/hwregs.hh#L143)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -950,7 +950,7 @@ auto result = object.operator/(value);
 T operator/=(T value) const
 ```
 
-- **Declared at:** [line 116](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/hardware/hwregs.hh#L116)
+- **Declared at:** [line 116](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/hardware/hwregs.hh#L116)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -992,7 +992,7 @@ auto result = object.operator/=(value);
 bool operator<(T value) const
 ```
 
-- **Declared at:** [line 156](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/hardware/hwregs.hh#L156)
+- **Declared at:** [line 156](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/hardware/hwregs.hh#L156)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -1034,7 +1034,7 @@ auto result = object.operator<(value);
 T operator<<(T value) const
 ```
 
-- **Declared at:** [line 145](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/hardware/hwregs.hh#L145)
+- **Declared at:** [line 145](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/hardware/hwregs.hh#L145)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -1076,7 +1076,7 @@ auto result = object.operator<<(value);
 T operator<<=(T value) const
 ```
 
-- **Declared at:** [line 128](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/hardware/hwregs.hh#L128)
+- **Declared at:** [line 128](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/hardware/hwregs.hh#L128)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -1118,7 +1118,7 @@ auto result = object.operator<<=(value);
 bool operator<=(T value) const
 ```
 
-- **Declared at:** [line 158](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/hardware/hwregs.hh#L158)
+- **Declared at:** [line 158](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/hardware/hwregs.hh#L158)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -1160,7 +1160,7 @@ auto result = object.operator<=(value);
 T operator=(T value) const
 ```
 
-- **Declared at:** [line 50](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/hardware/hwregs.hh#L50)
+- **Declared at:** [line 50](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/hardware/hwregs.hh#L50)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -1202,7 +1202,7 @@ auto result = object.operator=(value);
 bool operator==(T value) const
 ```
 
-- **Declared at:** [line 154](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/hardware/hwregs.hh#L154)
+- **Declared at:** [line 154](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/hardware/hwregs.hh#L154)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -1244,7 +1244,7 @@ auto result = object.operator==(value);
 bool operator>(T value) const
 ```
 
-- **Declared at:** [line 157](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/hardware/hwregs.hh#L157)
+- **Declared at:** [line 157](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/hardware/hwregs.hh#L157)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -1286,7 +1286,7 @@ auto result = object.operator>(value);
 bool operator>=(T value) const
 ```
 
-- **Declared at:** [line 159](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/hardware/hwregs.hh#L159)
+- **Declared at:** [line 159](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/hardware/hwregs.hh#L159)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -1328,7 +1328,7 @@ auto result = object.operator>=(value);
 T operator>>(T value) const
 ```
 
-- **Declared at:** [line 146](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/hardware/hwregs.hh#L146)
+- **Declared at:** [line 146](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/hardware/hwregs.hh#L146)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -1370,7 +1370,7 @@ auto result = object.operator>>(value);
 T operator>>=(T value) const
 ```
 
-- **Declared at:** [line 134](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/hardware/hwregs.hh#L134)
+- **Declared at:** [line 134](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/hardware/hwregs.hh#L134)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -1412,7 +1412,7 @@ auto result = object.operator>>=(value);
 T operator[](int index) const
 ```
 
-- **Declared at:** [line 160](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/hardware/hwregs.hh#L160)
+- **Declared at:** [line 160](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/hardware/hwregs.hh#L160)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -1454,7 +1454,7 @@ auto result = object.operator[](index);
 T operator^(T value) const
 ```
 
-- **Declared at:** [line 149](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/hardware/hwregs.hh#L149)
+- **Declared at:** [line 149](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/hardware/hwregs.hh#L149)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -1496,7 +1496,7 @@ auto result = object.operator^(value);
 T operator^=(T value) const
 ```
 
-- **Declared at:** [line 66](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/hardware/hwregs.hh#L66)
+- **Declared at:** [line 66](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/hardware/hwregs.hh#L66)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -1538,7 +1538,7 @@ auto result = object.operator^=(value);
 T operator|(T value) const
 ```
 
-- **Declared at:** [line 148](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/hardware/hwregs.hh#L148)
+- **Declared at:** [line 148](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/hardware/hwregs.hh#L148)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -1580,7 +1580,7 @@ auto result = object.operator|(value);
 T operator|=(T value) const
 ```
 
-- **Declared at:** [line 54](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/hardware/hwregs.hh#L54)
+- **Declared at:** [line 54](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/hardware/hwregs.hh#L54)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -1622,7 +1622,7 @@ auto result = object.operator|=(value);
 T operator||(T value) const
 ```
 
-- **Declared at:** [line 153](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/hardware/hwregs.hh#L153)
+- **Declared at:** [line 153](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/hardware/hwregs.hh#L153)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -1664,7 +1664,7 @@ auto result = object.operator||(value);
 T operator~() const
 ```
 
-- **Declared at:** [line 150](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/hardware/hwregs.hh#L150)
+- **Declared at:** [line 150](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/hardware/hwregs.hh#L150)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `T`. Check the purpose and failure notes before using the value.
@@ -1697,7 +1697,7 @@ auto result = object.operator~();
 void throwAway() const
 ```
 
-- **Declared at:** [line 48](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/hardware/hwregs.hh#L48)
+- **Declared at:** [line 48](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/hardware/hwregs.hh#L48)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** No value is returned; observe the documented state change or callback.

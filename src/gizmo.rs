@@ -5,6 +5,7 @@ pub const ORIENTATION_SIZE: f32 = 72.;
 const ORIENTATION_CENTER: [f32; 2] = [36., 36.];
 const ORIENTATION_RADIUS: f32 = 27.;
 const ORIENTATION_HIT_RADIUS: f32 = 9.;
+const ORIENTATION_DISC_RADIUS: f32 = 34.;
 const AXIS_COLORS: [[f32; 4]; 3] = [
     [0.93, 0.27, 0.22, 1.],
     [0.42, 0.78, 0.24, 1.],
@@ -15,6 +16,118 @@ const AXIS_COLORS: [[f32; 4]; 3] = [
 enum OrientationTarget {
     Axis { axis: usize, sign: f32 },
     Isometric,
+    Orbit,
+}
+
+struct OrientationPress {
+    target: OrientationTarget,
+    start: [f32; 2],
+    previous: [f32; 2],
+    angles: [f32; 2],
+    dragging: bool,
+}
+
+/// Pointer capture for the Scene camera widget, independent of transform drags.
+#[derive(Default)]
+pub struct OrientationState {
+    press: Option<OrientationPress>,
+    hovered: Option<OrientationTarget>,
+    pub owns_pointer: bool,
+}
+
+impl OrientationState {
+    pub fn is_active(&self) -> bool {
+        self.press.is_some()
+    }
+
+    pub fn cancel(&mut self) {
+        *self = Self::default();
+    }
+
+    /// Handle input before picking and transform handles; draw the overlay last.
+    pub fn interact(
+        &mut self,
+        ui: &imgui::Ui,
+        view: &mut viewport::View,
+        position: [f32; 2],
+        enabled: bool,
+    ) -> bool {
+        let mouse = ui.io().mouse_pos;
+        let local = [mouse[0] - position[0], mouse[1] - position[1]];
+        self.hovered = (enabled
+            && ui.is_window_hovered_with_flags(
+                imgui::WindowHoveredFlags::ALLOW_WHEN_BLOCKED_BY_ACTIVE_ITEM,
+            ))
+        .then(|| orientation_target(view, local))
+        .flatten();
+        self.owns_pointer = self.hovered.is_some() || self.is_active();
+        if !self.owns_pointer {
+            return false;
+        }
+
+        // A real ImGui item owns ActiveId, including in a floating Scene panel.
+        // Submit it only over the circular hit area or while already captured.
+        let cursor = ui.cursor_screen_pos();
+        ui.set_cursor_screen_pos(position);
+        ui.invisible_button("##scene-orientation", [ORIENTATION_SIZE; 2]);
+        let active = ui.is_item_active();
+        let activated = ui.is_item_activated();
+        ui.set_cursor_screen_pos(cursor);
+
+        if activated && let Some(target) = self.hovered {
+            self.press = Some(OrientationPress {
+                target,
+                start: mouse,
+                previous: mouse,
+                angles: [view.yaw, view.pitch],
+                dragging: false,
+            });
+        }
+        let escape = ui.is_key_pressed(imgui::Key::Escape);
+        if !enabled || !ui.is_window_focused() || escape {
+            let mut changed = false;
+            if escape && let Some(press) = &self.press {
+                changed = press.dragging;
+                [view.yaw, view.pitch] = press.angles;
+            }
+            if active {
+                unsafe { imgui::sys::igClearActiveID() };
+            }
+            self.cancel();
+            // The cancellation frame still belongs to this gesture.
+            self.owns_pointer = true;
+            return changed;
+        }
+
+        let released = ui.is_mouse_released(imgui::MouseButton::Left);
+        let Some(press) = &mut self.press else {
+            return false;
+        };
+        if !active && !released {
+            self.press = None;
+            return false;
+        }
+        let offset = [mouse[0] - press.start[0], mouse[1] - press.start[1]];
+        press.dragging |= offset[0].hypot(offset[1]) > ui.io().mouse_drag_threshold;
+        let mut changed = false;
+        if press.dragging {
+            let delta = [mouse[0] - press.previous[0], mouse[1] - press.previous[1]];
+            if delta != [0.; 2] && delta.iter().all(|v| v.is_finite()) {
+                view.look(delta, true);
+                changed = true;
+            }
+            press.previous = mouse;
+            ui.set_mouse_cursor(Some(imgui::MouseCursor::ResizeAll));
+        }
+        if released {
+            if !press.dragging && self.hovered == Some(press.target) {
+                apply_orientation_target(view, press.target);
+                changed = press.target != OrientationTarget::Orbit;
+            }
+            self.press = None;
+        }
+        changed
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -66,13 +179,18 @@ fn orientation_target(view: &viewport::View, point: [f32; 2]) -> Option<Orientat
             }
         }
     }
-    nearest.map(|(_, _, target)| target)
+    nearest.map(|(_, _, target)| target).or_else(|| {
+        ((point[0] - ORIENTATION_CENTER[0]).hypot(point[1] - ORIENTATION_CENTER[1])
+            <= ORIENTATION_DISC_RADIUS)
+            .then_some(OrientationTarget::Orbit)
+    })
 }
 
 fn apply_orientation_target(view: &mut viewport::View, target: OrientationTarget) {
     match target {
         OrientationTarget::Axis { axis, sign } => view.snap_to_axis(axis, -sign),
         OrientationTarget::Isometric => view.snap_to_isometric(),
+        OrientationTarget::Orbit => {}
     }
 }
 
@@ -110,14 +228,14 @@ fn draw_orientation_cube(draw: &imgui::DrawListMut<'_>, center: [f32; 2], hovere
     }
 }
 
-pub fn draw_orientation(ui: &imgui::Ui, view: &mut viewport::View, position: [f32; 2]) -> bool {
-    let mouse = [
-        ui.io().mouse_pos[0] - position[0],
-        ui.io().mouse_pos[1] - position[1],
-    ];
-    let inside = (0. ..=ORIENTATION_SIZE).contains(&mouse[0])
-        && (0. ..=ORIENTATION_SIZE).contains(&mouse[1]);
-    let hovered = inside.then(|| orientation_target(view, mouse)).flatten();
+pub fn draw_orientation(
+    ui: &imgui::Ui,
+    view: &viewport::View,
+    state: &OrientationState,
+    position: [f32; 2],
+) {
+    let dragging = state.press.as_ref().is_some_and(|press| press.dragging);
+    let hovered = (!dragging).then_some(state.hovered).flatten();
     let center = [
         position[0] + ORIENTATION_CENTER[0],
         position[1] + ORIENTATION_CENTER[1],
@@ -131,9 +249,16 @@ pub fn draw_orientation(ui: &imgui::Ui, view: &mut viewport::View, position: [f3
     endpoints.sort_by(|a, b| b.depth.total_cmp(&a.depth));
 
     let draw = ui.get_window_draw_list();
-    draw.add_circle(center, 34., [0.05, 0.07, 0.09, 0.34])
+    draw.add_circle(center, ORIENTATION_DISC_RADIUS, [0.05, 0.07, 0.09, 0.34])
         .filled(true)
         .build();
+    if state.hovered.is_some() || state.is_active() {
+        draw.add_circle(center, ORIENTATION_DISC_RADIUS, [0.65, 0.69, 0.75, 0.25])
+            .filled(true)
+            .build();
+        draw.add_circle(center, ORIENTATION_DISC_RADIUS, [0.85, 0.90, 1., 0.5])
+            .build();
+    }
     for endpoint in &endpoints {
         let end = [
             position[0] + endpoint.position[0],
@@ -185,23 +310,23 @@ pub fn draw_orientation(ui: &imgui::Ui, view: &mut viewport::View, position: [f3
     }
     draw_orientation_cube(&draw, center, hovered == Some(OrientationTarget::Isometric));
 
-    if let Some(target) = hovered {
+    if !state.is_active()
+        && let Some(target) = hovered
+    {
         match target {
             OrientationTarget::Axis { axis, sign } => {
                 ui.tooltip_text(format!(
-                    "View from {}{}",
+                    "Click: view from {}{}\nDrag: orbit",
                     if sign > 0. { "+" } else { "-" },
                     ["X", "Y", "Z"][axis]
                 ));
             }
-            OrientationTarget::Isometric => ui.tooltip_text("Three-quarter view"),
-        }
-        if ui.is_window_hovered() && ui.is_mouse_clicked(imgui::MouseButton::Left) {
-            apply_orientation_target(view, target);
-            return true;
+            OrientationTarget::Isometric => {
+                ui.tooltip_text("Click: three-quarter view\nDrag: orbit")
+            }
+            OrientationTarget::Orbit => ui.tooltip_text("Drag to orbit the Scene camera"),
         }
     }
-    false
 }
 
 pub fn draw(
@@ -263,7 +388,7 @@ pub fn draw(
         && mouse[1] > position[1]
         && mouse[0] < position[0] + size[0]
         && mouse[1] < position[1] + size[1];
-    let hover = if inside {
+    let hover = if inside && !e.scene_orientation.owns_pointer {
         paths
             .iter()
             .enumerate()
@@ -282,6 +407,7 @@ pub fn draw(
         None
     };
     if !previewing
+        && !e.scene_orientation.owns_pointer
         && ui.is_window_hovered()
         && !ui.io().key_alt
         && ui.is_mouse_clicked(imgui::MouseButton::Left)

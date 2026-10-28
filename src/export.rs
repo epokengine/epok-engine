@@ -5,6 +5,44 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+/// Notices that accompany every redistributed runtime build, at the paths
+/// THIRD_PARTY_NOTICES.md links to.
+pub const RUNTIME_NOTICES: [(&str, &str); 9] = [
+    ("LICENSE", include_str!("../LICENSE")),
+    (
+        "THIRD_PARTY_NOTICES.md",
+        include_str!("../runtime/THIRD_PARTY_NOTICES.md"),
+    ),
+    (
+        "licenses/nugget-MIT.txt",
+        include_str!("../runtime/licenses/nugget-MIT.txt"),
+    ),
+    (
+        "licenses/EASTL.txt",
+        include_str!("../runtime/licenses/EASTL.txt"),
+    ),
+    (
+        "licenses/EASTL-third-party.txt",
+        include_str!("../runtime/licenses/EASTL-third-party.txt"),
+    ),
+    (
+        "licenses/EABase.txt",
+        include_str!("../runtime/licenses/EABase.txt"),
+    ),
+    (
+        "licenses/psx-font.txt",
+        include_str!("../runtime/licenses/psx-font.txt"),
+    ),
+    (
+        "licenses/GCC-GPL-3.txt",
+        include_str!("../runtime/licenses/GCC-GPL-3.txt"),
+    ),
+    (
+        "licenses/GCC-Runtime-Exception-3.1.txt",
+        include_str!("../runtime/licenses/GCC-Runtime-Exception-3.1.txt"),
+    ),
+];
+
 pub fn export_project(
     root: &Path,
     input: &crate::scene_dependencies::Input,
@@ -63,40 +101,10 @@ pub fn export_project(
             include_str!("../docs/palette-animation.md"),
         ),
         ("README.md", include_str!("../runtime/README.md")),
-        ("LICENSE", include_str!("../LICENSE")),
-        (
-            "THIRD_PARTY_NOTICES.md",
-            include_str!("../runtime/THIRD_PARTY_NOTICES.md"),
-        ),
-        (
-            "licenses/nugget-MIT.txt",
-            include_str!("../runtime/licenses/nugget-MIT.txt"),
-        ),
-        (
-            "licenses/EASTL.txt",
-            include_str!("../runtime/licenses/EASTL.txt"),
-        ),
-        (
-            "licenses/EASTL-third-party.txt",
-            include_str!("../runtime/licenses/EASTL-third-party.txt"),
-        ),
-        (
-            "licenses/EABase.txt",
-            include_str!("../runtime/licenses/EABase.txt"),
-        ),
-        (
-            "licenses/psx-font.txt",
-            include_str!("../runtime/licenses/psx-font.txt"),
-        ),
-        (
-            "licenses/GCC-GPL-3.txt",
-            include_str!("../runtime/licenses/GCC-GPL-3.txt"),
-        ),
-        (
-            "licenses/GCC-Runtime-Exception-3.1.txt",
-            include_str!("../runtime/licenses/GCC-Runtime-Exception-3.1.txt"),
-        ),
-    ] {
+    ]
+    .into_iter()
+    .chain(RUNTIME_NOTICES)
+    {
         crate::project::write_changed(&destination.join(path), contents.as_bytes())?;
     }
     crate::staging_files::publish_export(root, &destination, documents.finish())?;

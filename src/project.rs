@@ -806,6 +806,29 @@ fn validate_play_data(
     Ok(())
 }
 
+/// Serial staging keeps clip and video indices but omits their CD payloads.
+/// A package must not be published with that content silently missing.
+fn validate_packaged_media(streamed_music: &[String], videos: &[String]) -> Result<(), String> {
+    let mut problems = Vec::new();
+    let mut remedies = Vec::new();
+    if !streamed_music.is_empty() {
+        problems.push(format!("XA music: {}", streamed_music.join(", ")));
+        remedies.push("select resident MusicSequence assets");
+    }
+    if !videos.is_empty() {
+        problems.push(format!("video: {}", videos.join(", ")));
+        remedies.push("remove the videos from the exported scenes");
+    }
+    if problems.is_empty() {
+        return Ok(());
+    }
+    Err(format!(
+        "PS-EXE export cannot include {}. XA music and video playback currently require the PlayStation CD decoder, which PCDrv cannot serve. To export, {}; or use Package PSX Disc.",
+        problems.join("; "),
+        remedies.join(" and ")
+    ))
+}
+
 fn stage_with_playback(
     root: &Path,
     scene: &Scene,
@@ -825,7 +848,19 @@ fn stage_with_playback(
         "scene-debug-settings".into(),
         crate::scene_dependencies::hash(debug),
     )?;
-    write_changed(&build.join("debug-hud.hh"), debug.header().as_bytes())?;
+    // A package's debug overlay compiles every panel in, hidden until Select.
+    // The request is a build option; the project setting is left as it is.
+    let overlay = input.is_some_and(|i| i.debug_overlay);
+    let debug = if overlay {
+        crate::settings::DebugHud::ALL
+    } else {
+        debug
+    };
+    let mut debug_header = debug.header();
+    if overlay {
+        debug_header.push_str("#define EPOK_DEBUG_TOGGLE 1\n");
+    }
+    write_changed(&build.join("debug-hud.hh"), debug_header.as_bytes())?;
     let lua = crate::settings::lua_execution(root)?;
     let lua_profile = crate::settings::lua_profile(root)?;
     playback.scene_input(
@@ -1112,6 +1147,19 @@ fn stage_with_playback(
     } else {
         crate::streaming::clear(build)?;
     }
+    // The scene table decides which banks load from a scene file; bank 0 is the
+    // scene being built, the others follow the registry order of `loaded`.
+    let storage = crate::workspace::optional_manifest(root)?.and_then(|m| m.scene_storage);
+    let bank_paths: Vec<Option<String>> = std::iter::once(authored.0)
+        .chain(loaded.sources.iter())
+        .map(|origin| crate::scene_files::origin_path(root, origin))
+        .collect();
+    let external = crate::scene_files::plan(storage.as_ref(), profile, &bank_paths);
+    playback.scene_input(
+        "scene-storage".into(),
+        crate::scene_dependencies::hash((&storage, &bank_paths, &external)),
+    )?;
+    crate::scene_files::stage(build, &banks, &external)?;
     let generated = crate::scene_bank::header_with_templates_for(
         &banks,
         &catalog,
@@ -1122,6 +1170,8 @@ fn stage_with_playback(
         &effects,
         class_registry,
         skeletal_queries,
+        &external,
+        rendering.mesh_triangle_budget,
     )?;
     let streamed_music = crate::audio::clip_ids(&shared_resources)
         .into_iter()
@@ -1144,6 +1194,9 @@ fn stage_with_playback(
         .into_iter()
         .collect::<Vec<_>>();
     validate_play_data(profile, stream.is_some(), &streamed_music, &video_sources)?;
+    if input.is_some_and(|i| i.reject_disc_media) {
+        validate_packaged_media(&streamed_music, &video_sources)?;
+    }
     // Before audio: its disc manifest lists the streams staged here.
     let video_outputs = crate::video::stage(
         root,
@@ -1238,6 +1291,16 @@ fn stage_with_playback(
         artifacts.files.insert(path.clone(), source.into_bytes());
         artifacts.native_sources.push(path);
     }
+    // The VM runtime links against the binding table in both VM modes, so a
+    // project without a single Lua class still stages an empty one.
+    let bindings = PathBuf::from("scripts/generated/lua/lua_bindings.cpp");
+    if lua.is_vm() && !artifacts.files.contains_key(&bindings) {
+        artifacts.files.insert(
+            bindings.clone(),
+            crate::lua_aot::emit_empty_bindings().into_bytes(),
+        );
+        artifacts.native_sources.push(bindings);
+    }
     // Generated Lua output is mode-scoped. A class that was removed, renamed or
     // rebuilt in another execution mode must not leave its previous artifact
     // behind: an AOT header or a VM bindings source has to disappear with it.
@@ -1282,8 +1345,13 @@ fn stage_with_playback(
     } else {
         ""
     };
+    let rumble_flags = if artifacts.runtime_capabilities.contains("rumble") {
+        "CPPFLAGS += -DEPOK_RUMBLE\n"
+    } else {
+        ""
+    };
     let sources = format!(
-        "SCRIPT_SRCS := {}\n{blueprint_flags}{playback_flags}{}{}",
+        "SCRIPT_SRCS := {}\n{blueprint_flags}{playback_flags}{rumble_flags}{}{}",
         native_sources.join(" "),
         lua.cppflags(),
         lua.libraries()
@@ -1549,6 +1617,14 @@ pub fn runtime_sources() -> &'static [(&'static str, &'static [u8])] {
             include_bytes!("../runtime/input.hpp").as_slice(),
         ),
         (
+            "rumble.hpp",
+            include_bytes!("../runtime/rumble.hpp").as_slice(),
+        ),
+        (
+            "controller_pad.hpp",
+            include_bytes!("../runtime/controller_pad.hpp").as_slice(),
+        ),
+        (
             "memory_card.hpp",
             include_bytes!("../runtime/memory_card.hpp").as_slice(),
         ),
@@ -1578,6 +1654,14 @@ pub fn runtime_sources() -> &'static [(&'static str, &'static [u8])] {
             include_bytes!("../runtime/lifecycle.hpp").as_slice(),
         ),
         (
+            "scene_files.hpp",
+            include_bytes!("../runtime/scene_files.hpp").as_slice(),
+        ),
+        (
+            "scene_lifecycle.hpp",
+            include_bytes!("../runtime/scene_lifecycle.hpp").as_slice(),
+        ),
+        (
             "scene_service.hpp",
             include_bytes!("../runtime/scene_service.hpp").as_slice(),
         ),
@@ -1588,6 +1672,14 @@ pub fn runtime_sources() -> &'static [(&'static str, &'static [u8])] {
         (
             "texture_upload.hpp",
             include_bytes!("../runtime/texture_upload.hpp").as_slice(),
+        ),
+        (
+            "fragment_slot.hpp",
+            include_bytes!("../runtime/fragment_slot.hpp").as_slice(),
+        ),
+        (
+            "pocketstation_async.hpp",
+            include_bytes!("../runtime/pocketstation_async.hpp").as_slice(),
         ),
         (
             "sprites.hpp",
@@ -1940,7 +2032,7 @@ fn actor_table_with_registry(
             &actor.properties,
             &actor.overrides,
             &class.cpp_name,
-            &registry,
+            registry,
             scene,
             &format!("{}: actor {}", scene.name, actor.name),
         )?);
@@ -2069,7 +2161,7 @@ fn actor_table_with_registry(
                     &component.properties,
                     &component.overrides,
                     &component_class.cpp_name,
-                    &registry,
+                    registry,
                     scene,
                     &format!(
                         "{}: actor {} component {}",
@@ -2358,6 +2450,23 @@ mod tests {
     }
 
     #[test]
+    fn packaged_exports_name_the_media_serial_play_would_omit() {
+        assert!(validate_packaged_media(&[], &[]).is_ok());
+        let error = validate_packaged_media(&["assets/Theme.wav".into()], &[]).unwrap_err();
+        assert!(error.contains("XA music: assets/Theme.wav"), "{error}");
+        assert!(error.contains("resident MusicSequence") && !error.contains("videos"));
+        let error = validate_packaged_media(
+            &["assets/Theme.wav".into()],
+            &["assets/Intro.mp4".into(), "assets/End.mp4".into()],
+        )
+        .unwrap_err();
+        assert!(
+            error.contains("XA music: assets/Theme.wav; video: assets/Intro.mp4, assets/End.mp4")
+        );
+        assert!(error.contains("remove the videos") && error.contains("Package PSX Disc"));
+    }
+
+    #[test]
     fn camera_sky_color_exports_to_the_runtime_clear_setting() {
         let mut scene = Scene::default();
         scene.actors[0].camera_sky_color = [0.25, 0.5, 1.];
@@ -2468,6 +2577,44 @@ mod tests {
         assert_eq!(emitted[0], emitted[3]);
         assert_ne!(emitted[0], emitted[1]);
         assert_ne!(emitted[1], emitted[2]);
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+    #[test]
+    fn vm_mode_without_lua_classes_stages_an_empty_binding_table() {
+        use crate::settings::LuaExecution;
+        let root = crate::workspace::tests::temp("lua-vm-empty-bindings");
+        let project =
+            crate::workspace::create(&root, "Lua Empty", crate::workspace::Template::Basic)
+                .unwrap();
+        let mut manifest = project.manifest.clone();
+        drop(project);
+        let scene =
+            crate::scene::Scene::load(&crate::workspace::startup_scene(&root).unwrap()).unwrap();
+        let build = root.join(".epok/build");
+        let bindings = build.join("scripts/generated/lua/lua_bindings.cpp");
+        for mode in [
+            LuaExecution::VmBytecode,
+            LuaExecution::VmSource,
+            LuaExecution::NativeCpp,
+        ] {
+            manifest.lua_execution = mode;
+            crate::workspace::save_manifest(&root, &manifest).unwrap();
+            stage_into(&root, &scene, &build).unwrap();
+            let sources = std::fs::read_to_string(build.join("sources.mk")).unwrap();
+            // `epok::lua::initialize()` references the table in every VM mode,
+            // so it is linked even though the project declares no Lua class.
+            assert_eq!(
+                sources.contains("scripts/generated/lua/lua_bindings.cpp"),
+                mode.is_vm(),
+                "{mode:?}: {sources}"
+            );
+            assert_eq!(bindings.is_file(), mode.is_vm(), "{mode:?}");
+            if mode.is_vm() {
+                let text = std::fs::read_to_string(&bindings).unwrap();
+                assert!(text.contains("const ClassBinding class_bindings[1] = {};"));
+                assert!(text.contains("const uint32_t class_binding_count = 0;"));
+            }
+        }
         std::fs::remove_dir_all(&root).unwrap();
     }
     #[test]

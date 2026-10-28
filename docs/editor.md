@@ -16,6 +16,13 @@ Delete cannot change the output or edit scene objects while the console text is
 active. Click a compiler diagnostic, then **Open source** to navigate to its file
 and line; **Clear** empties the log. New output preserves the selection when appended.
 
+Build, Play and connection failures open Console with a persistent red error
+message above the selectable output. The log also records an `ERROR:` entry with
+the event time. **Clear** dismisses the message; starting a new build/Play clears
+the previous message. Serial runtime reports include unexpected Unirom halts,
+reported CPU exceptions, PsyQo aborts and Lua callback errors. A requested pause
+is not an error. See [physical PSX diagnostics](play.md#physical-psx).
+
 ## Scene navigation
 
 The Hierarchy, Scene, Game, Code, Inspector, Project and Console panels can be docked inside the editor window. **Window > Code Editor** opens the integrated [Lua/C++ workspace](code-editor.md) with a script tree, tabs and language service setup. Layout is stored in the selected project's `UserSettings/editor-layout-v2.ini`. Use Layout > Default or Window > Reset Layout to restore the initial arrangement. Use File > Projects to save/close the current project and create or open another.
@@ -33,7 +40,7 @@ Editor panels and tool windows share a charcoal theme with blue selection and fo
 | Shift during flight | Increase speed |
 | Alt + left mouse drag | Orbit around the focus point |
 | Wheel | Move the camera forward/backward along its viewing direction, using Speed, without a zoom limit or field-of-view change |
-| Right mouse held + wheel | Adjust flight speed (also available as Speed in Scene) |
+| Right mouse held + wheel | Adjust Camera Speed (also available from the camera dropdown in Scene) |
 | Escape | Release camera capture |
 | 1 / 2 / 3 in Blockout | Faces / edges / vertices |
 | E / Q in Blockout, without right mouse | Extrude / push inward; Q bevels selected edges |
@@ -41,19 +48,38 @@ Editor panels and tool windows share a charcoal theme with blue selection and fo
 
 Gizmo shortcuts are suppressed during flight. Click a mesh to select the nearest visible hit, or click the background to clear selection. Camera and gizmo drags do not change selection. Use Hierarchy to select empty entities and cameras without selectable Scene icons.
 
+The camera button at the upper-right of the Scene toolbar opens **Camera Speed**,
+which sets how fast the Scene camera flies, pans and dollies.
+Its slider runs from **1 to 8**, with **4** retaining Epok's default of five world
+units per second. Each level doubles the speed; fractional values allow finer
+adjustment. **Camera Speed Scalar** multiplies it by **1 to 128**.
+**Distance Based Camera Speed** optionally scales movement by the eye-to-pivot
+distance, relative to the default 12-unit distance. The menu displays the resulting
+world units per second; Shift temporarily multiplies that by four.
+RMB + wheel updates the same speed without moving the camera. Wheel dolly uses
+the selected speed too. These choices are saved locally per map and survive
+**Reset View**; **Reset Speed** restores navigation defaults. Set defaults for new
+views under **Edit > Editor Preferences > Viewports**. Saved views from older
+versions preserve their existing movement speed.
+
 The top **Build** menu contains **Build Project**, **Build Lighting**, packaging
 and export actions, and **Lighting Settings**. Scene edits retain baked shadows;
 an amber warning indicates when to run **Build Lighting** again.
 
 ### Orientation control
 
-The upper-right **VIEW** control is the Scene camera orientation widget. Its
-colored X, Y and Z rows mirror the transform-axis colors; choose `+` or `-` to
-look toward the pivot from that signed world axis. The control preserves the
-current pivot and distance, keeps a tiny pole offset for a stable orbit basis,
-and marks the local Scene view as changed without editing authored scene data.
-`Persp` identifies the current perspective authoring view; orthographic camera
-snapping is not implemented yet.
+The upper-right Scene camera orientation widget shows colored X, Y and Z
+endpoints. Click an endpoint to look toward the pivot from that signed world
+axis, or click the central cube to return to a three-quarter view. Hovering the
+widget reveals a translucent circular area: hold the left mouse button and drag
+anywhere inside it to orbit freely around the current pivot. Dragging an endpoint
+or the cube also orbits; alignment happens only on a click without dragging.
+The drag continues outside the widget until release. Escape cancels the gesture
+and restores its starting orientation; losing focus stops it.
+
+The control preserves the current pivot, distance and lens, keeps a tiny pole
+offset for a stable orbit basis, and saves only the local Scene view without
+editing authored scene data. Orthographic camera snapping is not implemented yet.
 
 Entering camera navigation releases an active text field. Releasing the right mouse button, pressing Escape, or losing application focus releases cursor capture. Geometry shortcuts are suppressed while flying or entering text. See [Blockout](blockout.md) for bevel requirements and editing shortcuts.
 
@@ -92,11 +118,34 @@ the Inspector: its class, domain, identity, an editable Active checkbox and a re
 of its components and authored properties. Adding and removing components arrives in a later
 release.
 
-Create an actor from the Actor submenu of any creation menu; its classes are grouped by 3D,
-2D, UI and Logic. A new actor is created at the map root with the components its class
-declares, or the root component its domain requires when it declares none. The submenu is
-empty, with an explanation, in a project whose classes the editor cannot resolve — see
-[Actors and components](actors.md) for what the actor model needs.
+The creation menu — the Hierarchy's **+** button, its right-click menus and **GameObject** —
+starts with ready-made actors whose components are already set up, so a light, a camera or
+an emitter never has to be assembled from an empty actor:
+
+| Entry | Creates |
+| --- | --- |
+| **Create Empty** | an actor with only a transform |
+| **3D Object** | **Cube**, **Blockout Mesh** (with its own editable mesh), **Sprite (Billboard)**, **Terrain**, **Dungeon Generator** |
+| **2D Object** | every 2D node: Sprite2D, Camera2D, CharacterBody2D, TileMapLayer and the rest (see [2D worlds](2d.md)) |
+| **Light** | **Directional Light**, **Point Light** |
+| **Audio** | **Audio Source** |
+| **Effects** | **Particle Emitter**, **Particle Effect**, **Blob Shadow** |
+| **Physics** | **Box Collider**, **Trigger Volume** (a collider that detects without blocking) |
+| **UI** | Canvas, Panel, Image, Label, Text Area, Progress Bar, Button, Check Box, Slider and the layout containers |
+| **Camera** | a camera the game can render through |
+
+Every group is offered in every view; creating something of another domain switches the
+Scene window to the view that shows it. A 3D actor created at the map root stands at the
+Scene view's pivot, and the new actor is selected. Each entry is one undo step, except that
+a Dungeon Generator's first generated layout is a second one. Hovering an entry describes
+what it creates.
+
+Below them, **Instantiate Actor...** picks a class or Blueprint in a dialog, and the
+**Actor** submenu lists every placeable class, grouped by 3D, 2D, UI and Logic, for an
+actor with exactly the components its class declares (or the root component its domain
+requires when it declares none). That submenu is empty, with an explanation, in a project
+whose classes the editor cannot resolve — see [Actors and components](actors.md) for what
+the actor model needs.
 
 The first line of the Hierarchy is the **map root**, named after the scene. It is not an
 object: clicking it opens **Map Settings**, which shows the map's name, document version and
@@ -110,7 +159,11 @@ the Edit menu. The last 32 edits of the open map are kept, and opening another m
 fresh history. Component attachment and Blueprint edits keep their own Edit-menu entries and
 are undone first when they are the most recent change.
 
-Create cubes or empty entities through GameObject or the Hierarchy context menu. A context menu on an entity can create a child; a menu on empty space creates a root. New entities become selected and their parent branches expand.
+A context menu on an actor creates a child; a menu on empty space or on the map root creates a root.
+
+Click an actor to select it alone. Ctrl+click adds an actor to the selection or takes it out, and Shift+click selects every row shown between the last actor clicked without Shift and the clicked one (with Ctrl held as well, the range is added to the selection). Every selected actor is highlighted. The most recently clicked one is the primary actor: the Inspector, the gizmos and the single-actor tools follow it.
+
+The context menu on an actor lists **Rename** (F2), **Duplicate** (Ctrl+D), **Delete** (Del) and **Select Children** first, then **Move to Map Root**, **Convert to Actor Blueprint...** and **Save as Dungeon Room...**, then the creation items. Right-clicking a selected actor keeps the selection, and Duplicate, Delete and Move to Map Root then act on every selected actor, each as one undo step; right-clicking any other actor selects it alone first. Ctrl+D, the Del key and the Edit menu's Duplicate and Delete act on the whole selection the same way. A selected actor whose parent is selected too is copied once, with its parent's branch, and the copies become the selection. Select Children selects the clicked actor and every actor under it. Everything created from the menu (a ready-made actor, Instantiate Child Actor..., a class from **Actor**) becomes that actor's child in one undo step; a parent of the same domain carries the child at its origin. UI widgets go under the actor when it is a UI element, otherwise under a Canvas. Select Children and Save as Dungeon Room stay visible but disabled on an actor without children.
 
 Rename by double-clicking the name, pressing F2 or using Rename. Enter or leaving the field confirms; Escape cancels. Empty names are rejected. Duplicate and Delete affect the entire branch.
 
@@ -134,7 +187,10 @@ Click Game to give it keyboard focus. Escape, a tab change or loss of focus rele
 | 1 / 3 | L2 / R2 |
 | Enter / Backspace | Start / Select |
 
-The bridge delivers these inputs to the emulated controller. The sample Spinner does not use them, and an Epok C++ input API is not implemented yet.
+The bridge delivers these inputs to the emulated controller. Gameplay can read
+buttons and axes and request finite motor pulses through the C++, Blueprint and
+Lua [Input API](input-collision.md). Native PC device assignment and the short
+rumble test are under Project Settings > Controls.
 
 Pause/Resume controls execution. Step advances one VBlank and pauses the CPU again. A game that renders across several VBlanks may need several steps before its image changes. The emulated image uses nearest filtering and integer scale when space permits.
 
@@ -144,7 +200,7 @@ For external authoring tools, enable the optional local server in **Edit > Edito
 
 ## Prototype limits
 
-Tags and Layers are not implemented. Entity activation is displayed as a disabled placeholder and does not affect the runtime. Floating panels stay inside the application window. Entity multiselection is not implemented. Scene Undo/Redo covers the open map's last 32 edits, as described above; the Blueprint, mesh and timeline editors keep their own stacks, and [Blockout](blockout.md) provides face/edge/vertex selection and geometry Undo/Redo.
+Tags and Layers are not implemented. Entity activation is displayed as a disabled placeholder and does not affect the runtime. Floating panels stay inside the application window. Several actors can be selected in the Hierarchy, but dragging moves only the dragged actor, the Inspector edits only the primary actor and the Scene view highlights only the primary actor. Scene Undo/Redo covers the open map's last 32 edits, as described above; the Blueprint, mesh and timeline editors keep their own stacks, and [Blockout](blockout.md) provides face/edge/vertex selection and geometry Undo/Redo.
 
 Actors support inline rename, Duplicate, Delete and drag-and-drop reparenting in the Hierarchy, and the Inspector's Add Component popup and per-component Remove follow the class compatibility rules (the root and inherited components cannot be removed). Converting an actor to another class or domain is not offered; the [MCP actor tools](mcp.md#actors) and `--add-actor` provide the same edits for automation.
 

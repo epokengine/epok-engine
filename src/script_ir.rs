@@ -164,6 +164,9 @@ impl Place {
     }
 }
 
+// Built once per script compilation: boxing the larger variants would only add
+// allocations to a short-lived tree.
+#[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug)]
 pub enum Expr {
     Literal {
@@ -247,6 +250,7 @@ pub enum Expr {
 }
 
 /// One operand of a builtin call.
+#[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug)]
 pub enum BuiltinArg {
     /// An ordinary value; it crosses the VM boundary as an `int32_t`.

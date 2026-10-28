@@ -592,6 +592,8 @@ pub fn run(
     // Gilrs is polled independently from Winit so generic XInput, DirectInput
     // and SDL-style controllers can be captured and used by Native PC Play.
     let mut gamepads = gilrs::Gilrs::new().ok();
+    let mut motors = crate::rumble::Driver::default();
+    let mut window_focused = true;
     // A hidden Win32 window may not receive paint events. Show the compact
     // window after GPU setup so the event loop can present its first splash.
     window.set_visible(true);
@@ -604,11 +606,10 @@ pub fn run(
         }
         match event {
             Event::WindowEvent { event: WindowEvent::KeyboardInput { event, .. }, .. } => {
-                if let Some(editor)=session.as_mut() {
-                    if let winit::keyboard::PhysicalKey::Code(code)=event.physical_key {
+                if let Some(editor)=session.as_mut()
+                    && let winit::keyboard::PhysicalKey::Code(code)=event.physical_key {
                         editor.input_key(format!("{code:?}"),event.state==ElementState::Pressed);
                     }
-                }
             }
             Event::WindowEvent { event: WindowEvent::MouseInput { state, button, .. }, .. } => {
                 if let Some(button)=mouse_button(button) && let Some(editor)=session.as_mut() { editor.input_mouse_button(button,state==ElementState::Pressed); }
@@ -628,13 +629,36 @@ pub fn run(
             }
             Event::AboutToWait => {
                 code_view.pump();
+                if let Some(editor)=session.as_mut() {
+                    editor.controls.rumble_allowed=editor.preferences.rumble_enabled;
+                    // Redux owns its SDL controller context. Its output policy
+                    // must remain usable even when GilRs could not initialize.
+                    if let Some(bridge)=editor.job.as_ref().and_then(|job|job.bridge.as_ref()) {
+                        let enabled=editor.preferences.rumble_enabled&&editor.playing&&!editor.paused&&(editor.active_play_target==crate::play::Target::Window||(window_focused&&editor.game_capture));
+                        bridge.rumble_enabled.store(enabled,std::sync::atomic::Ordering::Relaxed);
+                    }
+                    if let Some(bridge)=editor.job.as_ref().and_then(|job|job.native.as_ref()) {
+                        let enabled=window_focused&&editor.preferences.rumble_enabled&&editor.playing&&!editor.paused&&editor.game_capture&&editor.game_error.is_none()&&editor.active_play_runtime==crate::play::Runtime::NativePc;
+                        bridge.output_enabled.store(enabled,std::sync::atomic::Ordering::Relaxed);
+                    }
+                }
                 if let (Some(gamepads),Some(editor))=(gamepads.as_mut(),session.as_mut()) {
                     while let Some(event)=gamepads.next_event() { match event.event {
-                        gilrs::EventType::ButtonPressed(button,_)=>editor.input_gamepad_button(format!("{button:?}"),true),
-                        gilrs::EventType::ButtonReleased(button,_)=>editor.input_gamepad_button(format!("{button:?}"),false),
-                        gilrs::EventType::AxisChanged(axis,value,_)=>if let Some(axis)=gamepad_axis(axis){editor.input_gamepad_axis(axis,value)},
+                        gilrs::EventType::ButtonPressed(button,_)=>editor.input_gamepad_button(usize::from(event.id),format!("{button:?}"),true),
+                        gilrs::EventType::ButtonReleased(button,_)=>editor.input_gamepad_button(usize::from(event.id),format!("{button:?}"),false),
+                        gilrs::EventType::AxisChanged(axis,value,_)=>if let Some(axis)=gamepad_axis(axis){editor.input_gamepad_axis(usize::from(event.id),axis,value)},
+                        gilrs::EventType::Disconnected=>editor.controls.disconnect(usize::from(event.id)),
                         _=>{}
                     }}
+                    editor.controls.sync_devices(gamepads.gamepads().map(|(id,pad)|crate::controls::Device{id:usize::from(id),name:pad.name().into(),rumble_supported:pad.is_ff_supported()}).collect());
+                    let snapshot=editor.job.as_ref().and_then(|job|job.native.as_ref()).and_then(|bridge|bridge.state.lock().unwrap().rumble.clone());
+                    let allowed=window_focused&&editor.preferences.rumble_enabled;
+                    let play_allowed=allowed&&editor.playing&&!editor.paused&&editor.game_capture&&editor.game_error.is_none()&&editor.active_play_runtime==crate::play::Runtime::NativePc;
+                    let test_allowed=allowed&&!editor.playing&&editor.controls.rumble_panel_port.is_some();
+                    motors.update(gamepads,&mut editor.controls,snapshot.as_ref(),play_allowed,test_allowed);
+                    if let Some(error)=motors.error.take(){editor.log(format!("Controller rumble: {error}"));}
+                } else {
+                    motors.stop();
                 }
                 if Instant::now()>=next_frame {
                     window.request_redraw();
@@ -1083,6 +1107,7 @@ pub fn run(
                 }
             }
             Event::LoopExiting => {
+                motors.stop();
                 save_layout(&mut imgui, session.as_ref(), screenshot.is_some());
                 if let Some(editor) = session.as_mut() { editor.project_browser.previews.clear(&mut renderer); editor.asset_inspector.media.clear(&mut renderer); }
                 session = None;
@@ -1091,9 +1116,12 @@ pub fn run(
                 event: WindowEvent::Focused(false),
                 ..
             } => {
-                if let Some(editor) = session.as_mut() { editor.game_capture = false; editor.set_buttons(0);editor.scene_navigation=false;editor.scene_look=false;editor.raw_look=None; }
+                window_focused=false;motors.stop();
+                if let Some(editor)=session.as_mut(){editor.controls.clear();}
+                if let Some(editor) = session.as_mut() { editor.game_capture = false; editor.set_buttons(0);editor.scene_navigation=false;editor.scene_look=false;editor.raw_look=None;editor.scene_orientation.cancel(); }
                 look_captured=false;raw_motion=[0.;2];let _=window.set_cursor_grab(CursorGrabMode::None);window.set_cursor_visible(true);
             }
+            Event::WindowEvent { event: WindowEvent::Focused(true), .. } => { window_focused=true; }
             _ => {}
         }
     })?;
@@ -1636,6 +1664,7 @@ const EDITOR_FA_GLYPHS: &[u32] = &[
     0xf5ee, 0xf5ee, // draw-polygon: Polygon2D
     0xf5fd, 0xf5fd, // layer-group: z index
     0xf6d9, 0xf6d9, // dungeon: Dungeon Generator
+    0xf6fa, 0xf6fa, // mask: Depth2D
     0xf6fc, 0xf6fc, // mountain: sharp falloff
     0xf70c, 0xf70c, // person-running: CharacterBody2D
     0xf70e, 0xf70e, // scroll: Dungeon Recipe

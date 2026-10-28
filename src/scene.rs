@@ -580,10 +580,10 @@ impl Scene {
             if let Some(camera) = map.get(&track.camera) {
                 track.camera = *camera;
             }
-            if let Some(nav) = &mut track.navigation {
-                if let Some(target) = map.get(&nav.target) {
-                    nav.target = *target;
-                }
+            if let Some(nav) = &mut track.navigation
+                && let Some(target) = map.get(&nav.target)
+            {
+                nav.target = *target;
             }
         }
         self.refresh_actor_hierarchy();
@@ -668,6 +668,33 @@ impl Scene {
             .iter()
             .map(|actor| actor.id)
             .filter(|id| branch.contains(id))
+            .collect()
+    }
+    /// The actors of `ids` that are in this map and have no logical ancestor in
+    /// `ids`, in document order: the roots of the branches `ids` covers.
+    pub fn actor_branch_roots(&self, ids: &[uuid::Uuid]) -> Vec<uuid::Uuid> {
+        let listed: BTreeSet<_> = ids.iter().copied().collect();
+        let parent_of: BTreeMap<_, _> = self
+            .actors
+            .iter()
+            .map(|actor| (actor.id, actor.logical_parent))
+            .collect();
+        self.actors
+            .iter()
+            .map(|actor| actor.id)
+            .filter(|id| listed.contains(id))
+            .filter(|id| {
+                // Bounded by the actor count, so a parent cycle ends the walk.
+                let mut current = parent_of[id];
+                for _ in 0..self.actors.len() {
+                    match current {
+                        Some(parent) if listed.contains(&parent) => return false,
+                        Some(parent) => current = parent_of.get(&parent).copied().flatten(),
+                        None => break,
+                    }
+                }
+                true
+            })
             .collect()
     }
     /// A name no actor and no entity of this map already uses, suffixed like
@@ -1164,7 +1191,8 @@ mod tests {
     #[test]
     fn every_supported_scene_version_loads_and_a_newer_document_is_refused() {
         let mut scene = Scene::default();
-        for version in [crate::actor_document::SCENE_VERSION] {
+        {
+            let version = crate::actor_document::SCENE_VERSION;
             scene.version = version;
             scene.validate().unwrap();
         }

@@ -2,11 +2,11 @@
 
 > **Header:** `"hud_core.hpp"` · **Tier:** Epok runtime API · **Source:** [open header](../../../runtime/hud_core.hpp)
 
-This module covers native HUD layout, drawing and focus navigation. It documents 14 public callables declared directly in this header.
+This module covers native HUD layout, drawing and focus navigation. It documents 19 public callables declared directly in this header.
 
 ## Declared types
 
-`epok::hud_core::Affine2`, `epok::hud_core::Budget`, `epok::hud_core::Compiler`, `epok::hud_core::Rect`, `epok::hud_core::TrigTable`
+`epok::hud_core::Affine2`, `epok::hud_core::Budget`, `epok::hud_core::Compiler`, `epok::hud_core::NodeCache`, `epok::hud_core::NodeCache::Counts`, `epok::hud_core::Rect`, `epok::hud_core::TrigTable`
 
 ## Callable index
 
@@ -18,6 +18,11 @@ This module covers native HUD layout, drawing and focus navigation. It documents
 - [`epok::hud_core::compose`](#epok-hud-core-compose-1) — `b` applied first, then `a`: the parent's accumulated transform composed onto a child's.
 - [`epok::hud_core::cosine`](#epok-hud-core-cosine-1) — Performs `cosine` as part of native HUD layout, drawing and focus navigation.
 - [`epok::hud_core::identity`](#epok-hud-core-identity-1) — Performs `identity` as part of native HUD layout, drawing and focus navigation.
+- [`epok::hud_core::NodeCache::begin`](#epok-hud-core-nodecache-begin-1) — Begins begin as part of native HUD layout, drawing and focus navigation.
+- [`epok::hud_core::NodeCache::Counts::operator==`](#epok-hud-core-nodecache-counts-operator-1) — Performs `operator ==` as part of native HUD layout, drawing and focus navigation.
+- [`epok::hud_core::NodeCache::end`](#epok-hud-core-nodecache-end-1) — Ends end as part of native HUD layout, drawing and focus navigation.
+- [`epok::hud_core::NodeCache::invalidate`](#epok-hud-core-nodecache-invalidate-1) — Performs `invalidate` as part of native HUD layout, drawing and focus navigation.
+- [`epok::hud_core::NodeCache::rebuild`](#epok-hud-core-nodecache-rebuild-1) — Performs `rebuild` as part of native HUD layout, drawing and focus navigation.
 - [`epok::hud_core::pixel`](#epok-hud-core-pixel-1) — Performs `pixel` as part of native HUD layout, drawing and focus navigation.
 - [`epok::hud_core::resolve`](#epok-hud-core-resolve-1) — Performs `resolve` as part of native HUD layout, drawing and focus navigation.
 - [`epok::hud_core::rotation_about`](#epok-hud-core-rotation-about-1) — T(pivot) * R(degrees) * T(-pivot).
@@ -37,7 +42,7 @@ This module covers native HUD layout, drawing and focus navigation. It documents
 inline void apply(const Affine2& m,Fixed x,Fixed y,Fixed& out_x,Fixed& out_y)
 ```
 
-- **Declared at:** [line 47](../../../runtime/hud_core.hpp#L47)
+- **Declared at:** [line 72](../../../runtime/hud_core.hpp#L72)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -127,7 +132,7 @@ auto result = epok::hud_core::clamp(v, hi);
 Compiler(Sink& sink,int width,int height,Budget budget):sin
 ```
 
-- **Declared at:** [line 452](../../../runtime/hud_core.hpp#L452)
+- **Declared at:** [line 499](../../../runtime/hud_core.hpp#L499)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -168,10 +173,10 @@ epok::hud_core::Compiler value(sink, width, height, budget);
 **Exact declaration**
 
 ```cpp
-void draw(ActorData* entities,size_t count,int* first,int* next,Fixed (*sizes)[2],Rect* boxes,Affine2* affines)
+void draw(ActorData* entities,size_t count,int* first,int* next,Fixed (*sizes)[2],Rect* boxes,Affine2* affines,bool measure_intrinsics=false)
 ```
 
-- **Declared at:** [line 463](../../../runtime/hud_core.hpp#L463)
+- **Declared at:** [line 513](../../../runtime/hud_core.hpp#L513)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -185,6 +190,7 @@ void draw(ActorData* entities,size_t count,int* first,int* next,Fixed (*sizes)[2
 | `sizes` | `Fixed (*)[2]` | Input/output; inspect the function contract | Value supplied for `sizes`. See the exact type and module contract. |
 | `boxes` | `Rect *` | Input/output; inspect the function contract | Value supplied for `boxes`. See the exact type and module contract. |
 | `affines` | `Affine2 *` | Input/output; inspect the function contract | Value supplied for `affines`. See the exact type and module contract. |
+| `measure_intrinsics` | `bool` | Input | Value supplied for `measure_intrinsics`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -203,10 +209,11 @@ void draw(ActorData* entities,size_t count,int* first,int* next,Fixed (*sizes)[2
 // Fixed (*)[2] sizes
 // Rect * boxes
 // Affine2 * affines
+// bool measure_intrinsics
 
 epok::hud_core::Compiler& object = /* obtain a valid instance */;
 
-object.draw(entities, count, first, next, sizes, boxes, affines);
+object.draw(entities, count, first, next, sizes, boxes, affines, measure_intrinsics);
 ```
 
 **Why choose it.** The API maps closely to PSX GPU work, giving predictable ordering and low overhead.
@@ -222,10 +229,10 @@ object.draw(entities, count, first, next, sizes, boxes, affines);
 **Exact declaration**
 
 ```cpp
-void layout(ActorData* entities,size_t count,int* first,int* next,Fixed (*sizes)[2],Rect* boxes,Affine2* affines)
+void layout(ActorData* entities,size_t count,int* first,int* next,Fixed (*sizes)[2],Rect* boxes,Affine2* affines,bool measure_intrinsics=true)
 ```
 
-- **Declared at:** [line 455](../../../runtime/hud_core.hpp#L455)
+- **Declared at:** [line 502](../../../runtime/hud_core.hpp#L502)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -239,6 +246,7 @@ void layout(ActorData* entities,size_t count,int* first,int* next,Fixed (*sizes)
 | `sizes` | `Fixed (*)[2]` | Input/output; inspect the function contract | Value supplied for `sizes`. See the exact type and module contract. |
 | `boxes` | `Rect *` | Input/output; inspect the function contract | Value supplied for `boxes`. See the exact type and module contract. |
 | `affines` | `Affine2 *` | Input/output; inspect the function contract | Value supplied for `affines`. See the exact type and module contract. |
+| `measure_intrinsics` | `bool` | Input | Value supplied for `measure_intrinsics`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -257,10 +265,11 @@ void layout(ActorData* entities,size_t count,int* first,int* next,Fixed (*sizes)
 // Fixed (*)[2] sizes
 // Rect * boxes
 // Affine2 * affines
+// bool measure_intrinsics
 
 epok::hud_core::Compiler& object = /* obtain a valid instance */;
 
-object.layout(entities, count, first, next, sizes, boxes, affines);
+object.layout(entities, count, first, next, sizes, boxes, affines, measure_intrinsics);
 ```
 
 **Why choose it.** It provides direct, allocation-conscious access to native HUD layout, drawing and focus navigation. No exception-based error path is implied by the signature.
@@ -389,6 +398,217 @@ auto result = epok::hud_core::identity(m);
 
 **Trade-offs and warnings.** Check the return value; `false` is part of normal control flow for many PSX resource operations. Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
 
+<a id="epok-hud-core-nodecache-begin-1"></a>
+
+## `epok::hud_core::NodeCache::begin`
+
+**Purpose.** Begins begin as part of native HUD layout, drawing and focus navigation.
+
+**Exact declaration**
+
+```cpp
+bool begin(size_t owner,uint32_t key,Counts& counts,HudStats& stats)
+```
+
+- **Declared at:** [line 61](../../../runtime/hud_core.hpp#L61)
+- **Kind:** `cxx method`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `owner` | `size_t` | Input | Value supplied for `owner`. See the exact type and module contract. |
+| `key` | `uint32_t` | Input | Value supplied for `key`. See the exact type and module contract. |
+| `counts` | `Counts &` | Input/output; inspect the function contract | Value supplied for `counts`. See the exact type and module contract. |
+| `stats` | `HudStats &` | Input/output; inspect the function contract | Value supplied for `stats`. See the exact type and module contract. |
+
+**Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need native HUD layout, drawing and focus navigation and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "hud_core.hpp"
+
+// Assume these named values have been initialized with valid data:
+// size_t owner
+// uint32_t key
+// Counts & counts
+// HudStats & stats
+
+epok::hud_core::NodeCache& object = /* obtain a valid instance */;
+
+auto result = object.begin(owner, key, counts, stats);
+```
+
+**Why choose it.** The boolean result makes success, availability or state explicit without exceptions.
+
+**Trade-offs and warnings.** Check the return value; `false` is part of normal control flow for many PSX resource operations. Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
+
+<a id="epok-hud-core-nodecache-counts-operator-1"></a>
+
+## `epok::hud_core::NodeCache::Counts::operator==`
+
+**Purpose.** Performs `operator ==` as part of native HUD layout, drawing and focus navigation.
+
+**Exact declaration**
+
+```cpp
+bool operator==(const Counts&)const=default
+```
+
+- **Declared at:** [line 52](../../../runtime/hud_core.hpp#L52)
+- **Kind:** `cxx method`; qualifiers: `const`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `arg1` | `const Counts &` | Input | Value supplied for `arg1`. See the exact type and module contract. |
+
+**Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need native HUD layout, drawing and focus navigation and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "hud_core.hpp"
+
+// Assume these named values have been initialized with valid data:
+// const Counts & arg1
+
+epok::hud_core::NodeCache::Counts& object = /* obtain a valid instance */;
+
+auto result = object.operator==(arg1);
+```
+
+**Why choose it.** The method is `const`, so it does not mutate the object through this API surface. The boolean result makes success, availability or state explicit without exceptions.
+
+**Trade-offs and warnings.** Check the return value; `false` is part of normal control flow for many PSX resource operations. Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
+
+<a id="epok-hud-core-nodecache-end-1"></a>
+
+## `epok::hud_core::NodeCache::end`
+
+**Purpose.** Ends end as part of native HUD layout, drawing and focus navigation.
+
+**Exact declaration**
+
+```cpp
+void end(size_t owner,const Counts& counts,const HudStats& stats)
+```
+
+- **Declared at:** [line 68](../../../runtime/hud_core.hpp#L68)
+- **Kind:** `cxx method`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `owner` | `size_t` | Input | Value supplied for `owner`. See the exact type and module contract. |
+| `counts` | `const Counts &` | Input | Value supplied for `counts`. See the exact type and module contract. |
+| `stats` | `const HudStats &` | Input | Value supplied for `stats`. See the exact type and module contract. |
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** You need native HUD layout, drawing and focus navigation and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "hud_core.hpp"
+
+// Assume these named values have been initialized with valid data:
+// size_t owner
+// const Counts & counts
+// const HudStats & stats
+
+epok::hud_core::NodeCache& object = /* obtain a valid instance */;
+
+object.end(owner, counts, stats);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to native HUD layout, drawing and focus navigation. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
+
+<a id="epok-hud-core-nodecache-invalidate-1"></a>
+
+## `epok::hud_core::NodeCache::invalidate`
+
+**Purpose.** Performs `invalidate` as part of native HUD layout, drawing and focus navigation.
+
+**Exact declaration**
+
+```cpp
+void invalidate()
+```
+
+- **Declared at:** [line 59](../../../runtime/hud_core.hpp#L59)
+- **Kind:** `cxx method`
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** You need native HUD layout, drawing and focus navigation and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "hud_core.hpp"
+
+epok::hud_core::NodeCache& object = /* obtain a valid instance */;
+
+object.invalidate();
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to native HUD layout, drawing and focus navigation. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-hud-core-nodecache-rebuild-1"></a>
+
+## `epok::hud_core::NodeCache::rebuild`
+
+**Purpose.** Performs `rebuild` as part of native HUD layout, drawing and focus navigation.
+
+**Exact declaration**
+
+```cpp
+void rebuild(unsigned p)
+```
+
+- **Declared at:** [line 60](../../../runtime/hud_core.hpp#L60)
+- **Kind:** `cxx method`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `p` | `unsigned int` | Input | Value supplied for `p`. See the exact type and module contract. |
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** You need native HUD layout, drawing and focus navigation and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "hud_core.hpp"
+
+// Assume these named values have been initialized with valid data:
+// unsigned int p
+
+epok::hud_core::NodeCache& object = /* obtain a valid instance */;
+
+object.rebuild(p);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to native HUD layout, drawing and focus navigation. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
 <a id="epok-hud-core-pixel-1"></a>
 
 ## `epok::hud_core::pixel`
@@ -441,7 +661,7 @@ auto result = epok::hud_core::pixel(v);
 inline Rect resolve(Rect parent,const RectTransform& r)
 ```
 
-- **Declared at:** [line 48](../../../runtime/hud_core.hpp#L48)
+- **Declared at:** [line 73](../../../runtime/hud_core.hpp#L73)
 - **Kind:** `function decl`
 
 **Parameters**

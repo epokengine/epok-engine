@@ -602,17 +602,6 @@ mod tests {
         a.defaults.insert("health".into(), Value::from(2));
         assert_ne!(h, a.semantic_hash());
     }
-    /// A byte fixture of a version-3 asset, pinned before the family hint existed. It
-    /// must still load, must resolve `family` to `None`, and must hash to exactly the
-    /// value it hashed to under version 3 - otherwise every existing Blueprint in every
-    /// project would look stale after upgrading the editor.
-    const V3_FIXTURE: &str = r#"{"version":3,"id":"11111111-2222-3333-4444-555555555555","name":"Boss","parent":"66666666-7777-8888-9999-000000000000","defaults":{},"variables":[],"functions":[],"layout":{"positions":{},"comments":{}},"template":{"actors":[]}}"#;
-    /// The exact bytes `semantic_hash` digests for that fixture, and their SHA-256.
-    /// Both were computed independently of this code path (the digest with Python's
-    /// `hashlib` over the string below), so a regression here is a real ABI change.
-    const V3_SEMANTIC_JSON: &str = r#"{"version":3,"id":"11111111-2222-3333-4444-555555555555","name":"Boss","parent":"66666666-7777-8888-9999-000000000000","defaults":{},"variables":[],"functions":[],"layout":{"positions":{},"comments":{}},"template":{"actors":[],"overrides":{},"references":[],"construction":[]}}"#;
-    const V3_SEMANTIC_HASH: &str =
-        "9aaee305fc982599d4609bcceb6d0c87aeddaa1b8c4f0b5189fff1625a0385d1";
 
     #[test]
     fn family_hint_is_a_semantic_change_in_current_assets() {

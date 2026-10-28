@@ -18,8 +18,8 @@ console runs the baked map and does no generation work of its own.
 
 ## Create a dungeon
 
-- **3D:** choose **GameObject > Dungeon Generator**, or the same entry in the
-  Hierarchy's create menu.
+- **3D:** choose **GameObject > 3D Object > Dungeon Generator**, or the same entry in
+  the Hierarchy's create menu.
 - **2D:** choose **Add 2D Node** and search for `DungeonGenerator` (group *Level*).
 
 The generator appears at the map origin (3D) or at the centre of the 2D view, generates

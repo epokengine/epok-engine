@@ -2,16 +2,19 @@
 
 > **Header:** `"hud.hpp"` · **Tier:** Epok runtime API · **Source:** [open header](../../../runtime/hud.hpp)
 
-This module covers native HUD layout, drawing and focus navigation. It documents 12 public callables declared directly in this header.
+This module covers native HUD layout, drawing and focus navigation. It documents 15 public callables declared directly in this header.
 
 ## Declared types
 
-`epok::HudRenderer`
+`epok::HudRenderer`, `epok::HudRenderer::NodeCounts`
 
 ## Callable index
 
+- [`epok::HudRenderer::begin_node`](#epok-hudrenderer-begin-node-1) — Begins node as part of native HUD layout, drawing and focus navigation.
 - [`epok::HudRenderer::begin_text`](#epok-hudrenderer-begin-text-1) — Begins text as part of native HUD layout, drawing and focus navigation.
+- [`epok::HudRenderer::counts`](#epok-hudrenderer-counts-1) — Performs `counts` as part of native HUD layout, drawing and focus navigation.
 - [`epok::HudRenderer::draw`](#epok-hudrenderer-draw-1) — Draws draw as part of native HUD layout, drawing and focus navigation.
+- [`epok::HudRenderer::end_node`](#epok-hudrenderer-end-node-1) — Ends node as part of native HUD layout, drawing and focus navigation.
 - [`epok::HudRenderer::font`](#epok-hudrenderer-font-1) — Font index -1 is the built-in atlas, resident at (960,448) with its CLUT at (60,448); an authored font brings its own placement from the export allocator.
 - [`epok::HudRenderer::glyph`](#epok-hudrenderer-glyph-1) — Source coordinates arrive as atlas texels; the page origin turns them into the texel offsets within the page begin_text() chained.
 - [`epok::HudRenderer::glyph_quad`](#epok-hudrenderer-glyph-quad-1) — The same page, CLUT and atlas texels glyph() uses; only the primitive class differs, and a TexturedQuad carries its own page rather than inheriting the one begin_text() chained.
@@ -22,6 +25,56 @@ This module covers native HUD layout, drawing and focus navigation. It documents
 - [`epok::HudRenderer::rectangle`](#epok-hudrenderer-rectangle-1) — Performs `rectangle` as part of native HUD layout, drawing and focus navigation.
 - [`epok::HudRenderer::texture_size`](#epok-hudrenderer-texture-size-1) — Performs `texture size` as part of native HUD layout, drawing and focus navigation.
 - [`epok::HudRenderer::textured_quad`](#epok-hudrenderer-textured-quad-1) — Performs `textured quad` as part of native HUD layout, drawing and focus navigation.
+
+<a id="epok-hudrenderer-begin-node-1"></a>
+
+## `epok::HudRenderer::begin_node`
+
+**Purpose.** Begins node as part of native HUD layout, drawing and focus navigation.
+
+**Exact declaration**
+
+```cpp
+bool begin_node(int owner,const hud_core::Rect& rect,const hud_core::Affine2& transform,const uint8_t* tint,HudStats& stats)
+```
+
+- **Declared at:** [line 77](../../../runtime/hud.hpp#L77)
+- **Kind:** `cxx method`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `owner` | `int` | Input | Value supplied for `owner`. See the exact type and module contract. |
+| `rect` | `const hud_core::Rect &` | Input | Value supplied for `rect`. See the exact type and module contract. |
+| `transform` | `const hud_core::Affine2 &` | Input | Value supplied for `transform`. See the exact type and module contract. |
+| `tint` | `const uint8_t *` | Input | Value supplied for `tint`. See the exact type and module contract. |
+| `stats` | `HudStats &` | Input/output; inspect the function contract | Value supplied for `stats`. See the exact type and module contract. |
+
+**Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need native HUD layout, drawing and focus navigation and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "hud.hpp"
+
+// Assume these named values have been initialized with valid data:
+// int owner
+// const hud_core::Rect & rect
+// const hud_core::Affine2 & transform
+// const uint8_t * tint
+// HudStats & stats
+
+epok::HudRenderer& object = /* obtain a valid instance */;
+
+auto result = object.begin_node(owner, rect, transform, tint, stats);
+```
+
+**Why choose it.** The boolean result makes success, availability or state explicit without exceptions. The API maps closely to PSX GPU work, giving predictable ordering and low overhead.
+
+**Trade-offs and warnings.** Check the return value; `false` is part of normal control flow for many PSX resource operations. Respect packet lifetime, ordering-table direction and per-frame GPU/VRAM budgets; submission is not a desktop immediate-mode draw call. Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
 
 <a id="epok-hudrenderer-begin-text-1"></a>
 
@@ -35,7 +88,7 @@ This module covers native HUD layout, drawing and focus navigation. It documents
 void begin_text(int index)
 ```
 
-- **Declared at:** [line 82](../../../runtime/hud.hpp#L82)
+- **Declared at:** [line 110](../../../runtime/hud.hpp#L110)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -65,6 +118,39 @@ object.begin_text(index);
 
 **Trade-offs and warnings.** Respect packet lifetime, ordering-table direction and per-frame GPU/VRAM budgets; submission is not a desktop immediate-mode draw call.
 
+<a id="epok-hudrenderer-counts-1"></a>
+
+## `epok::HudRenderer::counts`
+
+**Purpose.** Performs `counts` as part of native HUD layout, drawing and focus navigation.
+
+**Exact declaration**
+
+```cpp
+NodeCounts counts()const
+```
+
+- **Declared at:** [line 76](../../../runtime/hud.hpp#L76)
+- **Kind:** `cxx method`; qualifiers: `const`
+
+**Returns.** Returns `NodeCounts`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need native HUD layout, drawing and focus navigation and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "hud.hpp"
+
+epok::HudRenderer& object = /* obtain a valid instance */;
+
+auto result = object.counts();
+```
+
+**Why choose it.** The method is `const`, so it does not mutate the object through this API surface. The API maps closely to PSX GPU work, giving predictable ordering and low overhead.
+
+**Trade-offs and warnings.** Respect packet lifetime, ordering-table direction and per-frame GPU/VRAM budgets; submission is not a desktop immediate-mode draw call.
+
 <a id="epok-hudrenderer-draw-1"></a>
 
 ## `epok::HudRenderer::draw`
@@ -77,7 +163,7 @@ object.begin_text(index);
 template<size_t N>void draw(psyqo::GPU& gpu,std::array<ActorData,N>& entities,size_t count)
 ```
 
-- **Declared at:** [line 132](../../../runtime/hud.hpp#L132)
+- **Declared at:** [line 160](../../../runtime/hud.hpp#L160)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -114,6 +200,50 @@ object.draw<N>(gpu, entities, count);
 
 **Trade-offs and warnings.** Every instantiated type must satisfy the header's compile-time requirements; extra instantiations can increase code size. Respect packet lifetime, ordering-table direction and per-frame GPU/VRAM budgets; submission is not a desktop immediate-mode draw call. Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
 
+<a id="epok-hudrenderer-end-node-1"></a>
+
+## `epok::HudRenderer::end_node`
+
+**Purpose.** Ends node as part of native HUD layout, drawing and focus navigation.
+
+**Exact declaration**
+
+```cpp
+void end_node(int owner,const HudStats& stats)
+```
+
+- **Declared at:** [line 88](../../../runtime/hud.hpp#L88)
+- **Kind:** `cxx method`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `owner` | `int` | Input | Value supplied for `owner`. See the exact type and module contract. |
+| `stats` | `const HudStats &` | Input | Value supplied for `stats`. See the exact type and module contract. |
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** You need native HUD layout, drawing and focus navigation and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "hud.hpp"
+
+// Assume these named values have been initialized with valid data:
+// int owner
+// const HudStats & stats
+
+epok::HudRenderer& object = /* obtain a valid instance */;
+
+object.end_node(owner, stats);
+```
+
+**Why choose it.** The API maps closely to PSX GPU work, giving predictable ordering and low overhead.
+
+**Trade-offs and warnings.** Respect packet lifetime, ordering-table direction and per-frame GPU/VRAM budgets; submission is not a desktop immediate-mode draw call. Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
+
 <a id="epok-hudrenderer-font-1"></a>
 
 ## `epok::HudRenderer::font`
@@ -128,7 +258,7 @@ object.draw<N>(gpu, entities, count);
 const Font* font(int index)
 ```
 
-- **Declared at:** [line 81](../../../runtime/hud.hpp#L81)
+- **Declared at:** [line 109](../../../runtime/hud.hpp#L109)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -170,7 +300,7 @@ auto result = object.font(index);
 void glyph(int,int index,int u,int v,int x0,int y0,int x1,int y1,const uint8_t* color)
 ```
 
-- **Declared at:** [line 89](../../../runtime/hud.hpp#L89)
+- **Declared at:** [line 117](../../../runtime/hud.hpp#L117)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -228,7 +358,7 @@ object.glyph(arg1, index, u, v, x0, y0, x1, y1, color);
 void glyph_quad(int,int index,const int* x,const int* y,const int* u,const int* v,const uint8_t* color)
 ```
 
-- **Declared at:** [line 117](../../../runtime/hud.hpp#L117)
+- **Declared at:** [line 145](../../../runtime/hud.hpp#L145)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -282,7 +412,7 @@ object.glyph_quad(arg1, index, x, y, u, v, color);
 void image(int,int id,int x0,int y0,int x1,int y1,int u0,int v0,int u1,int v1,const uint8_t* color)
 ```
 
-- **Declared at:** [line 68](../../../runtime/hud.hpp#L68)
+- **Declared at:** [line 96](../../../runtime/hud.hpp#L96)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -344,7 +474,7 @@ object.image(arg1, id, x0, y0, x1, y1, u0, v0, u1, v1, color);
 void initialize(psyqo::GPU& gpu)
 ```
 
-- **Declared at:** [line 131](../../../runtime/hud.hpp#L131)
+- **Declared at:** [line 159](../../../runtime/hud.hpp#L159)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -386,7 +516,7 @@ object.initialize(gpu);
 void invalidate()
 ```
 
-- **Declared at:** [line 151](../../../runtime/hud.hpp#L151)
+- **Declared at:** [line 180](../../../runtime/hud.hpp#L180)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -421,7 +551,7 @@ object.invalidate();
 void quad(int,const int* x,const int* y,const uint8_t* color)
 ```
 
-- **Declared at:** [line 98](../../../runtime/hud.hpp#L98)
+- **Declared at:** [line 126](../../../runtime/hud.hpp#L126)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -469,7 +599,7 @@ object.quad(arg1, x, y, color);
 void rectangle(int,int x0,int y0,int x1,int y1,const uint8_t* color)
 ```
 
-- **Declared at:** [line 62](../../../runtime/hud.hpp#L62)
+- **Declared at:** [line 90](../../../runtime/hud.hpp#L90)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -521,7 +651,7 @@ object.rectangle(arg1, x0, y0, x1, y1, color);
 bool texture_size(int id,int& width,int& height)
 ```
 
-- **Declared at:** [line 61](../../../runtime/hud.hpp#L61)
+- **Declared at:** [line 89](../../../runtime/hud.hpp#L89)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -567,7 +697,7 @@ auto result = object.texture_size(id, width, height);
 void textured_quad(int,int id,const int* x,const int* y,const int* u,const int* v,const uint8_t* color)
 ```
 
-- **Declared at:** [line 104](../../../runtime/hud.hpp#L104)
+- **Declared at:** [line 132](../../../runtime/hud.hpp#L132)
 - **Kind:** `cxx method`
 
 **Parameters**

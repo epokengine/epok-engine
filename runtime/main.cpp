@@ -2,11 +2,12 @@
 #include "psyqo/fragments.hh"
 #include "psyqo/gpu.hh"
 #include "psyqo/primitives/triangles.hh"
+#include "fragment_slot.hpp"
 #include "ordered_draw.hpp"
 #include "ordered_projection.hpp"
 #include "baked_packet.hpp"
 #include "psyqo/scene.hh"
-#include "psyqo/advancedpad.hh"
+#include "controller_pad.hpp"
 #include "memory_card_backend.hpp"
 #include "fixed_trigonometry.hpp"
 #include "track_camera_pose.hpp"
@@ -25,6 +26,7 @@
 #include "video_service.hpp"
 #include "pocketstation_service.hpp"
 #include "lifecycle.hpp"
+#include "scene_files.hpp"
 #include "scene_service.hpp"
 #include "sprites.hpp"
 #include "particles.hpp"
@@ -58,6 +60,9 @@
 #include "lighting.hpp"
 #include "shadows.hpp"
 #include "common/hardware/counters.h"
+#ifdef EPOK_PROFILE_SAMPLE
+#include "common/kernel/events.h"
+#endif
 
 namespace epok {
 LightingEnvironment lighting_environment;
@@ -65,6 +70,42 @@ LightingStats lighting_work;
 LightingStats lighting_stats;
 MeshStats mesh_stats;
 PerformanceStats performance_stats;
+struct GeometryPrewarmStats {uint32_t queued=0,completed=0,quads=0,pending=0,abandoned=0,scanlines=0;};
+GeometryPrewarmStats geometry_prewarm_stats;
+#if defined(EPOK_VALIDATE_PREWARM)||defined(EPOK_VALIDATE_RECOLOR)
+static uint32_t attribute_validation_words[96*20];
+#endif
+#ifdef EPOK_VALIDATE_PREWARM
+struct PrewarmValidationStats {uint32_t chunks=0,errors=0;};
+PrewarmValidationStats prewarm_validation_stats;
+#endif
+#ifdef EPOK_VALIDATE_RECOLOR
+struct RecolorValidationStats {uint32_t quads=0,errors=0,uniform_chunks=0;};
+RecolorValidationStats recolor_validation_stats;
+#endif
+#ifdef EPOK_PROFILE_SAMPLE
+uint32_t cpu_sample_bins[8192]={};
+uint32_t cpu_sample_outside=0;
+void cpu_sample_irq(){
+  uint32_t pc;asm volatile("mfc0 %0,$14":"=r"(pc));pc&=0x1fffffu;
+  if(pc>=0x10000u&&pc<0x90000u)++cpu_sample_bins[(pc-0x10000u)>>6];
+  else ++cpu_sample_outside;
+}
+void cpu_sample_start(){
+#ifdef EPOK_HAS_SEQUENCES
+#error CPU sampling requires the otherwise unused Timer0
+#endif
+  COUNTERS[0].mode=0;
+  if(psyqo::Kernel::isKernelTakenOver()){
+    psyqo::Kernel::queueIRQHandler(psyqo::Kernel::IRQ::Timer0,[]{cpu_sample_irq();});
+    HW_U16(0x1f801074)=HW_U16(0x1f801074)|(1u<<4);
+  }else{
+    const auto event=psyqo::Kernel::openEvent(0xf2000000,2,EVENT_MODE_CALLBACK,[]{cpu_sample_irq();});
+    syscall_enableEvent(event);syscall_enableTimerIRQ(0);syscall_setTimerAutoAck(0,1);
+  }
+  COUNTERS[0].target=64000;COUNTERS[0].mode=TM_RESET_TARGET|TM_IRQ_TARGET|TM_IRQ_REPEAT;
+}
+#endif
 const Texture* pending_texture_bank=nullptr;
 bool load_pending_texture_bank(psyqo::GPU& gpu) {
   if(!pending_texture_bank)return true;
@@ -118,18 +159,20 @@ static_assert(
     "Scene exceeds the initial renderer's 8192-triangle buffer budget");
 using Matrix = epok::Affine<Fixed>;
 epok::PerformanceStats performance_work;
+std::array<uint32_t,epok::objects.size()> object_render_scanlines{};
 #ifdef EPOK_PROFILE_DETAIL
 uint32_t non_streamed_visible = 0;
 #endif
 struct ScanlineScope {
   uint32_t& total;
+  uint32_t* individual=nullptr;
   uint16_t begin=COUNTERS[1].value;
-  ~ScanlineScope(){total+=uint16_t(COUNTERS[1].value-begin);}
+  ~ScanlineScope(){const auto elapsed=uint16_t(COUNTERS[1].value-begin);total+=elapsed;if(individual)*individual=elapsed;}
 };
 std::array<Matrix, epok::objects.size()> world;
 epok::TransformCache<Fixed,epok::objects.size()> transform_cache;
 epok::MotionInterpolation<Fixed,epok::objects.size(),epok::motion_interpolation> motion;
-psyqo::AdvancedPad pad;
+epok::ControllerPad pad;
 epok::PsyqoMemoryCardDriver card_driver;
 epok::CollisionWorld<Fixed,epok::objects.size()> collision_world;
 epok::SpriteRenderer<epok::sprite_triangle_budget> sprites;
@@ -166,6 +209,9 @@ epok::LightingRenderer<epok::objects.size()> lighting;
 epok::RetainedGeometry<epok::objects.size(), epok::retained_geometry ? epok::retained_quad_capacity : 1> retained;
 epok::FramePacketSlots<epok::retained_geometry ? capacity : 1> frame_packet_slots;
 std::array<epok::MeshMaterialCache,epok::objects.size()> mesh_material_cache;
+struct GeometryWarmup {uint32_t generation=0,next[2]={};uint8_t done=0;};
+std::array<GeometryWarmup,epok::objects.size()> geometry_warmups{};
+void abandon_warmup(GeometryWarmup& request){if(request.generation){request={};--epok::geometry_prewarm_stats.pending;++epok::geometry_prewarm_stats.abandoned;}}
 std::array<epok::StreamObjectBinding, epok::stream_archive_fits ? epok::objects.size() : 0> stream_bindings{};
 epok::DataHandle camera_override;
 
@@ -199,7 +245,7 @@ using epok::QuadPacket;
 uint32_t gte_validation_diagnostic[12]={};
 #endif
 template<class Number> __attribute__((noinline,optimize("O3"))) bool project_compact_vertices(const Number (*vertices)[3],size_t count,
-    const int32_t* origin,epok::CompactProjectedVertex* out) {
+    const int32_t* origin,epok::CompactProjectedVertex* out,bool interior=true,bool check_span=true) {
   size_t v=0;
   for(;v+2<count;v+=3){
     if(!epok::project_geometry_triple(vertices+v,origin,out+v))return false;
@@ -210,12 +256,13 @@ template<class Number> __attribute__((noinline,optimize("O3"))) bool project_com
     if(flags&epok::gte_projection_flags)return false;
     out[v].camera.value=uint16_t(camera[2]);
   }
+  if(!interior&&check_span&&!epok::compact_gpu_safe(out,count,Units::near,Units::far))return false;
 #ifdef EPOK_VALIDATE_GTE
   for(size_t i=0;i<count;++i){
     ProjectedVertex reference{};uint32_t flags;
     epok::project_geometry_vertex(vertices[i],origin,reference.camera,reference.screen.packed,flags);
     const auto code=Units::outcode(reference.camera[0],reference.camera[1],reference.camera[2]);
-    if(reference.screen.packed!=out[i].screen.packed||reference.camera[2]!=out[i].camera[2]||code){
+    if(reference.screen.packed!=out[i].screen.packed||reference.camera[2]!=out[i].camera[2]||(code&(interior?63:check_span?3:0))){
       ++performance_work.gte_validation_errors;
       ++gte_validation_diagnostic[reference.screen.packed!=out[i].screen.packed?0:reference.camera[2]!=out[i].camera[2]?1:2];
       for(int c=0;c<3;++c)gte_validation_diagnostic[8+c]=uint32_t(reference.camera[c]);gte_validation_diagnostic[11]=code;
@@ -225,9 +272,9 @@ template<class Number> __attribute__((noinline,optimize("O3"))) bool project_com
   return true;
 }
 inline bool project_compact_vertices(epok::MeshVertices vertices,size_t count,
-    const int32_t* origin,epok::CompactProjectedVertex* out) {
-  return vertices.wide() ? project_compact_vertices(vertices.wide_data(),count,origin,out)
-                         : project_compact_vertices(vertices.narrow_data(),count,origin,out);
+    const int32_t* origin,epok::CompactProjectedVertex* out,bool interior=true,bool check_span=true) {
+  return vertices.wide() ? project_compact_vertices(vertices.wide_data(),count,origin,out,interior,check_span)
+                         : project_compact_vertices(vertices.narrow_data(),count,origin,out,interior,check_span);
 }
 #ifdef EPOK_PROFILE_DETAIL
 #define EPOK_DETAIL_BEGIN(name) const uint16_t name##_begin = COUNTERS[1].value
@@ -265,17 +312,19 @@ struct MaterialState {
 inline uint32_t color_bits(psyqo::Color c) { return c.packed & 0x00ffffffu; }
 struct PolygonEmitter {
   psyqo::OrderingTable<buckets>* table;
-  psyqo::Fragments::SimpleFragment<psyqo::Prim::GouraudTriangle>* gouraud;
-  psyqo::Fragments::SimpleFragment<psyqo::Prim::GouraudTexturedTriangle>* textured;
+  using Packet=epok::FragmentSlot<psyqo::Fragments::SimpleFragment<psyqo::Prim::GouraudTriangle>,
+                                psyqo::Fragments::SimpleFragment<psyqo::Prim::GouraudTexturedTriangle>>;
+  Packet* packets;
   // Dynamic packets descend through gaps not claimed by visible retained chunks.
   uint32_t next_dynamic = capacity;
   uint32_t emitted = 0, retained_emitted = 0;
   bool editable = false;
   bool double_sided = false;
   bool mirror_x = false;
+  uint8_t primitive_faces=63;
   int fixed_depth = -1; // Prepared packet fragments share one monotone OT bucket.
   // 0: rejected, 1: direct GPU submission, 2: software clipping required.
-  inline int classify(const ProjectedVertex& a, const ProjectedVertex& b, const ProjectedVertex& c) {
+  __attribute__((noinline,optimize("O3"))) int classify(const ProjectedVertex& a, const ProjectedVertex& b, const ProjectedVertex& c) {
     if (a.outcode & b.outcode & c.outcode) return 0;
     if (!(a.visible && b.visible && c.visible)) return 2;
     // Inside all six planes, projected spans are bounded by the viewport.
@@ -291,10 +340,10 @@ struct PolygonEmitter {
     if (b.screen.y < min_y) min_y = b.screen.y; if (b.screen.y > max_y) max_y = b.screen.y;
     if (c.screen.x < min_x) min_x = c.screen.x; if (c.screen.x > max_x) max_x = c.screen.x;
     if (c.screen.y < min_y) min_y = c.screen.y; if (c.screen.y > max_y) max_y = c.screen.y;
-    if (max_x - min_x > 1023 || max_y - min_y > 511) return 2;
     const int32_t area = epok::screen_area(a, b, c);
     if (area == 0) return 0;
     if (editable && !double_sided && epok::screen_backface(area, mirror_x)) { ++epok::mesh_stats.backfaces; return 0; }
+    if (max_x - min_x > 1023 || max_y - min_y > 511) return 2;
     return 1;
   }
   // Three visible vertices within the hardware span limits, already checked for
@@ -310,7 +359,7 @@ struct PolygonEmitter {
     if (slot>=capacity) { ++epok::lighting_work.dropped_triangles; return; }
     ++emitted;
     if (q.textured) {
-      auto& f = textured[slot];
+      auto& f = packets[slot].make_textured();
       uint32_t* w = reinterpret_cast<uint32_t*>(&f.primitive);
       w[0] = q.command | ca; w[1] = a.screen.packed; w[2] = uva | q.clut16;
       w[3] = cb; w[4] = b.screen.packed; w[5] = uvb | q.tpage16;
@@ -318,26 +367,26 @@ struct PolygonEmitter {
       table->insert(f, depth);
       return;
     }
-    auto& f = gouraud[slot];
+    auto& f = packets[slot].make_plain();
     uint32_t* w = reinterpret_cast<uint32_t*>(&f.primitive);
     w[0] = 0x30000000u | ca; w[1] = a.screen.packed; w[2] = cb; w[3] = b.screen.packed; w[4] = cc; w[5] = c.screen.packed;
     table->insert(f, depth);
   }
   // Retained slot: screen words every frame, colour words only when they changed.
-  template<class Vertex> inline void retained_emit(uint32_t slot, const Vertex& a, const Vertex& b, const Vertex& c,
+  template<class Vertex> __attribute__((noinline,optimize("O3"))) void retained_emit(uint32_t slot, const Vertex& a, const Vertex& b, const Vertex& c,
                             const epok::RetainedQuad& rec, const uint32_t* colors, int corner_a, int ib, int ic) {
     const int depth = Units::bucket(a.camera[2], b.camera[2], c.camera[2]) + rec.depth_bias;
     if (depth < 0 || depth >= buckets) return;
     ++emitted; ++retained_emitted;
     if (rec.textured) {
-      auto& f = textured[slot];
+      auto& f = packets[slot].textured;
       uint32_t* w = reinterpret_cast<uint32_t*>(&f.primitive);
       w[1] = a.screen.packed; w[4] = b.screen.packed; w[7] = c.screen.packed;
       if (colors) { w[0] = rec.command | colors[corner_a]; w[3] = colors[ib]; w[6] = colors[ic]; }
       table->insert(f, depth);
       return;
     }
-    auto& f = gouraud[slot];
+    auto& f = packets[slot].plain;
     uint32_t* w = reinterpret_cast<uint32_t*>(&f.primitive);
     w[1] = a.screen.packed; w[3] = b.screen.packed; w[5] = c.screen.packed;
     if (colors) { w[0] = 0x30000000u | colors[corner_a]; w[2] = colors[ib]; w[4] = colors[ic]; }
@@ -350,41 +399,61 @@ struct PolygonEmitter {
     static constexpr int corners[2][3]={{0,1,2},{0,2,3}};
     for(int t=0;t<2;++t){
       if(rec.textured){
-        auto* w=reinterpret_cast<uint32_t*>(&textured[slot+t].primitive);
+        auto* w=reinterpret_cast<uint32_t*>(&packets[slot+t].textured.primitive);
         w[0]=rec.command|epok::packet_color(rec.shaded[corners[t][0]],true,rec.gpu_colors);
         w[3]=epok::packet_color(rec.shaded[corners[t][1]],true,rec.gpu_colors);w[6]=epok::packet_color(rec.shaded[corners[t][2]],true,rec.gpu_colors);
       }else{
-        auto* w=reinterpret_cast<uint32_t*>(&gouraud[slot+t].primitive);
+        auto* w=reinterpret_cast<uint32_t*>(&packets[slot+t].plain.primitive);
         w[0]=0x30000000u|rec.shaded[corners[t][0]];w[2]=rec.shaded[corners[t][1]];w[4]=rec.shaded[corners[t][2]];
       }
     }
     rec.fogged&=uint8_t(~parity_bit);
   }
-  template<class Vertex> __attribute__((noinline,optimize("O3"))) void retained_interior(const epok::MeshQuad* quads,
+  __attribute__((noinline,optimize("O3"))) void recolor_uniform_chunk(epok::RetainedQuad* records,size_t count,
+      uint32_t first_slot,uint8_t parity_bit,uint32_t color){
+    const uint32_t modulated=epok::modulate_color(color);
+    for(size_t q=0;q<count;++q){
+      auto& rec=records[q];for(auto& shaded:rec.shaded)shaded=color;
+      auto* first=reinterpret_cast<uint32_t*>(packets+first_slot+uint32_t(q)*2);
+      auto* second=reinterpret_cast<uint32_t*>(packets+first_slot+uint32_t(q)*2+1);
+      if(rec.textured){epok::update_retained_uniform_color<true>(first,rec.command,modulated);epok::update_retained_uniform_color<true>(second,rec.command,modulated);}
+      else{epok::update_retained_uniform_color<false>(first,rec.command,color);epok::update_retained_uniform_color<false>(second,rec.command,color);}
+      rec.fogged&=uint8_t(~parity_bit);
+    }
+  }
+  template<bool ScreenCull=false,class Vertex> __attribute__((noinline,optimize("O3"))) void retained_interior(const epok::MeshQuad* quads,
       epok::RetainedQuad* records,size_t count,uint32_t slot_base,
       const Vertex* vertices,uint8_t parity_bit,const uint32_t* visibility=nullptr) {
     uint32_t drawn=0,rejected=0;
+    auto* const target_packets=packets;
+    auto* const target_ot=table->m_table+1;
+    const bool cull_faces=editable,mirrored=mirror_x;
+    const uint8_t face_mask=primitive_faces;
     for(size_t q=0;q<count;++q){
       if(!epok::visibility_face(visibility,q))continue;
+      if(face_mask!=63&&!(face_mask&(1u<<quads[q].face)))continue;
       auto& rec=records[q];const auto* indices=quads[q].indices;
       if(rec.fogged&parity_bit)restore_retained_colors(rec,slot_base+uint32_t(q)*2,parity_bit);
+      const bool cull=cull_faces&&!quads[q].material.double_sided,textured=rec.textured;
+      const int bias=rec.depth_bias;
       auto triangle=[&](uint16_t ia,uint16_t ib,uint16_t ic,uint32_t slot){
         if(ia==ib||ib==ic||ia==ic)return;
         const auto& a=vertices[ia];const auto& b=vertices[ib];const auto& c=vertices[ic];
+        if constexpr(ScreenCull){
+          if((a.screen.x<0&&b.screen.x<0&&c.screen.x<0)||
+             (a.screen.x>=epok::display_width&&b.screen.x>=epok::display_width&&c.screen.x>=epok::display_width)||
+             (a.screen.y<0&&b.screen.y<0&&c.screen.y<0)||
+             (a.screen.y>=epok::display_height&&b.screen.y>=epok::display_height&&c.screen.y>=epok::display_height))return;
+        }
         const int32_t area=epok::screen_area(a,b,c);
         if(!area)return;
-        if(editable&&!quads[q].material.double_sided&&epok::screen_backface(area,mirror_x)){++rejected;return;}
-        const int depth=Units::bucket(a.camera[2],b.camera[2],c.camera[2])+rec.depth_bias;
+        if(cull&&epok::screen_backface(area,mirrored)){++rejected;return;}
+        const int depth=Units::bucket(a.camera[2],b.camera[2],c.camera[2])+bias;
         if(depth<0||depth>=buckets)return;
-        if(rec.textured){
-          auto& f=textured[slot];auto* w=reinterpret_cast<uint32_t*>(&f.primitive);
-          w[1]=a.screen.packed;w[4]=b.screen.packed;w[7]=c.screen.packed;
-          table->insert(f,depth);
-        }else{
-          auto& f=gouraud[slot];auto* w=reinterpret_cast<uint32_t*>(&f.primitive);
-          w[1]=a.screen.packed;w[3]=b.screen.packed;w[5]=c.screen.packed;
-          table->insert(f,depth);
-        }
+        auto* packet=reinterpret_cast<uint32_t*>(target_packets+slot);
+        auto& bucket=target_ot[depth];
+        if(textured)epok::update_retained_triangle<true>(packet,a.screen.packed,b.screen.packed,c.screen.packed,bucket.head);
+        else epok::update_retained_triangle<false>(packet,a.screen.packed,b.screen.packed,c.screen.packed,bucket.head);
         ++drawn;
       };
       triangle(indices[0],indices[1],indices[2],slot_base+uint32_t(q)*2);
@@ -394,14 +463,25 @@ struct PolygonEmitter {
   }
   // Boundary chunks still contain mostly ordinary, unclipped triangles. Keep
   // that loop compact as well; resolve UVs/materials only for an actual clip.
+  __attribute__((noinline)) void retained_clip(const epok::MeshQuad& quad,const epok::RetainedQuad& rec,
+      const ProjectedVertex& a,const ProjectedVertex& b,const ProjectedVertex& c,const ProjectedVertex& d,
+      int first,int second,const epok::Material& fallback){
+    MaterialState material;material.update(editable?quad.material:fallback);
+    QuadPacket packet;packet.textured=rec.textured;packet.command=rec.command;
+    packet.gpu_colors=rec.gpu_colors;
+    packet.clut16=material.clut16;packet.tpage16=material.tpage16;packet.depth_bias=rec.depth_bias;
+    uint32_t uv[4]={};
+    if(rec.textured)for(int v=0;v<4;++v)uv[v]=quad.packed_uv?quad.uvw[v]:material.uv(quad.uv[v][0],quad.uv[v][1]);
+    clipped_quad(a,b,c,d,first,second,rec.shaded,uv,packet);
+  }
   __attribute__((noinline,optimize("O3"))) void retained_boundary(const epok::MeshQuad* quads,
       epok::RetainedQuad* records,size_t count,uint32_t slot_base,
       const ProjectedVertex* vertices,uint8_t parity_bit,const epok::Material& fallback,const uint32_t* visibility=nullptr) {
-    MaterialState material;
     for(size_t q=0;q<count;++q){
       if(!epok::visibility_face(visibility,q))continue;
       auto& rec=records[q];if(rec.dynamic)continue;
       const auto& quad=quads[q];const auto* ix=quad.indices;
+      if(primitive_faces!=63&&!(primitive_faces&(1u<<quad.face)))continue;
       double_sided=quad.material.double_sided;
       const auto& a=vertices[ix[0]];const auto& b=vertices[ix[1]];
       const auto& c=vertices[ix[2]];const auto& d=vertices[ix[3]];
@@ -416,13 +496,7 @@ struct PolygonEmitter {
         if(second)retained_emit(slot+1,a,c,d,rec,nullptr,0,2,3);
         continue;
       }
-      material.update(editable?quad.material:fallback);
-      QuadPacket packet;packet.textured=rec.textured;packet.command=rec.command;
-      packet.gpu_colors=rec.gpu_colors;
-      packet.clut16=material.clut16;packet.tpage16=material.tpage16;packet.depth_bias=rec.depth_bias;
-      uint32_t uv[4]={};
-      if(rec.textured)for(int v=0;v<4;++v)uv[v]=quad.packed_uv?quad.uvw[v]:material.uv(quad.uv[v][0],quad.uv[v][1]);
-      clipped_quad(a,b,c,d,first,second,rec.shaded,uv,packet);
+      retained_clip(quad,rec,a,b,c,d,first,second,fallback);
     }
   }
   // Software clipping stays out of line so the per-quad loop remains compact.
@@ -798,6 +872,9 @@ void refresh_world() {
 }
 void refresh_world_for(size_t index) {
   ScanlineScope timer{performance_work.world_scanlines};++performance_work.world_syncs;
+  if(transform_cache.sync_path(epok::objects,world,epok::object_count,index,local_matrix)){
+    performance_work.world_matrices+=transform_cache.world_rebuilds;return;
+  }
   bool selected[epok::objects.size()]={};int current=int(index);unsigned depth=0;
   while(current>=0&&size_t(current)<epok::object_count&&depth++<33){
     if(selected[current])break;selected[current]=true;current=epok::objects[size_t(current)].parent;
@@ -849,6 +926,7 @@ void dispatch_trigger(const epok::TriggerEvent& event) {
 }
 class GameScene final : public psyqo::Scene {
   void start(StartReason) override {
+    startup_ready_announced = false;
     // Audio quarantine and trigger-delivery predicates for the object model. Installed
     // before the first bank load, so no component-owned AudioSource can be recycled
     // while the XA consumer still points at it.
@@ -867,12 +945,18 @@ class GameScene final : public psyqo::Scene {
     hud.initialize(gpu());
     epok::debug_hud::initialize(gpu());
       epok::input.reset();
+#ifdef EPOK_RUMBLE
+      epok::rumble.begin_frame(gpu().now());
+      for(unsigned p=0;p<4;++p)epok::rumble.device(p,true,false,true);
+#endif
 #ifdef EPOK_PLAYBACK_WAITS
       epok::bp::playback_observer=&observe_blueprint_playback;
 #endif
 #ifdef EPOK_TRANSITIONS
     epok::transition.begin(epok::TransitionOptions{},gpu().now(),true);
     epok::initialize_scripts();
+    // An external startup bank loads behind the boot loading screen.
+    epok::scene_file_boot(gpu().now());
 #else
     epok::initialize_scripts();
     if constexpr (epok::stream_page_count > 0)
@@ -885,18 +969,22 @@ class GameScene final : public psyqo::Scene {
           !object.audio.is_playing())
         object.audio.play();
 #endif
-    syscall_puts("EPOK: runtime ready\n");
+    {
+#ifdef EPOK_HAS_SEQUENCES
+      epok::SequenceStoragePause pause;
+#endif
+      syscall_puts("EPOK: runtime ready\n");
+    }
   }
   void frame() override;
+  bool startup_ready_announced = false;
   psyqo::OrderingTable<buckets> ordering[2];
   // Separate packets, not a depth bias: base surfaces cannot overwrite the world.
   psyqo::OrderingTable<buckets> background_ordering[2];
   psyqo::Fragments::SimpleFragment<psyqo::Prim::TPage> geometry_pages[2], hud_pages[2];
   epok::FrameClear<epok::display_width,epok::display_height> clear;
   epok::SkyGradient<epok::display_width,epok::display_height> sky_gradient;
-  psyqo::Fragments::SimpleFragment<psyqo::Prim::GouraudTriangle>
-      triangles[2][capacity];
-  psyqo::Fragments::SimpleFragment<psyqo::Prim::GouraudTexturedTriangle> textured_triangles[2][capacity];
+  PolygonEmitter::Packet triangle_packets[2][capacity];
 };
 class Game final : public psyqo::Application {
   void prepare() override {
@@ -910,8 +998,16 @@ class Game final : public psyqo::Application {
         .set(psyqo::GPU::ColorMode::C15BITS)
         .set(epok::display_interlaced ? psyqo::GPU::Interlace::INTERLACED : psyqo::GPU::Interlace::PROGRESSIVE);
     gpu().initialize(config);
-    pad.initialize(psyqo::AdvancedPad::PollingMode::Fast);
-    card_driver.prepare();
+    epok::serial_debug::install(gpu());
+#ifdef EPOK_RUMBLE
+    pad.initialize(true);
+#else
+    pad.initialize();
+#endif
+    card_driver.prepare(gpu());
+#ifdef EPOK_PROFILE_SAMPLE
+    epok::cpu_sample_start();
+#endif
     // Expose all 240 lines / 480 interlaced rows after PsyQo initializes the range.
     psyqo::Hardware::GPU::Ctrl = 0x07000000 | 16 | (256 << 10);
     epok::audio_initialize(epok::audio_clips, epok::audio_clip_count);
@@ -920,6 +1016,7 @@ class Game final : public psyqo::Application {
 #endif
     epok::music_prepare();
     epok::streaming_prepare();
+    epok::scene_files_prepare();
     // Videos share the BGM drive and its ISO9660 directory.
     if constexpr (epok::video_clip_count > 0) epok::music_prepare(true);
     // PsyQo callback trampolines live in writable RAM. GPU, pad, memory-card
@@ -932,7 +1029,30 @@ class Game final : public psyqo::Application {
 };
 Game game;
 
-void GameScene::frame() {
+__attribute__((optimize("O3"))) void GameScene::frame() {
+  pad.synchronize(gpu().now());
+#if EPOK_SERIAL_DEBUG && defined(EPOK_RUMBLE)
+  // Report a bounded number of state changes after the transfer, never from
+  // inside its timing-sensitive byte/ACK loops. Keep ordinary frames quiet.
+  static uint32_t pad_trace_key=0xffffffffu;
+  static unsigned pad_trace_budget=16;
+  const auto& pad_trace=pad.trace();
+  const uint32_t trace_key=(uint32_t(pad_trace.command)<<24)|(uint32_t(pad_trace.result)<<16)|
+      (uint32_t(pad_trace.id)<<8)|pad_trace.header;
+  if(pad_trace.command&&pad_trace_budget&&trace_key!=pad_trace_key){
+    pad_trace_key=trace_key;--pad_trace_budget;
+    ramsyscall_printf("EPOK PAD1 cmd=%02x result=%u byte=%u id=%02x/%02x sio=%08x\n",
+        pad_trace.command,pad_trace.result,pad_trace.index,pad_trace.id,pad_trace.header,pad_trace.status);
+  }
+#endif
+  epok::rumble.begin_frame(gpu().now(),epok::time.paused()||epok::scene_loading()||epok::pending_texture_bank);
+  for(unsigned p=0;p<4;++p)epok::rumble.device(p,pad.isPadConnected(static_cast<epok::ControllerPad::Pad>(p)),pad.rumbleSupported(p),pad.rumbleProbing(p));
+  struct MotorFlush {
+    ~MotorFlush(){
+      if(epok::time.paused()||epok::scene_loading()||epok::pending_texture_bank)epok::rumble.suspend();
+      for(unsigned p=0;p<4;++p){const auto out=epok::rumble.output(p);pad.setRumble(p,out.large,out.small,out.remaining_us);}
+    }
+  } motor_flush;
 #ifdef EPOK_HAS_VIDEO
   // A playing video owns the screen, the CD and the pad; the game stands still.
   if(epok::fmv::frame(gpu(),pad)){epok::time.synchronize(gpu().now());return;}
@@ -945,14 +1065,18 @@ void GameScene::frame() {
   const bool scene_changed=epok::scene_tick(gpu());
   if(scene_changed||epok::scene_loading())motion.clear();
   epok::input.poll_multitap(pad); // AdvancedPad's Pad1a..Pad1d are 0..3.
+  epok::debug_hud::toggle(epok::input.frame_pressed(epok::Button::Select));
 #ifdef EPOK_TRANSITIONS
   if(epok::stream_failed&&!epok::transition.loading())epok::transition.fail();
   if(epok::transition.phase==epok::TransitionPhase::Failed&&epok::input.frame_pressed(epok::Button::Start)){
-    if(epok::streaming_retry()){
+    if(epok::scene_file_waiting()){
+      // Read the same scene file again; its bank has not run yet.
+      if(epok::scene_file_retry(gpu().now())){epok::transition.phase=epok::TransitionPhase::Loading;epok::transition.presented=false;}
+    }else if(epok::streaming_retry()){
       epok::transition.phase=epok::TransitionPhase::Loading;epok::transition.boot=true;epok::transition.presented=false;
     }
   }
-  if(scene_changed||epok::transition.boot_ready()){
+  if(scene_changed||(epok::transition.boot_ready()&&!epok::scene_file_waiting())){
     bool ok=epok::load_pending_texture_bank(gpu());
     if constexpr(epok::stream_page_count>0)if(ok)ok=epok::streaming_warmup_scene(epok::objects.data(),epok::object_count,[](size_t i){return epok::is_active_slot(i);},gpu());
     // An oversized working set uses ordinary demand streaming, not an error.
@@ -980,6 +1104,7 @@ void GameScene::frame() {
   const unsigned steps=epok::scene_loading()?(epok::time.synchronize(gpu().now()),0u):epok::time.advance(gpu().now());
   performance_work.steps=steps;
   if(!epok::scene_loading())epok::level.frame_update(epok::time.frame_microseconds);
+  object_render_scanlines.fill(0);
   if(epok::time.paused()||epok::scene_loading())epok::input.discard_edges();
   motion.select(epok::objects,epok::object_count,[](size_t i){
     const auto& o=epok::objects[i];
@@ -988,7 +1113,7 @@ void GameScene::frame() {
   bool advanced_motion=false;
   if(!epok::time.paused()&&!epok::scene_loading())epok::nav::world.tick();
   for(unsigned step=0;step<steps&&!epok::time.paused()&&!epok::scene_loading();++step) {
-    motion.before_tick(epok::objects,epok::object_count);advanced_motion=true;
+    {ScanlineScope timer{performance_work.motion_scanlines};motion.before_tick(epok::objects,epok::object_count);}advanced_motion=true;
     epok::time.begin_tick();epok::input.begin_tick();
     const Fixed dt(epok::time.delta_raw,Fixed::RAW);
 #ifdef EPOK_EFFECTS
@@ -1003,7 +1128,7 @@ void GameScene::frame() {
   #ifdef EPOK_PLAYBACK_WAITS
       epok::bp::observe_playback();
   #endif
-    epok::level.tick(dt);
+    {ScanlineScope timer{performance_work.scripts_scanlines};epok::level.tick(dt);}
 #ifdef EPOK_WORLD2D
     // World2D after the actors moved: animation, colliders, triggers, cameras.
     epok::world2d::service.step(dt,&epok::level);
@@ -1012,6 +1137,7 @@ void GameScene::frame() {
     for(size_t i=0;i<epok::object_count&&!needs_triggers;++i)
       needs_triggers=epok::objects[i].collider.enabled&&epok::objects[i].collider.trigger&&epok::is_active_slot(i);
     if(needs_triggers){refresh_collisions();collision_world.update_triggers(dispatch_trigger);}
+    const uint16_t animation_begin=COUNTERS[1].value;
     bool has_emitters=false;
     for(size_t i=0;i<epok::object_count;++i)if(
         (epok::objects[i].particle_emitter.enabled||epok::objects[i].animator.enabled||
@@ -1032,14 +1158,15 @@ void GameScene::frame() {
 #endif
       particles.advance();
     }
+    performance_work.animation_scanlines+=uint16_t(COUNTERS[1].value-animation_begin);
     epok::input.end_tick();
   }
-  epok::audio_tick();
+  {ScanlineScope timer{performance_work.audio_scanlines};epok::audio_tick();}
   // Storage a service still points at was skipped by the last release pass; retry it
   // here, next to the point where the legacy path re-checks music_active.
   epok::collect_object_quarantine();
   epok::level.refresh_stats();
-  if(advanced_motion)motion.after_tick(epok::objects,epok::object_count);
+  if(advanced_motion){ScanlineScope timer{performance_work.motion_scanlines};motion.after_tick(epok::objects,epok::object_count);}
   if(epok::time.paused()||epok::scene_loading()||steps==epok::Time::max_steps)motion.clear();
   epok::streaming_tick();
   epok::streaming_service_gameplay_requests();
@@ -1164,9 +1291,9 @@ void GameScene::frame() {
   }
 
   refresh_world();
-
+  epok::begin_render_activation_snapshot();
   const auto& render_world=motion.prepare(epok::objects,world,epok::object_count,epok::time.interpolation_raw());
-  EPOK_DETAIL_BEGIN(camera);
+  const uint16_t camera_begin=COUNTERS[1].value;
   palettes.upload(gpu(),epok::objects,epok::object_count);
   const uint16_t lights_begin = COUNTERS[1].value;
   lighting.prepare(epok::objects, render_world, epok::object_count);
@@ -1188,7 +1315,7 @@ void GameScene::frame() {
   const bool gradient_background=clear_camera&&clear_camera->camera_settings.sky_gradient;
   if(!gradient_background)clear.draw(gpu(),psyqo::Color{{.r = sky_r, .g = sky_g, .b = sky_b}});
   const auto view = camera_view(true,render_world.data());
-  EPOK_DETAIL_END(camera, camera_scanlines);
+  performance_work.camera_scanlines+=uint16_t(COUNTERS[1].value-camera_begin);
   static constexpr int16_t vertices[8][3] = {
       {-2048, -2048, -2048}, {2048, -2048, -2048}, {2048, 2048, -2048},
       {-2048, 2048, -2048},  {-2048, -2048, 2048}, {2048, -2048, 2048},
@@ -1233,7 +1360,23 @@ void GameScene::frame() {
        ||!sky_gradient.draw(gpu(),sky_view,colors))
       clear.draw(gpu(),psyqo::Color{{.r = sky_r, .g = sky_g, .b = sky_b}});
   }
-  PolygonEmitter emitter{&table, triangles[parity], textured_triangles[parity]};
+#ifdef EPOK_WORLD2D
+  // Canvases under the 3D world draw over the sky. Depth2D entries join the table before
+  // any 3D packet, so each draws after the 3D packets of its own bucket.
+  static_assert(buckets==epok::world2d::depth_buckets,"Depth2D buckets are the 3D ordering table's");
+  epok::world2d::renderer.begin(gpu(),clear_camera!=nullptr);
+  epok::world2d::renderer.draw_under(gpu());
+  epok::world2d::renderer.insert_depth(gpu(),table,[&](const epok::Depth2DComponent& depth){
+    return epok::world2d::depth_bucket_of(depth,[&](const epok::ActorData& entity,int32_t& z){
+      const int index=epok::entity_index(&entity);
+      if(index<0||size_t(index)>=epok::object_count)return false;
+      Fixed position[3],camera[3];
+      for(int r=0;r<3;++r)position[r]=render_world[index].values[r][3];
+      view.point(position,camera);z=camera[2].raw();return true;
+    });
+  });
+#endif
+  PolygonEmitter emitter{&table, triangle_packets[parity]};
   emitter.mirror_x=epok::projection_focal_x.raw()<0;
   if constexpr(epok::retained_geometry)frame_packet_slots.begin_frame();
   bool background_active=false;
@@ -1241,6 +1384,15 @@ void GameScene::frame() {
   epok::StreamPageWorkingSet<working_slots> working_pages;
   int working_pins[working_slots];
   if constexpr (demand_streaming) {
+    // Upload-only texture pages need slots only during bank activation. If all
+    // geometry fits afterwards, keep that complete set instead of rescoring
+    // every chunk against the camera each frame. Pins and validation are shared
+    // with the ordinary demand path; tracked/ordered worlds retain their policy.
+    const bool full_geometry = !track && !epok::ordered_draw_enabled &&
+        epok::stream_geometry_page_count<=working_slots;
+    if(full_geometry){
+      for(uint32_t page=0;page<epok::stream_geometry_page_count;++page)working_pages.consider(page,0);
+    }else{
     const bool baked_pages=epok::visibility_has_page_sets();
     if(baked_pages){
       epok::visibility_visit_pages(false,[&](uint32_t page){working_pages.consider(page,0);});
@@ -1302,10 +1454,11 @@ void GameScene::frame() {
       });
     }
 #endif
+    }
     epok::streaming_begin_working_set(working_pages, working_pins);
   }
   epok::StreamPageCursor stream_cursor;
-  if constexpr(epok::ordered_draw_enabled)if(track&&track->ordered){
+  if constexpr(epok::ordered_draw_enabled)if(epok::world3d_visible&&track&&track->ordered){
 #ifdef EPOK_SWEEP_CAMERAS
     // Diagnostic: the ordered pass of a listed sample uses that table camera.
     if(const auto* table=epok::sweep_camera(epok::visibility_page_selection.current)){
@@ -1322,10 +1475,23 @@ void GameScene::frame() {
     draw_ordered_world(emitter,view,row_scale);
   }
   StaticWorldView static_world;
+  unsigned warmed_faces=0;
+  for(unsigned pass=0;pass<(epok::geometry_prewarm_stats.pending?2u:1u);++pass){
+  const bool warm_only=pass!=0;
   for (size_t index = 0; index < epok::object_count; ++index) {
+    if(!warm_only&&!epok::world3d_visible)break;
+    auto& warm_request=geometry_warmups[index];
+    if(warm_only){
+      if(warmed_faces>=12||uint16_t(COUNTERS[1].value-frame_begin)>=280)break;
+      if(!warm_request.generation)continue;
+      if(warm_request.generation!=epok::objects[index].generation){abandon_warmup(warm_request);continue;}
+      if(warm_request.done&(1u<<parity))continue;
+    }
     const auto &object = epok::objects[index];
-    if (!object.mesh || !epok::is_active_slot(index))
+    if ((!object.mesh&&!warm_only) || (!warm_only&&!epok::is_active_slot(index)))
       continue;
+    emitter.primitive_faces=63;
+    ScanlineScope object_timer{warm_only?epok::geometry_prewarm_stats.scanlines:object.animator.enabled?performance_work.dynamic_mesh_scanlines:performance_work.static_mesh_scanlines,warm_only?nullptr:&object_render_scanlines[index]};
     // Query copies remain available, but may never be accidentally rendered
     // while their prepared program is waiting for a checkpoint/page barrier.
     if constexpr(epok::ordered_draw_enabled)if(track&&track->ordered
@@ -1365,6 +1531,13 @@ void GameScene::frame() {
     const bool baked_vertices=skeletal_storage==epok::SkeletalStorage::BakedVertices;
     const bool cpu_rigid=skeletal&&!rigid_gte&&!baked_vertices;
     const epok::MeshGeometry* const geometry_root = skeletal ? object.animator.model->geometry : (object.geometry ? object.geometry : &default_cube);
+    if(geometry_root==&default_cube&&!object.material.double_sided&&object.material.blend==epok::BlendMode::Cutout){
+      int32_t basis[3][3],position[3],camera[3];
+      for(int r=0;r<3;++r){position[r]=render_world[index].values[r][3].raw();camera[r]=view.origin[r].raw();
+        for(int c=0;c<3;++c)basis[r][c]=render_world[index].values[r][c].raw();}
+      emitter.primitive_faces=epok::closed_cube_faces(basis,position,camera);
+      if(!emitter.primitive_faces)continue;
+    }
     if(geometry_root->visibility_faces){
       bool visible=false;uint32_t chunks=0;
       for(auto* mesh=geometry_root;mesh;mesh=mesh->next){++chunks;visible|=epok::visibility_chunk(mesh->visibility_faces,mesh->quad_count);}
@@ -1374,7 +1547,7 @@ void GameScene::frame() {
     for(int r=0;r<2;++r)for(int c=0;c<4;++c)object_view.values[r][c]*=row_scale[r];
     MaterialState material_state;
     const bool object_lit = !object.material.unlit && object.lighting.enabled &&
-        !(skeletal && mesh_material_cache[index].faces_unlit(geometry_root));
+        !mesh_material_cache[index].faces_unlit(geometry_root);
     if constexpr (epok::stream_archive_fits) if (!skeletal &&
         !epok::streaming_bind_object(geometry_root, stream_bindings[index], gpu())) {
       // Binding is atomic at object granularity: never draw a partial chain.
@@ -1419,6 +1592,7 @@ void GameScene::frame() {
         }
       }
     }
+    if(warm_only&&(!object_retained||(!use_bake&&(object_lit||!geometry_root->editable)))){abandon_warmup(warm_request);continue;}
     uint32_t flat_key = 0xffffffffu, flat_color = 0, flat_final = 0;
     // Corner colours of one quad before fog: baked per vertex, flat (cached per
     // face colour) or lit through the GTE. Returns true when the four corners
@@ -1447,7 +1621,7 @@ void GameScene::frame() {
       } else if (mesh.editable) {
         uint32_t flat;
         if (!object_lit || quad.material.unlit) {
-          const uint32_t key = epok::pack_color(quad.material.color[0], quad.material.color[1], quad.material.color[2]);
+          const uint32_t key = epok::pack_color(quad.material.color[0], quad.material.color[1], quad.material.color[2])|(textured?0x01000000u:0);
           if (key != flat_key) {
             flat_key = key;
             flat_color = epok::pack_color(epok::scale_channel(quad.material.color[0], object.material.color[0]),
@@ -1456,7 +1630,7 @@ void GameScene::frame() {
             flat_final = textured ? epok::modulate_color(flat_color) : flat_color;
           }
           flat = flat_color;
-          uniform = flat_final != 0;
+          uniform = true;
         } else {
           const int16_t* normal = quad.normal;
           int16_t skeletal_normal[3];
@@ -1484,31 +1658,80 @@ void GameScene::frame() {
     // Streamed objects rebuild only the visible chunk, while its page is pinned.
     // Packet storage and keys contain no pointers into the evictable page pool.
     auto build_retained_chunk = [&](int build_parity, const epok::MeshGeometry& mesh,
-                                    const epok::MeshQuad* mesh_quads, uint32_t global_quad) {
+                                    const epok::MeshQuad* mesh_quads, uint32_t global_quad,bool colors_only=false,size_t first_quad=0,bool reference=false) {
       auto& state = retained.state(index);
       ++epok::retained_stats.rebuilds;
+      ScanlineScope build_timer{epok::retained_stats.build_scanlines};
+      bool uniform_built=false;
+      if(colors_only&&!warm_only&&!use_bake&&!object_lit&&mesh_material_cache[index].uniform){
+        const uint32_t tint=epok::pack_color(object.material.color[0],object.material.color[1],object.material.color[2]);
+        const uint32_t color=epok::tint_color(mesh_material_cache[index].uniform_color,tint);
+        PolygonEmitter recolor{emitter.table,triangle_packets[build_parity]};
+        recolor.recolor_uniform_chunk(object_records+global_quad,mesh.quad_count,object_first_slot+global_quad*2,uint8_t(1u<<build_parity),color);
+#ifdef EPOK_VALIDATE_RECOLOR
+        if(mesh.quad_count<=96){
+          __builtin_memcpy(epok::attribute_validation_words,triangle_packets[build_parity]+object_first_slot+global_quad*2,mesh.quad_count*2*sizeof(PolygonEmitter::Packet));
+          uniform_built=true;colors_only=false; // full attribute rebuild is the reference
+        }else
+#endif
+        {
+          epok::retained_stats.quads+=uint32_t(mesh.quad_count);
+          auto& first=object_records[global_quad];first.valid_parities=uint8_t((first.valid_parities|(1u<<build_parity))&~(4u<<build_parity));
+          first.attribute_revision=state.attribute_revision;return mesh.quad_count;
+        }
+      }
       MaterialState build_material;
-      auto* tex_frags = textured_triangles[build_parity]; auto* gou_frags = triangles[build_parity];
-      size_t color_offset = 0;
+      auto* fragments = triangle_packets[build_parity];
+      size_t color_offset = first_quad*4;
       bool chunk_dynamic = false;
       const uint32_t chunk_first = global_quad;
-      for (size_t q = 0; q < mesh.quad_count; ++q, ++global_quad) {
+      global_quad+=uint32_t(first_quad);
+      size_t q=first_quad;
+      for (; q < mesh.quad_count; ++q, ++global_quad) {
+        if(warm_only&&!reference&&(warmed_faces>=12||uint16_t(COUNTERS[1].value-frame_begin)>=280))break;
         const auto& quad = mesh_quads[q];
+        ++epok::retained_stats.quads;
         auto& rec = object_records[global_quad];
         const epok::Material& draw_material = mesh.editable ? quad.material : object.material;
-        build_material.update(draw_material);
-        const bool textured = build_material.tex != nullptr;
+        if(!colors_only)build_material.update(draw_material);
+        const bool textured = colors_only?rec.textured:build_material.tex != nullptr;
         uint32_t base[4];
-        quad_colors(mesh, quad, color_offset, textured, base);
+        const bool uniform=quad_colors(mesh, quad, color_offset, textured, base);
+#ifdef EPOK_VALIDATE_RECOLOR
+        uint32_t fast_words[20];
+#endif
+        if(colors_only){
+          for(int v=0;v<4;++v)rec.shaded[v]=base[v];
+          const uint32_t slot=object_first_slot+global_quad*2;
+          if(uniform){
+            for(unsigned t=0;t<2;++t){auto* packet=reinterpret_cast<uint32_t*>(fragments+slot+t);
+              if(textured)epok::update_retained_uniform_color<true>(packet,rec.command,flat_final);
+              else epok::update_retained_uniform_color<false>(packet,rec.command,flat_final);
+            }
+            rec.fogged&=uint8_t(~(1u<<build_parity));
+          }else emitter.restore_retained_colors(rec,slot,uint8_t(1u<<build_parity));
+#ifdef EPOK_VALIDATE_RECOLOR
+          __builtin_memcpy(fast_words,fragments+slot,sizeof(fast_words));
+          build_material.update(draw_material);
+#else
+          continue;
+#endif
+        }
         rec.textured = textured; rec.command = build_material.command; rec.depth_bias = draw_material.depth_bias;
         rec.gpu_colors = epok::vertex_colors_enabled && quad.vertex_colors;
         rec.dynamic = textured && (draw_material.uv_scroll[0] || draw_material.uv_scroll[1]);
         rec.fogged &= uint8_t(~(1u << build_parity));
         for (int v = 0; v < 4; ++v) rec.shaded[v] = base[v];
-        if (rec.dynamic) { state.any_dynamic = true; chunk_dynamic = true; continue; }
+        if (rec.dynamic) { state.any_dynamic = true; chunk_dynamic = true;if(warm_only){abandon_warmup(warm_request);return q;}continue; }
         const uint32_t slot = object_first_slot + global_quad * 2;
         uint32_t final[4], uv[4] = {0, 0, 0, 0};
-        for (int v = 0; v < 4; ++v) final[v] = epok::packet_color(base[v], textured, rec.gpu_colors);
+        for (int v = 0; v < 4; ++v) {
+#ifdef EPOK_VALIDATE_RECOLOR
+          final[v]=epok::packet_color(base[v],textured,rec.gpu_colors);
+#else
+          final[v]=uniform?flat_final:epok::packet_color(base[v],textured,rec.gpu_colors);
+#endif
+        }
         if (textured) {
           if (quad.packed_uv) { for (int v = 0; v < 4; ++v) uv[v] = quad.uvw[v]; }
           else { for (int v = 0; v < 4; ++v) uv[v] = build_material.uv(quad.uv[v][0], quad.uv[v][1]); }
@@ -1517,19 +1740,66 @@ void GameScene::frame() {
         for (int t = 0; t < 2; ++t) {
           const int corner_a = corners[t][0], ib = corners[t][1], ic = corners[t][2];
           if (textured) {
-            uint32_t* w = reinterpret_cast<uint32_t*>(&tex_frags[slot + t].primitive);
+            uint32_t* w = reinterpret_cast<uint32_t*>(&fragments[slot + t].make_textured().primitive);
             w[0] = rec.command | final[corner_a]; w[2] = uv[corner_a] | build_material.clut16; w[3] = final[ib];
             w[5] = uv[ib] | build_material.tpage16; w[6] = final[ic]; w[8] = uv[ic];
           } else {
-            uint32_t* w = reinterpret_cast<uint32_t*>(&gou_frags[slot + t].primitive);
+            uint32_t* w = reinterpret_cast<uint32_t*>(&fragments[slot + t].make_plain().primitive);
             w[0] = 0x30000000u | final[corner_a]; w[2] = final[ib]; w[4] = final[ic];
           }
         }
+#ifdef EPOK_VALIDATE_RECOLOR
+        if(colors_only){
+          ++epok::recolor_validation_stats.quads;
+          for(unsigned t=0;t<2;++t){const auto* actual=reinterpret_cast<const uint32_t*>(fragments+slot+t);const auto* fast=fast_words+t*10;
+            for(unsigned w=1;w<(textured?10u:7u);++w)if(w!=2&&w!=(textured?5u:4u)&&w!=(textured?8u:6u)&&actual[w]!=fast[w])++epok::recolor_validation_stats.errors;
+          }
+          __builtin_memcpy(fragments+slot,fast_words,sizeof(fast_words));
+        }
+#endif
+        if(warm_only&&!reference){++warmed_faces;++epok::geometry_prewarm_stats.quads;}
       }
-      if (mesh.quad_count) {
-        object_records[chunk_first].valid_parities |= uint8_t(1u << build_parity);
+      if (mesh.quad_count&&q==mesh.quad_count) {
+        auto& first=object_records[chunk_first];
+        first.valid_parities=uint8_t((first.valid_parities|uint8_t(1u<<build_parity))&~uint8_t(4u<<build_parity));
+        first.attribute_revision=state.attribute_revision;
         object_records[chunk_first].chunk_dynamic = chunk_dynamic;
       }
+#ifdef EPOK_VALIDATE_RECOLOR
+      if(uniform_built){
+        ++epok::recolor_validation_stats.uniform_chunks;
+        auto* packets=triangle_packets[build_parity]+object_first_slot+chunk_first*2;
+        for(size_t face=0;face<mesh.quad_count;++face){const bool textured=object_records[chunk_first+face].textured;
+          ++epok::recolor_validation_stats.quads;
+          for(unsigned t=0;t<2;++t){const auto* actual=reinterpret_cast<const uint32_t*>(packets+face*2+t);const auto* fast=epok::attribute_validation_words+(face*2+t)*10;
+            for(unsigned w=1;w<(textured?10u:7u);++w)if(w!=2&&w!=(textured?5u:4u)&&w!=(textured?8u:6u)&&actual[w]!=fast[w])++epok::recolor_validation_stats.errors;
+          }
+        }
+        __builtin_memcpy(packets,epok::attribute_validation_words,mesh.quad_count*2*sizeof(PolygonEmitter::Packet));
+      }
+#endif
+      (void)uniform_built;
+      return q;
+    };
+    auto prepare_retained_key=[&](){
+      if(!object_retained||retained_checked)return;
+    retained_checked = true;
+    epok::RetainedKey key;
+    key.valid = true; key.geometry = geometry_root; key.bank = epok::texture_assets;
+    key.baked = object.baked_colors; key.baked_count = object.baked_color_count;
+    key.generation = object.generation;
+    key.light_signature = (object_lit && !use_bake) ? lighting.signature : 0;
+    // An unlit object's orientation changes XY, not its retained colours/UVs.
+    for (int r = 0; r < 3; ++r) for (int c = 0; c < 3; ++c) key.basis[r * 3 + c] = skeletal||!object_lit ? 0 : world[index].values[r][c].raw();
+    for (int c = 0; c < 3; ++c) key.color[c] = object.material.color[c];
+    key.unlit = object.material.unlit; key.texture = object.material.texture; key.blend = object.material.blend;
+    key.depth_bias = object.material.depth_bias; key.uv_scroll[0] = object.material.uv_scroll[0]; key.uv_scroll[1] = object.material.uv_scroll[1];
+    key.lighting_enabled = object.lighting.enabled; key.receive = object.lighting.receive;
+    auto& state = retained.state(index);
+    if(warm_request.generation==object.generation&&!(state.key[parity]==key)){warm_request.next[parity]=0;warm_request.done&=uint8_t(~(1u<<parity));}
+    retained.prepare_key(index,unsigned(parity),key,!object_lit&&!use_bake);
+    object_any_dynamic = retained.state(index).any_dynamic;
+    if(!warm_only)++epok::retained_stats.objects;
     };
     // One GTE matrix per object: chunks add their origin to the vertices, so a
     // vertex shared by two chunks produces identical GTE inputs and no seam.
@@ -1583,6 +1853,44 @@ void GameScene::frame() {
       const auto &bounds_mesh = *mesh_ptr;
       const uint32_t chunk_quad_base = quad_base;
       quad_base += uint32_t(bounds_mesh.quad_count);
+      if(warm_only){
+        if(!bounds_mesh.quad_count)continue;
+        epok::StreamMeshView warm_view{bounds_mesh.vertices,bounds_mesh.quads,true};
+        if constexpr(epok::stream_page_count>0){
+          // Prewarming consumes only already verified pages. Never introduce
+          // a blocking read or retain a payload pointer beyond the cursor pin.
+          if(bounds_mesh.stream_page!=epok::stream_invalid_page&&!epok::stream_pool.ready(bounds_mesh.stream_page))break;
+          warm_view=stream_cursor.resolve(bounds_mesh,gpu(),stream_metadata_validated);
+          if(!warm_view.valid)break;
+        }
+        prepare_retained_key();
+        auto& next=warm_request.next[parity];auto& first=object_records[chunk_quad_base];
+        const uint32_t end=chunk_quad_base+uint32_t(bounds_mesh.quad_count);
+        if((first.valid_parities&(1u<<parity))&&!(first.valid_parities&(4u<<parity))){if(next<end)next=end;continue;}
+        if(next>=end||next<chunk_quad_base)next=chunk_quad_base;
+        if(!frame_packet_slots.claim(object_first_slot+chunk_quad_base*2,uint32_t(bounds_mesh.quad_count)*2))break;
+        first.valid_parities&=uint8_t(~(1u<<parity));
+        const auto done=build_retained_chunk(parity,bounds_mesh,warm_view.quads,chunk_quad_base,false,next-chunk_quad_base);
+        if(!warm_request.generation)break;
+        next=chunk_quad_base+uint32_t(done);
+        if(done<bounds_mesh.quad_count)break;
+#ifdef EPOK_VALIDATE_PREWARM
+        if(bounds_mesh.quad_count<=96){
+          auto* packets=triangle_packets[parity]+object_first_slot+chunk_quad_base*2;
+          const auto bytes=bounds_mesh.quad_count*2*sizeof(*packets);
+          __builtin_memcpy(epok::attribute_validation_words,packets,bytes);
+          build_retained_chunk(parity,bounds_mesh,warm_view.quads,chunk_quad_base,false,0,true);
+          ++epok::prewarm_validation_stats.chunks;
+          for(size_t q=0;q<bounds_mesh.quad_count;++q){const bool textured=object_records[chunk_quad_base+q].textured;
+            for(unsigned t=0;t<2;++t){const auto* actual=reinterpret_cast<const uint32_t*>(packets+q*2+t);const auto* prior=epok::attribute_validation_words+(q*2+t)*10;
+              for(unsigned w=1;w<(textured?10u:7u);++w)if(w!=2&&w!=(textured?5u:4u)&&w!=(textured?8u:6u)&&actual[w]!=prior[w])++epok::prewarm_validation_stats.errors;
+            }
+          }
+          __builtin_memcpy(packets,epok::attribute_validation_words,bytes);
+        }
+#endif
+        continue;
+      }
       if (!visibility_mask.candidate(chunk_ordinal) ||
           !epok::visibility_chunk(bounds_mesh.visibility_faces,bounds_mesh.quad_count) ||
           (bounds_mesh.visibility_faces&&!epok::visibility_track_started)) { ++performance_work.visibility_skipped_chunks; continue; }
@@ -1592,7 +1900,7 @@ void GameScene::frame() {
       EPOK_DETAIL_BEGIN(setup);
       ++epok::mesh_stats.tested_chunks;
       const int cached_bounds = bounds_cache_active ? visibility.cached_bounds(chunk_ordinal) : -1;
-      bool fully_inside_chunk = false;
+      bool fully_inside_chunk = cached_bounds>0&&visibility.cached_inside(chunk_ordinal);
       if (cached_bounds == 0) {
         EPOK_DETAIL_END(setup, setup_scanlines);
         continue;
@@ -1603,6 +1911,9 @@ void GameScene::frame() {
         bool narrow_bounds=false;
         const auto* basis_bounds = basis_cache_active ? visibility.cached_basis_bounds(chunk_ordinal) : nullptr;
         if (basis_bounds) {
+          // This cache is populated only by the guarded native-word path.
+          // Translation does not change its product/span bounds.
+          narrow_bounds=true;
           for (int r = 0; r < 3; ++r) {
             center[r] = view_t[r] + basis_bounds->center[r];
             extent[r] = basis_bounds->extent[r];
@@ -1647,8 +1958,10 @@ void GameScene::frame() {
           EPOK_DETAIL_END(setup, setup_scanlines);
           continue;
         }
-        if (bounds_cache_active) visibility.remember_bounds(chunk_ordinal, true);
-        fully_inside_chunk = narrow_view && epok::chunk_fully_inside<RenderFrustum>(center, extent, projection_focal_pixels);
+        fully_inside_chunk = narrow_view && (narrow_bounds&&narrow_planes
+            ? epok::chunk_fully_inside<RenderFrustum,int32_t>(center,extent,projection_focal_pixels)
+            : epok::chunk_fully_inside<RenderFrustum>(center,extent,projection_focal_pixels));
+        if (bounds_cache_active) visibility.remember_bounds(chunk_ordinal, true,fully_inside_chunk);
       }
       ++epok::mesh_stats.visible_chunks;
       if constexpr (demand_streaming) if (!epok::streaming_working_page_ready(
@@ -1734,36 +2047,11 @@ void GameScene::frame() {
         epok::lighting_work.lighting_scanlines +=
             uint16_t(COUNTERS[1].value - begin);
       }
-      if (object_retained && !retained_checked) {
-        retained_checked = true;
-        epok::RetainedKey key;
-        key.valid = true; key.geometry = geometry_root; key.bank = epok::texture_assets;
-        key.baked = object.baked_colors; key.baked_count = object.baked_color_count;
-        key.generation = object.generation;
-        key.light_signature = (object_lit && !use_bake) ? lighting.signature : 0;
-        for (int r = 0; r < 3; ++r) for (int c = 0; c < 3; ++c) key.basis[r * 3 + c] = skeletal ? 0 : world[index].values[r][c].raw();
-        for (int c = 0; c < 3; ++c) key.color[c] = object.material.color[c];
-        key.unlit = object.material.unlit; key.texture = object.material.texture; key.blend = object.material.blend;
-        key.depth_bias = object.material.depth_bias; key.uv_scroll[0] = object.material.uv_scroll[0]; key.uv_scroll[1] = object.material.uv_scroll[1];
-        key.lighting_enabled = object.lighting.enabled; key.receive = object.lighting.receive;
-        auto& state = retained.state(index);
-        if (!(state.key[parity] == key)) {
-          // Quad colours/flags are shared between parities, unlike GPU packet
-          // storage. A different material must invalidate the other key too.
-          if (state.key[1 - parity].valid && !(state.key[1 - parity] == key))
-            state.key[1 - parity].valid = false;
-          state.key[parity] = key; state.any_dynamic = false;
-          // Invalidate without loading/writing invisible chunks. Resident
-          // geometry must also rebuild lazily: its slots may be borrowed.
-          const uint8_t keep = uint8_t(~(1u << parity));
-          for (uint32_t q = 0; q < state.quad_count; ++q) object_records[q].valid_parities &= keep;
-        }
-        object_any_dynamic = retained.state(index).any_dynamic;
-        ++epok::retained_stats.objects;
-      }
+      if(object_retained)prepare_retained_key();
       if (object_retained && mesh.quad_count) {
-        if (!(object_records[chunk_quad_base].valid_parities & (1u << parity)))
-          build_retained_chunk(parity, mesh, mesh_quads, chunk_quad_base);
+        const auto flags=object_records[chunk_quad_base].valid_parities;
+        if (!(flags & (1u << parity))||(flags&(4u<<parity)))
+          build_retained_chunk(parity, mesh, mesh_quads, chunk_quad_base,bool(flags&(1u<<parity)));
         object_any_dynamic = object_records[chunk_quad_base].chunk_dynamic;
       }
       EPOK_DETAIL_END(setup, setup_scanlines);
@@ -1783,7 +2071,7 @@ void GameScene::frame() {
       if(skeletal_triples&&object_retained)skeletal_triples=!object_any_dynamic;
       else if(skeletal_triples)for(size_t q=0;q<mesh.quad_count;++q)
         if((mesh.editable?mesh_quads[q].material:object.material).uv_scroll[0]||(mesh.editable?mesh_quads[q].material:object.material).uv_scroll[1]){skeletal_triples=false;break;}
-      const bool compact_eligible=fully_inside_chunk&&object_retained&&!object_any_dynamic&&!fog_enabled&&
+      const bool compact_eligible=object_retained&&!object_any_dynamic&&!fog_enabled&&
           epok::display_width<=1023&&epok::display_height<=511;
       auto* compact=mesh.vertex_count<=128?projection_scratch.compact:projection_ram.compact;
       auto draw_compact=[&](){
@@ -1791,12 +2079,14 @@ void GameScene::frame() {
         performance_work.vertex_scanlines+=uint16_t(COUNTERS[1].value-vertex_begin);
         epok::debug_hud::geometry(vertex_begin,true);
         const uint16_t begin=COUNTERS[1].value;emitter.editable=mesh.editable&&(!mesh.visibility_faces||epok::active_visibility_track->cull_backfaces);
-        emitter.retained_interior(mesh_quads,object_records+chunk_quad_base,mesh.quad_count,
+        if(fully_inside_chunk)emitter.retained_interior(mesh_quads,object_records+chunk_quad_base,mesh.quad_count,
+            object_first_slot+chunk_quad_base*2,compact,uint8_t(1u<<parity),mesh.visibility_faces);
+        else emitter.retained_interior<true>(mesh_quads,object_records+chunk_quad_base,mesh.quad_count,
             object_first_slot+chunk_quad_base*2,compact,uint8_t(1u<<parity),mesh.visibility_faces);
         performance_work.polygon_scanlines+=uint16_t(COUNTERS[1].value-begin);
       };
       if(rigid_gte){
-        if(!skeletal_pose_ready){const uint16_t begin=COUNTERS[1].value;epok::skeletal_detail::scratch.pose_bones(*object.animator.model,object.animator,object.aim_bone,object.aim_stop_bones,object.aim_pitch);performance_work.skeletal_scanlines+=uint16_t(COUNTERS[1].value-begin);performance_work.skeletal_bone_matrices+=object.animator.model->bone_count;skeletal_pose_ready=true;}
+        if(!skeletal_pose_ready){const uint16_t begin=COUNTERS[1].value;performance_work.skeletal_bone_matrices+=epok::skeletal_detail::scratch.pose_bones(*object.animator.model,object.animator,object.aim_bone,object.aim_stop_bones,object.aim_pitch,object.generation);performance_work.skeletal_scanlines+=uint16_t(COUNTERS[1].value-begin);skeletal_pose_ready=true;}
         const int32_t origin8[3]={0,0,0};
         if(compact_eligible){
           bool valid=true;
@@ -1804,9 +2094,12 @@ void GameScene::frame() {
             const size_t first=object.animator.model->bone_vertices[bone],last=object.animator.model->bone_vertices[bone+1];
             if(first==last)continue;
             const auto bone_view=object_view.compose(epok::skeletal_detail::scratch.bones[bone]);
-            if(!epok::load_projection_matrix(bone_view)||!project_compact_vertices(mesh_vertices+first,last-first,origin8,compact+first)){valid=false;break;}
+            if(!epok::load_projection_matrix(bone_view)||!project_compact_vertices(mesh_vertices+first,last-first,origin8,compact+first,fully_inside_chunk,false)){valid=false;break;}
           }
           object_matrix_loaded=false;
+          // A face may join vertices belonging to different bones. Individual
+          // bone spans are insufficient; the complete mesh must fit too.
+          if(valid&&!fully_inside_chunk)valid=epok::compact_mesh_gpu_safe(compact,mesh.vertex_count,mesh_quads,mesh.quad_count,Units::near,Units::far);
           if(valid){draw_compact();continue;}
         }
         size_t gte_count=0,software_count=0;
@@ -1882,7 +2175,8 @@ void GameScene::frame() {
           if(mesh_vertices.wide()&&!epok::gte_vertex_bounds_fit(origin8,mesh.center,mesh.extent))gte_geometry=false;
           object_matrix_loaded = false;
         }
-        if(gte_geometry&&compact_eligible&&project_compact_vertices(mesh_vertices,mesh.vertex_count,origin8,compact)){
+        if(gte_geometry&&compact_eligible&&project_compact_vertices(mesh_vertices,mesh.vertex_count,origin8,compact,fully_inside_chunk,false)&&
+           (fully_inside_chunk||epok::compact_mesh_gpu_safe(compact,mesh.vertex_count,mesh_quads,mesh.quad_count,Units::near,Units::far))){
           draw_compact();continue;
         }
         size_t v = 0;
@@ -1980,6 +2274,7 @@ void GameScene::frame() {
           auto& rec = records[q];
           if (rec.dynamic) continue;
           const auto& quad = mesh_quads[q];
+          if(emitter.primitive_faces!=63&&!(emitter.primitive_faces&(1u<<quad.face)))continue;
           emitter.double_sided = quad.material.double_sided;
           const auto* indices = quad.indices;
           const ProjectedVertex& p0 = projected_vertices[indices[0]];
@@ -2038,7 +2333,7 @@ void GameScene::frame() {
       for (size_t q = 0; q < mesh.quad_count; ++q) {
         const auto& quad = mesh_quads[q];
         emitter.double_sided = quad.material.double_sided;
-        if(!epok::visibility_face(mesh.visibility_faces,q)){color_offset+=4;continue;}
+        if(!epok::visibility_face(mesh.visibility_faces,q)||(emitter.primitive_faces!=63&&!(emitter.primitive_faces&(1u<<quad.face)))){color_offset+=4;continue;}
         // Retained objects only reach this loop for their scrolling quads.
         if (object_retained && !object_records[chunk_quad_base + q].dynamic) { color_offset += 4; continue; }
         const auto* indices = quad.indices;
@@ -2111,6 +2406,11 @@ void GameScene::frame() {
       }
       performance_work.polygon_scanlines+=uint16_t(COUNTERS[1].value-polygon_begin);
     }
+    if(warm_only&&warm_request.generation&&warm_request.next[parity]>=retained.state(index).quad_count){
+      warm_request.done|=uint8_t(1u<<parity);
+      if(warm_request.done==3){warm_request={};--epok::geometry_prewarm_stats.pending;++epok::geometry_prewarm_stats.completed;}
+    }
+  }
   }
   const size_t used = emitter.emitted;
   performance_work.render_scanlines=uint16_t(COUNTERS[1].value-render_begin);
@@ -2138,14 +2438,24 @@ void GameScene::frame() {
   performance_work.triangles = used;
   performance_work.retained_triangles = emitter.retained_emitted;
   if constexpr(epok::retained_geometry)
-    retained.invalidate_borrowed(parity,frame_packet_slots.dynamic_low());
+    retained.invalidate_borrowed(parity,frame_packet_slots.dynamic_low(),frame_packet_slots,
+      [&](size_t index,uint32_t first_quad){
+        auto& warm=geometry_warmups[index];
+        if(warm.generation){
+          if(warm.next[parity]>first_quad)warm.next[parity]=first_quad;
+          warm.done&=uint8_t(~(1u<<parity));
+        }
+      });
   performance_work.retained_rebuilds = epok::retained_stats.rebuilds;
-  EPOK_DETAIL_BEGIN(sprite);
+  epok::retained_stats.slot_top=retained.slot_top();
+  epok::retained_stats.dynamic_low=frame_packet_slots.dynamic_low();
+  const uint16_t sprite_begin=COUNTERS[1].value;
   stream_cursor.release();
   if constexpr (demand_streaming)
     epok::streaming_end_working_set(working_pages, working_pins);
-  blobs.draw(parity, table, epok::objects, render_world, epok::object_count, view);
   sprites.begin(epok::dither_3d);
+  if(epok::world3d_visible){
+  blobs.draw(parity, table, epok::objects, render_world, epok::object_count, view);
   for(size_t i=0;i<epok::object_count;++i)if(epok::objects[i].sprite.enabled&&epok::is_active_slot(i)) {
     const auto& object=epok::objects[i];
     if(!object.sprite.unlit&&object.lighting.enabled&&!object.material.unlit)lighting.shade(i,epok::objects,render_world,true);
@@ -2158,9 +2468,9 @@ void GameScene::frame() {
     if(lit&&!sprite.unlit)lighting.shade(owner.index,epok::objects,render_world,true);
     sprites.draw(parity,table,sprite,matrix,view,lit);
   };
-  epok::effects::pool.sprites(draw_effect);
+  if(epok::effect_stats.active)epok::effects::pool.sprites(draw_effect);
 #endif
-  particles.each_all([&](epok::timeline::BoundTarget owner,const epok::Sprite& source,const Matrix& matrix) {
+  if(epok::particle_stats.alive)particles.each_all([&](epok::timeline::BoundTarget owner,const epok::Sprite& source,const Matrix& matrix) {
     if(owner.internal){
 #ifdef EPOK_EFFECTS
       if(const auto* layer=owner.effect_layer()){auto sprite=source;epok::effects::Pool::tint(*layer,sprite);draw_effect(owner.layer,sprite,matrix);}
@@ -2172,6 +2482,7 @@ void GameScene::frame() {
     if(!sprite.unlit&&epok::objects[i].lighting.enabled&&!epok::objects[i].material.unlit)lighting.shade(i,epok::objects,render_world,true);
     sprites.draw(parity,table,sprite,matrix,view,epok::objects[i].lighting.enabled&&!epok::objects[i].material.unlit);
   });
+  }
   if constexpr(epok::dither_3d) {
     auto& page=geometry_pages[parity];page.primitive.attr.setDithering(true);
     epok::configure_display_field<epok::display_interlaced>(page.primitive.attr);
@@ -2185,11 +2496,11 @@ void GameScene::frame() {
     gpu().chain(page);
   }
 #ifdef EPOK_WORLD2D
-  // The 2D world draws over the 3D world and under the HUD.
-  epok::world2d::renderer.draw(gpu());
+  // The rest of the 2D world draws over the 3D world and under the HUD.
+  epok::world2d::renderer.draw_over(gpu());
 #endif
-  EPOK_DETAIL_END(sprite, sprite_scanlines);
-  EPOK_DETAIL_BEGIN(hud);
+  performance_work.sprite_scanlines+=uint16_t(COUNTERS[1].value-sprite_begin);
+  const uint16_t hud_begin=COUNTERS[1].value;
   // D-pad focus moves before the HUD is compiled, so the highlighted element is
   // the one this frame's press edge selected.
   epok::hud_focus_update(epok::objects.data(), epok::object_count, epok::hud_focus_edges());
@@ -2217,7 +2528,7 @@ void GameScene::frame() {
     gpu().chain(restore);
   }
   loading_renderer.draw(gpu());
-  EPOK_DETAIL_END(hud, hud_scanlines);
+  performance_work.hud_scanlines+=uint16_t(COUNTERS[1].value-hud_begin);
   epok::lighting_work.frame_scanlines =
       uint16_t(COUNTERS[1].value - frame_begin);
   epok::lighting_stats = epok::lighting_work;
@@ -2232,6 +2543,7 @@ void GameScene::frame() {
   usage.sprite_estimated_pixels=epok::sprite_stats.estimated_pixels;
   usage.sprite_overdraw_per_mille=uint64_t(usage.sprite_estimated_pixels)*1000/(epok::display_width*epok::display_height);
   usage.frame_scanlines=epok::lighting_stats.frame_scanlines;
+  epok::end_render_activation_snapshot();
   performance_work.frame_scanlines=uint16_t(COUNTERS[1].value-frame_begin);
   performance_work.finish_scanlines=uint16_t(COUNTERS[1].value-finish_begin);
   if constexpr(epok::ordered_draw_enabled){
@@ -2246,9 +2558,39 @@ void GameScene::frame() {
   }else epok::performance_stats=performance_work;
   // Last in the chain: visible above game HUD, fades and loading screen.
   epok::debug_hud::draw(gpu());
+  // A transition can defer startup PCDrv reads until frame(), after start()
+  // has announced runtime initialization. Publish the serial probe boundary
+  // only after the first complete render has consumed its required pages.
+  // Loading/error early returns keep the monitor serving data for retry.
+  if (!startup_ready_announced && !epok::stream_failed && !epok::stream_read_pending) {
+    startup_ready_announced = true;
+#ifdef EPOK_HAS_SEQUENCES
+    // Unirom's TTY output can block IRQs just like PCDrv transfers. Keep the
+    // readiness message from invalidating a song that already started.
+    epok::SequenceStoragePause pause;
+#endif
+    syscall_puts("EPOK: startup ready\n");
+  }
 }
 } // namespace
 namespace epok {
+uint32_t rendered_actor_scanlines(size_t index){return index<object_render_scanlines.size()?object_render_scanlines[index]:0;}
+bool prewarm_geometry(ActorData* entity){
+  if constexpr(!retained_geometry)return false;
+  const int index=entity_index(entity);
+  if(index<0||!entity->alive||!entity->generation)return false;
+  const bool skeletal=entity->animator.enabled&&entity->animator.model;
+  const auto* geometry=skeletal?entity->animator.model->geometry:entity->geometry;
+  if(!geometry||(geometry->editable&mesh_baked_draw)||geometry->visibility_faces)return false;
+  if constexpr(stream_page_count>0)for(auto* mesh=geometry;mesh;mesh=mesh->next)
+    if(mesh->stream_page!=stream_invalid_page&&(!stream_pool.ready(mesh->stream_page)||!streaming_descriptor_valid(*mesh)))return false;
+  const bool baked=!entity->material.unlit&&entity->lighting.enabled&&entity->lighting.receive==ReceiveLighting::Baked&&entity->baked_colors;
+  const bool unlit=entity->material.unlit||!entity->lighting.enabled||mesh_material_cache[size_t(index)].faces_unlit(geometry);
+  if((skeletal&&!unlit)||(!baked&&(!unlit||!geometry->editable)))return false;
+  auto& request=geometry_warmups[size_t(index)];if(request.generation==entity->generation)return true;
+  abandon_warmup(request);request.generation=entity->generation;
+  ++geometry_prewarm_stats.queued;++geometry_prewarm_stats.pending;return true;
+}
 void reset_motion_interpolation(){motion.clear();}
 bool set_active_camera(ActorData* camera) {
   if(!camera){camera_override={};motion.clear();return true;}
@@ -2268,6 +2610,8 @@ bool camera_project(const Fixed* world_point,Fixed* screen_xy) {
   screen_xy[0]=Fixed(int32_t(sx),Fixed::RAW);screen_xy[1]=Fixed(int32_t(sy),Fixed::RAW);return true;
 }
 void reset_runtime_services() {
+  epok::rumble.suspend();
+  world3d_visible=true;
 #ifdef EPOK_EFFECTS
   epok::effects::reset_scene();
 #endif
@@ -2281,6 +2625,7 @@ void reset_runtime_services() {
   epok::streaming_scene_changed();
   transform_cache.clear();
   retained.reset();
+  for(auto& request:geometry_warmups)request={};geometry_prewarm_stats={};
   for(auto& cache:mesh_material_cache)cache={};
   if constexpr (epok::stream_archive_fits) for (auto &binding : stream_bindings) binding = {};
   hud.invalidate();
@@ -2348,12 +2693,12 @@ SpatialHit query_ground(const ActorData& entity,Fixed distance,uint32_t mask) {
   auto box=index<0?nullptr:collision_world.bounds(size_t(index));
   return box?collision_world.ground(*box,distance,mask&entity.collider.mask,index):SpatialHit{};
 }
-MoveResult move_and_slide(ActorData& entity,const Fixed* displacement,uint32_t mask) {
-  refresh_collisions();int index=entity_index(&entity);
+static MoveResult move_actor_synced(ActorData& entity,const Fixed* displacement,uint32_t mask) {
+  int index=entity_index(&entity);
   auto box=index<0?nullptr:collision_world.bounds(size_t(index));
   if(!box) { MoveResult result;result.unresolved_overlap=true;return result; }
   auto result=collision_world.move_and_slide(*box,displacement,mask&entity.collider.mask,index);
-  if(entity.parent<0){
+  if(entity.parent<0||(size_t(entity.parent)<object_count&&world[size_t(entity.parent)].identity_basis())){
     for(int r=0;r<3;++r)entity.transform.position[r]+=result.displacement[r];
     return result;
   }
@@ -2364,6 +2709,79 @@ MoveResult move_and_slide(ActorData& entity,const Fixed* displacement,uint32_t m
   }
   if(parent>=0) { result=MoveResult{};result.unresolved_overlap=true;return result; }
   for(int r=0;r<3;++r)for(int c=0;c<3;++c)entity.transform.position[r]+=inverse.values[r][c]*result.displacement[c];
+  return result;
+}
+MoveResult move_and_slide(ActorData& entity,const Fixed* displacement,uint32_t mask) {
+  refresh_collisions();return move_actor_synced(entity,displacement,mask);
+}
+void SpatialQueryBatch::ensure() const {if(!ready){refresh_collisions();ready=true;}}
+#ifdef EPOK_VALIDATE_SPATIAL
+struct SpatialValidationStats {uint32_t queries=0,errors=0;};
+SpatialValidationStats spatial_validation_stats;
+static CollisionWorld<Fixed,objects.size()> validation_world;
+static TransformCache<Fixed,objects.size()> validation_transforms;
+static std::array<Affine<Fixed>,objects.size()> validation_matrices;
+static void refresh_validation_world(){
+  // An independent world observes every direct write without repairing the
+  // production batch. Otherwise an unrelated reference query could conceal a
+  // missed notification before a later ray actually reaches that collider.
+  validation_transforms.sync(objects,validation_matrices,object_count,::local_matrix);
+  validation_world.begin_sync();
+  for(size_t i=0;i<object_count;++i){const auto& o=objects[i];if(!o.collider.enabled||!is_active_slot(i))continue;
+    validation_world.set_cached(i,o.collider,validation_matrices[i],validation_transforms.revision(i),true,o.generation);
+  }
+}
+static void compare_spatial(const SpatialHit& a,const SpatialHit& b){
+  ++spatial_validation_stats.queries;
+  bool equal=a.entity==b.entity&&a.generation==b.generation&&a.fraction==b.fraction&&a.started_inside==b.started_inside;
+  for(unsigned i=0;i<3;++i)equal&=a.point[i]==b.point[i]&&a.normal[i]==b.normal[i];
+  if(!equal)++spatial_validation_stats.errors;
+}
+static void compare_spatial(const MoveResult& a,const MoveResult& b){
+  ++spatial_validation_stats.queries;
+  bool equal=a.entity==b.entity&&a.generation==b.generation&&a.grounded==b.grounded&&a.blocked==b.blocked&&a.unresolved_overlap==b.unresolved_overlap;
+  for(unsigned i=0;i<3;++i)equal&=a.displacement[i]==b.displacement[i]&&a.normal[i]==b.normal[i];
+  if(!equal)++spatial_validation_stats.errors;
+}
+#endif
+void SpatialQueryBatch::sync(ActorData& entity){
+  if(!ready){ensure();return;}
+  const int index=entity_index(&entity);if(index<0)return;
+  ScanlineScope timer{performance_work.collision_scanlines};
+  if(entity.parent<0)transform_cache.sync_root(entity,world[index],size_t(index),::local_matrix);
+  else refresh_world_for(size_t(index));
+  performance_work.collider_bounds+=collision_world.set_cached(size_t(index),entity.collider,world[index],
+      transform_cache.revision(size_t(index)),is_active(&entity),entity.generation);
+}
+SpatialHit SpatialQueryBatch::raycast(const Fixed* origin,const Fixed* displacement,uint32_t mask,const ActorData* ignore,bool triggers) const {
+  ensure();
+#ifdef EPOK_VALIDATE_SPATIAL
+  const auto before=collision_world.raycast(origin,displacement,mask,entity_index(ignore),triggers);
+  refresh_validation_world();compare_spatial(before,validation_world.raycast(origin,displacement,mask,entity_index(ignore),triggers));
+  return before;
+#else
+  return collision_world.raycast(origin,displacement,mask,entity_index(ignore),triggers);
+#endif
+}
+void SpatialQueryBatch::raycast_batch(const RaycastQuery* queries,SpatialHit* results,size_t count,uint32_t mask,const ActorData* ignore,bool triggers) const {
+  if(!queries||!results||!count)return;ensure();
+  collision_world.raycast_batch(queries,results,count,mask,entity_index(ignore),triggers);
+#ifdef EPOK_VALIDATE_SPATIAL
+  refresh_validation_world();for(size_t i=0;i<count;++i)compare_spatial(results[i],validation_world.raycast(queries[i].origin,queries[i].displacement,mask,entity_index(ignore),triggers));
+#endif
+}
+MoveResult SpatialQueryBatch::move_and_slide(ActorData& entity,const Fixed* displacement,uint32_t mask){
+  sync(entity);
+#ifdef EPOK_VALIDATE_SPATIAL
+  const int checked=entity_index(&entity);const auto* bounds=checked<0?nullptr:collision_world.bounds(size_t(checked));
+  MoveResult before;if(bounds)before=collision_world.move_and_slide(*bounds,displacement,mask&entity.collider.mask,checked);else before.unresolved_overlap=true;
+  refresh_validation_world();bounds=checked<0?nullptr:validation_world.bounds(size_t(checked));
+  MoveResult after;if(bounds)after=validation_world.move_and_slide(*bounds,displacement,mask&entity.collider.mask,checked);else after.unresolved_overlap=true;
+  compare_spatial(before,after);
+#endif
+  auto result=move_actor_synced(entity,displacement,mask);
+  if(entity.parent<0||(size_t(entity.parent)<object_count&&world[size_t(entity.parent)].identity_basis())){const int index=entity_index(&entity);if(index>=0)collision_world.translate(size_t(index),result.displacement);}
+  else sync(entity);
   return result;
 }
 }

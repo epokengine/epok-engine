@@ -2,7 +2,7 @@
 
 > **Header:** `"visibility.hpp"` · **Tier:** Epok runtime API · **Source:** [open header](../../../runtime/visibility.hpp)
 
-This module covers frustum tests and chunk visibility. It documents 13 public callables declared directly in this header.
+This module covers frustum tests and chunk visibility. It documents 14 public callables declared directly in this header.
 
 ## Declared types
 
@@ -16,6 +16,7 @@ This module covers frustum tests and chunk visibility. It documents 13 public ca
 - [`epok::ChunkVisibilityQuery::bounds_cache_active`](#epok-chunkvisibilityquery-bounds-cache-active-1) — Performs `bounds cache active` as part of frustum tests and chunk visibility.
 - [`epok::ChunkVisibilityQuery::cached_basis_bounds`](#epok-chunkvisibilityquery-cached-basis-bounds-1) — Performs `cached basis bounds` as part of frustum tests and chunk visibility.
 - [`epok::ChunkVisibilityQuery::cached_bounds`](#epok-chunkvisibilityquery-cached-bounds-1) — Performs `cached bounds` as part of frustum tests and chunk visibility.
+- [`epok::ChunkVisibilityQuery::cached_inside`](#epok-chunkvisibilityquery-cached-inside-1) — Performs `cached inside` as part of frustum tests and chunk visibility.
 - [`epok::ChunkVisibilityQuery::candidate`](#epok-chunkvisibilityquery-candidate-1) — Performs `candidate` as part of frustum tests and chunk visibility.
 - [`epok::ChunkVisibilityQuery::ChunkVisibilityQuery`](#epok-chunkvisibilityquery-chunkvisibilityquery-1) — Constructs `epok::ChunkVisibilityQuery` for frustum tests and chunk visibility.
 - [`epok::ChunkVisibilityQuery::merged`](#epok-chunkvisibilityquery-merged-1) — Performs `merged` as part of frustum tests and chunk visibility.
@@ -36,7 +37,7 @@ This module covers frustum tests and chunk visibility. It documents 13 public ca
 bool candidate(size_t chunk) const
 ```
 
-- **Declared at:** [line 39](../../../runtime/visibility.hpp#L39)
+- **Declared at:** [line 40](../../../runtime/visibility.hpp#L40)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -80,7 +81,7 @@ auto result = object.candidate(chunk);
 void add_plane(int64_t x,int64_t y,int64_t z,int64_t d)
 ```
 
-- **Declared at:** [line 143](../../../runtime/visibility.hpp#L143)
+- **Declared at:** [line 149](../../../runtime/visibility.hpp#L149)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -128,7 +129,7 @@ object.add_plane(x, y, z, d);
 bool basis_cache_active() const
 ```
 
-- **Declared at:** [line 113](../../../runtime/visibility.hpp#L113)
+- **Declared at:** [line 114](../../../runtime/visibility.hpp#L114)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -161,7 +162,7 @@ auto result = object.basis_cache_active();
 bool bounds_cache_active() const
 ```
 
-- **Declared at:** [line 112](../../../runtime/visibility.hpp#L112)
+- **Declared at:** [line 113](../../../runtime/visibility.hpp#L113)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -194,7 +195,7 @@ auto result = object.bounds_cache_active();
 const ChunkBasisBounds* cached_basis_bounds(size_t chunk) const
 ```
 
-- **Declared at:** [line 114](../../../runtime/visibility.hpp#L114)
+- **Declared at:** [line 115](../../../runtime/visibility.hpp#L115)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -236,7 +237,7 @@ auto result = object.cached_basis_bounds(chunk);
 int cached_bounds(size_t chunk) const
 ```
 
-- **Declared at:** [line 127](../../../runtime/visibility.hpp#L127)
+- **Declared at:** [line 128](../../../runtime/visibility.hpp#L128)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -266,6 +267,48 @@ auto result = object.cached_bounds(chunk);
 
 **Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
 
+<a id="epok-chunkvisibilityquery-cached-inside-1"></a>
+
+## `epok::ChunkVisibilityQuery::cached_inside`
+
+**Purpose.** Performs `cached inside` as part of frustum tests and chunk visibility.
+
+**Exact declaration**
+
+```cpp
+bool cached_inside(size_t chunk) const
+```
+
+- **Declared at:** [line 135](../../../runtime/visibility.hpp#L135)
+- **Kind:** `cxx method`; qualifiers: `const`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `chunk` | `size_t` | Input | Value supplied for `chunk`. See the exact type and module contract. |
+
+**Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need frustum tests and chunk visibility and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "visibility.hpp"
+
+// Assume these named values have been initialized with valid data:
+// size_t chunk
+
+epok::ChunkVisibilityQuery& object = /* obtain a valid instance */;
+
+auto result = object.cached_inside(chunk);
+```
+
+**Why choose it.** The method is `const`, so it does not mutate the object through this API surface. The boolean result makes success, availability or state explicit without exceptions.
+
+**Trade-offs and warnings.** Check the return value; `false` is part of normal control flow for many PSX resource operations.
+
 <a id="epok-chunkvisibilityquery-candidate-1"></a>
 
 ## `epok::ChunkVisibilityQuery::candidate`
@@ -278,7 +321,7 @@ auto result = object.cached_bounds(chunk);
 bool candidate(size_t chunk) const
 ```
 
-- **Declared at:** [line 190](../../../runtime/visibility.hpp#L190)
+- **Declared at:** [line 196](../../../runtime/visibility.hpp#L196)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -320,7 +363,7 @@ auto result = object.candidate(chunk);
 explicit ChunkVisibilityQuery(const ChunkVisibility* value):gri
 ```
 
-- **Declared at:** [line 75](../../../runtime/visibility.hpp#L75)
+- **Declared at:** [line 76](../../../runtime/visibility.hpp#L76)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -358,7 +401,7 @@ epok::ChunkVisibilityQuery value(value);
 ChunkVisibilityMask merged() const
 ```
 
-- **Declared at:** [line 189](../../../runtime/visibility.hpp#L189)
+- **Declared at:** [line 195](../../../runtime/visibility.hpp#L195)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `ChunkVisibilityMask`. Check the purpose and failure notes before using the value.
@@ -393,7 +436,7 @@ auto result = object.merged();
 const uint32_t* merged_mask() const
 ```
 
-- **Declared at:** [line 164](../../../runtime/visibility.hpp#L164)
+- **Declared at:** [line 170](../../../runtime/visibility.hpp#L170)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `const uint32_t *`. Check the purpose and failure notes before using the value.
@@ -426,7 +469,7 @@ auto result = object.merged_mask();
 void remember_basis_bounds(size_t chunk,const int32_t center[3],const int32_t extent[3]) const
 ```
 
-- **Declared at:** [line 120](../../../runtime/visibility.hpp#L120)
+- **Declared at:** [line 121](../../../runtime/visibility.hpp#L121)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -469,10 +512,10 @@ object.remember_basis_bounds(chunk, center, extent);
 **Exact declaration**
 
 ```cpp
-void remember_bounds(size_t chunk,bool accepted) const
+void remember_bounds(size_t chunk,bool accepted,bool inside=false) const
 ```
 
-- **Declared at:** [line 134](../../../runtime/visibility.hpp#L134)
+- **Declared at:** [line 139](../../../runtime/visibility.hpp#L139)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -481,6 +524,7 @@ void remember_bounds(size_t chunk,bool accepted) const
 | --- | --- | --- | --- |
 | `chunk` | `size_t` | Input | Value supplied for `chunk`. See the exact type and module contract. |
 | `accepted` | `bool` | Input | Value supplied for `accepted`. See the exact type and module contract. |
+| `inside` | `bool` | Input | Value supplied for `inside`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -494,10 +538,11 @@ void remember_bounds(size_t chunk,bool accepted) const
 // Assume these named values have been initialized with valid data:
 // size_t chunk
 // bool accepted
+// bool inside
 
 epok::ChunkVisibilityQuery& object = /* obtain a valid instance */;
 
-object.remember_bounds(chunk, accepted);
+object.remember_bounds(chunk, accepted, inside);
 ```
 
 **Why choose it.** The method is `const`, so it does not mutate the object through this API surface.
@@ -518,7 +563,7 @@ object.remember_bounds(chunk, accepted);
 bool reuse_matrix(const int32_t rows[3][3],const int32_t translation[3], bool defer_until_stable=false)
 ```
 
-- **Declared at:** [line 78](../../../runtime/visibility.hpp#L78)
+- **Declared at:** [line 79](../../../runtime/visibility.hpp#L79)
 - **Kind:** `cxx method`
 
 **Parameters**

@@ -1,10 +1,10 @@
 # PsyQo API: Internal / Gpu / Configuration
 
-> **Header:** `"psyqo/internal/gpu/configuration.hh"` · **Tier:** PsyQo low-level API · **Source:** [open header](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/internal/gpu/configuration.hh)
+> **Header:** `"psyqo/internal/gpu/configuration.hh"` · **Tier:** PsyQo low-level API · **Source:** [open header](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/internal/gpu/configuration.hh)
 
 This module covers GPU setup, command submission and frame synchronization. It documents 5 public callables declared directly in this header.
 
-PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552d`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
+PsyQo is pinned through Nugget revision `c702235f366fb1cd8c18e0a5a5392e0acae8a079`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
 
 ## Declared types
 
@@ -30,7 +30,7 @@ PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552
 Configuration &set(ColorMode colorMode)
 ```
 
-- **Declared at:** [line 67](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/internal/gpu/configuration.hh#L67)
+- **Declared at:** [line 67](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/internal/gpu/configuration.hh#L67)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -72,7 +72,7 @@ auto result = object.set(colorMode);
 Configuration &set(Interlace interlace)
 ```
 
-- **Declared at:** [line 78](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/internal/gpu/configuration.hh#L78)
+- **Declared at:** [line 78](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/internal/gpu/configuration.hh#L78)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -114,7 +114,7 @@ auto result = object.set(interlace);
 Configuration &set(MiscSetting setting)
 ```
 
-- **Declared at:** [line 83](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/internal/gpu/configuration.hh#L83)
+- **Declared at:** [line 83](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/internal/gpu/configuration.hh#L83)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -156,7 +156,7 @@ auto result = object.set(setting);
 Configuration &set(Resolution resolution)
 ```
 
-- **Declared at:** [line 30](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/internal/gpu/configuration.hh#L30)
+- **Declared at:** [line 30](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/internal/gpu/configuration.hh#L30)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -198,7 +198,7 @@ auto result = object.set(resolution);
 Configuration &set(VideoMode videoMode)
 ```
 
-- **Declared at:** [line 53](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/internal/gpu/configuration.hh#L53)
+- **Declared at:** [line 53](https://github.com/epokengine/nugget/blob/c702235f366fb1cd8c18e0a5a5392e0acae8a079/psyqo/internal/gpu/configuration.hh#L53)
 - **Kind:** `cxx method`
 
 **Parameters**

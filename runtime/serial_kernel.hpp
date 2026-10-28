@@ -2,6 +2,28 @@
 #include <stdint.h>
 
 namespace epok {
+// PsyQo periodic timers advance one period per pump, even when several periods
+// have elapsed. A 2 ms timer serviced once per video frame eventually trails by
+// more than INT32_MAX and its signed deadline check stops firing. Rearm a single
+// one-shot from the live clock instead. The old timer remains valid until its
+// callback returns; PsyQo then removes it and retains the newly queued timer.
+template<class GPU, class Poll> void serial_schedule_dma_poll(GPU& gpu, Poll poll) {
+  gpu.armTimer(gpu.now()+2000,[&gpu,poll](uint32_t){
+    poll();
+    serial_schedule_dma_poll(gpu,poll);
+  });
+}
+// The resident serial handler can consume a CPU IRQ while an enabled DMA flag
+// remains asserted in DICR. Deliver only that real, otherwise stranded event;
+// the normal DMA handler owns acknowledgement and continuation.
+template<class Memory, class Deliver> bool serial_recover_dma(Memory& memory, Deliver&& deliver) {
+  const uint32_t dicr=memory.read(0x1f8010f4);
+  const uint32_t enabled_pending=(dicr>>24)&(dicr>>16)&0x7f;
+  if(!(dicr&(1u<<23))||!enabled_pending||!(memory.read(0x1f801074)&8)||
+     (memory.read(0x1f801070)&8))return false;
+  deliver();
+  return true;
+}
 // PSYQo clears I_MASK and BIOS interrupt queues during Application::run().
 // Preserve only handlers whose code is resident below the executable's 64 KiB
 // load boundary. Loader/application callbacks above that boundary are obsolete.

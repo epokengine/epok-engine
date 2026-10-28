@@ -43,6 +43,7 @@ impl Default for Component {
     }
 }
 impl Component {
+    #[cfg(test)]
     pub fn migrate(&mut self) {
         if self.version == 1 && self.layer_overrides.is_empty() && self.extra.is_empty() {
             self.version = 2;
@@ -347,6 +348,7 @@ pub fn inspector(
     }
     ui.separator();
 }
+#[cfg(test)]
 pub fn remap(
     component: &mut Component,
     identities: &BTreeMap<Uuid, Uuid>,

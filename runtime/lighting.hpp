@@ -21,6 +21,7 @@ inline Vector face_normal(const Affine<Fixed>& m,int face){
     const int axis=face<2?2:(face<4?0:1);const int sign=(face==0 || face==2 || face==5)?-1:1;
     const int a=(axis+1)%3,b=(axis+2)%3;int64_t cross[3];uint64_t biggest=0;
     for(int r=0;r<3;++r){cross[r]=int64_t(m.values[(r+1)%3][a].raw())*m.values[(r+2)%3][b].raw()-int64_t(m.values[(r+2)%3][a].raw())*m.values[(r+1)%3][b].raw();auto absolute=uint64_t(cross[r]<0?-cross[r]:cross[r]);if(absolute>biggest)biggest=absolute;}
+    for(int r=0;r<3;++r)if(cross[r]&&!cross[(r+1)%3]&&!cross[(r+2)%3]){Vector n;n.v[r]=sign*(cross[r]<0?-4096:4096);return n;}
     while(biggest>16384){biggest>>=1;for(auto& c:cross)c>>=1;}
     Vector n;for(int r=0;r<3;++r)n.v[r]=sign*int32_t(cross[r]);return normalize(n);
 }
@@ -112,6 +113,13 @@ template<size_t N> class LightingRenderer {
     std::array<bool,N> have_normals{};
     int32_t light_rows[3][3]={};   // world-space light matrix of the last shade()
     size_t count=0;
+    struct Selection {
+        uint32_t signature=0,generation=0;int32_t position[3]={};
+        Vector direction[2]{};int32_t colors[2][3]={};int selected=-1;
+        bool valid=false;
+    };
+    std::array<Selection,N> selections{};
+    uint32_t source_signature=0;
 public:
     // Hash of the light matrix, colours, ambient and material tint loaded by the
     // last shade(); retained packets rebuild when it changes.
@@ -120,17 +128,23 @@ private:
 public:
     void reset_owner(size_t index) {
         if(index>=N)return;
-        local_cache[index]={};have_normals[index]=false;
+        local_cache[index]={};have_normals[index]=false;selections[index].valid=false;
     }
     void clear() {
         count=0;
         for(size_t i=0;i<N;++i)reset_owner(i);
     }
     void prepare(const std::array<ActorData,N>& objects,const std::array<Affine<Fixed>,N>& world,size_t object_count){
-        count=0;lighting_work={};
+        count=0;lighting_work={};uint32_t sig=2166136261u;
+        auto mix=[&](uint32_t v){sig=(sig^v)*16777619u;};
+        mix(lighting_environment.point_lights);
         for(size_t i=0;i<object_count && count<sources.size();++i){const auto& l=objects[i].light;if(!l.enabled || l.mode==LightMode::Baked || !is_active_slot(i))continue;
-            auto& s=sources[count++];s.entity=i;s.direction=lighting_detail::direction(world[i]);for(int c=0;c<3;++c)s.position[c]=world[i].values[c][3].raw();
+            auto& s=sources[count++];s.entity=i;
+            s.direction=l.type==LightType::Point?Vector{}:lighting_detail::direction(world[i]);
+            mix(uint32_t(i));mix(uint32_t(l.type));mix(l.intensity.raw());mix(l.range.raw());mix(uint32_t(l.priority));
+            for(int c=0;c<3;++c){s.position[c]=world[i].values[c][3].raw();mix(uint32_t(s.position[c]));mix(uint32_t(s.direction.v[c]));mix(l.color[c]);}
         }lighting_work.active_lights=count;
+        source_signature=sig;
     }
     std::array<psyqo::Color,6> shade(size_t object,const std::array<ActorData,N>& objects,const std::array<Affine<Fixed>,N>& world,bool generic=false){
         using namespace lighting_detail;using namespace psyqo::GTE;
@@ -141,21 +155,36 @@ public:
         for(int r=0;r<3;++r)for(int c=0;c<3;++c)if(bases[object][r*3+c]!=world[object].values[r][c].raw())changed=true;
         if(changed && !generic){for(int f=0;f<6;++f)normals[object][f]=face_normal(world[object],f);for(int r=0;r<3;++r)for(int c=0;c<3;++c)bases[object][r*3+c]=world[object].values[r][c].raw();have_normals[object]=true;}
 
+        auto& selection=selections[object];
+        bool reuse=selection.valid&&selection.signature==source_signature&&selection.generation==objects[object].generation;
+        for(int c=0;c<3;++c)reuse&=selection.position[c]==world[object].values[c][3].raw();
+        // Selection hysteresis is part of the input too: an initial winner can
+        // change next frame even if every light remains stationary.
+        reuse&=selection.selected==local_cache[object].selected;
+        if(!reuse){
         int best[2]={-1,-1},score[2]={INT32_MIN,INT32_MIN};int32_t strength[32]={};Vector directions[32];
         for(size_t i=0;i<count;++i){const auto& s=sources[i];const auto& l=objects[s.entity].light;int slot=l.type==LightType::Point;int power=clamp(l.intensity.raw(),0,8192);directions[i]=s.direction;
             if(slot){if(!lighting_environment.point_lights)continue;Vector delta;uint64_t square=0;for(int c=0;c<3;++c){delta.v[c]=clamp(s.position[c]-world[object].values[c][3].raw(),-256*4096,256*4096);square+=int64_t(delta.v[c])*delta.v[c];}
                 int range=clamp(l.range.raw(),1,128*4096);if(square>=uint64_t(range)*range)continue;int distance=sqrt64(square);int attenuation=4096-uint32_t(distance)*4096/uint32_t(range);
-                power=(power*attenuation/4096)*attenuation/4096;directions[i]=normalize(delta);
+                power=(power*attenuation/4096)*attenuation/4096;directions[i]=delta;
             }
             if(power<=0)continue;strength[i]=power;int value=clamp(l.priority,-100,100)*16384+power;
             // Hysteresis prevents nearest-light flicker around influence boundaries.
             if(slot && local_cache[object].selected==int(s.entity))value+=410;
             if(value>score[slot]){score[slot]=value;best[slot]=int(i);}
         }
-        int32_t lm[3][3]={},cm[3][3]={};
         for(int slot=0;slot<2;++slot){int32_t colors[3]={};Vector d;
-            if(best[slot]>=0){int i=best[slot];d=directions[i];const auto& l=objects[sources[i].entity].light;for(int c=0;c<3;++c)colors[c]=int32_t(l.color[c])*strength[i]/255;}
-            if(slot){auto& cache=local_cache[object];cache.selected=best[slot]<0?-1:int(sources[best[slot]].entity);
+            if(best[slot]>=0){int i=best[slot];d=slot?normalize(directions[i]):directions[i];const auto& l=objects[sources[i].entity].light;for(int c=0;c<3;++c)colors[c]=int32_t(l.color[c])*strength[i]/255;}
+            selection.direction[slot]=d;for(int c=0;c<3;++c)selection.colors[slot][c]=colors[c];
+        }
+        selection.selected=best[1]<0?-1:int(sources[best[1]].entity);
+        selection.signature=source_signature;selection.generation=objects[object].generation;selection.valid=true;
+        for(int c=0;c<3;++c)selection.position[c]=world[object].values[c][3].raw();
+        }
+        int32_t lm[3][3]={},cm[3][3]={};
+        for(int slot=0;slot<2;++slot){int32_t colors[3];Vector d=selection.direction[slot];
+            for(int c=0;c<3;++c)colors[c]=selection.colors[slot][c];
+            if(slot){auto& cache=local_cache[object];cache.selected=selection.selected;
                 // Smooth local-light transitions over a few frames; first frame is immediate.
                 for(int c=0;c<3;++c){cache.direction.v[c]=cache.initialized?(cache.direction.v[c]*3+d.v[c])/4:d.v[c];cache.color[c]=cache.initialized?(cache.color[c]*3+colors[c])/4:colors[c];colors[c]=cache.color[c];}d=cache.direction;cache.initialized=true;
             }
