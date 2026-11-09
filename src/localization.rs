@@ -14,6 +14,7 @@ pub const MAX_KEYS: usize = 4096;
 pub const MAX_LANGUAGES: usize = 16;
 /// A HUD text holds 511 UTF-8 bytes.
 pub const MAX_BYTES: usize = 511;
+pub const MAX_PAGEABLE_BYTES: usize = 65535;
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
@@ -26,6 +27,9 @@ pub struct Entry {
 #[serde(default)]
 pub struct StringTable {
     pub version: u32,
+    /// Pageable tables are explicitly addressed dialogue resources. They do not
+    /// replace the legacy project-global table used by HUD key indices.
+    pub pageable: bool,
     pub languages: Vec<String>,
     pub entries: Vec<Entry>,
 }
@@ -33,6 +37,7 @@ impl Default for StringTable {
     fn default() -> Self {
         Self {
             version: VERSION,
+            pageable: false,
             languages: vec!["English".into()],
             entries: Vec::new(),
         }
@@ -80,9 +85,14 @@ impl StringTable {
             if !keys.insert(entry.key.as_str()) {
                 return Err(format!("The key {} is used twice", entry.key));
             }
-            if let Some(value) = entry.values.iter().find(|v| v.len() > MAX_BYTES) {
+            let limit = if self.pageable {
+                MAX_PAGEABLE_BYTES
+            } else {
+                MAX_BYTES
+            };
+            if let Some(value) = entry.values.iter().find(|v| v.len() > limit) {
                 return Err(format!(
-                    "{}: a text holds at most {MAX_BYTES} bytes ({} given)",
+                    "{}: this string table accepts at most {limit} bytes per text ({} given)",
                     entry.key,
                     value.len()
                 ));
@@ -114,6 +124,9 @@ impl StringTable {
             .collect::<Vec<_>>()
             .join(",");
         out.push('\n');
+        if self.pageable {
+            out.insert_str(0, "@epok.string-table,pageable=1\n");
+        }
         for entry in &self.entries {
             let row = std::iter::once(quote(&entry.key))
                 .chain(entry.values.iter().map(|v| quote(v)))
@@ -127,11 +140,16 @@ impl StringTable {
     pub fn from_csv(text: &str) -> Result<Self, String> {
         let rows = parse_csv(text);
         let mut rows = rows.into_iter().filter(|r| r.iter().any(|c| !c.is_empty()));
-        let header = rows.next().ok_or("The CSV is empty")?;
+        let mut header = rows.next().ok_or("The CSV is empty")?;
+        let pageable = header == ["@epok.string-table", "pageable=1"];
+        if pageable {
+            header = rows.next().ok_or("The CSV has no language header")?;
+        }
         if header.len() < 2 {
             return Err("The first row must be: key, then one column per language".into());
         }
         let mut table = StringTable {
+            pageable,
             languages: header[1..].iter().map(|l| l.trim().to_owned()).collect(),
             entries: Vec::new(),
             ..Default::default()
@@ -226,19 +244,28 @@ pub fn save(record: &assets::Record, table: &StringTable) -> Result<(), String> 
     }
     package.source = table.encode()?;
     package.meta.source_hash = assets::hash(&package.source);
-    assets::atomic_write(&record.path, &package.bytes()?, None)
+    assets::atomic_write(&record.path, &package.bytes()?, Some(&record.revision))
 }
-/// The project's string table: the first StringTable asset by path.
+/// The legacy HUD table: the first non-pageable StringTable asset by path.
 pub fn project_table(index: &assets::Index) -> Option<(assets::Record, StringTable)> {
+    project_table_checked(index).ok().flatten()
+}
+pub(crate) fn project_table_checked(
+    index: &assets::Index,
+) -> Result<Option<(assets::Record, StringTable)>, String> {
     let mut records: Vec<_> = index
         .usable()
         .filter(|r| r.meta.kind == assets::Kind::StringTable)
         .cloned()
         .collect();
     records.sort_by(|a, b| a.meta.source.cmp(&b.meta.source));
-    let record = records.into_iter().next()?;
-    let table = document(&record).ok()?;
-    Some((record, table))
+    for record in records {
+        let table = document(&record).map_err(|e| format!("{}: {e}", record.meta.source))?;
+        if !table.pageable {
+            return Ok(Some((record, table)));
+        }
+    }
+    Ok(None)
 }
 /// Loads the project's string table into the scene when any of its texts shows a key.
 pub fn resolve(scene: &mut crate::scene::Scene, index: &assets::Index) {
@@ -251,6 +278,161 @@ pub fn resolve(scene: &mut crate::scene::Scene, index: &assets::Index) {
     } else {
         None
     };
+}
+
+/// Runtime presenters can select keys without an authored Text.key. Use the
+/// same project table and numeric key contract as TextComponent::set_text_key.
+pub fn resolve_runtime(
+    scene: &mut crate::scene::Scene,
+    index: &assets::Index,
+    registry: &crate::blueprint::Registry,
+) -> Result<(), String> {
+    let model = registry.model().map_err(|errors| {
+        errors
+            .into_iter()
+            .map(|e| e.message)
+            .collect::<Vec<_>>()
+            .join("\n")
+    })?;
+    let mut instances = std::collections::BTreeMap::new();
+    for actor in &scene.actors {
+        for binding in
+            std::iter::once(&actor.class).chain(actor.components.iter().map(|c| &c.class))
+        {
+            if let Some(class) = binding
+                .class_id
+                .as_ref()
+                .and_then(|id| registry.classes.get(id))
+                .or_else(|| registry.named(&binding.name))
+            {
+                instances.insert(class.id.clone(), 1);
+            }
+        }
+    }
+    let retained = crate::game_helpers::retained(registry, &model, &instances);
+    if !retained
+        .descriptors
+        .contains("310e882c-2353-55bc-bba3-f3d54277f671")
+        && !retained
+            .descriptors
+            .contains("b7e56800-3c6f-5e1d-a165-848c122b51c5")
+    {
+        return Ok(());
+    }
+    scene.strings = project_table_checked(index)?.map(|(_, table)| Arc::new(table));
+    for actor in &scene.actors {
+        for component in &actor.components {
+            let Some(class) = component
+                .class
+                .class_id
+                .as_ref()
+                .and_then(|id| registry.classes.get(id))
+                .or_else(|| registry.named(&component.class.name))
+            else {
+                continue;
+            };
+            if !model.is_a(&class.id, "310e882c-2353-55bc-bba3-f3d54277f671") {
+                continue;
+            }
+            let properties = registry.properties(&class.cpp_name);
+            let Some(property) = properties.iter().find(|p| p.name == "prompt_key") else {
+                continue;
+            };
+            let value = component
+                .properties
+                .get("prompt_key")
+                .unwrap_or(&property.default);
+            let key = value.as_i64().ok_or_else(|| {
+                format!(
+                    "{} / {}: prompt_key must be a string-table index",
+                    actor.name, component.name
+                )
+            })?;
+            if key < -1
+                || (key >= 0
+                    && scene
+                        .strings
+                        .as_ref()
+                        .is_none_or(|t| key as usize >= t.entries.len()))
+            {
+                return Err(format!(
+                    "{} / {}: prompt_key {key} has no entry in the project's String Table",
+                    actor.name, component.name
+                ));
+            }
+        }
+    }
+    // Reserve the largest dynamically selectable prompt and validate every
+    // translation against its presenter font, without changing the authored text.
+    let mut budget_scene = scene.clone();
+    if let Some(table) = scene.strings.as_ref() {
+        let variants = table
+            .entries
+            .iter()
+            .flat_map(|entry| &entry.values)
+            .collect::<Vec<_>>();
+        for actor in &mut budget_scene.actors {
+            let placed = actor.components.iter().any(|c| {
+                c.class
+                    .class_id
+                    .as_ref()
+                    .is_some_and(|id| model.is_a(id, "b7e56800-3c6f-5e1d-a165-848c122b51c5"))
+            });
+            let defaults = actor
+                .class
+                .class_id
+                .as_ref()
+                .and_then(|id| model.class(id))
+                .is_some_and(|class| {
+                    class
+                        .default_components
+                        .iter()
+                        .any(|c| model.is_a(&c.class, "b7e56800-3c6f-5e1d-a165-848c122b51c5"))
+                });
+            if !placed && !defaults {
+                continue;
+            }
+            let actor_name = actor.name.clone();
+            let text = actor.text.get_or_insert_with(Default::default);
+            for value in &variants {
+                let visible = crate::hud::visible_text(value);
+                if let Some(font) = text.font {
+                    let data = scene
+                        .fonts
+                        .get(&font)
+                        .ok_or_else(|| format!("{actor_name}: unresolved prompt font {font}"))?;
+                    if let Some(c) = visible.chars().find(|c| {
+                        *c != '\n'
+                            && data
+                                .metrics
+                                .binary_search_by_key(&(*c as u32), |m| m.codepoint)
+                                .is_err()
+                    }) {
+                        return Err(format!(
+                            "{}: prompt font {font} has no glyph for {c:?}",
+                            actor_name
+                        ));
+                    }
+                } else {
+                    crate::bitmap_font::validate(&visible)
+                        .map_err(|e| format!("{actor_name}: prompt: {e}"))?;
+                }
+            }
+            text.enabled = true;
+            text.key.clear();
+            text.text = variants
+                .iter()
+                .max_by_key(|v| {
+                    crate::hud::visible_text(v)
+                        .chars()
+                        .filter(|c| *c != '\n')
+                        .count()
+                })
+                .map_or(String::new(), |v| (*v).clone());
+        }
+        crate::hud::validate(&budget_scene)?;
+    }
+    Ok(())
 }
 
 // ---- cooking ---------------------------------------------------------------------------
@@ -280,6 +462,7 @@ pub fn header(table: &StringTable) -> String {
         })
         .collect::<Vec<_>>()
         .join(",");
+    let strings = if strings.is_empty() { "\"\"" } else { &strings };
     format!(
         "inline constexpr const char* const localization_strings[]={{{strings}}};\ninline constexpr uint16_t localization_keys={},localization_languages={};\n",
         table.entries.len(),
@@ -377,5 +560,38 @@ mod tests {
         assert!(install(Some(&sample())).contains("localization.strings=localization_strings;"));
         assert!(install(None).contains("localization.strings=nullptr;"));
         assert!(apply(None).is_empty());
+    }
+    #[test]
+    fn pageable_dialogue_strings_preserve_csv_and_do_not_replace_hud_table() {
+        let root = crate::workspace::tests::temp("pageable-strings");
+        crate::workspace::create(&root, "Pageable Strings", crate::workspace::Template::Basic)
+            .unwrap();
+        let mut pageable = StringTable {
+            pageable: true,
+            ..sample()
+        };
+        pageable.entries[0].values[0] = "x".repeat(800);
+        pageable.validate().unwrap();
+        assert_eq!(StringTable::from_csv(&pageable.to_csv()).unwrap(), pageable);
+        assert_eq!(
+            StringTable::parse(&pageable.encode().unwrap()).unwrap(),
+            pageable
+        );
+        let ordinary = sample();
+        let hud_id = create(&root, "assets/Z_Hud.epokasset", &ordinary).unwrap();
+        let dialogue_id = create(&root, "assets/A_Dialogue.epokasset", &pageable).unwrap();
+        let index = assets::scan(&root, &mut Default::default());
+        assert_eq!(project_table(&index).unwrap().0.meta.id, hud_id);
+        assert!(
+            document(index.resolve(dialogue_id).unwrap())
+                .unwrap()
+                .pageable
+        );
+        pageable.entries[0].values[0] = "y".repeat(900);
+        let record = index.resolve(dialogue_id).unwrap();
+        save(record, &pageable).unwrap();
+        assert_eq!(document(record).unwrap(), pageable);
+        assert!(save(record, &pageable).unwrap_err().contains("changed"));
+        std::fs::remove_dir_all(root).unwrap();
     }
 }

@@ -391,6 +391,14 @@ public:
 
 // ---- CharacterBody2D -------------------------------------------------------------------
 //
+namespace world2d {
+inline Collider2DComponent* solid_collider_of(ActorComponent& body){
+    auto* owner=body.get_owner();Collider2DComponent* found=nullptr;
+    colliders.each([&](Collider2DComponent& collider){
+        if(!found&&collider.get_owner()==owner&&!collider.shape.trigger&&collider.shape.enabled)found=&collider;
+    });return found;
+}
+}
 // The move_and_slide contract on the bounded World2D solver: `velocity` is in pixels
 // per second, `up_direction` defaults to screen up (0, -1), and the body moves through its
 // actor's first solid Collider2D. Motion is resolved one axis at a time against
@@ -442,7 +450,15 @@ public:
     // pushing into the obstacle and refreshes the floor/wall/ceiling state. Returns whether
     // anything was hit. Call it from tick: it uses the simulation step.
     EPOK_FUNCTION(BlueprintCallable, Id="e8bdb3c0-41ed-42c9-9f8b-d994db924f9a") bool move_and_slide() {
-        const Fixed dt = world2d::step_seconds();
+        return move_and_slide_impl(world2d::step_seconds());
+    }
+    // Explicit-step adapter over the same solver, snap and classification path.
+    EPOK_FUNCTION(BlueprintCallable) bool move_and_slide_step(Fixed dt) {
+        if(dt<=0.0||dt>1.0)return false;
+        return move_and_slide_impl(dt);
+    }
+private:
+    bool move_and_slide_impl(Fixed dt) {
         const Fixed delta[2] = {velocity[0] * dt, velocity[1] * dt};
         const bool was_on_floor = on_floor;
         MoveResult2D result;
@@ -469,6 +485,7 @@ public:
         }
         return hit;
     }
+public:
     // Moves by an explicit displacement (pixels) and stops at the first obstacle.
     EPOK_FUNCTION(BlueprintCallable, Id="ea7c6ee9-4dca-4b45-b8dd-79607b2b38b0") bool move_and_collide(Fixed dx, Fixed dy) {
         const Fixed delta[2] = {dx, dy};

@@ -9,11 +9,36 @@ use std::{
 #[serde(default, deny_unknown_fields)]
 pub struct Options {
     pub generate_asset_report: bool,
+    #[serde(skip_serializing_if = "ScriptOptimization::is_default")]
+    pub script_optimization: ScriptOptimization,
 }
 impl Default for Options {
     fn default() -> Self {
         Self {
             generate_asset_report: true,
+            script_optimization: ScriptOptimization::default(),
+        }
+    }
+}
+/// How the project's gameplay code compiles. The engine's renderer and simulation
+/// keep their own profile either way, so a large game can spend its RAM on content
+/// without slowing the loops that draw it.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ScriptOptimization {
+    #[default]
+    Speed,
+    Size,
+}
+impl ScriptOptimization {
+    fn is_default(&self) -> bool {
+        *self == Self::default()
+    }
+    /// The Make default for this choice; an explicit `EPOK_SCRIPT_OPT` still wins.
+    pub fn make_default(self) -> &'static str {
+        match self {
+            Self::Speed => "",
+            Self::Size => "EPOK_SCRIPT_OPT ?= -Os\n",
         }
     }
 }

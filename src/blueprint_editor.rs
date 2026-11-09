@@ -17,7 +17,7 @@ mod inline_values;
 #[path = "blueprint_split_pins.rs"]
 mod split_pins;
 #[path = "blueprint_template_editor.rs"]
-mod template_editor;
+pub(crate) mod template_editor;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum SocketType {
@@ -207,7 +207,7 @@ fn choose(ui: &Ui, label: &str) -> bool {
     record_control(ui, label);
     clicked
 }
-fn record_control(ui: &Ui, label: &str) {
+pub(crate) fn record_control(ui: &Ui, label: &str) {
     #[cfg(test)]
     CONTROLS.with(|controls| {
         let a = ui.item_rect_min();
@@ -223,6 +223,14 @@ fn record_control(ui: &Ui, label: &str) {
 thread_local! {
     static CONTROLS: std::cell::RefCell<BTreeMap<String,[f32;2]>> = const { std::cell::RefCell::new(BTreeMap::new()) };
     static SOCKETS: std::cell::RefCell<BTreeMap<String,[f32;2]>> = const { std::cell::RefCell::new(BTreeMap::new()) };
+}
+#[cfg(test)]
+pub(crate) fn control_position(label: &str) -> Option<[f32; 2]> {
+    CONTROLS.with(|c| c.borrow().get(label).copied())
+}
+#[cfg(test)]
+pub(crate) fn clear_controls() {
+    CONTROLS.with(|controls| controls.borrow_mut().clear());
 }
 fn identifier(name: &str) -> bool {
     !name.is_empty()
@@ -342,6 +350,17 @@ fn edit_value(
 }
 
 impl BlueprintEditor {
+    fn composition_root(&self) -> PathBuf {
+        self.path
+            .as_deref()
+            .and_then(|path| {
+                path.ancestors()
+                    .find(|p| p.file_name().is_some_and(|n| n == "assets"))
+            })
+            .and_then(Path::parent)
+            .unwrap_or(Path::new(""))
+            .to_owned()
+    }
     pub(crate) fn set_action_menu_fonts(&mut self, fonts: ActionMenuFonts) {
         self.action_menu.fonts = Some(fonts);
     }
@@ -1039,13 +1058,23 @@ impl BlueprintEditor {
     /// Returns true when an authoring source was saved and catalogs must refresh.
     #[cfg(test)]
     pub fn draw(&mut self, ui: &Ui, registry: &Registry) -> bool {
-        self.draw_with_options(ui, registry, |_| {})
+        self.draw_with_options(
+            ui,
+            registry,
+            &crate::hud_editor::Resources {
+                index: &Default::default(),
+                strings: None,
+                language: 0,
+            },
+            |_| {},
+        )
     }
     /// Build settings belong to the project, but are presented inside this editor.
     pub fn draw_with_options(
         &mut self,
         ui: &Ui,
         registry: &Registry,
+        resources: &crate::hud_editor::Resources<'_>,
         build_options: impl FnOnce(&Ui),
     ) -> bool {
         if !self.open {
@@ -1240,11 +1269,13 @@ impl BlueprintEditor {
                         .build(|| {
                             ui.text_disabled("\u{eb29} Components");
                             ui.separator();
+                            let composition_root = self.composition_root();
                             match template_editor::browser(
                                 ui,
                                 self.asset.as_mut().unwrap(),
                                 registry,
                                 &mut self.template_editor,
+                                &composition_root,
                             ) {
                                 Ok(true) => {
                                     self.details = Details::Template;
@@ -1290,7 +1321,7 @@ impl BlueprintEditor {
                         ui.text("Build Options");
                         build_options(ui);
                     } else {
-                        self.members(ui, registry);
+                        self.members(ui, registry, resources);
                     }
                 });
             if self.drag.is_none()
@@ -1487,13 +1518,24 @@ impl BlueprintEditor {
             }
         }
     }
-    fn members(&mut self, ui: &Ui, registry: &Registry) {
+    pub fn take_strings_request(&mut self) -> bool {
+        self.template_editor.take_strings_request()
+    }
+    fn members(
+        &mut self,
+        ui: &Ui,
+        registry: &Registry,
+        resources: &crate::hud_editor::Resources<'_>,
+    ) {
+        let composition_root = self.composition_root();
         if self.details == Details::Template
             && let Err(error) = template_editor::draw(
                 ui,
                 self.asset.as_mut().unwrap(),
                 registry,
                 &mut self.template_editor,
+                &composition_root,
+                resources,
             )
         {
             self.error = Some(error);
@@ -4101,13 +4143,7 @@ fn properties(doc: &BlueprintAsset, registry: &Registry) -> Vec<schema::Property
     registry
         .classes
         .get(&doc.parent)
-        .map(|parent| {
-            registry
-                .properties(&parent.cpp_name)
-                .into_iter()
-                .cloned()
-                .collect()
-        })
+        .map(|parent| registry.properties(&parent.cpp_name).into_iter().collect())
         .unwrap_or_default()
 }
 fn member_type(doc: &BlueprintAsset, registry: &Registry, member: &str) -> Option<schema::Type> {
@@ -5287,6 +5323,7 @@ mod tests {
                 component: None,
                 default_components: vec![],
                 explicit_abstract: false,
+                default_overrides: Default::default(),
                 id: "parent".into(),
                 provider: schema::native_provider(),
                 backend: schema::native_backend(),
@@ -5651,13 +5688,22 @@ mod tests {
         context.fonts().build_rgba32_texture();
         let mut options_drawn = false;
         let mut frame = |ctx: &mut imgui::Context, e: &mut BlueprintEditor| {
-            e.draw_with_options(ctx.frame(), &registry, |ui| {
-                options_drawn = true;
-                ui.text("Instrument Blueprint Debugger");
-                assert!(ui.is_window_focused_with_flags(
-                    imgui::WindowFocusedFlags::ROOT_AND_CHILD_WINDOWS
-                ));
-            });
+            e.draw_with_options(
+                ctx.frame(),
+                &registry,
+                &crate::hud_editor::Resources {
+                    index: &Default::default(),
+                    strings: None,
+                    language: 0,
+                },
+                |ui| {
+                    options_drawn = true;
+                    ui.text("Instrument Blueprint Debugger");
+                    assert!(ui.is_window_focused_with_flags(
+                        imgui::WindowFocusedFlags::ROOT_AND_CHILD_WINDOWS
+                    ));
+                },
+            );
             ctx.render();
         };
         frame(&mut context, &mut e);
@@ -5901,6 +5947,7 @@ mod tests {
                 component: None,
                 default_components: vec![],
                 explicit_abstract: false,
+                default_overrides: Default::default(),
                 id: "target".into(),
                 provider: schema::native_provider(),
                 backend: schema::native_backend(),

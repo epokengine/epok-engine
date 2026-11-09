@@ -131,6 +131,13 @@ pub enum Place {
         base: Box<Place>,
         index: usize,
     },
+    /// Typed field of a local value snapshot, never an alias into native data.
+    Member {
+        base: Box<Place>,
+        name: String,
+        index: usize,
+        value_type: Type,
+    },
     /// One scalar of an intrinsic transform. `component` indexes the vector and
     /// is 0 for the scalar World2D rotation; `value_type` is always `Fixed`.
     Intrinsic {
@@ -144,7 +151,16 @@ impl Place {
         match self {
             Self::Local(id) => Some(*id),
             Self::Property { .. } | Self::Intrinsic { .. } => None,
-            Self::VectorComponent { base, .. } => base.root_local(),
+            Self::VectorComponent { base, .. } | Self::Member { base, .. } => base.root_local(),
+        }
+    }
+    pub fn local_wire_offset(&self) -> Option<(LocalId, usize)> {
+        match self {
+            Self::Local(id) => Some((*id, 0)),
+            Self::Member { base, index, .. } | Self::VectorComponent { base, index } => base
+                .local_wire_offset()
+                .map(|(id, offset)| (id, offset + index)),
+            _ => None,
         }
     }
     pub fn value_type(&self, locals: &[Local]) -> Option<Type> {
@@ -160,6 +176,19 @@ impl Place {
                 Type::Vector { length } if *index < length => Some(Type::Fixed),
                 _ => None,
             },
+            Self::Member {
+                base,
+                name,
+                index,
+                value_type,
+            } => {
+                let (actual_index, actual_type) =
+                    base.value_type(locals)?.member_wire_offset(name)?;
+                (actual_index == *index
+                    && actual_type == *value_type
+                    && base.root_local().is_some())
+                .then_some(actual_type)
+            }
         }
     }
 }
@@ -193,7 +222,8 @@ pub enum Expr {
     },
     /// Read one field from a typed record/vector value. `index` is the
     /// flattened wire offset used by Lua VM ABI v2; AOT emits the named C++
-    /// member. Values are immutable snapshots, never aliases into native data.
+    /// member. Values are snapshots, never aliases into native data; a local
+    /// snapshot can be edited through a typed Member place.
     Member {
         base: Box<Expr>,
         name: String,
@@ -464,7 +494,7 @@ fn validate_place(place: &Place) -> Result<(), String> {
         } if *component > 2 || value_type != &FIXED => {
             Err("Intrinsic transform place is not a Fixed component".into())
         }
-        Place::VectorComponent { base, .. } => validate_place(base),
+        Place::VectorComponent { base, .. } | Place::Member { base, .. } => validate_place(base),
         _ => Ok(()),
     }
 }

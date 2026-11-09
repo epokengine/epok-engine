@@ -518,6 +518,7 @@ pub fn run(
         },
     );
     let hud_texture_id = renderer.textures.insert(hud_texture);
+    let mut class_texture = crate::class_designer::Texture::default();
 
     let native_game_texture = imgui_wgpu::Texture::new(
         &device,
@@ -849,6 +850,7 @@ pub fn run(
                     editor.asset_inspector.visible = false;
                     editor.asset_inspector.texture = asset_renderer.as_ref().map(|(_,id,_)|*id);
                 }
+                class_texture.upload(session.as_mut().and_then(|e|e.class_designer.as_mut()),&device,&queue,&mut renderer);
                 let ui = imgui.frame();
                 let mut opened = None;
                 let native_visible = session

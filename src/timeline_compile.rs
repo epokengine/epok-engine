@@ -956,6 +956,7 @@ mod actor_requirement_tests {
             component: None,
             default_components: vec![],
             explicit_abstract: false,
+            default_overrides: Default::default(),
             properties: vec![],
             functions: vec![],
             source: schema::Location {

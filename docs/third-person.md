@@ -15,24 +15,48 @@ lock-on, NPC systems or audio.
 
 The template is the engine's reference comparison between its three authoring systems.
 C++, Blueprint and Lua generate the same level, the same actors, the same transforms and
-colliders and the same animated character; only the class the Player binds differs.
+colliders and the same animated character; the project input component is authored
+in the selected language.
 
-| Flavor | Generated source | Console build |
-| --- | --- | --- |
-| C++ | `assets/scripts/ThirdPersonController.hpp` and `.cpp`, plus `CharacterMotion.hpp` and `CharacterClips.hpp` | 522 KiB executable, 1.38 MiB static RAM |
-| Blueprint | `assets/Blueprints/ThirdPersonController.epokbp` | 552 KiB executable, 1.41 MiB static RAM |
-| Lua | `assets/scripts/ThirdPersonController.lua` | 540 KiB executable, 1.40 MiB static RAM |
+| Flavor | Generated source |
+| --- | --- |
+| C++ | `assets/scripts/ThirdPersonController.hpp` and `.cpp` |
+| Blueprint | `assets/Blueprints/ThirdPersonController.epokbp` |
+| Lua | `assets/scripts/ThirdPersonController.lua` |
 
-Those sizes are the whole game, not the controller: the arena, the character, the
-animation and the runtime are the rest of it.
+The shared-component route passes all five execution cases: C++, Blueprint and
+Lua native/VM bytecode/VM source, with 1,200 automatic steps and identical
+semantic results. All three flavor exports rebuild byte-identically. The probe
+projects use about 1.48 MiB static RAM; their observation components are included
+in that cost. See `artifacts/gameplay-helpers/p5/third-person-validation.json` for
+the precise scope and hashes. The shared-player extraction also passes all fifteen
+foundation, arena and Dungeon routes with exact P5 semantic replays, plus three
+byte-identical Third Person exports. Its separate receipt is
+`artifacts/gameplay-helpers/p7/player-routes-validation.json`.
 
 A project contains exactly one of them. The other two are never generated as a hidden
-fallback, and no flavor calls another's implementation: the Blueprint graph and the Lua
-script are complete controllers built from the same reflected engine operations the C++
-uses, so the three are a genuine comparison rather than three wrappers.
+fallback. Each project controller derives from `LocalPlayer3DInputComponent` and
+activates its typed camera binding. Extend `calculate_command` in the selected
+language to add project movement rules. Shared motors, animation and cameras use
+the same native implementation across all three authoring systems.
 
 The choice only decides what is written once. Every generated project can add classes in
 the other two systems afterwards and use them together in the same scene.
+
+`ProjectSettings/Template.epoksettings` records the chosen source class as the
+`controller` role, alongside `player`, `camera`, `locomotion` and `camera_input`.
+These roles reference existing class UUIDs. The placed player, mesh, camera and
+controller references use ordinary actor/component identities and survive display
+name changes.
+
+Template construction separates the shared player/camera assembly from arena
+geometry and lighting. The Dungeon starter consumes that assembly with generated
+World/Player handles, then supplies its own geometry and lighting. Player reuse
+installs the character resources and selected input source directly.
+
+The previous full controllers are [isolated comparison fixtures](../templates/legacy-third-person.md).
+Independent Basic projects compile each retained implementation through the native
+backend; current starter generation installs the shared-input implementation.
 
 The Lua flavor starts on the project's default Lua execution setting, the ahead-of-time
 native mode, which keeps the console build small while the source stays plain Lua.
@@ -41,13 +65,15 @@ all three produce a working console build of this controller. The Blueprint flav
 compiles to native console code through the Blueprint backend; the source the author
 edits is the graph.
 
-The Lua controller binds the camera's transform component rather than the camera actor,
-and writes it with three scalars. That is what keeps it free of whole-vector locals,
-which the virtual machine's value boundary cannot carry.
+The Player is a `Character3D` with inherited root, collider and motor components,
+plus project input and `SkeletalLocomotionComponent`: five of eight component
+slots. Its mesh remains a separate child actor. The camera is a
+`ThirdPersonCamera` with root, camera, inherited SpringArm and orbit input: four
+of eight slots. Its hierarchy group is logical; the rig writes a world-space pose.
 
 ### Shared behaviour
 
-All three implement the same contract, with the same tuning:
+All three use the same shared mechanisms and tuning:
 
 | Value | Setting |
 | --- | --- |
@@ -66,18 +92,16 @@ Walking off a step or down a flight of stairs, the character probes the ground b
 (at most the step height) and puts its feet on it, so it walks down without falling and
 landing again on every step.
 
-Every one of those numbers is exactly representable in the engine's Q12 fixed point, so
-the three flavors reach identical raw values rather than merely similar ones. The shared
-operations they are combined with — `sine_degrees`, `cosine_degrees`, `square_root`,
-`length2`, `wrap_degrees`, `delta_degrees`, `move_toward`, `move_toward_degrees`,
-`heading_degrees` and `stick_intent` — are engine functions available to all three
-languages, so none of them needs host floating point and the console result matches the
-desktop one.
+The shared Q12 kernels and property conversion give every flavor the same raw
+values. Movement, turning, state selection and camera queries are implemented by
+the same native mechanisms in console and Native Play. See
+[characters](character-classes.md), [animation](character-animation.md) and
+[camera rigs](camera-rigs.md) for their contracts and extension hooks.
 
-The Blueprint and Lua controllers bind the Camera actor and the Visual mesh through typed
-references the template fills in when the project is created, and receive their six
-animation clip indices the same way. Neither looks an actor up by display name, so
-renaming anything in the scene is safe.
+Every flavor binds the camera actor and visual mesh by persistent identity.
+The generator resolves the six animation roles into the driver's editable clip
+record. Changing actor display names does not affect these references. Motor,
+input, animation, camera and boom tuning are normal component properties.
 
 ## Controls
 

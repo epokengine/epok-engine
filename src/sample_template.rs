@@ -69,6 +69,12 @@ pub fn create(root: &Path, flavor: GameplayFlavor) -> Result<Scene, String> {
             bp::create(&root.join(BLUEPRINT_PATH), &blueprint())?;
         }
     }
+    crate::template_install::write(
+        root,
+        crate::workspace::Template::Sample,
+        flavor,
+        [("spinner", ClassReference::new(CLASS_NAME, class_id(flavor)))],
+    )?;
     Ok(scene)
 }
 
@@ -100,7 +106,7 @@ fn node(id: &str, kind: bp::NodeKind) -> bp::Node {
 }
 
 /// The Blueprint flavor of Spinner: read the owner's rotation, add the turn for
-/// this frame to its Y component and write the vector back. Nine nodes, one
+/// this frame to its Y component and write the vector back. Eleven nodes, one
 /// execution link, and nothing that is not also reachable from C++ and Lua.
 pub fn blueprint() -> bp::BlueprintAsset {
     let mut asset = bp::BlueprintAsset::new(
@@ -295,6 +301,12 @@ mod tests {
                 .find(|class| class.cpp_name == CLASS_NAME)
                 .unwrap_or_else(|| panic!("{flavor:?} catalog has no {CLASS_NAME}"));
             assert_eq!(spinner.id, class_id(flavor));
+            let installation = crate::template_install::read(&root).unwrap().unwrap();
+            assert_eq!(installation.gameplay, flavor.key());
+            assert_eq!(
+                installation.roles["spinner"].class_id.as_deref(),
+                Some(class_id(flavor))
+            );
             let speed = spinner
                 .properties
                 .iter()

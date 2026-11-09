@@ -1,0 +1,413 @@
+class: 733195d2-87b9-5164-b675-53372b0a569c
+template:
+  actors:
+  - entity:
+      active: true
+      class:
+        class_id: 733195d2-87b9-5164-b675-53372b0a569c
+        name: DungeonShopWidget
+      components:
+      - class:
+          class_id: dc805165-6c65-48dc-8ff8-4a638a5d21df
+          name: epok::RectTransformComponent
+        default_id: cpp:c:@N@epok@S@UIActor@FI@root
+        id: a9570688-cc28-59ae-862a-da68bc982521
+        inherited: true
+        name: rect
+        overrides:
+        - rect
+        properties:
+          rect:
+            anchor_max:
+            - 0
+            - 1
+            anchor_min:
+            - 0
+            - 1
+            pivot:
+            - 0
+            - 1
+            position:
+            - 16
+            - -16
+            rotation: 0
+            size:
+            - 288
+            - 202
+        root: true
+      - class:
+          class_id: f2cfb26b-af53-4a46-9d91-1debea72e01b
+          name: epok::CanvasComponent
+        default_id: cde964b9-f692-503b-8432-0d7b529d68af
+        id: 00c3f355-3d6d-58aa-881d-fe67ea15cccf
+        inherited: true
+        name: canvas
+        overrides:
+        - canvas
+        properties:
+          canvas:
+            enabled: true
+            focused: -1
+      - class:
+          class_id: d04c78d6-23bd-40d7-88f1-b1afc1b05b5b
+          name: epok::ImageComponent
+        default_id: f6358d36-4e58-576f-9dcf-c39468a69b52
+        id: 12d7f6a3-3698-51b9-8d3d-3d88e5c74e7b
+        inherited: true
+        name: panel
+        overrides:
+        - image
+        properties:
+          image:
+            borders:
+            - 0
+            - 0
+            - 0
+            - 0
+            color:
+            - 0.02
+            - 0.06
+            - 0.09
+            enabled: true
+            region:
+            - 0
+            - 0
+            - 0
+            - 0
+            texture: null
+            tiling: none
+      id: c29504c3-4c5f-5276-9633-616c84239e0a
+      name: DungeonShopWidget
+      overrides:
+      - title
+      - summary
+      - body
+      - status
+      - footer
+      properties:
+        body: 9c741e0f-ca91-5c46-9701-31cc8231387d
+        footer: f4e7267e-6bb5-5585-975f-f0b98925ad95
+        status: 22a22f6e-458d-5ff3-8bfb-b36a8c626432
+        summary: 1071672f-43aa-52b6-8182-914a7934c811
+        title: 7f3e6945-405b-559b-905a-77d92904899b
+    parent: null
+  - entity:
+      active: true
+      attach:
+        actor: c29504c3-4c5f-5276-9633-616c84239e0a
+      class:
+        class_id: b09bd2fa-8b09-4c0f-a33a-c3ca08b21d8f
+        name: epok::UIActor
+      components:
+      - class:
+          class_id: dc805165-6c65-48dc-8ff8-4a638a5d21df
+          name: epok::RectTransformComponent
+        default_id: cpp:c:@N@epok@S@UIActor@FI@root
+        id: 25e01e82-9971-584a-8e1e-75d43dbed726
+        inherited: true
+        name: rect/title
+        overrides:
+        - rect
+        properties:
+          rect:
+            anchor_max:
+            - 0
+            - 1
+            anchor_min:
+            - 0
+            - 1
+            pivot:
+            - 0
+            - 1
+            position:
+            - 12
+            - -12
+            rotation: 0
+            size:
+            - 266
+            - 12
+        root: true
+      - class:
+          class_id: fd7f11d1-7ccf-40e8-a7ea-56d89deb3f34
+          name: epok::TextComponent
+        id: 7f3e6945-405b-559b-905a-77d92904899b
+        name: title
+        overrides:
+        - text
+        properties:
+          text:
+            align: left
+            color:
+            - 0.45098039215686275
+            - 1
+            - 0.8313725490196079
+            enabled: true
+            font: 48ebb451-2bda-423f-8957-2cda25eae5d3
+            text: ASTEROID EXCHANGE
+            wrap: false
+      id: 2ed47722-bd16-52a4-ad2c-b50b7630710e
+      logical_parent: c29504c3-4c5f-5276-9633-616c84239e0a
+      name: title
+      overrides: []
+      properties: {}
+    parent: c29504c3-4c5f-5276-9633-616c84239e0a
+  - entity:
+      active: true
+      attach:
+        actor: c29504c3-4c5f-5276-9633-616c84239e0a
+      class:
+        class_id: b09bd2fa-8b09-4c0f-a33a-c3ca08b21d8f
+        name: epok::UIActor
+      components:
+      - class:
+          class_id: dc805165-6c65-48dc-8ff8-4a638a5d21df
+          name: epok::RectTransformComponent
+        default_id: cpp:c:@N@epok@S@UIActor@FI@root
+        id: 135a8581-3643-563f-96b1-84f937a24c14
+        inherited: true
+        name: rect/summary
+        overrides:
+        - rect
+        properties:
+          rect:
+            anchor_max:
+            - 0
+            - 1
+            anchor_min:
+            - 0
+            - 1
+            pivot:
+            - 0
+            - 1
+            position:
+            - 12
+            - -30
+            rotation: 0
+            size:
+            - 266
+            - 12
+        root: true
+      - class:
+          class_id: fd7f11d1-7ccf-40e8-a7ea-56d89deb3f34
+          name: epok::TextComponent
+        id: 1071672f-43aa-52b6-8182-914a7934c811
+        name: summary
+        overrides:
+        - text
+        properties:
+          text:
+            align: left
+            color:
+            - 1
+            - 0.788235294117647
+            - 0.38823529411764707
+            enabled: true
+            font: 48ebb451-2bda-423f-8957-2cda25eae5d3
+            text: ORE0   CREDITS0
+            wrap: false
+      id: 1a11d80c-00a1-53ba-bd8f-e2d064e47d47
+      logical_parent: c29504c3-4c5f-5276-9633-616c84239e0a
+      name: summary
+      overrides: []
+      properties: {}
+    parent: c29504c3-4c5f-5276-9633-616c84239e0a
+  - entity:
+      active: true
+      attach:
+        actor: c29504c3-4c5f-5276-9633-616c84239e0a
+      class:
+        class_id: b09bd2fa-8b09-4c0f-a33a-c3ca08b21d8f
+        name: epok::UIActor
+      components:
+      - class:
+          class_id: dc805165-6c65-48dc-8ff8-4a638a5d21df
+          name: epok::RectTransformComponent
+        default_id: cpp:c:@N@epok@S@UIActor@FI@root
+        id: cfc2231b-2031-55bd-a122-3755933771cf
+        inherited: true
+        name: rect/body
+        overrides:
+        - rect
+        properties:
+          rect:
+            anchor_max:
+            - 0
+            - 1
+            anchor_min:
+            - 0
+            - 1
+            pivot:
+            - 0
+            - 1
+            position:
+            - 12
+            - -53
+            rotation: 0
+            size:
+            - 266
+            - 100
+        root: true
+      - class:
+          class_id: fd7f11d1-7ccf-40e8-a7ea-56d89deb3f34
+          name: epok::TextComponent
+        id: 9c741e0f-ca91-5c46-9701-31cc8231387d
+        name: body
+        overrides:
+        - text
+        properties:
+          text:
+            align: left
+            color:
+            - 0.7450980392156863
+            - 0.8823529411764706
+            - 0.9215686274509803
+            enabled: true
+            font: 48ebb451-2bda-423f-8957-2cda25eae5d3
+            text: "> Sell all asteroids\n  Medkit\n  Energy tank\n  Buster\n  Load\
+              \ save"
+            wrap: false
+      id: 67a6dda7-79aa-55a7-bde8-91a7b0987dca
+      logical_parent: c29504c3-4c5f-5276-9633-616c84239e0a
+      name: body
+      overrides: []
+      properties: {}
+    parent: c29504c3-4c5f-5276-9633-616c84239e0a
+  - entity:
+      active: true
+      attach:
+        actor: c29504c3-4c5f-5276-9633-616c84239e0a
+      class:
+        class_id: b09bd2fa-8b09-4c0f-a33a-c3ca08b21d8f
+        name: epok::UIActor
+      components:
+      - class:
+          class_id: dc805165-6c65-48dc-8ff8-4a638a5d21df
+          name: epok::RectTransformComponent
+        default_id: cpp:c:@N@epok@S@UIActor@FI@root
+        id: f64dbb15-335f-53cb-bbf0-a1099e11135d
+        inherited: true
+        name: rect/status
+        overrides:
+        - rect
+        properties:
+          rect:
+            anchor_max:
+            - 0
+            - 1
+            anchor_min:
+            - 0
+            - 1
+            pivot:
+            - 0
+            - 1
+            position:
+            - 12
+            - -160
+            rotation: 0
+            size:
+            - 266
+            - 24
+        root: true
+      - class:
+          class_id: fd7f11d1-7ccf-40e8-a7ea-56d89deb3f34
+          name: epok::TextComponent
+        id: 22a22f6e-458d-5ff3-8bfb-b36a8c626432
+        name: status
+        overrides:
+        - text
+        properties:
+          text:
+            align: left
+            color:
+            - 0.7450980392156863
+            - 0.8823529411764706
+            - 0.9215686274509803
+            enabled: true
+            font: 48ebb451-2bda-423f-8957-2cda25eae5d3
+            text: Save data uses memory card slot1.
+            wrap: false
+      id: c583f428-2fdf-5ff6-8804-3c8deb140aee
+      logical_parent: c29504c3-4c5f-5276-9633-616c84239e0a
+      name: status
+      overrides: []
+      properties: {}
+    parent: c29504c3-4c5f-5276-9633-616c84239e0a
+  - entity:
+      active: true
+      attach:
+        actor: c29504c3-4c5f-5276-9633-616c84239e0a
+      class:
+        class_id: b09bd2fa-8b09-4c0f-a33a-c3ca08b21d8f
+        name: epok::UIActor
+      components:
+      - class:
+          class_id: dc805165-6c65-48dc-8ff8-4a638a5d21df
+          name: epok::RectTransformComponent
+        default_id: cpp:c:@N@epok@S@UIActor@FI@root
+        id: 5ec0dca5-bfb0-59ed-af4a-0b96ed1c6790
+        inherited: true
+        name: rect/footer
+        overrides:
+        - rect
+        properties:
+          rect:
+            anchor_max:
+            - 0
+            - 1
+            anchor_min:
+            - 0
+            - 1
+            pivot:
+            - 0
+            - 1
+            position:
+            - 12
+            - -187
+            rotation: 0
+            size:
+            - 266
+            - 12
+        root: true
+      - class:
+          class_id: fd7f11d1-7ccf-40e8-a7ea-56d89deb3f34
+          name: epok::TextComponent
+        id: f4e7267e-6bb5-5585-975f-f0b98925ad95
+        name: footer
+        overrides:
+        - text
+        properties:
+          text:
+            align: left
+            color:
+            - 0.7450980392156863
+            - 0.8823529411764706
+            - 0.9215686274509803
+            enabled: true
+            font: 48ebb451-2bda-423f-8957-2cda25eae5d3
+            text: ' X: OK   O: CLOSE'
+            wrap: false
+      id: 74380462-57cd-5d37-a8e4-1530022eeebe
+      logical_parent: c29504c3-4c5f-5276-9633-616c84239e0a
+      name: footer
+      overrides: []
+      properties: {}
+    parent: c29504c3-4c5f-5276-9633-616c84239e0a
+  construction: []
+  overrides: {}
+  references:
+  - member: 592dd3cb-8ffb-5091-acd7-38e0391f654e
+    owner: c29504c3-4c5f-5276-9633-616c84239e0a
+    target: 7f3e6945-405b-559b-905a-77d92904899b
+  - member: ae07322c-fb68-506c-a024-338c55edda4c
+    owner: c29504c3-4c5f-5276-9633-616c84239e0a
+    target: 1071672f-43aa-52b6-8182-914a7934c811
+  - member: c950c2bc-5b18-5e14-a7ba-d10610c4a928
+    owner: c29504c3-4c5f-5276-9633-616c84239e0a
+    target: 9c741e0f-ca91-5c46-9701-31cc8231387d
+  - member: fe694b08-2c6e-5b4a-b396-4fae95b84ee0
+    owner: c29504c3-4c5f-5276-9633-616c84239e0a
+    target: 22a22f6e-458d-5ff3-8bfb-b36a8c626432
+  - member: e840a9b3-99c0-5f9b-9fa5-c42f8ad5a816
+    owner: c29504c3-4c5f-5276-9633-616c84239e0a
+    target: f4e7267e-6bb5-5585-975f-f0b98925ad95
+version: 4

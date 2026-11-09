@@ -1,0 +1,2017 @@
+{
+  "basic": {
+    "cpp": {
+      "reviewed": true,
+      "review": "Reviewed selected-language ownership contract from current builders and authored sources; file ownership only, not runtime/provider/scenario acceptance.",
+      "selected_rule_files": [
+        "assets/scripts/GameRoot.hpp",
+        "assets/scripts/GameRoot.cpp"
+      ],
+      "allowed_native_files": [
+        "assets/scripts/GameRoot.hpp",
+        "assets/scripts/GameRoot.cpp"
+      ],
+      "forbidden_files": [
+        "assets/Blueprints/GameRoot.epokbp",
+        "assets/scripts/GameRoot.lua",
+        "assets/scripts/generated/*",
+        "assets/**/generated/*.cpp",
+        "assets/**/generated/*.hpp",
+        "assets/**/lua_bindings.cpp"
+      ],
+      "class_roles": {
+        "509247ae-8730-52eb-98eb-e0a2436e6827": "GameRoot",
+        "GameRoot": "GameRoot"
+      },
+      "required_asset_files": [],
+      "selected_language": "cpp",
+      "execution_mode": "native_cpp",
+      "generated_cpp_policy": "Generated C++ is permitted only under.epok staging/export build outputs; it is not editable Lua/BP source and is never an assets fallback.",
+      "current_inventory_status": "pending fresh generated project check",
+      "runtime_acceptance": "pending final18 acceptance; listing files does not certify execution",
+      "historical_reference": {
+        "receipt": "artifacts/gameplay-helpers/p7/small-starters-validation.json",
+        "receipt_sha256": "ddd42c46fc29634864eb67826ff2fc379c8a21a6f5726e6a2f6f317c0e257e4a",
+        "classification": "Historical P7 acceptance only; not current SDK/compiler/runtime acceptance.",
+        "installation": "artifacts/gameplay-helpers/p7/small-starters/basic/cpp/project/ProjectSettings/Template.epoksettings",
+        "installation_sha256": "35e69deb9000d31943bd2cb4e2efb62c02655503855d725429cba0b69ca5e744",
+        "selected_source_at_p7": {
+          "assets/scripts/GameRoot.hpp": "4ef349bd51d562a2bec93a1e14ab4ec3b942cfb79cae5c9798056c003b6e6ccc",
+          "assets/scripts/GameRoot.cpp": "3eb15ec5041111c87aad432bee2be492a3d1fb23e0e14c32728a1d12643fb691"
+        },
+        "direct_authored_source_equivalence": {
+          "assets/scripts/GameRoot.hpp": {
+            "current_source": "templates/GameRoot.hpp",
+            "current_sha256": "4ef349bd51d562a2bec93a1e14ab4ec3b942cfb79cae5c9798056c003b6e6ccc",
+            "p7_sha256": "4ef349bd51d562a2bec93a1e14ab4ec3b942cfb79cae5c9798056c003b6e6ccc",
+            "byte_identical": true,
+            "text_identical": true
+          }
+        }
+      },
+      "template_roles": {
+        "game_root": {
+          "class_id": "509247ae-8730-52eb-98eb-e0a2436e6827",
+          "name": "GameRoot"
+        }
+      }
+    },
+    "blueprint": {
+      "reviewed": true,
+      "review": "Reviewed selected-language ownership contract from current builders and authored sources; file ownership only, not runtime/provider/scenario acceptance.",
+      "selected_rule_files": [
+        "assets/Blueprints/GameRoot.epokbp"
+      ],
+      "allowed_native_files": [],
+      "forbidden_files": [
+        "assets/scripts/GameRoot.cpp",
+        "assets/scripts/GameRoot.hpp",
+        "assets/scripts/GameRoot.lua",
+        "assets/scripts/generated/*",
+        "assets/**/generated/*.cpp",
+        "assets/**/generated/*.hpp",
+        "assets/**/lua_bindings.cpp"
+      ],
+      "class_roles": {
+        "1f370e47-2a64-5667-b6e2-fc9ca588707e": "GameRoot",
+        "GameRoot": "GameRoot"
+      },
+      "required_asset_files": [],
+      "selected_language": "blueprint",
+      "execution_mode": "native_cpp",
+      "generated_cpp_policy": "Generated C++ is permitted only under.epok staging/export build outputs; it is not editable Lua/BP source and is never an assets fallback.",
+      "current_inventory_status": "pending fresh generated project check",
+      "runtime_acceptance": "pending final18 acceptance; listing files does not certify execution",
+      "historical_reference": {
+        "receipt": "artifacts/gameplay-helpers/p7/small-starters-validation.json",
+        "receipt_sha256": "ddd42c46fc29634864eb67826ff2fc379c8a21a6f5726e6a2f6f317c0e257e4a",
+        "classification": "Historical P7 acceptance only; not current SDK/compiler/runtime acceptance.",
+        "installation": "artifacts/gameplay-helpers/p7/small-starters/basic/blueprint/project/ProjectSettings/Template.epoksettings",
+        "installation_sha256": "ccd0f622ec3e4e64821c04e4dd22de90a390d2fe1b70ec9f016ceee316fdd0ec",
+        "selected_source_at_p7": {
+          "assets/Blueprints/GameRoot.epokbp": "402c4cd1e5cdb36588516cf3311de98c137b34959248252d3e824d67f7867049"
+        },
+        "direct_authored_source_equivalence": {},
+        "current_generated_asset_equivalence": "pending fresh generation; current builder reviewed, no fabricated current asset hash"
+      },
+      "template_roles": {
+        "game_root": {
+          "class_id": "1f370e47-2a64-5667-b6e2-fc9ca588707e",
+          "name": "GameRoot"
+        }
+      }
+    },
+    "lua": {
+      "reviewed": true,
+      "review": "Reviewed selected-language ownership contract from current builders and authored sources; file ownership only, not runtime/provider/scenario acceptance.",
+      "selected_rule_files": [
+        "assets/scripts/GameRoot.lua"
+      ],
+      "allowed_native_files": [],
+      "forbidden_files": [
+        "assets/Blueprints/GameRoot.epokbp",
+        "assets/scripts/GameRoot.cpp",
+        "assets/scripts/GameRoot.hpp",
+        "assets/scripts/generated/*",
+        "assets/**/generated/*.cpp",
+        "assets/**/generated/*.hpp",
+        "assets/**/lua_bindings.cpp"
+      ],
+      "class_roles": {
+        "8b1e9b3c-715c-585d-b19e-a6979963f499": "GameRoot",
+        "GameRoot": "GameRoot"
+      },
+      "required_asset_files": [],
+      "selected_language": "lua",
+      "execution_mode": "native_cpp",
+      "generated_cpp_policy": "Generated C++ is permitted only under.epok staging/export build outputs; it is not editable Lua/BP source and is never an assets fallback.",
+      "current_inventory_status": "pending fresh generated project check",
+      "runtime_acceptance": "pending final18 acceptance; listing files does not certify execution",
+      "historical_reference": {
+        "receipt": "artifacts/gameplay-helpers/p7/small-starters-validation.json",
+        "receipt_sha256": "ddd42c46fc29634864eb67826ff2fc379c8a21a6f5726e6a2f6f317c0e257e4a",
+        "classification": "Historical P7 acceptance only; not current SDK/compiler/runtime acceptance.",
+        "installation": "artifacts/gameplay-helpers/p7/small-starters/basic/lua/project/ProjectSettings/Template.epoksettings",
+        "installation_sha256": "2d2b4716f17cd0b2f4c044293e3c3a94bc3821bc0b01699ef97cda12fa56a021",
+        "selected_source_at_p7": {
+          "assets/scripts/GameRoot.lua": "19fe23b482594ca53ebebb8c1f9610eaed7c3c77b3187dc922083b34706e559a"
+        },
+        "direct_authored_source_equivalence": {
+          "assets/scripts/GameRoot.lua": {
+            "current_source": "templates/GameRoot.lua",
+            "current_sha256": "19fe23b482594ca53ebebb8c1f9610eaed7c3c77b3187dc922083b34706e559a",
+            "p7_sha256": "19fe23b482594ca53ebebb8c1f9610eaed7c3c77b3187dc922083b34706e559a",
+            "byte_identical": true,
+            "text_identical": true
+          }
+        }
+      },
+      "template_roles": {
+        "game_root": {
+          "class_id": "8b1e9b3c-715c-585d-b19e-a6979963f499",
+          "name": "GameRoot"
+        }
+      }
+    }
+  },
+  "sample": {
+    "cpp": {
+      "reviewed": true,
+      "review": "Reviewed selected-language ownership contract from current builders and authored sources; file ownership only, not runtime/provider/scenario acceptance.",
+      "selected_rule_files": [
+        "assets/scripts/Spinner.hpp",
+        "assets/scripts/Spinner.cpp"
+      ],
+      "allowed_native_files": [
+        "assets/scripts/Spinner.hpp",
+        "assets/scripts/Spinner.cpp"
+      ],
+      "forbidden_files": [
+        "assets/Blueprints/Spinner.epokbp",
+        "assets/scripts/Spinner.lua",
+        "assets/scripts/generated/*",
+        "assets/**/generated/*.cpp",
+        "assets/**/generated/*.hpp",
+        "assets/**/lua_bindings.cpp"
+      ],
+      "class_roles": {
+        "a997b0f2-b3ac-45c2-9d75-9ec11dc890af": "Spinner",
+        "Spinner": "Spinner"
+      },
+      "required_asset_files": [],
+      "selected_language": "cpp",
+      "execution_mode": "native_cpp",
+      "generated_cpp_policy": "Generated C++ is permitted only under.epok staging/export build outputs; it is not editable Lua/BP source and is never an assets fallback.",
+      "current_inventory_status": "pending fresh generated project check",
+      "runtime_acceptance": "pending final18 acceptance; listing files does not certify execution",
+      "historical_reference": {
+        "receipt": "artifacts/gameplay-helpers/p7/small-starters-validation.json",
+        "receipt_sha256": "ddd42c46fc29634864eb67826ff2fc379c8a21a6f5726e6a2f6f317c0e257e4a",
+        "classification": "Historical P7 acceptance only; not current SDK/compiler/runtime acceptance.",
+        "installation": "artifacts/gameplay-helpers/p7/small-starters/sample/cpp/project/ProjectSettings/Template.epoksettings",
+        "installation_sha256": "5ac73dc9c5941f2e585440ecc00b56bb824dacfa458a9af0895f2e97b3d0737a",
+        "selected_source_at_p7": {
+          "assets/scripts/Spinner.hpp": "17e2b8bf8a7df6c6db272b83153d3d4f75033f56b43dfaef2988b8aec80dfdb9",
+          "assets/scripts/Spinner.cpp": "98fe5f89ab148421f25510bf7c363984d14eb008d5cc7074c34e16b179d8293c"
+        },
+        "direct_authored_source_equivalence": {
+          "assets/scripts/Spinner.hpp": {
+            "current_source": "templates/Spinner.hpp",
+            "current_sha256": "17e2b8bf8a7df6c6db272b83153d3d4f75033f56b43dfaef2988b8aec80dfdb9",
+            "p7_sha256": "17e2b8bf8a7df6c6db272b83153d3d4f75033f56b43dfaef2988b8aec80dfdb9",
+            "byte_identical": true,
+            "text_identical": true
+          }
+        }
+      },
+      "template_roles": {
+        "spinner": {
+          "class_id": "a997b0f2-b3ac-45c2-9d75-9ec11dc890af",
+          "name": "Spinner"
+        }
+      }
+    },
+    "blueprint": {
+      "reviewed": true,
+      "review": "Reviewed selected-language ownership contract from current builders and authored sources; file ownership only, not runtime/provider/scenario acceptance.",
+      "selected_rule_files": [
+        "assets/Blueprints/Spinner.epokbp"
+      ],
+      "allowed_native_files": [],
+      "forbidden_files": [
+        "assets/scripts/Spinner.cpp",
+        "assets/scripts/Spinner.hpp",
+        "assets/scripts/Spinner.lua",
+        "assets/scripts/generated/*",
+        "assets/**/generated/*.cpp",
+        "assets/**/generated/*.hpp",
+        "assets/**/lua_bindings.cpp"
+      ],
+      "class_roles": {
+        "86288c8a-613d-4622-b9df-f9439c5e38ce": "Spinner",
+        "Spinner": "Spinner"
+      },
+      "required_asset_files": [],
+      "selected_language": "blueprint",
+      "execution_mode": "native_cpp",
+      "generated_cpp_policy": "Generated C++ is permitted only under.epok staging/export build outputs; it is not editable Lua/BP source and is never an assets fallback.",
+      "current_inventory_status": "pending fresh generated project check",
+      "runtime_acceptance": "pending final18 acceptance; listing files does not certify execution",
+      "historical_reference": {
+        "receipt": "artifacts/gameplay-helpers/p7/small-starters-validation.json",
+        "receipt_sha256": "ddd42c46fc29634864eb67826ff2fc379c8a21a6f5726e6a2f6f317c0e257e4a",
+        "classification": "Historical P7 acceptance only; not current SDK/compiler/runtime acceptance.",
+        "installation": "artifacts/gameplay-helpers/p7/small-starters/sample/blueprint/project/ProjectSettings/Template.epoksettings",
+        "installation_sha256": "df32577bd1d145ad14e166bc3f64b798e921d18cc04727116422c6e56af665df",
+        "selected_source_at_p7": {
+          "assets/Blueprints/Spinner.epokbp": "ccfcca916ac28d5f4cb9c29ca8d4c27ff3a97e6d16468973e6035564e7773159"
+        },
+        "direct_authored_source_equivalence": {},
+        "current_generated_asset_equivalence": "pending fresh generation; current builder reviewed, no fabricated current asset hash"
+      },
+      "template_roles": {
+        "spinner": {
+          "class_id": "86288c8a-613d-4622-b9df-f9439c5e38ce",
+          "name": "Spinner"
+        }
+      }
+    },
+    "lua": {
+      "reviewed": true,
+      "review": "Reviewed selected-language ownership contract from current builders and authored sources; file ownership only, not runtime/provider/scenario acceptance.",
+      "selected_rule_files": [
+        "assets/scripts/Spinner.lua"
+      ],
+      "allowed_native_files": [],
+      "forbidden_files": [
+        "assets/Blueprints/Spinner.epokbp",
+        "assets/scripts/Spinner.cpp",
+        "assets/scripts/Spinner.hpp",
+        "assets/scripts/generated/*",
+        "assets/**/generated/*.cpp",
+        "assets/**/generated/*.hpp",
+        "assets/**/lua_bindings.cpp"
+      ],
+      "class_roles": {
+        "8731799c-5390-4ab4-9773-cd6b9ac06c15": "Spinner",
+        "Spinner": "Spinner"
+      },
+      "required_asset_files": [],
+      "selected_language": "lua",
+      "execution_mode": "native_cpp",
+      "generated_cpp_policy": "Generated C++ is permitted only under.epok staging/export build outputs; it is not editable Lua/BP source and is never an assets fallback.",
+      "current_inventory_status": "pending fresh generated project check",
+      "runtime_acceptance": "pending final18 acceptance; listing files does not certify execution",
+      "historical_reference": {
+        "receipt": "artifacts/gameplay-helpers/p7/small-starters-validation.json",
+        "receipt_sha256": "ddd42c46fc29634864eb67826ff2fc379c8a21a6f5726e6a2f6f317c0e257e4a",
+        "classification": "Historical P7 acceptance only; not current SDK/compiler/runtime acceptance.",
+        "installation": "artifacts/gameplay-helpers/p7/small-starters/sample/lua/project/ProjectSettings/Template.epoksettings",
+        "installation_sha256": "c8e212f56076a426796762074d34b3fe4cb437ea943aff0a71faa4632572df71",
+        "selected_source_at_p7": {
+          "assets/scripts/Spinner.lua": "1f8d942f25964a99ed90c8fb7579b9be30f52a466d4abdb2d38f7bc142906b23"
+        },
+        "direct_authored_source_equivalence": {
+          "assets/scripts/Spinner.lua": {
+            "current_source": "templates/Spinner.lua",
+            "current_sha256": "1f8d942f25964a99ed90c8fb7579b9be30f52a466d4abdb2d38f7bc142906b23",
+            "p7_sha256": "1f8d942f25964a99ed90c8fb7579b9be30f52a466d4abdb2d38f7bc142906b23",
+            "byte_identical": true,
+            "text_identical": true
+          }
+        }
+      },
+      "template_roles": {
+        "spinner": {
+          "class_id": "8731799c-5390-4ab4-9773-cd6b9ac06c15",
+          "name": "Spinner"
+        }
+      }
+    }
+  },
+  "third-person": {
+    "cpp": {
+      "reviewed": true,
+      "review": "Reviewed selected-language ownership contract from current builders and authored sources; file ownership only, not runtime/provider/scenario acceptance.",
+      "selected_rule_files": [
+        "assets/scripts/ThirdPersonController.hpp",
+        "assets/scripts/ThirdPersonController.cpp"
+      ],
+      "allowed_native_files": [
+        "assets/scripts/ThirdPersonController.hpp",
+        "assets/scripts/ThirdPersonController.cpp"
+      ],
+      "forbidden_files": [
+        "assets/Blueprints/ThirdPersonController.epokbp",
+        "assets/scripts/ThirdPersonController.lua",
+        "assets/scripts/generated/*",
+        "assets/**/generated/*.cpp",
+        "assets/**/generated/*.hpp",
+        "assets/**/lua_bindings.cpp",
+        "assets/scripts/CharacterMotion.hpp",
+        "assets/scripts/CharacterClips.hpp"
+      ],
+      "class_roles": {
+        "d43dbec0-82ca-5088-8b34-b7380fd4e1d4": "epok::ThirdPersonCamera",
+        "epok::ThirdPersonCamera": "epok::ThirdPersonCamera",
+        "ad1162b7-8041-5495-8558-991f319cc5c8": "epok::CameraOrbitInputComponent",
+        "epok::CameraOrbitInputComponent": "epok::CameraOrbitInputComponent",
+        "9233f481-d27e-4765-a2d3-4dcfcb0cc910": "ThirdPersonController",
+        "ThirdPersonController": "ThirdPersonController",
+        "af114d97-d97c-5aca-8c0e-c0bf179273d8": "epok::SkeletalLocomotionComponent",
+        "epok::SkeletalLocomotionComponent": "epok::SkeletalLocomotionComponent",
+        "a9264178-1960-5ec3-8407-2ef64bbdd9dd": "epok::Character3D",
+        "epok::Character3D": "epok::Character3D"
+      },
+      "required_asset_files": [],
+      "selected_language": "cpp",
+      "execution_mode": "native_cpp",
+      "generated_cpp_policy": "Generated C++ is permitted only under.epok staging/export build outputs; it is not editable Lua/BP source and is never an assets fallback.",
+      "current_inventory_status": "pending fresh generated project check",
+      "runtime_acceptance": "pending final18 acceptance; listing files does not certify execution",
+      "historical_reference": {
+        "receipt": "artifacts/gameplay-helpers/p7/player-routes-validation.json",
+        "receipt_sha256": "ad0ddda42e444e8e6035a4bb1ae5dc8a4a44cb2da1daf1e7490c7bead6700c7d",
+        "classification": "Historical P7 acceptance only; not current SDK/compiler/runtime acceptance.",
+        "installation": "artifacts/gameplay-helpers/p7/player-routes/composition/third-person-cpp/ProjectSettings/Template.epoksettings",
+        "installation_sha256": "30de6b11f7033161f87346a70eb247ad3cb0be8aae8b8591015921b7562e9b3e",
+        "selected_source_at_p7": {
+          "assets/scripts/ThirdPersonController.hpp": "efbf8fafc9a72930d724dcd998c0e35b4017f65ac3f67df4d0fa0781b0681ee7",
+          "assets/scripts/ThirdPersonController.cpp": "8edc5bc6701e73c84eefb53410ed4e204b0c777efcbbe6aa1dc43c897c80cf6e"
+        },
+        "direct_authored_source_equivalence": {
+          "assets/scripts/ThirdPersonController.hpp": {
+            "current_source": "templates/ThirdPersonInput.hpp",
+            "current_sha256": "efbf8fafc9a72930d724dcd998c0e35b4017f65ac3f67df4d0fa0781b0681ee7",
+            "p7_sha256": "efbf8fafc9a72930d724dcd998c0e35b4017f65ac3f67df4d0fa0781b0681ee7",
+            "byte_identical": true,
+            "text_identical": true
+          },
+          "assets/scripts/ThirdPersonController.cpp": {
+            "current_source": "templates/ThirdPersonInput.cpp",
+            "current_sha256": "8edc5bc6701e73c84eefb53410ed4e204b0c777efcbbe6aa1dc43c897c80cf6e",
+            "p7_sha256": "8edc5bc6701e73c84eefb53410ed4e204b0c777efcbbe6aa1dc43c897c80cf6e",
+            "byte_identical": true,
+            "text_identical": true
+          }
+        }
+      },
+      "template_roles": {
+        "camera": {
+          "class_id": "d43dbec0-82ca-5088-8b34-b7380fd4e1d4",
+          "name": "epok::ThirdPersonCamera"
+        },
+        "camera_input": {
+          "class_id": "ad1162b7-8041-5495-8558-991f319cc5c8",
+          "name": "epok::CameraOrbitInputComponent"
+        },
+        "controller": {
+          "class_id": "9233f481-d27e-4765-a2d3-4dcfcb0cc910",
+          "name": "ThirdPersonController"
+        },
+        "locomotion": {
+          "class_id": "af114d97-d97c-5aca-8c0e-c0bf179273d8",
+          "name": "epok::SkeletalLocomotionComponent"
+        },
+        "player": {
+          "class_id": "a9264178-1960-5ec3-8407-2ef64bbdd9dd",
+          "name": "epok::Character3D"
+        }
+      }
+    },
+    "blueprint": {
+      "reviewed": true,
+      "review": "Reviewed selected-language ownership contract from current builders and authored sources; file ownership only, not runtime/provider/scenario acceptance.",
+      "selected_rule_files": [
+        "assets/Blueprints/ThirdPersonController.epokbp"
+      ],
+      "allowed_native_files": [],
+      "forbidden_files": [
+        "assets/scripts/ThirdPersonController.cpp",
+        "assets/scripts/ThirdPersonController.hpp",
+        "assets/scripts/ThirdPersonController.lua",
+        "assets/scripts/generated/*",
+        "assets/**/generated/*.cpp",
+        "assets/**/generated/*.hpp",
+        "assets/**/lua_bindings.cpp",
+        "assets/scripts/CharacterMotion.hpp",
+        "assets/scripts/CharacterClips.hpp"
+      ],
+      "class_roles": {
+        "d43dbec0-82ca-5088-8b34-b7380fd4e1d4": "epok::ThirdPersonCamera",
+        "epok::ThirdPersonCamera": "epok::ThirdPersonCamera",
+        "ad1162b7-8041-5495-8558-991f319cc5c8": "epok::CameraOrbitInputComponent",
+        "epok::CameraOrbitInputComponent": "epok::CameraOrbitInputComponent",
+        "a12673b4-b8e9-476d-8a49-bc50d69f5737": "ThirdPersonController",
+        "ThirdPersonController": "ThirdPersonController",
+        "af114d97-d97c-5aca-8c0e-c0bf179273d8": "epok::SkeletalLocomotionComponent",
+        "epok::SkeletalLocomotionComponent": "epok::SkeletalLocomotionComponent",
+        "a9264178-1960-5ec3-8407-2ef64bbdd9dd": "epok::Character3D",
+        "epok::Character3D": "epok::Character3D"
+      },
+      "required_asset_files": [],
+      "selected_language": "blueprint",
+      "execution_mode": "native_cpp",
+      "generated_cpp_policy": "Generated C++ is permitted only under.epok staging/export build outputs; it is not editable Lua/BP source and is never an assets fallback.",
+      "current_inventory_status": "pending fresh generated project check",
+      "runtime_acceptance": "pending final18 acceptance; listing files does not certify execution",
+      "historical_reference": {
+        "receipt": "artifacts/gameplay-helpers/p7/player-routes-validation.json",
+        "receipt_sha256": "ad0ddda42e444e8e6035a4bb1ae5dc8a4a44cb2da1daf1e7490c7bead6700c7d",
+        "classification": "Historical P7 acceptance only; not current SDK/compiler/runtime acceptance.",
+        "installation": "artifacts/gameplay-helpers/p7/player-routes/composition/third-person-blueprint/ProjectSettings/Template.epoksettings",
+        "installation_sha256": "6bd99908153f7c246af175ed565f6d7dace9a7a60541a451fe9f4089075213af",
+        "selected_source_at_p7": {
+          "assets/Blueprints/ThirdPersonController.epokbp": "3b0a71f0ed00ac6f9e126fa31416eef164a3f1a85b4e9d620e1e827cbab31cec"
+        },
+        "direct_authored_source_equivalence": {},
+        "current_generated_asset_equivalence": "pending fresh generation; current builder reviewed, no fabricated current asset hash"
+      },
+      "template_roles": {
+        "camera": {
+          "class_id": "d43dbec0-82ca-5088-8b34-b7380fd4e1d4",
+          "name": "epok::ThirdPersonCamera"
+        },
+        "camera_input": {
+          "class_id": "ad1162b7-8041-5495-8558-991f319cc5c8",
+          "name": "epok::CameraOrbitInputComponent"
+        },
+        "controller": {
+          "class_id": "a12673b4-b8e9-476d-8a49-bc50d69f5737",
+          "name": "ThirdPersonController"
+        },
+        "locomotion": {
+          "class_id": "af114d97-d97c-5aca-8c0e-c0bf179273d8",
+          "name": "epok::SkeletalLocomotionComponent"
+        },
+        "player": {
+          "class_id": "a9264178-1960-5ec3-8407-2ef64bbdd9dd",
+          "name": "epok::Character3D"
+        }
+      }
+    },
+    "lua": {
+      "reviewed": true,
+      "review": "Reviewed selected-language ownership contract from current builders and authored sources; file ownership only, not runtime/provider/scenario acceptance.",
+      "selected_rule_files": [
+        "assets/scripts/ThirdPersonController.lua"
+      ],
+      "allowed_native_files": [],
+      "forbidden_files": [
+        "assets/Blueprints/ThirdPersonController.epokbp",
+        "assets/scripts/ThirdPersonController.cpp",
+        "assets/scripts/ThirdPersonController.hpp",
+        "assets/scripts/generated/*",
+        "assets/**/generated/*.cpp",
+        "assets/**/generated/*.hpp",
+        "assets/**/lua_bindings.cpp",
+        "assets/scripts/CharacterMotion.hpp",
+        "assets/scripts/CharacterClips.hpp"
+      ],
+      "class_roles": {
+        "d43dbec0-82ca-5088-8b34-b7380fd4e1d4": "epok::ThirdPersonCamera",
+        "epok::ThirdPersonCamera": "epok::ThirdPersonCamera",
+        "ad1162b7-8041-5495-8558-991f319cc5c8": "epok::CameraOrbitInputComponent",
+        "epok::CameraOrbitInputComponent": "epok::CameraOrbitInputComponent",
+        "5d5b3e5e-604d-4b2a-bd1d-313ce3bd2598": "ThirdPersonController",
+        "ThirdPersonController": "ThirdPersonController",
+        "af114d97-d97c-5aca-8c0e-c0bf179273d8": "epok::SkeletalLocomotionComponent",
+        "epok::SkeletalLocomotionComponent": "epok::SkeletalLocomotionComponent",
+        "a9264178-1960-5ec3-8407-2ef64bbdd9dd": "epok::Character3D",
+        "epok::Character3D": "epok::Character3D"
+      },
+      "required_asset_files": [],
+      "selected_language": "lua",
+      "execution_mode": "native_cpp",
+      "generated_cpp_policy": "Generated C++ is permitted only under.epok staging/export build outputs; it is not editable Lua/BP source and is never an assets fallback.",
+      "current_inventory_status": "pending fresh generated project check",
+      "runtime_acceptance": "pending final18 acceptance; listing files does not certify execution",
+      "historical_reference": {
+        "receipt": "artifacts/gameplay-helpers/p7/player-routes-validation.json",
+        "receipt_sha256": "ad0ddda42e444e8e6035a4bb1ae5dc8a4a44cb2da1daf1e7490c7bead6700c7d",
+        "classification": "Historical P7 acceptance only; not current SDK/compiler/runtime acceptance.",
+        "installation": "artifacts/gameplay-helpers/p7/player-routes/composition/third-person-lua/ProjectSettings/Template.epoksettings",
+        "installation_sha256": "83f441ecb96962fc9f21346205de80ff4f900c9a3675655e2ed65db4d7c4d1af",
+        "selected_source_at_p7": {
+          "assets/scripts/ThirdPersonController.lua": "65a56bfcb0a656e5669252e69f926c73237917df420f940fe138c20d3c981d93"
+        },
+        "direct_authored_source_equivalence": {
+          "assets/scripts/ThirdPersonController.lua": {
+            "current_source": "templates/ThirdPersonInput.lua",
+            "current_sha256": "65a56bfcb0a656e5669252e69f926c73237917df420f940fe138c20d3c981d93",
+            "p7_sha256": "65a56bfcb0a656e5669252e69f926c73237917df420f940fe138c20d3c981d93",
+            "byte_identical": true,
+            "text_identical": true
+          }
+        }
+      },
+      "template_roles": {
+        "camera": {
+          "class_id": "d43dbec0-82ca-5088-8b34-b7380fd4e1d4",
+          "name": "epok::ThirdPersonCamera"
+        },
+        "camera_input": {
+          "class_id": "ad1162b7-8041-5495-8558-991f319cc5c8",
+          "name": "epok::CameraOrbitInputComponent"
+        },
+        "controller": {
+          "class_id": "5d5b3e5e-604d-4b2a-bd1d-313ce3bd2598",
+          "name": "ThirdPersonController"
+        },
+        "locomotion": {
+          "class_id": "af114d97-d97c-5aca-8c0e-c0bf179273d8",
+          "name": "epok::SkeletalLocomotionComponent"
+        },
+        "player": {
+          "class_id": "a9264178-1960-5ec3-8407-2ef64bbdd9dd",
+          "name": "epok::Character3D"
+        }
+      }
+    }
+  },
+  "platformer-2d": {
+    "cpp": {
+      "reviewed": true,
+      "review": "Reviewed selected-language ownership contract from current builders and authored sources; file ownership only, not runtime/provider/scenario acceptance.",
+      "selected_rule_files": [
+        "assets/scripts/PlatformerController.hpp",
+        "assets/scripts/PlatformerController.cpp",
+        "assets/scripts/CoinPickup.hpp",
+        "assets/scripts/CoinPickup.cpp"
+      ],
+      "allowed_native_files": [
+        "assets/scripts/PlatformerController.hpp",
+        "assets/scripts/PlatformerController.cpp",
+        "assets/scripts/CoinPickup.hpp",
+        "assets/scripts/CoinPickup.cpp"
+      ],
+      "forbidden_files": [
+        "assets/Blueprints/CoinPickup.epokbp",
+        "assets/Blueprints/PlatformerController.epokbp",
+        "assets/scripts/CoinPickup.lua",
+        "assets/scripts/PlatformerController.lua",
+        "assets/scripts/generated/*",
+        "assets/**/generated/*.cpp",
+        "assets/**/generated/*.hpp",
+        "assets/**/lua_bindings.cpp"
+      ],
+      "class_roles": {
+        "7245e90e-d900-4976-b738-0f95caa1d15d": "epok::Camera2DComponent",
+        "epok::Camera2DComponent": "epok::Camera2DComponent",
+        "ca7559df-c335-44a1-ae8c-5268c5b68ace": "PlatformerController",
+        "PlatformerController": "PlatformerController",
+        "a55c1719-65fb-52f1-addf-7b397da706fd": "epok::SpriteLocomotion2DComponent",
+        "epok::SpriteLocomotion2DComponent": "epok::SpriteLocomotion2DComponent",
+        "6755cf22-df21-4f8f-81b5-21c85f6872fa": "CoinPickup",
+        "CoinPickup": "CoinPickup",
+        "059ce53e-b93c-5f7c-9446-af075cf9898b": "epok::Character2D",
+        "epok::Character2D": "epok::Character2D"
+      },
+      "required_asset_files": [],
+      "selected_language": "cpp",
+      "execution_mode": "native_cpp",
+      "generated_cpp_policy": "Generated C++ is permitted only under.epok staging/export build outputs; it is not editable Lua/BP source and is never an assets fallback.",
+      "current_inventory_status": "pending fresh generated project check",
+      "runtime_acceptance": "pending final18 acceptance; listing files does not certify execution",
+      "historical_reference": {
+        "receipt": "artifacts/gameplay-helpers/p7/platformer-validation.json",
+        "receipt_sha256": "93265f2b79305ddaf72b5a82fe5ba8887adf7e0d575fc182c6f5ce7d70e53d22",
+        "classification": "Historical P7 acceptance only; not current SDK/compiler/runtime acceptance.",
+        "installation": "artifacts/gameplay-helpers/p7/platformer-heap-plan/composition/cpp/ProjectSettings/Template.epoksettings",
+        "installation_sha256": "a0212bdf2c5acc3936d2084e0834a04c4a98d5006c06b5fc51717382591db6bc",
+        "selected_source_at_p7": {
+          "assets/scripts/PlatformerController.hpp": "00974b490675db42a26d4919ad817c6711ba46420fa206da9bbdd97a7c5d5b9a",
+          "assets/scripts/PlatformerController.cpp": "6e065272fb3066c69b790f2ffa39ca90d23c26d326d62a5ea7a0289e2be49e7d",
+          "assets/scripts/CoinPickup.hpp": "1a5d369df87fba7879a838a11b19802ec7f8e1d2f00a007db65df61f94815cb2",
+          "assets/scripts/CoinPickup.cpp": "6a27acfde3d7e4e646f76629b0f41140152a03275ec99f1b8b70ef5466b050a9"
+        },
+        "direct_authored_source_equivalence": {
+          "assets/scripts/PlatformerController.hpp": {
+            "current_source": "templates/PlatformerController.hpp",
+            "current_sha256": "00974b490675db42a26d4919ad817c6711ba46420fa206da9bbdd97a7c5d5b9a",
+            "p7_sha256": "00974b490675db42a26d4919ad817c6711ba46420fa206da9bbdd97a7c5d5b9a",
+            "byte_identical": true,
+            "text_identical": true
+          },
+          "assets/scripts/PlatformerController.cpp": {
+            "current_source": "templates/PlatformerController.cpp",
+            "current_sha256": "6e065272fb3066c69b790f2ffa39ca90d23c26d326d62a5ea7a0289e2be49e7d",
+            "p7_sha256": "6e065272fb3066c69b790f2ffa39ca90d23c26d326d62a5ea7a0289e2be49e7d",
+            "byte_identical": true,
+            "text_identical": true
+          },
+          "assets/scripts/CoinPickup.hpp": {
+            "current_source": "templates/CoinPickup.hpp",
+            "current_sha256": "1a5d369df87fba7879a838a11b19802ec7f8e1d2f00a007db65df61f94815cb2",
+            "p7_sha256": "1a5d369df87fba7879a838a11b19802ec7f8e1d2f00a007db65df61f94815cb2",
+            "byte_identical": true,
+            "text_identical": true
+          },
+          "assets/scripts/CoinPickup.cpp": {
+            "current_source": "templates/CoinPickup.cpp",
+            "current_sha256": "6a27acfde3d7e4e646f76629b0f41140152a03275ec99f1b8b70ef5466b050a9",
+            "p7_sha256": "6a27acfde3d7e4e646f76629b0f41140152a03275ec99f1b8b70ef5466b050a9",
+            "byte_identical": true,
+            "text_identical": true
+          }
+        }
+      },
+      "template_roles": {
+        "camera": {
+          "class_id": "7245e90e-d900-4976-b738-0f95caa1d15d",
+          "name": "epok::Camera2DComponent"
+        },
+        "controller": {
+          "class_id": "ca7559df-c335-44a1-ae8c-5268c5b68ace",
+          "name": "PlatformerController"
+        },
+        "locomotion": {
+          "class_id": "a55c1719-65fb-52f1-addf-7b397da706fd",
+          "name": "epok::SpriteLocomotion2DComponent"
+        },
+        "pickup": {
+          "class_id": "6755cf22-df21-4f8f-81b5-21c85f6872fa",
+          "name": "CoinPickup"
+        },
+        "player": {
+          "class_id": "059ce53e-b93c-5f7c-9446-af075cf9898b",
+          "name": "epok::Character2D"
+        }
+      }
+    },
+    "blueprint": {
+      "reviewed": true,
+      "review": "Reviewed selected-language ownership contract from current builders and authored sources; file ownership only, not runtime/provider/scenario acceptance.",
+      "selected_rule_files": [
+        "assets/Blueprints/PlatformerController.epokbp",
+        "assets/Blueprints/CoinPickup.epokbp"
+      ],
+      "allowed_native_files": [],
+      "forbidden_files": [
+        "assets/scripts/CoinPickup.cpp",
+        "assets/scripts/CoinPickup.hpp",
+        "assets/scripts/CoinPickup.lua",
+        "assets/scripts/PlatformerController.cpp",
+        "assets/scripts/PlatformerController.hpp",
+        "assets/scripts/PlatformerController.lua",
+        "assets/scripts/generated/*",
+        "assets/**/generated/*.cpp",
+        "assets/**/generated/*.hpp",
+        "assets/**/lua_bindings.cpp"
+      ],
+      "class_roles": {
+        "7245e90e-d900-4976-b738-0f95caa1d15d": "epok::Camera2DComponent",
+        "epok::Camera2DComponent": "epok::Camera2DComponent",
+        "31feac4e-5004-460b-9de6-2648b95604d5": "PlatformerController",
+        "PlatformerController": "PlatformerController",
+        "a55c1719-65fb-52f1-addf-7b397da706fd": "epok::SpriteLocomotion2DComponent",
+        "epok::SpriteLocomotion2DComponent": "epok::SpriteLocomotion2DComponent",
+        "7d16f1c2-90f8-48db-88c4-de1f48183edf": "CoinPickup",
+        "CoinPickup": "CoinPickup",
+        "059ce53e-b93c-5f7c-9446-af075cf9898b": "epok::Character2D",
+        "epok::Character2D": "epok::Character2D"
+      },
+      "required_asset_files": [],
+      "selected_language": "blueprint",
+      "execution_mode": "native_cpp",
+      "generated_cpp_policy": "Generated C++ is permitted only under.epok staging/export build outputs; it is not editable Lua/BP source and is never an assets fallback.",
+      "current_inventory_status": "pending fresh generated project check",
+      "runtime_acceptance": "pending final18 acceptance; listing files does not certify execution",
+      "historical_reference": {
+        "receipt": "artifacts/gameplay-helpers/p7/platformer-validation.json",
+        "receipt_sha256": "93265f2b79305ddaf72b5a82fe5ba8887adf7e0d575fc182c6f5ce7d70e53d22",
+        "classification": "Historical P7 acceptance only; not current SDK/compiler/runtime acceptance.",
+        "installation": "artifacts/gameplay-helpers/p7/platformer-heap-plan/composition/blueprint/ProjectSettings/Template.epoksettings",
+        "installation_sha256": "1dfa6dbab91ccf02bc8e3b9364e1846164c5fc48dfc8e7e99bdb31911f125ba3",
+        "selected_source_at_p7": {
+          "assets/Blueprints/PlatformerController.epokbp": "f38f9230cd52f115adda5363430ba220346bdd0bab837f56e849c4a2640b38f5",
+          "assets/Blueprints/CoinPickup.epokbp": "72b0a742fcddc9e7c44cd65dcb751d27b627e37a0fad4f2e96e9fadc0e25740f"
+        },
+        "direct_authored_source_equivalence": {},
+        "current_generated_asset_equivalence": "pending fresh generation; current builder reviewed, no fabricated current asset hash"
+      },
+      "template_roles": {
+        "camera": {
+          "class_id": "7245e90e-d900-4976-b738-0f95caa1d15d",
+          "name": "epok::Camera2DComponent"
+        },
+        "controller": {
+          "class_id": "31feac4e-5004-460b-9de6-2648b95604d5",
+          "name": "PlatformerController"
+        },
+        "locomotion": {
+          "class_id": "a55c1719-65fb-52f1-addf-7b397da706fd",
+          "name": "epok::SpriteLocomotion2DComponent"
+        },
+        "pickup": {
+          "class_id": "7d16f1c2-90f8-48db-88c4-de1f48183edf",
+          "name": "CoinPickup"
+        },
+        "player": {
+          "class_id": "059ce53e-b93c-5f7c-9446-af075cf9898b",
+          "name": "epok::Character2D"
+        }
+      }
+    },
+    "lua": {
+      "reviewed": true,
+      "review": "Reviewed selected-language ownership contract from current builders and authored sources; file ownership only, not runtime/provider/scenario acceptance.",
+      "selected_rule_files": [
+        "assets/scripts/PlatformerController.lua",
+        "assets/scripts/CoinPickup.lua"
+      ],
+      "allowed_native_files": [],
+      "forbidden_files": [
+        "assets/Blueprints/CoinPickup.epokbp",
+        "assets/Blueprints/PlatformerController.epokbp",
+        "assets/scripts/CoinPickup.cpp",
+        "assets/scripts/CoinPickup.hpp",
+        "assets/scripts/PlatformerController.cpp",
+        "assets/scripts/PlatformerController.hpp",
+        "assets/scripts/generated/*",
+        "assets/**/generated/*.cpp",
+        "assets/**/generated/*.hpp",
+        "assets/**/lua_bindings.cpp"
+      ],
+      "class_roles": {
+        "7245e90e-d900-4976-b738-0f95caa1d15d": "epok::Camera2DComponent",
+        "epok::Camera2DComponent": "epok::Camera2DComponent",
+        "4919923d-00cf-47ed-bcb8-393562762177": "PlatformerController",
+        "PlatformerController": "PlatformerController",
+        "a55c1719-65fb-52f1-addf-7b397da706fd": "epok::SpriteLocomotion2DComponent",
+        "epok::SpriteLocomotion2DComponent": "epok::SpriteLocomotion2DComponent",
+        "39caab97-d716-49fc-8029-a1fb3caf7380": "CoinPickup",
+        "CoinPickup": "CoinPickup",
+        "059ce53e-b93c-5f7c-9446-af075cf9898b": "epok::Character2D",
+        "epok::Character2D": "epok::Character2D"
+      },
+      "required_asset_files": [],
+      "selected_language": "lua",
+      "execution_mode": "native_cpp",
+      "generated_cpp_policy": "Generated C++ is permitted only under.epok staging/export build outputs; it is not editable Lua/BP source and is never an assets fallback.",
+      "current_inventory_status": "pending fresh generated project check",
+      "runtime_acceptance": "pending final18 acceptance; listing files does not certify execution",
+      "historical_reference": {
+        "receipt": "artifacts/gameplay-helpers/p7/platformer-validation.json",
+        "receipt_sha256": "93265f2b79305ddaf72b5a82fe5ba8887adf7e0d575fc182c6f5ce7d70e53d22",
+        "classification": "Historical P7 acceptance only; not current SDK/compiler/runtime acceptance.",
+        "installation": "artifacts/gameplay-helpers/p7/platformer-heap-plan/composition/lua/ProjectSettings/Template.epoksettings",
+        "installation_sha256": "282c2d4104acf9c6b97358a15b4d3a94b489d53f1d634acebd6ddff797404c18",
+        "selected_source_at_p7": {
+          "assets/scripts/PlatformerController.lua": "dae545120582f50c65702e23db635b9682ee91802579eaf2c125e950dcf6a742",
+          "assets/scripts/CoinPickup.lua": "928d0b7867302fa79ded39f921daab24c9f2f8ddabfe691096ba46dcc51d1978"
+        },
+        "direct_authored_source_equivalence": {
+          "assets/scripts/PlatformerController.lua": {
+            "current_source": "templates/PlatformerController.lua",
+            "current_sha256": "dae545120582f50c65702e23db635b9682ee91802579eaf2c125e950dcf6a742",
+            "p7_sha256": "dae545120582f50c65702e23db635b9682ee91802579eaf2c125e950dcf6a742",
+            "byte_identical": true,
+            "text_identical": true
+          },
+          "assets/scripts/CoinPickup.lua": {
+            "current_source": "templates/CoinPickup.lua",
+            "current_sha256": "928d0b7867302fa79ded39f921daab24c9f2f8ddabfe691096ba46dcc51d1978",
+            "p7_sha256": "928d0b7867302fa79ded39f921daab24c9f2f8ddabfe691096ba46dcc51d1978",
+            "byte_identical": true,
+            "text_identical": true
+          }
+        }
+      },
+      "template_roles": {
+        "camera": {
+          "class_id": "7245e90e-d900-4976-b738-0f95caa1d15d",
+          "name": "epok::Camera2DComponent"
+        },
+        "controller": {
+          "class_id": "4919923d-00cf-47ed-bcb8-393562762177",
+          "name": "PlatformerController"
+        },
+        "locomotion": {
+          "class_id": "a55c1719-65fb-52f1-addf-7b397da706fd",
+          "name": "epok::SpriteLocomotion2DComponent"
+        },
+        "pickup": {
+          "class_id": "39caab97-d716-49fc-8029-a1fb3caf7380",
+          "name": "CoinPickup"
+        },
+        "player": {
+          "class_id": "059ce53e-b93c-5f7c-9446-af075cf9898b",
+          "name": "epok::Character2D"
+        }
+      }
+    }
+  },
+  "dungeon": {
+    "cpp": {
+      "reviewed": true,
+      "review": "Reviewed selected-language ownership contract from current builders and authored sources; file ownership only, not runtime/provider/scenario acceptance.",
+      "selected_rule_files": [
+        "assets/scripts/ThirdPersonController.hpp",
+        "assets/scripts/ThirdPersonController.cpp",
+        "assets/scripts/DungeonKey.hpp",
+        "assets/scripts/DungeonKey.cpp",
+        "assets/scripts/DungeonDoor.hpp",
+        "assets/scripts/DungeonDoor.cpp"
+      ],
+      "allowed_native_files": [
+        "assets/scripts/ThirdPersonController.hpp",
+        "assets/scripts/ThirdPersonController.cpp",
+        "assets/scripts/DungeonKey.hpp",
+        "assets/scripts/DungeonKey.cpp",
+        "assets/scripts/DungeonDoor.hpp",
+        "assets/scripts/DungeonDoor.cpp"
+      ],
+      "forbidden_files": [
+        "assets/Blueprints/DungeonDoor.epokbp",
+        "assets/Blueprints/DungeonKey.epokbp",
+        "assets/Blueprints/ThirdPersonController.epokbp",
+        "assets/scripts/DungeonDoor.lua",
+        "assets/scripts/DungeonKey.lua",
+        "assets/scripts/ThirdPersonController.lua",
+        "assets/scripts/generated/*",
+        "assets/**/generated/*.cpp",
+        "assets/**/generated/*.hpp",
+        "assets/**/lua_bindings.cpp",
+        "assets/scripts/CharacterMotion.hpp",
+        "assets/scripts/CharacterClips.hpp"
+      ],
+      "class_roles": {
+        "d43dbec0-82ca-5088-8b34-b7380fd4e1d4": "epok::ThirdPersonCamera",
+        "epok::ThirdPersonCamera": "epok::ThirdPersonCamera",
+        "ad1162b7-8041-5495-8558-991f319cc5c8": "epok::CameraOrbitInputComponent",
+        "epok::CameraOrbitInputComponent": "epok::CameraOrbitInputComponent",
+        "9233f481-d27e-4765-a2d3-4dcfcb0cc910": "ThirdPersonController",
+        "ThirdPersonController": "ThirdPersonController",
+        "d44f897a-e1f7-4330-9b1e-a5706ec4c032": "DungeonDoor",
+        "DungeonDoor": "DungeonDoor",
+        "9dcbb5be-b1da-4a00-a81c-a46a332f5d89": "DungeonKey",
+        "DungeonKey": "DungeonKey",
+        "397c4a8e-a044-59b5-ab51-a54d214f1789": "epok::GameplayFlagComponent",
+        "epok::GameplayFlagComponent": "epok::GameplayFlagComponent",
+        "af114d97-d97c-5aca-8c0e-c0bf179273d8": "epok::SkeletalLocomotionComponent",
+        "epok::SkeletalLocomotionComponent": "epok::SkeletalLocomotionComponent",
+        "a9264178-1960-5ec3-8407-2ef64bbdd9dd": "epok::Character3D",
+        "epok::Character3D": "epok::Character3D"
+      },
+      "required_asset_files": [],
+      "selected_language": "cpp",
+      "execution_mode": "native_cpp",
+      "generated_cpp_policy": "Generated C++ is permitted only under.epok staging/export build outputs; it is not editable Lua/BP source and is never an assets fallback.",
+      "current_inventory_status": "pending fresh generated project check",
+      "runtime_acceptance": "pending final18 acceptance; listing files does not certify execution",
+      "historical_reference": {
+        "receipt": "artifacts/gameplay-helpers/p7/dungeon-validation.json",
+        "receipt_sha256": "15fc07f638ea513eec9d60930ffed6a54386d37e467af3e14a0c1c226ad56cb7",
+        "classification": "Historical P7 acceptance only; not current SDK/compiler/runtime acceptance.",
+        "installation": "artifacts/gameplay-helpers/p7/dungeon-final/composition/cpp/ProjectSettings/Template.epoksettings",
+        "installation_sha256": "e709c19efd89098a2647c6bc19c942e1b69e4bd48cf4ce7bc21ce1b7dee89f98",
+        "selected_source_at_p7": {
+          "assets/scripts/ThirdPersonController.hpp": "efbf8fafc9a72930d724dcd998c0e35b4017f65ac3f67df4d0fa0781b0681ee7",
+          "assets/scripts/ThirdPersonController.cpp": "8edc5bc6701e73c84eefb53410ed4e204b0c777efcbbe6aa1dc43c897c80cf6e",
+          "assets/scripts/DungeonKey.hpp": "b7cb90dbfb4a3917c8083dea71eb53dd338ca4f2838e0e2c3c7bf9d55eaa0d2e",
+          "assets/scripts/DungeonKey.cpp": "9d2db63f4c40d9ecbe6e555a01a37c31c473e55f426e47e698ed681a74ea0b60",
+          "assets/scripts/DungeonDoor.hpp": "6ec4d1a70c2498161c4a149fd1cb57c1c5d53d66ef8257d3841818703ff7df1c",
+          "assets/scripts/DungeonDoor.cpp": "c51ecd10d5c2e4a1950d8ce8cc6bf3192a9bcd989ecd65f8c29609aed8902976"
+        },
+        "direct_authored_source_equivalence": {
+          "assets/scripts/ThirdPersonController.hpp": {
+            "current_source": "templates/ThirdPersonInput.hpp",
+            "current_sha256": "efbf8fafc9a72930d724dcd998c0e35b4017f65ac3f67df4d0fa0781b0681ee7",
+            "p7_sha256": "efbf8fafc9a72930d724dcd998c0e35b4017f65ac3f67df4d0fa0781b0681ee7",
+            "byte_identical": true,
+            "text_identical": true
+          },
+          "assets/scripts/ThirdPersonController.cpp": {
+            "current_source": "templates/ThirdPersonInput.cpp",
+            "current_sha256": "8edc5bc6701e73c84eefb53410ed4e204b0c777efcbbe6aa1dc43c897c80cf6e",
+            "p7_sha256": "8edc5bc6701e73c84eefb53410ed4e204b0c777efcbbe6aa1dc43c897c80cf6e",
+            "byte_identical": true,
+            "text_identical": true
+          },
+          "assets/scripts/DungeonKey.hpp": {
+            "current_source": "templates/DungeonKey.hpp",
+            "current_sha256": "b7cb90dbfb4a3917c8083dea71eb53dd338ca4f2838e0e2c3c7bf9d55eaa0d2e",
+            "p7_sha256": "b7cb90dbfb4a3917c8083dea71eb53dd338ca4f2838e0e2c3c7bf9d55eaa0d2e",
+            "byte_identical": true,
+            "text_identical": true
+          },
+          "assets/scripts/DungeonKey.cpp": {
+            "current_source": "templates/DungeonKey.cpp",
+            "current_sha256": "9d2db63f4c40d9ecbe6e555a01a37c31c473e55f426e47e698ed681a74ea0b60",
+            "p7_sha256": "9d2db63f4c40d9ecbe6e555a01a37c31c473e55f426e47e698ed681a74ea0b60",
+            "byte_identical": true,
+            "text_identical": true
+          },
+          "assets/scripts/DungeonDoor.hpp": {
+            "current_source": "templates/DungeonDoor.hpp",
+            "current_sha256": "6ec4d1a70c2498161c4a149fd1cb57c1c5d53d66ef8257d3841818703ff7df1c",
+            "p7_sha256": "6ec4d1a70c2498161c4a149fd1cb57c1c5d53d66ef8257d3841818703ff7df1c",
+            "byte_identical": true,
+            "text_identical": true
+          },
+          "assets/scripts/DungeonDoor.cpp": {
+            "current_source": "templates/DungeonDoor.cpp",
+            "current_sha256": "c51ecd10d5c2e4a1950d8ce8cc6bf3192a9bcd989ecd65f8c29609aed8902976",
+            "p7_sha256": "c51ecd10d5c2e4a1950d8ce8cc6bf3192a9bcd989ecd65f8c29609aed8902976",
+            "byte_identical": true,
+            "text_identical": true
+          }
+        }
+      },
+      "template_roles": {
+        "camera": {
+          "class_id": "d43dbec0-82ca-5088-8b34-b7380fd4e1d4",
+          "name": "epok::ThirdPersonCamera"
+        },
+        "camera_input": {
+          "class_id": "ad1162b7-8041-5495-8558-991f319cc5c8",
+          "name": "epok::CameraOrbitInputComponent"
+        },
+        "controller": {
+          "class_id": "9233f481-d27e-4765-a2d3-4dcfcb0cc910",
+          "name": "ThirdPersonController"
+        },
+        "door": {
+          "class_id": "d44f897a-e1f7-4330-9b1e-a5706ec4c032",
+          "name": "DungeonDoor"
+        },
+        "key": {
+          "class_id": "9dcbb5be-b1da-4a00-a81c-a46a332f5d89",
+          "name": "DungeonKey"
+        },
+        "key_state": {
+          "class_id": "397c4a8e-a044-59b5-ab51-a54d214f1789",
+          "name": "epok::GameplayFlagComponent"
+        },
+        "locomotion": {
+          "class_id": "af114d97-d97c-5aca-8c0e-c0bf179273d8",
+          "name": "epok::SkeletalLocomotionComponent"
+        },
+        "player": {
+          "class_id": "a9264178-1960-5ec3-8407-2ef64bbdd9dd",
+          "name": "epok::Character3D"
+        }
+      }
+    },
+    "blueprint": {
+      "reviewed": true,
+      "review": "Reviewed selected-language ownership contract from current builders and authored sources; file ownership only, not runtime/provider/scenario acceptance.",
+      "selected_rule_files": [
+        "assets/Blueprints/ThirdPersonController.epokbp",
+        "assets/Blueprints/DungeonKey.epokbp",
+        "assets/Blueprints/DungeonDoor.epokbp"
+      ],
+      "allowed_native_files": [],
+      "forbidden_files": [
+        "assets/scripts/DungeonDoor.cpp",
+        "assets/scripts/DungeonDoor.hpp",
+        "assets/scripts/DungeonDoor.lua",
+        "assets/scripts/DungeonKey.cpp",
+        "assets/scripts/DungeonKey.hpp",
+        "assets/scripts/DungeonKey.lua",
+        "assets/scripts/ThirdPersonController.cpp",
+        "assets/scripts/ThirdPersonController.hpp",
+        "assets/scripts/ThirdPersonController.lua",
+        "assets/scripts/generated/*",
+        "assets/**/generated/*.cpp",
+        "assets/**/generated/*.hpp",
+        "assets/**/lua_bindings.cpp",
+        "assets/scripts/CharacterMotion.hpp",
+        "assets/scripts/CharacterClips.hpp"
+      ],
+      "class_roles": {
+        "d43dbec0-82ca-5088-8b34-b7380fd4e1d4": "epok::ThirdPersonCamera",
+        "epok::ThirdPersonCamera": "epok::ThirdPersonCamera",
+        "ad1162b7-8041-5495-8558-991f319cc5c8": "epok::CameraOrbitInputComponent",
+        "epok::CameraOrbitInputComponent": "epok::CameraOrbitInputComponent",
+        "a12673b4-b8e9-476d-8a49-bc50d69f5737": "ThirdPersonController",
+        "ThirdPersonController": "ThirdPersonController",
+        "11d781e2-ff89-4a88-823a-e690ec14f761": "DungeonDoor",
+        "DungeonDoor": "DungeonDoor",
+        "f1483d7e-5a4b-4c1e-b072-ff7c3a6d96ea": "DungeonKey",
+        "DungeonKey": "DungeonKey",
+        "397c4a8e-a044-59b5-ab51-a54d214f1789": "epok::GameplayFlagComponent",
+        "epok::GameplayFlagComponent": "epok::GameplayFlagComponent",
+        "af114d97-d97c-5aca-8c0e-c0bf179273d8": "epok::SkeletalLocomotionComponent",
+        "epok::SkeletalLocomotionComponent": "epok::SkeletalLocomotionComponent",
+        "a9264178-1960-5ec3-8407-2ef64bbdd9dd": "epok::Character3D",
+        "epok::Character3D": "epok::Character3D"
+      },
+      "required_asset_files": [],
+      "selected_language": "blueprint",
+      "execution_mode": "native_cpp",
+      "generated_cpp_policy": "Generated C++ is permitted only under.epok staging/export build outputs; it is not editable Lua/BP source and is never an assets fallback.",
+      "current_inventory_status": "pending fresh generated project check",
+      "runtime_acceptance": "pending final18 acceptance; listing files does not certify execution",
+      "historical_reference": {
+        "receipt": "artifacts/gameplay-helpers/p7/dungeon-validation.json",
+        "receipt_sha256": "15fc07f638ea513eec9d60930ffed6a54386d37e467af3e14a0c1c226ad56cb7",
+        "classification": "Historical P7 acceptance only; not current SDK/compiler/runtime acceptance.",
+        "installation": "artifacts/gameplay-helpers/p7/dungeon-final/composition/blueprint/ProjectSettings/Template.epoksettings",
+        "installation_sha256": "2594d25a6a59b6be6ae715d0189ab95efa2cd7781a352b4e8ac569423a842aaf",
+        "selected_source_at_p7": {
+          "assets/Blueprints/ThirdPersonController.epokbp": "3b0a71f0ed00ac6f9e126fa31416eef164a3f1a85b4e9d620e1e827cbab31cec",
+          "assets/Blueprints/DungeonKey.epokbp": "227d3bce98c2c5ec25f4173a0fd2d7b01dfb8951fe02ba06099ac992ddb86144",
+          "assets/Blueprints/DungeonDoor.epokbp": "55a0f40bea004a521302cd3f6634df166d8141d889df1305b74d4c4757ee0aeb"
+        },
+        "direct_authored_source_equivalence": {},
+        "current_generated_asset_equivalence": "pending fresh generation; current builder reviewed, no fabricated current asset hash"
+      },
+      "template_roles": {
+        "camera": {
+          "class_id": "d43dbec0-82ca-5088-8b34-b7380fd4e1d4",
+          "name": "epok::ThirdPersonCamera"
+        },
+        "camera_input": {
+          "class_id": "ad1162b7-8041-5495-8558-991f319cc5c8",
+          "name": "epok::CameraOrbitInputComponent"
+        },
+        "controller": {
+          "class_id": "a12673b4-b8e9-476d-8a49-bc50d69f5737",
+          "name": "ThirdPersonController"
+        },
+        "door": {
+          "class_id": "11d781e2-ff89-4a88-823a-e690ec14f761",
+          "name": "DungeonDoor"
+        },
+        "key": {
+          "class_id": "f1483d7e-5a4b-4c1e-b072-ff7c3a6d96ea",
+          "name": "DungeonKey"
+        },
+        "key_state": {
+          "class_id": "397c4a8e-a044-59b5-ab51-a54d214f1789",
+          "name": "epok::GameplayFlagComponent"
+        },
+        "locomotion": {
+          "class_id": "af114d97-d97c-5aca-8c0e-c0bf179273d8",
+          "name": "epok::SkeletalLocomotionComponent"
+        },
+        "player": {
+          "class_id": "a9264178-1960-5ec3-8407-2ef64bbdd9dd",
+          "name": "epok::Character3D"
+        }
+      }
+    },
+    "lua": {
+      "reviewed": true,
+      "review": "Reviewed selected-language ownership contract from current builders and authored sources; file ownership only, not runtime/provider/scenario acceptance.",
+      "selected_rule_files": [
+        "assets/scripts/ThirdPersonController.lua",
+        "assets/scripts/DungeonKey.lua",
+        "assets/scripts/DungeonDoor.lua"
+      ],
+      "allowed_native_files": [],
+      "forbidden_files": [
+        "assets/Blueprints/DungeonDoor.epokbp",
+        "assets/Blueprints/DungeonKey.epokbp",
+        "assets/Blueprints/ThirdPersonController.epokbp",
+        "assets/scripts/DungeonDoor.cpp",
+        "assets/scripts/DungeonDoor.hpp",
+        "assets/scripts/DungeonKey.cpp",
+        "assets/scripts/DungeonKey.hpp",
+        "assets/scripts/ThirdPersonController.cpp",
+        "assets/scripts/ThirdPersonController.hpp",
+        "assets/scripts/generated/*",
+        "assets/**/generated/*.cpp",
+        "assets/**/generated/*.hpp",
+        "assets/**/lua_bindings.cpp",
+        "assets/scripts/CharacterMotion.hpp",
+        "assets/scripts/CharacterClips.hpp"
+      ],
+      "class_roles": {
+        "d43dbec0-82ca-5088-8b34-b7380fd4e1d4": "epok::ThirdPersonCamera",
+        "epok::ThirdPersonCamera": "epok::ThirdPersonCamera",
+        "ad1162b7-8041-5495-8558-991f319cc5c8": "epok::CameraOrbitInputComponent",
+        "epok::CameraOrbitInputComponent": "epok::CameraOrbitInputComponent",
+        "5d5b3e5e-604d-4b2a-bd1d-313ce3bd2598": "ThirdPersonController",
+        "ThirdPersonController": "ThirdPersonController",
+        "b8285df5-4a19-4b35-a3e3-f9f16d5ef5a5": "DungeonDoor",
+        "DungeonDoor": "DungeonDoor",
+        "da435669-bde0-4782-b6df-abca91997726": "DungeonKey",
+        "DungeonKey": "DungeonKey",
+        "397c4a8e-a044-59b5-ab51-a54d214f1789": "epok::GameplayFlagComponent",
+        "epok::GameplayFlagComponent": "epok::GameplayFlagComponent",
+        "af114d97-d97c-5aca-8c0e-c0bf179273d8": "epok::SkeletalLocomotionComponent",
+        "epok::SkeletalLocomotionComponent": "epok::SkeletalLocomotionComponent",
+        "a9264178-1960-5ec3-8407-2ef64bbdd9dd": "epok::Character3D",
+        "epok::Character3D": "epok::Character3D"
+      },
+      "required_asset_files": [],
+      "selected_language": "lua",
+      "execution_mode": "native_cpp",
+      "generated_cpp_policy": "Generated C++ is permitted only under.epok staging/export build outputs; it is not editable Lua/BP source and is never an assets fallback.",
+      "current_inventory_status": "pending fresh generated project check",
+      "runtime_acceptance": "pending final18 acceptance; listing files does not certify execution",
+      "historical_reference": {
+        "receipt": "artifacts/gameplay-helpers/p7/dungeon-validation.json",
+        "receipt_sha256": "15fc07f638ea513eec9d60930ffed6a54386d37e467af3e14a0c1c226ad56cb7",
+        "classification": "Historical P7 acceptance only; not current SDK/compiler/runtime acceptance.",
+        "installation": "artifacts/gameplay-helpers/p7/dungeon-final/composition/lua/ProjectSettings/Template.epoksettings",
+        "installation_sha256": "c744a1e8fd9ed35efd241ef5a2264649efd51fc034e41e91f8a10c4b26134c0f",
+        "selected_source_at_p7": {
+          "assets/scripts/ThirdPersonController.lua": "65a56bfcb0a656e5669252e69f926c73237917df420f940fe138c20d3c981d93",
+          "assets/scripts/DungeonKey.lua": "d69f06f71c55301d02371f44fdb9aedfb141bd3f212249983bcd7a042f161e2c",
+          "assets/scripts/DungeonDoor.lua": "c00008bd5ab8ae3369859e76369e8b08ff7cd61cc1eeec4f5cf64e499b67bcdc"
+        },
+        "direct_authored_source_equivalence": {
+          "assets/scripts/ThirdPersonController.lua": {
+            "current_source": "templates/ThirdPersonInput.lua",
+            "current_sha256": "65a56bfcb0a656e5669252e69f926c73237917df420f940fe138c20d3c981d93",
+            "p7_sha256": "65a56bfcb0a656e5669252e69f926c73237917df420f940fe138c20d3c981d93",
+            "byte_identical": true,
+            "text_identical": true
+          },
+          "assets/scripts/DungeonKey.lua": {
+            "current_source": "templates/DungeonKey.lua",
+            "current_sha256": "d69f06f71c55301d02371f44fdb9aedfb141bd3f212249983bcd7a042f161e2c",
+            "p7_sha256": "d69f06f71c55301d02371f44fdb9aedfb141bd3f212249983bcd7a042f161e2c",
+            "byte_identical": true,
+            "text_identical": true
+          },
+          "assets/scripts/DungeonDoor.lua": {
+            "current_source": "templates/DungeonDoor.lua",
+            "current_sha256": "c00008bd5ab8ae3369859e76369e8b08ff7cd61cc1eeec4f5cf64e499b67bcdc",
+            "p7_sha256": "c00008bd5ab8ae3369859e76369e8b08ff7cd61cc1eeec4f5cf64e499b67bcdc",
+            "byte_identical": true,
+            "text_identical": true
+          }
+        }
+      },
+      "template_roles": {
+        "camera": {
+          "class_id": "d43dbec0-82ca-5088-8b34-b7380fd4e1d4",
+          "name": "epok::ThirdPersonCamera"
+        },
+        "camera_input": {
+          "class_id": "ad1162b7-8041-5495-8558-991f319cc5c8",
+          "name": "epok::CameraOrbitInputComponent"
+        },
+        "controller": {
+          "class_id": "5d5b3e5e-604d-4b2a-bd1d-313ce3bd2598",
+          "name": "ThirdPersonController"
+        },
+        "door": {
+          "class_id": "b8285df5-4a19-4b35-a3e3-f9f16d5ef5a5",
+          "name": "DungeonDoor"
+        },
+        "key": {
+          "class_id": "da435669-bde0-4782-b6df-abca91997726",
+          "name": "DungeonKey"
+        },
+        "key_state": {
+          "class_id": "397c4a8e-a044-59b5-ab51-a54d214f1789",
+          "name": "epok::GameplayFlagComponent"
+        },
+        "locomotion": {
+          "class_id": "af114d97-d97c-5aca-8c0e-c0bf179273d8",
+          "name": "epok::SkeletalLocomotionComponent"
+        },
+        "player": {
+          "class_id": "a9264178-1960-5ec3-8407-2ef64bbdd9dd",
+          "name": "epok::Character3D"
+        }
+      }
+    }
+  },
+  "dungeon-complete": {
+    "cpp": {
+      "reviewed": true,
+      "review": "Reviewed selected-language ownership contract from current builders and authored sources; file ownership only, not runtime/provider/scenario acceptance.",
+      "selected_rule_files": [
+        "assets/scripts/DungeonCombat/DungeonRunFlow.hpp",
+        "assets/scripts/DungeonCombat/DungeonPlayerVitals.hpp",
+        "assets/scripts/DungeonCombat/DungeonPlayerCombat.hpp",
+        "assets/scripts/DungeonCombat/DungeonEncounter.hpp",
+        "assets/scripts/DungeonCombat/DungeonEconomyPolicy.hpp",
+        "assets/scripts/DungeonCombat/DungeonGameHUDWidget.hpp",
+        "assets/scripts/DungeonCombat/DungeonTerminalWidget.hpp",
+        "assets/scripts/DungeonCombat/DungeonShopWidget.hpp",
+        "assets/scripts/DungeonCombat/DungeonInventoryWidget.hpp",
+        "assets/scripts/DungeonCombat/DungeonEconomyStation.hpp"
+      ],
+      "allowed_native_files": [
+        "assets/scripts/DungeonCombat/CharacterClips.hpp",
+        "assets/scripts/DungeonCombat/CharacterMotion.hpp",
+        "assets/scripts/DungeonCombat/DungeonAudio.hpp",
+        "assets/scripts/DungeonCombat/DungeonCamera.hpp",
+        "assets/scripts/DungeonCombat/DungeonEconomy.cpp",
+        "assets/scripts/DungeonCombat/DungeonEconomy.hpp",
+        "assets/scripts/DungeonCombat/DungeonEconomyPolicy.hpp",
+        "assets/scripts/DungeonCombat/DungeonEconomyPolicyBase.hpp",
+        "assets/scripts/DungeonCombat/DungeonEconomyPresenterBase.hpp",
+        "assets/scripts/DungeonCombat/DungeonEconomyPresenterEndpoint.hpp",
+        "assets/scripts/DungeonCombat/DungeonEconomyStation.hpp",
+        "assets/scripts/DungeonCombat/DungeonEconomyStationBase.hpp",
+        "assets/scripts/DungeonCombat/DungeonEconomyWidgetBase.hpp",
+        "assets/scripts/DungeonCombat/DungeonEncounter.hpp",
+        "assets/scripts/DungeonCombat/DungeonEncounterBase.hpp",
+        "assets/scripts/DungeonCombat/DungeonGame.cpp",
+        "assets/scripts/DungeonCombat/DungeonGame.hpp",
+        "assets/scripts/DungeonCombat/DungeonGameHUDWidget.hpp",
+        "assets/scripts/DungeonCombat/DungeonHudAssets.hpp",
+        "assets/scripts/DungeonCombat/DungeonInventory.hpp",
+        "assets/scripts/DungeonCombat/DungeonInventoryWidget.hpp",
+        "assets/scripts/DungeonCombat/DungeonPlayerCombat.hpp",
+        "assets/scripts/DungeonCombat/DungeonPlayerCombatBase.hpp",
+        "assets/scripts/DungeonCombat/DungeonPlayerController.cpp",
+        "assets/scripts/DungeonCombat/DungeonPlayerController.hpp",
+        "assets/scripts/DungeonCombat/DungeonPlayerVitals.hpp",
+        "assets/scripts/DungeonCombat/DungeonPlayerVitalsBase.hpp",
+        "assets/scripts/DungeonCombat/DungeonProfiling.hpp",
+        "assets/scripts/DungeonCombat/DungeonRulesBinding.hpp",
+        "assets/scripts/DungeonCombat/DungeonRunFlow.hpp",
+        "assets/scripts/DungeonCombat/DungeonRunFlowBase.hpp",
+        "assets/scripts/DungeonCombat/DungeonSceneBindings.hpp",
+        "assets/scripts/DungeonCombat/DungeonShopWidget.hpp",
+        "assets/scripts/DungeonCombat/DungeonTargeting.cpp",
+        "assets/scripts/DungeonCombat/DungeonTargeting.hpp",
+        "assets/scripts/DungeonCombat/DungeonTerminalWidget.hpp"
+      ],
+      "forbidden_files": [
+        "assets/Blueprints/DungeonCombat/DungeonEconomyPolicy.epokbp",
+        "assets/Blueprints/DungeonCombat/DungeonEconomyStation.epokbp",
+        "assets/Blueprints/DungeonCombat/DungeonEncounter.epokbp",
+        "assets/Blueprints/DungeonCombat/DungeonGameHUDWidget.epokbp",
+        "assets/Blueprints/DungeonCombat/DungeonInventoryWidget.epokbp",
+        "assets/Blueprints/DungeonCombat/DungeonPlayerCombat.epokbp",
+        "assets/Blueprints/DungeonCombat/DungeonPlayerVitals.epokbp",
+        "assets/Blueprints/DungeonCombat/DungeonRunFlow.epokbp",
+        "assets/Blueprints/DungeonCombat/DungeonShopWidget.epokbp",
+        "assets/Blueprints/DungeonCombat/DungeonTerminalWidget.epokbp",
+        "assets/scripts/DungeonCombat/DungeonEconomyPolicy.lua",
+        "assets/scripts/DungeonCombat/DungeonEconomyStation.lua",
+        "assets/scripts/DungeonCombat/DungeonEncounter.lua",
+        "assets/scripts/DungeonCombat/DungeonGameHUDWidget.lua",
+        "assets/scripts/DungeonCombat/DungeonInventoryWidget.lua",
+        "assets/scripts/DungeonCombat/DungeonPlayerCombat.lua",
+        "assets/scripts/DungeonCombat/DungeonPlayerVitals.lua",
+        "assets/scripts/DungeonCombat/DungeonRunFlow.lua",
+        "assets/scripts/DungeonCombat/DungeonShopWidget.lua",
+        "assets/scripts/DungeonCombat/DungeonTerminalWidget.lua",
+        "assets/scripts/generated/*",
+        "assets/**/generated/*.cpp",
+        "assets/**/generated/*.hpp",
+        "assets/**/lua_bindings.cpp",
+        "assets/scripts/DungeonCombat/DungeonPocketLink.hpp"
+      ],
+      "class_roles": {
+        "a86b95c7-5021-5bd2-a87c-fc666a9ee174": "DungeonCamera",
+        "DungeonCamera": "DungeonCamera",
+        "78439d2a-85ff-5a98-8f38-23293bcf9a59": "DungeonPlayerController",
+        "DungeonPlayerController": "DungeonPlayerController",
+        "d3ed89cb-587b-57cb-a136-8172feb4c774": "DungeonEconomyPolicy",
+        "DungeonEconomyPolicy": "DungeonEconomyPolicy",
+        "81e70d57-1589-555f-9a42-fc6ba0683807": "DungeonEconomyStation",
+        "DungeonEconomyStation": "DungeonEconomyStation",
+        "825024e2-d9f8-5578-8198-bc52b5c217f2": "DungeonEncounter",
+        "DungeonEncounter": "DungeonEncounter",
+        "b220c109-6a29-53a3-bbbc-dcf880abe73d": "DungeonGameHUDWidget",
+        "DungeonGameHUDWidget": "DungeonGameHUDWidget",
+        "8d2bbf58-44f9-4ef8-adbb-2823ee734ac1": "DungeonGame",
+        "DungeonGame": "DungeonGame",
+        "f0474611-dd51-5cea-9702-500ba3907dfd": "DungeonInventoryWidget",
+        "DungeonInventoryWidget": "DungeonInventoryWidget",
+        "a9264178-1960-5ec3-8407-2ef64bbdd9dd": "epok::Character3D",
+        "epok::Character3D": "epok::Character3D",
+        "e8e7c9ff-ff0e-5c38-9eec-5434e6a45354": "DungeonPlayerCombat",
+        "DungeonPlayerCombat": "DungeonPlayerCombat",
+        "070a2ac6-e00f-5e9c-8bd2-560acb25ad2f": "DungeonPlayerVitals",
+        "DungeonPlayerVitals": "DungeonPlayerVitals",
+        "df3f7e3e-b99c-5530-9d86-a44f87e67c5f": "DungeonRunFlow",
+        "DungeonRunFlow": "DungeonRunFlow",
+        "733195d2-87b9-5164-b675-53372b0a569c": "DungeonShopWidget",
+        "DungeonShopWidget": "DungeonShopWidget",
+        "f5ddf390-875f-56c6-8efd-9265383c29ff": "DungeonTerminalWidget",
+        "DungeonTerminalWidget": "DungeonTerminalWidget"
+      },
+      "required_asset_files": [
+        "assets/Classes/733195d2-87b9-5164-b675-53372b0a569c.epokclass",
+        "assets/Classes/b220c109-6a29-53a3-bbbc-dcf880abe73d.epokclass",
+        "assets/Classes/f0474611-dd51-5cea-9702-500ba3907dfd.epokclass",
+        "assets/Classes/f5ddf390-875f-56c6-8efd-9265383c29ff.epokclass"
+      ],
+      "selected_language": "cpp",
+      "execution_mode": "native_cpp",
+      "generated_cpp_policy": "Generated C++ is permitted only under.epok staging/export build outputs; it is not editable Lua/BP source and is never an assets fallback.",
+      "current_inventory_status": "read-only installed source/absence check passed",
+      "runtime_acceptance": "pending final18 acceptance; listing files does not certify execution",
+      "native_mechanism_review": {
+        "assets/scripts/DungeonCombat/CharacterClips.hpp": "Skeletal clip indices and idle pose helper; selected combat/encounter methods choose animation decisions.",
+        "assets/scripts/DungeonCombat/CharacterMotion.hpp": "Fixed vector/angle/pose mechanics used by shared adapters, not a selected policy implementation.",
+        "assets/scripts/DungeonCombat/DungeonAudio.hpp": "Sound cue/data plumbing; selected rules return cues and gains.",
+        "assets/scripts/DungeonCombat/DungeonCamera.hpp": "Common ThirdPersonCamera/boom proposal application with typed query binding; selected combat methods choose view inputs.",
+        "assets/scripts/DungeonCombat/DungeonEconomy.cpp": "Copies world context, dispatches selected presenter/policy and applies health/audio/render outputs.",
+        "assets/scripts/DungeonCombat/DungeonEconomy.hpp": "Typed economy integration bridge declarations and telemetry.",
+        "assets/scripts/DungeonCombat/DungeonEconomyPolicyBase.hpp": "Reflected value/contracts and IO bridges for the selected economy rule class; no concrete fallback file.",
+        "assets/scripts/DungeonCombat/DungeonEconomyPresenterBase.hpp": "Common editable UIActor API, typed handles, IO/capture application and immutable values; selected HUD/widget callbacks own presentation decisions.",
+        "assets/scripts/DungeonCombat/DungeonEconomyPresenterEndpoint.hpp": "Abstract UIActor endpoint contract.",
+        "assets/scripts/DungeonCombat/DungeonEconomyStationBase.hpp": "InteractableComponent contract plus bounded geometry measurement/typed presenter resolution.",
+        "assets/scripts/DungeonCombat/DungeonEconomyWidgetBase.hpp": "Common editable UIActor contract/typed data application; selected widget owns menu/capture/completion decisions.",
+        "assets/scripts/DungeonCombat/DungeonEncounterBase.hpp": "Reflected encounter value/tuning/event contract and geometry/service adapters.",
+        "assets/scripts/DungeonCombat/DungeonGame.cpp": "World lifecycle, registry/query/projectile/health application and dispatch to selected flow/vitals/combat/encounter/economy/presenter classes.",
+        "assets/scripts/DungeonCombat/DungeonGame.hpp": "Typed scene orchestration component,12editable bindings and lifecycle declarations.",
+        "assets/scripts/DungeonCombat/DungeonHudAssets.hpp": "Shared HUD asset/texture slots.",
+        "assets/scripts/DungeonCombat/DungeonInventory.hpp": "Stable92-byte save record/receipt ABI and file identity; selected economy policy owns validation/transaction rules.",
+        "assets/scripts/DungeonCombat/DungeonPlayerCombatBase.hpp": "Reflected combat/controller/feedback contracts and generic mechanics adapters.",
+        "assets/scripts/DungeonCombat/DungeonPlayerController.cpp": "World input/query/motor/camera/animation mechanics; controller decisions dispatch to selected combat methods.",
+        "assets/scripts/DungeonCombat/DungeonPlayerController.hpp": "Typed common controller integration and state declarations.",
+        "assets/scripts/DungeonCombat/DungeonPlayerVitalsBase.hpp": "Reflected health event/property contract.",
+        "assets/scripts/DungeonCombat/DungeonProfiling.hpp": "Compile-time measurement/telemetry helpers.",
+        "assets/scripts/DungeonCombat/DungeonRulesBinding.hpp": "Generation/type-safe current-level policy resolution.",
+        "assets/scripts/DungeonCombat/DungeonRunFlowBase.hpp": "Reflected presentation/flow event/state contract.",
+        "assets/scripts/DungeonCombat/DungeonSceneBindings.hpp": "Four editable typed scene reference containers; no name lookup or selected game rule callback.",
+        "assets/scripts/DungeonCombat/DungeonTargeting.cpp": "Geometry-only squared distance/raycast adapters; no retired target selection policy.",
+        "assets/scripts/DungeonCombat/DungeonTargeting.hpp": "Geometry adapter declarations."
+      },
+      "selected_rule_hashes": {
+        "assets/scripts/DungeonCombat/DungeonRunFlow.hpp": "c3d182eba45664bccb285558b102eacf55088e58f86f9606d825feecf7b474fb",
+        "assets/scripts/DungeonCombat/DungeonPlayerVitals.hpp": "62c6428dea6211820b78878028a17b958793ce5d9f1ee2d3b016ba1bbfc2c1d8",
+        "assets/scripts/DungeonCombat/DungeonPlayerCombat.hpp": "9837af8b54b885f6b46a83ac6da1bc3e8ae5be05e57610c52b1e13dcf05c8fb6",
+        "assets/scripts/DungeonCombat/DungeonEncounter.hpp": "dd416e8491ebce36d49adec839cc0f9b7cca7e08fa551d8358f4d11fab152952",
+        "assets/scripts/DungeonCombat/DungeonEconomyPolicy.hpp": "e2dbfb571be48df7a11d0c200a88842587ec7caea8c371404d1c9ba7eabdb62f",
+        "assets/scripts/DungeonCombat/DungeonGameHUDWidget.hpp": "52835d036fe5adac76d565cc4a5d9d08f9e308477d667aa6ba932b6cf0f05e5a",
+        "assets/scripts/DungeonCombat/DungeonTerminalWidget.hpp": "32c1fc04f04ff7a2f4952a48a46ed173d2d08e496b2624ce0f3c18afccdc61ec",
+        "assets/scripts/DungeonCombat/DungeonShopWidget.hpp": "ceae6705df5576ee63e03921f8e1f6257c668335cad97b98548ad82c10176009",
+        "assets/scripts/DungeonCombat/DungeonInventoryWidget.hpp": "5b287ce07536ccec20a44a393532d8672523277bcc9dd9b2d11519433364c158",
+        "assets/scripts/DungeonCombat/DungeonEconomyStation.hpp": "13bbfb8961e0e39e5b135adafb41ee784f84a9875c2900ca4c8ea5a8a7a5eb0f"
+      },
+      "companion_composition": "Four common-designer.epokclass assets required inCPP/Lua; Blueprint embeds the same composition and must not install duplicate companions.",
+      "leaf_roles": {
+        "run_flow": {
+          "name": "DungeonRunFlow",
+          "class_id": "df3f7e3e-b99c-5530-9d86-a44f87e67c5f",
+          "source": "assets/scripts/DungeonCombat/DungeonRunFlow.hpp"
+        },
+        "player_vitals": {
+          "name": "DungeonPlayerVitals",
+          "class_id": "070a2ac6-e00f-5e9c-8bd2-560acb25ad2f",
+          "source": "assets/scripts/DungeonCombat/DungeonPlayerVitals.hpp"
+        },
+        "player_combat": {
+          "name": "DungeonPlayerCombat",
+          "class_id": "e8e7c9ff-ff0e-5c38-9eec-5434e6a45354",
+          "source": "assets/scripts/DungeonCombat/DungeonPlayerCombat.hpp"
+        },
+        "encounter_policy": {
+          "name": "DungeonEncounter",
+          "class_id": "825024e2-d9f8-5578-8198-bc52b5c217f2",
+          "source": "assets/scripts/DungeonCombat/DungeonEncounter.hpp"
+        },
+        "economy_policy": {
+          "name": "DungeonEconomyPolicy",
+          "class_id": "d3ed89cb-587b-57cb-a136-8172feb4c774",
+          "source": "assets/scripts/DungeonCombat/DungeonEconomyPolicy.hpp"
+        },
+        "game_hud": {
+          "name": "DungeonGameHUDWidget",
+          "class_id": "b220c109-6a29-53a3-bbbc-dcf880abe73d",
+          "source": "assets/scripts/DungeonCombat/DungeonGameHUDWidget.hpp"
+        },
+        "terminal_widget": {
+          "name": "DungeonTerminalWidget",
+          "class_id": "f5ddf390-875f-56c6-8efd-9265383c29ff",
+          "source": "assets/scripts/DungeonCombat/DungeonTerminalWidget.hpp"
+        },
+        "shop_widget": {
+          "name": "DungeonShopWidget",
+          "class_id": "733195d2-87b9-5164-b675-53372b0a569c",
+          "source": "assets/scripts/DungeonCombat/DungeonShopWidget.hpp"
+        },
+        "inventory_widget": {
+          "name": "DungeonInventoryWidget",
+          "class_id": "f0474611-dd51-5cea-9702-500ba3907dfd",
+          "source": "assets/scripts/DungeonCombat/DungeonInventoryWidget.hpp"
+        },
+        "economy_station": {
+          "name": "DungeonEconomyStation",
+          "class_id": "81e70d57-1589-555f-9a42-fc6ba0683807",
+          "source": "assets/scripts/DungeonCombat/DungeonEconomyStation.hpp"
+        }
+      },
+      "template_roles": {
+        "camera": {
+          "class_id": "a86b95c7-5021-5bd2-a87c-fc666a9ee174",
+          "name": "DungeonCamera"
+        },
+        "controller": {
+          "class_id": "78439d2a-85ff-5a98-8f38-23293bcf9a59",
+          "name": "DungeonPlayerController"
+        },
+        "economy_policy": {
+          "class_id": "d3ed89cb-587b-57cb-a136-8172feb4c774",
+          "name": "DungeonEconomyPolicy"
+        },
+        "economy_station": {
+          "class_id": "81e70d57-1589-555f-9a42-fc6ba0683807",
+          "name": "DungeonEconomyStation"
+        },
+        "encounter_policy": {
+          "class_id": "825024e2-d9f8-5578-8198-bc52b5c217f2",
+          "name": "DungeonEncounter"
+        },
+        "game_hud": {
+          "class_id": "b220c109-6a29-53a3-bbbc-dcf880abe73d",
+          "name": "DungeonGameHUDWidget"
+        },
+        "game_root": {
+          "class_id": "8d2bbf58-44f9-4ef8-adbb-2823ee734ac1",
+          "name": "DungeonGame"
+        },
+        "inventory_widget": {
+          "class_id": "f0474611-dd51-5cea-9702-500ba3907dfd",
+          "name": "DungeonInventoryWidget"
+        },
+        "player": {
+          "class_id": "a9264178-1960-5ec3-8407-2ef64bbdd9dd",
+          "name": "epok::Character3D"
+        },
+        "player_combat": {
+          "class_id": "e8e7c9ff-ff0e-5c38-9eec-5434e6a45354",
+          "name": "DungeonPlayerCombat"
+        },
+        "player_vitals": {
+          "class_id": "070a2ac6-e00f-5e9c-8bd2-560acb25ad2f",
+          "name": "DungeonPlayerVitals"
+        },
+        "run_flow": {
+          "class_id": "df3f7e3e-b99c-5530-9d86-a44f87e67c5f",
+          "name": "DungeonRunFlow"
+        },
+        "shop_widget": {
+          "class_id": "733195d2-87b9-5164-b675-53372b0a569c",
+          "name": "DungeonShopWidget"
+        },
+        "terminal_widget": {
+          "class_id": "f5ddf390-875f-56c6-8efd-9265383c29ff",
+          "name": "DungeonTerminalWidget"
+        }
+      }
+    },
+    "blueprint": {
+      "reviewed": true,
+      "review": "Reviewed selected-language ownership contract from current builders and authored sources; file ownership only, not runtime/provider/scenario acceptance.",
+      "selected_rule_files": [
+        "assets/Blueprints/DungeonCombat/DungeonRunFlow.epokbp",
+        "assets/Blueprints/DungeonCombat/DungeonPlayerVitals.epokbp",
+        "assets/Blueprints/DungeonCombat/DungeonPlayerCombat.epokbp",
+        "assets/Blueprints/DungeonCombat/DungeonEncounter.epokbp",
+        "assets/Blueprints/DungeonCombat/DungeonEconomyPolicy.epokbp",
+        "assets/Blueprints/DungeonCombat/DungeonGameHUDWidget.epokbp",
+        "assets/Blueprints/DungeonCombat/DungeonTerminalWidget.epokbp",
+        "assets/Blueprints/DungeonCombat/DungeonShopWidget.epokbp",
+        "assets/Blueprints/DungeonCombat/DungeonInventoryWidget.epokbp",
+        "assets/Blueprints/DungeonCombat/DungeonEconomyStation.epokbp"
+      ],
+      "allowed_native_files": [
+        "assets/scripts/DungeonCombat/CharacterClips.hpp",
+        "assets/scripts/DungeonCombat/CharacterMotion.hpp",
+        "assets/scripts/DungeonCombat/DungeonAudio.hpp",
+        "assets/scripts/DungeonCombat/DungeonCamera.hpp",
+        "assets/scripts/DungeonCombat/DungeonEconomy.cpp",
+        "assets/scripts/DungeonCombat/DungeonEconomy.hpp",
+        "assets/scripts/DungeonCombat/DungeonEconomyPolicyBase.hpp",
+        "assets/scripts/DungeonCombat/DungeonEconomyPresenterBase.hpp",
+        "assets/scripts/DungeonCombat/DungeonEconomyPresenterEndpoint.hpp",
+        "assets/scripts/DungeonCombat/DungeonEconomyStationBase.hpp",
+        "assets/scripts/DungeonCombat/DungeonEconomyWidgetBase.hpp",
+        "assets/scripts/DungeonCombat/DungeonEncounterBase.hpp",
+        "assets/scripts/DungeonCombat/DungeonGame.cpp",
+        "assets/scripts/DungeonCombat/DungeonGame.hpp",
+        "assets/scripts/DungeonCombat/DungeonHudAssets.hpp",
+        "assets/scripts/DungeonCombat/DungeonInventory.hpp",
+        "assets/scripts/DungeonCombat/DungeonPlayerCombatBase.hpp",
+        "assets/scripts/DungeonCombat/DungeonPlayerController.cpp",
+        "assets/scripts/DungeonCombat/DungeonPlayerController.hpp",
+        "assets/scripts/DungeonCombat/DungeonPlayerVitalsBase.hpp",
+        "assets/scripts/DungeonCombat/DungeonProfiling.hpp",
+        "assets/scripts/DungeonCombat/DungeonRulesBinding.hpp",
+        "assets/scripts/DungeonCombat/DungeonRunFlowBase.hpp",
+        "assets/scripts/DungeonCombat/DungeonSceneBindings.hpp",
+        "assets/scripts/DungeonCombat/DungeonTargeting.cpp",
+        "assets/scripts/DungeonCombat/DungeonTargeting.hpp"
+      ],
+      "forbidden_files": [
+        "assets/scripts/DungeonCombat/DungeonEconomyPolicy.hpp",
+        "assets/scripts/DungeonCombat/DungeonEconomyPolicy.lua",
+        "assets/scripts/DungeonCombat/DungeonEconomyStation.hpp",
+        "assets/scripts/DungeonCombat/DungeonEconomyStation.lua",
+        "assets/scripts/DungeonCombat/DungeonEncounter.hpp",
+        "assets/scripts/DungeonCombat/DungeonEncounter.lua",
+        "assets/scripts/DungeonCombat/DungeonGameHUDWidget.hpp",
+        "assets/scripts/DungeonCombat/DungeonGameHUDWidget.lua",
+        "assets/scripts/DungeonCombat/DungeonInventoryWidget.hpp",
+        "assets/scripts/DungeonCombat/DungeonInventoryWidget.lua",
+        "assets/scripts/DungeonCombat/DungeonPlayerCombat.hpp",
+        "assets/scripts/DungeonCombat/DungeonPlayerCombat.lua",
+        "assets/scripts/DungeonCombat/DungeonPlayerVitals.hpp",
+        "assets/scripts/DungeonCombat/DungeonPlayerVitals.lua",
+        "assets/scripts/DungeonCombat/DungeonRunFlow.hpp",
+        "assets/scripts/DungeonCombat/DungeonRunFlow.lua",
+        "assets/scripts/DungeonCombat/DungeonShopWidget.hpp",
+        "assets/scripts/DungeonCombat/DungeonShopWidget.lua",
+        "assets/scripts/DungeonCombat/DungeonTerminalWidget.hpp",
+        "assets/scripts/DungeonCombat/DungeonTerminalWidget.lua",
+        "assets/scripts/generated/*",
+        "assets/**/generated/*.cpp",
+        "assets/**/generated/*.hpp",
+        "assets/**/lua_bindings.cpp",
+        "assets/scripts/DungeonCombat/DungeonPocketLink.hpp",
+        "assets/scripts/DungeonCombat/DungeonRunFlow.cpp",
+        "assets/scripts/DungeonCombat/DungeonPlayerVitals.cpp",
+        "assets/scripts/DungeonCombat/DungeonPlayerCombat.cpp",
+        "assets/scripts/DungeonCombat/DungeonEncounter.cpp",
+        "assets/scripts/DungeonCombat/DungeonEconomyPolicy.cpp",
+        "assets/scripts/DungeonCombat/DungeonGameHUDWidget.cpp",
+        "assets/scripts/DungeonCombat/DungeonTerminalWidget.cpp",
+        "assets/scripts/DungeonCombat/DungeonShopWidget.cpp",
+        "assets/scripts/DungeonCombat/DungeonInventoryWidget.cpp",
+        "assets/scripts/DungeonCombat/DungeonEconomyStation.cpp",
+        "assets/Classes/733195d2-87b9-5164-b675-53372b0a569c.epokclass",
+        "assets/Classes/b220c109-6a29-53a3-bbbc-dcf880abe73d.epokclass",
+        "assets/Classes/f0474611-dd51-5cea-9702-500ba3907dfd.epokclass",
+        "assets/Classes/f5ddf390-875f-56c6-8efd-9265383c29ff.epokclass"
+      ],
+      "class_roles": {
+        "a86b95c7-5021-5bd2-a87c-fc666a9ee174": "DungeonCamera",
+        "DungeonCamera": "DungeonCamera",
+        "78439d2a-85ff-5a98-8f38-23293bcf9a59": "DungeonPlayerController",
+        "DungeonPlayerController": "DungeonPlayerController",
+        "d3ed89cb-587b-57cb-a136-8172feb4c774": "DungeonEconomyPolicy",
+        "DungeonEconomyPolicy": "DungeonEconomyPolicy",
+        "81e70d57-1589-555f-9a42-fc6ba0683807": "DungeonEconomyStation",
+        "DungeonEconomyStation": "DungeonEconomyStation",
+        "825024e2-d9f8-5578-8198-bc52b5c217f2": "DungeonEncounter",
+        "DungeonEncounter": "DungeonEncounter",
+        "b220c109-6a29-53a3-bbbc-dcf880abe73d": "DungeonGameHUDWidget",
+        "DungeonGameHUDWidget": "DungeonGameHUDWidget",
+        "8d2bbf58-44f9-4ef8-adbb-2823ee734ac1": "DungeonGame",
+        "DungeonGame": "DungeonGame",
+        "f0474611-dd51-5cea-9702-500ba3907dfd": "DungeonInventoryWidget",
+        "DungeonInventoryWidget": "DungeonInventoryWidget",
+        "a9264178-1960-5ec3-8407-2ef64bbdd9dd": "epok::Character3D",
+        "epok::Character3D": "epok::Character3D",
+        "e8e7c9ff-ff0e-5c38-9eec-5434e6a45354": "DungeonPlayerCombat",
+        "DungeonPlayerCombat": "DungeonPlayerCombat",
+        "070a2ac6-e00f-5e9c-8bd2-560acb25ad2f": "DungeonPlayerVitals",
+        "DungeonPlayerVitals": "DungeonPlayerVitals",
+        "df3f7e3e-b99c-5530-9d86-a44f87e67c5f": "DungeonRunFlow",
+        "DungeonRunFlow": "DungeonRunFlow",
+        "733195d2-87b9-5164-b675-53372b0a569c": "DungeonShopWidget",
+        "DungeonShopWidget": "DungeonShopWidget",
+        "f5ddf390-875f-56c6-8efd-9265383c29ff": "DungeonTerminalWidget",
+        "DungeonTerminalWidget": "DungeonTerminalWidget"
+      },
+      "required_asset_files": [],
+      "selected_language": "blueprint",
+      "execution_mode": "native_cpp",
+      "generated_cpp_policy": "Generated C++ is permitted only under.epok staging/export build outputs; it is not editable Lua/BP source and is never an assets fallback.",
+      "current_inventory_status": "read-only installed source/absence check passed",
+      "runtime_acceptance": "pending final18 acceptance; listing files does not certify execution",
+      "native_mechanism_review": {
+        "assets/scripts/DungeonCombat/CharacterClips.hpp": "Skeletal clip indices and idle pose helper; selected combat/encounter methods choose animation decisions.",
+        "assets/scripts/DungeonCombat/CharacterMotion.hpp": "Fixed vector/angle/pose mechanics used by shared adapters, not a selected policy implementation.",
+        "assets/scripts/DungeonCombat/DungeonAudio.hpp": "Sound cue/data plumbing; selected rules return cues and gains.",
+        "assets/scripts/DungeonCombat/DungeonCamera.hpp": "Common ThirdPersonCamera/boom proposal application with typed query binding; selected combat methods choose view inputs.",
+        "assets/scripts/DungeonCombat/DungeonEconomy.cpp": "Copies world context, dispatches selected presenter/policy and applies health/audio/render outputs.",
+        "assets/scripts/DungeonCombat/DungeonEconomy.hpp": "Typed economy integration bridge declarations and telemetry.",
+        "assets/scripts/DungeonCombat/DungeonEconomyPolicyBase.hpp": "Reflected value/contracts and IO bridges for the selected economy rule class; no concrete fallback file.",
+        "assets/scripts/DungeonCombat/DungeonEconomyPresenterBase.hpp": "Common editable UIActor API, typed handles, IO/capture application and immutable values; selected HUD/widget callbacks own presentation decisions.",
+        "assets/scripts/DungeonCombat/DungeonEconomyPresenterEndpoint.hpp": "Abstract UIActor endpoint contract.",
+        "assets/scripts/DungeonCombat/DungeonEconomyStationBase.hpp": "InteractableComponent contract plus bounded geometry measurement/typed presenter resolution.",
+        "assets/scripts/DungeonCombat/DungeonEconomyWidgetBase.hpp": "Common editable UIActor contract/typed data application; selected widget owns menu/capture/completion decisions.",
+        "assets/scripts/DungeonCombat/DungeonEncounterBase.hpp": "Reflected encounter value/tuning/event contract and geometry/service adapters.",
+        "assets/scripts/DungeonCombat/DungeonGame.cpp": "World lifecycle, registry/query/projectile/health application and dispatch to selected flow/vitals/combat/encounter/economy/presenter classes.",
+        "assets/scripts/DungeonCombat/DungeonGame.hpp": "Typed scene orchestration component,12editable bindings and lifecycle declarations.",
+        "assets/scripts/DungeonCombat/DungeonHudAssets.hpp": "Shared HUD asset/texture slots.",
+        "assets/scripts/DungeonCombat/DungeonInventory.hpp": "Stable92-byte save record/receipt ABI and file identity; selected economy policy owns validation/transaction rules.",
+        "assets/scripts/DungeonCombat/DungeonPlayerCombatBase.hpp": "Reflected combat/controller/feedback contracts and generic mechanics adapters.",
+        "assets/scripts/DungeonCombat/DungeonPlayerController.cpp": "World input/query/motor/camera/animation mechanics; controller decisions dispatch to selected combat methods.",
+        "assets/scripts/DungeonCombat/DungeonPlayerController.hpp": "Typed common controller integration and state declarations.",
+        "assets/scripts/DungeonCombat/DungeonPlayerVitalsBase.hpp": "Reflected health event/property contract.",
+        "assets/scripts/DungeonCombat/DungeonProfiling.hpp": "Compile-time measurement/telemetry helpers.",
+        "assets/scripts/DungeonCombat/DungeonRulesBinding.hpp": "Generation/type-safe current-level policy resolution.",
+        "assets/scripts/DungeonCombat/DungeonRunFlowBase.hpp": "Reflected presentation/flow event/state contract.",
+        "assets/scripts/DungeonCombat/DungeonSceneBindings.hpp": "Four editable typed scene reference containers; no name lookup or selected game rule callback.",
+        "assets/scripts/DungeonCombat/DungeonTargeting.cpp": "Geometry-only squared distance/raycast adapters; no retired target selection policy.",
+        "assets/scripts/DungeonCombat/DungeonTargeting.hpp": "Geometry adapter declarations."
+      },
+      "selected_rule_hashes": {
+        "assets/Blueprints/DungeonCombat/DungeonRunFlow.epokbp": "46ef617068ea2c4fed0d390fd4fdcfadece4d18c02648b45b54c61d8cce174d7",
+        "assets/Blueprints/DungeonCombat/DungeonPlayerVitals.epokbp": "90261f26cd43d4fda8468ac0f14c2a5b0fddba30a807b6f2b1246e65441410f6",
+        "assets/Blueprints/DungeonCombat/DungeonPlayerCombat.epokbp": "2dab64e1102740b707df6278bb79853f09266b5973e7e90eac6faf5d23fc5f28",
+        "assets/Blueprints/DungeonCombat/DungeonEncounter.epokbp": "1243add4540620a20983c2ecdc0b89b68740ccdeac7e5e0ea93af9eb6edd5e3e",
+        "assets/Blueprints/DungeonCombat/DungeonEconomyPolicy.epokbp": "b95dd4f70cbbc517f28f65be5a26f7b4c6cf7f15a3e9177d398ab5e9b013629a",
+        "assets/Blueprints/DungeonCombat/DungeonGameHUDWidget.epokbp": "9463170171e11144ff0c2c598ce837a36439cc8a09ecd3cce3cabbdb9a731ea1",
+        "assets/Blueprints/DungeonCombat/DungeonTerminalWidget.epokbp": "2264b5e88674044118d432d2cc2d887791f0e214fe729b8e67dafee204001319",
+        "assets/Blueprints/DungeonCombat/DungeonShopWidget.epokbp": "2c5c2ab0b2d631d1d0f17c6414bae8d09920fd7aeb6b4c761f66bad87ac342e8",
+        "assets/Blueprints/DungeonCombat/DungeonInventoryWidget.epokbp": "1f59459f58041c5100c92f0eebcce5aaf12d0f95473f945a178d72e3c2eaa2dd",
+        "assets/Blueprints/DungeonCombat/DungeonEconomyStation.epokbp": "640f4fc0732bd4d6607c7783cbb4d57e5ac1e94a5259572a332450371e5eed85"
+      },
+      "companion_composition": "Four common-designer.epokclass assets required inCPP/Lua; Blueprint embeds the same composition and must not install duplicate companions.",
+      "leaf_roles": {
+        "run_flow": {
+          "name": "DungeonRunFlow",
+          "class_id": "df3f7e3e-b99c-5530-9d86-a44f87e67c5f",
+          "source": "assets/Blueprints/DungeonCombat/DungeonRunFlow.epokbp"
+        },
+        "player_vitals": {
+          "name": "DungeonPlayerVitals",
+          "class_id": "070a2ac6-e00f-5e9c-8bd2-560acb25ad2f",
+          "source": "assets/Blueprints/DungeonCombat/DungeonPlayerVitals.epokbp"
+        },
+        "player_combat": {
+          "name": "DungeonPlayerCombat",
+          "class_id": "e8e7c9ff-ff0e-5c38-9eec-5434e6a45354",
+          "source": "assets/Blueprints/DungeonCombat/DungeonPlayerCombat.epokbp"
+        },
+        "encounter_policy": {
+          "name": "DungeonEncounter",
+          "class_id": "825024e2-d9f8-5578-8198-bc52b5c217f2",
+          "source": "assets/Blueprints/DungeonCombat/DungeonEncounter.epokbp"
+        },
+        "economy_policy": {
+          "name": "DungeonEconomyPolicy",
+          "class_id": "d3ed89cb-587b-57cb-a136-8172feb4c774",
+          "source": "assets/Blueprints/DungeonCombat/DungeonEconomyPolicy.epokbp"
+        },
+        "game_hud": {
+          "name": "DungeonGameHUDWidget",
+          "class_id": "b220c109-6a29-53a3-bbbc-dcf880abe73d",
+          "source": "assets/Blueprints/DungeonCombat/DungeonGameHUDWidget.epokbp"
+        },
+        "terminal_widget": {
+          "name": "DungeonTerminalWidget",
+          "class_id": "f5ddf390-875f-56c6-8efd-9265383c29ff",
+          "source": "assets/Blueprints/DungeonCombat/DungeonTerminalWidget.epokbp"
+        },
+        "shop_widget": {
+          "name": "DungeonShopWidget",
+          "class_id": "733195d2-87b9-5164-b675-53372b0a569c",
+          "source": "assets/Blueprints/DungeonCombat/DungeonShopWidget.epokbp"
+        },
+        "inventory_widget": {
+          "name": "DungeonInventoryWidget",
+          "class_id": "f0474611-dd51-5cea-9702-500ba3907dfd",
+          "source": "assets/Blueprints/DungeonCombat/DungeonInventoryWidget.epokbp"
+        },
+        "economy_station": {
+          "name": "DungeonEconomyStation",
+          "class_id": "81e70d57-1589-555f-9a42-fc6ba0683807",
+          "source": "assets/Blueprints/DungeonCombat/DungeonEconomyStation.epokbp"
+        }
+      },
+      "template_roles": {
+        "camera": {
+          "class_id": "a86b95c7-5021-5bd2-a87c-fc666a9ee174",
+          "name": "DungeonCamera"
+        },
+        "controller": {
+          "class_id": "78439d2a-85ff-5a98-8f38-23293bcf9a59",
+          "name": "DungeonPlayerController"
+        },
+        "economy_policy": {
+          "class_id": "d3ed89cb-587b-57cb-a136-8172feb4c774",
+          "name": "DungeonEconomyPolicy"
+        },
+        "economy_station": {
+          "class_id": "81e70d57-1589-555f-9a42-fc6ba0683807",
+          "name": "DungeonEconomyStation"
+        },
+        "encounter_policy": {
+          "class_id": "825024e2-d9f8-5578-8198-bc52b5c217f2",
+          "name": "DungeonEncounter"
+        },
+        "game_hud": {
+          "class_id": "b220c109-6a29-53a3-bbbc-dcf880abe73d",
+          "name": "DungeonGameHUDWidget"
+        },
+        "game_root": {
+          "class_id": "8d2bbf58-44f9-4ef8-adbb-2823ee734ac1",
+          "name": "DungeonGame"
+        },
+        "inventory_widget": {
+          "class_id": "f0474611-dd51-5cea-9702-500ba3907dfd",
+          "name": "DungeonInventoryWidget"
+        },
+        "player": {
+          "class_id": "a9264178-1960-5ec3-8407-2ef64bbdd9dd",
+          "name": "epok::Character3D"
+        },
+        "player_combat": {
+          "class_id": "e8e7c9ff-ff0e-5c38-9eec-5434e6a45354",
+          "name": "DungeonPlayerCombat"
+        },
+        "player_vitals": {
+          "class_id": "070a2ac6-e00f-5e9c-8bd2-560acb25ad2f",
+          "name": "DungeonPlayerVitals"
+        },
+        "run_flow": {
+          "class_id": "df3f7e3e-b99c-5530-9d86-a44f87e67c5f",
+          "name": "DungeonRunFlow"
+        },
+        "shop_widget": {
+          "class_id": "733195d2-87b9-5164-b675-53372b0a569c",
+          "name": "DungeonShopWidget"
+        },
+        "terminal_widget": {
+          "class_id": "f5ddf390-875f-56c6-8efd-9265383c29ff",
+          "name": "DungeonTerminalWidget"
+        }
+      }
+    },
+    "lua": {
+      "reviewed": true,
+      "review": "Reviewed selected-language ownership contract from current builders and authored sources; file ownership only, not runtime/provider/scenario acceptance.",
+      "selected_rule_files": [
+        "assets/scripts/DungeonCombat/DungeonRunFlow.lua",
+        "assets/scripts/DungeonCombat/DungeonPlayerVitals.lua",
+        "assets/scripts/DungeonCombat/DungeonPlayerCombat.lua",
+        "assets/scripts/DungeonCombat/DungeonEncounter.lua",
+        "assets/scripts/DungeonCombat/DungeonEconomyPolicy.lua",
+        "assets/scripts/DungeonCombat/DungeonGameHUDWidget.lua",
+        "assets/scripts/DungeonCombat/DungeonTerminalWidget.lua",
+        "assets/scripts/DungeonCombat/DungeonShopWidget.lua",
+        "assets/scripts/DungeonCombat/DungeonInventoryWidget.lua",
+        "assets/scripts/DungeonCombat/DungeonEconomyStation.lua"
+      ],
+      "allowed_native_files": [
+        "assets/scripts/DungeonCombat/CharacterClips.hpp",
+        "assets/scripts/DungeonCombat/CharacterMotion.hpp",
+        "assets/scripts/DungeonCombat/DungeonAudio.hpp",
+        "assets/scripts/DungeonCombat/DungeonCamera.hpp",
+        "assets/scripts/DungeonCombat/DungeonEconomy.cpp",
+        "assets/scripts/DungeonCombat/DungeonEconomy.hpp",
+        "assets/scripts/DungeonCombat/DungeonEconomyPolicyBase.hpp",
+        "assets/scripts/DungeonCombat/DungeonEconomyPresenterBase.hpp",
+        "assets/scripts/DungeonCombat/DungeonEconomyPresenterEndpoint.hpp",
+        "assets/scripts/DungeonCombat/DungeonEconomyStationBase.hpp",
+        "assets/scripts/DungeonCombat/DungeonEconomyWidgetBase.hpp",
+        "assets/scripts/DungeonCombat/DungeonEncounterBase.hpp",
+        "assets/scripts/DungeonCombat/DungeonGame.cpp",
+        "assets/scripts/DungeonCombat/DungeonGame.hpp",
+        "assets/scripts/DungeonCombat/DungeonHudAssets.hpp",
+        "assets/scripts/DungeonCombat/DungeonInventory.hpp",
+        "assets/scripts/DungeonCombat/DungeonPlayerCombatBase.hpp",
+        "assets/scripts/DungeonCombat/DungeonPlayerController.cpp",
+        "assets/scripts/DungeonCombat/DungeonPlayerController.hpp",
+        "assets/scripts/DungeonCombat/DungeonPlayerVitalsBase.hpp",
+        "assets/scripts/DungeonCombat/DungeonProfiling.hpp",
+        "assets/scripts/DungeonCombat/DungeonRulesBinding.hpp",
+        "assets/scripts/DungeonCombat/DungeonRunFlowBase.hpp",
+        "assets/scripts/DungeonCombat/DungeonSceneBindings.hpp",
+        "assets/scripts/DungeonCombat/DungeonTargeting.cpp",
+        "assets/scripts/DungeonCombat/DungeonTargeting.hpp"
+      ],
+      "forbidden_files": [
+        "assets/Blueprints/DungeonCombat/DungeonEconomyPolicy.epokbp",
+        "assets/Blueprints/DungeonCombat/DungeonEconomyStation.epokbp",
+        "assets/Blueprints/DungeonCombat/DungeonEncounter.epokbp",
+        "assets/Blueprints/DungeonCombat/DungeonGameHUDWidget.epokbp",
+        "assets/Blueprints/DungeonCombat/DungeonInventoryWidget.epokbp",
+        "assets/Blueprints/DungeonCombat/DungeonPlayerCombat.epokbp",
+        "assets/Blueprints/DungeonCombat/DungeonPlayerVitals.epokbp",
+        "assets/Blueprints/DungeonCombat/DungeonRunFlow.epokbp",
+        "assets/Blueprints/DungeonCombat/DungeonShopWidget.epokbp",
+        "assets/Blueprints/DungeonCombat/DungeonTerminalWidget.epokbp",
+        "assets/scripts/DungeonCombat/DungeonEconomyPolicy.hpp",
+        "assets/scripts/DungeonCombat/DungeonEconomyStation.hpp",
+        "assets/scripts/DungeonCombat/DungeonEncounter.hpp",
+        "assets/scripts/DungeonCombat/DungeonGameHUDWidget.hpp",
+        "assets/scripts/DungeonCombat/DungeonInventoryWidget.hpp",
+        "assets/scripts/DungeonCombat/DungeonPlayerCombat.hpp",
+        "assets/scripts/DungeonCombat/DungeonPlayerVitals.hpp",
+        "assets/scripts/DungeonCombat/DungeonRunFlow.hpp",
+        "assets/scripts/DungeonCombat/DungeonShopWidget.hpp",
+        "assets/scripts/DungeonCombat/DungeonTerminalWidget.hpp",
+        "assets/scripts/generated/*",
+        "assets/**/generated/*.cpp",
+        "assets/**/generated/*.hpp",
+        "assets/**/lua_bindings.cpp",
+        "assets/scripts/DungeonCombat/DungeonPocketLink.hpp",
+        "assets/scripts/DungeonCombat/DungeonRunFlow.cpp",
+        "assets/scripts/DungeonCombat/DungeonPlayerVitals.cpp",
+        "assets/scripts/DungeonCombat/DungeonPlayerCombat.cpp",
+        "assets/scripts/DungeonCombat/DungeonEncounter.cpp",
+        "assets/scripts/DungeonCombat/DungeonEconomyPolicy.cpp",
+        "assets/scripts/DungeonCombat/DungeonGameHUDWidget.cpp",
+        "assets/scripts/DungeonCombat/DungeonTerminalWidget.cpp",
+        "assets/scripts/DungeonCombat/DungeonShopWidget.cpp",
+        "assets/scripts/DungeonCombat/DungeonInventoryWidget.cpp",
+        "assets/scripts/DungeonCombat/DungeonEconomyStation.cpp"
+      ],
+      "class_roles": {
+        "a86b95c7-5021-5bd2-a87c-fc666a9ee174": "DungeonCamera",
+        "DungeonCamera": "DungeonCamera",
+        "78439d2a-85ff-5a98-8f38-23293bcf9a59": "DungeonPlayerController",
+        "DungeonPlayerController": "DungeonPlayerController",
+        "d3ed89cb-587b-57cb-a136-8172feb4c774": "DungeonEconomyPolicy",
+        "DungeonEconomyPolicy": "DungeonEconomyPolicy",
+        "81e70d57-1589-555f-9a42-fc6ba0683807": "DungeonEconomyStation",
+        "DungeonEconomyStation": "DungeonEconomyStation",
+        "825024e2-d9f8-5578-8198-bc52b5c217f2": "DungeonEncounter",
+        "DungeonEncounter": "DungeonEncounter",
+        "b220c109-6a29-53a3-bbbc-dcf880abe73d": "DungeonGameHUDWidget",
+        "DungeonGameHUDWidget": "DungeonGameHUDWidget",
+        "8d2bbf58-44f9-4ef8-adbb-2823ee734ac1": "DungeonGame",
+        "DungeonGame": "DungeonGame",
+        "f0474611-dd51-5cea-9702-500ba3907dfd": "DungeonInventoryWidget",
+        "DungeonInventoryWidget": "DungeonInventoryWidget",
+        "a9264178-1960-5ec3-8407-2ef64bbdd9dd": "epok::Character3D",
+        "epok::Character3D": "epok::Character3D",
+        "e8e7c9ff-ff0e-5c38-9eec-5434e6a45354": "DungeonPlayerCombat",
+        "DungeonPlayerCombat": "DungeonPlayerCombat",
+        "070a2ac6-e00f-5e9c-8bd2-560acb25ad2f": "DungeonPlayerVitals",
+        "DungeonPlayerVitals": "DungeonPlayerVitals",
+        "df3f7e3e-b99c-5530-9d86-a44f87e67c5f": "DungeonRunFlow",
+        "DungeonRunFlow": "DungeonRunFlow",
+        "733195d2-87b9-5164-b675-53372b0a569c": "DungeonShopWidget",
+        "DungeonShopWidget": "DungeonShopWidget",
+        "f5ddf390-875f-56c6-8efd-9265383c29ff": "DungeonTerminalWidget",
+        "DungeonTerminalWidget": "DungeonTerminalWidget"
+      },
+      "required_asset_files": [
+        "assets/Classes/733195d2-87b9-5164-b675-53372b0a569c.epokclass",
+        "assets/Classes/b220c109-6a29-53a3-bbbc-dcf880abe73d.epokclass",
+        "assets/Classes/f0474611-dd51-5cea-9702-500ba3907dfd.epokclass",
+        "assets/Classes/f5ddf390-875f-56c6-8efd-9265383c29ff.epokclass"
+      ],
+      "selected_language": "lua",
+      "execution_mode": "native_cpp",
+      "generated_cpp_policy": "Generated C++ is permitted only under.epok staging/export build outputs; it is not editable Lua/BP source and is never an assets fallback.",
+      "current_inventory_status": "pending fresh generated project check",
+      "runtime_acceptance": "pending final18 acceptance; listing files does not certify execution",
+      "native_mechanism_review": {
+        "assets/scripts/DungeonCombat/CharacterClips.hpp": "Skeletal clip indices and idle pose helper; selected combat/encounter methods choose animation decisions.",
+        "assets/scripts/DungeonCombat/CharacterMotion.hpp": "Fixed vector/angle/pose mechanics used by shared adapters, not a selected policy implementation.",
+        "assets/scripts/DungeonCombat/DungeonAudio.hpp": "Sound cue/data plumbing; selected rules return cues and gains.",
+        "assets/scripts/DungeonCombat/DungeonCamera.hpp": "Common ThirdPersonCamera/boom proposal application with typed query binding; selected combat methods choose view inputs.",
+        "assets/scripts/DungeonCombat/DungeonEconomy.cpp": "Copies world context, dispatches selected presenter/policy and applies health/audio/render outputs.",
+        "assets/scripts/DungeonCombat/DungeonEconomy.hpp": "Typed economy integration bridge declarations and telemetry.",
+        "assets/scripts/DungeonCombat/DungeonEconomyPolicyBase.hpp": "Reflected value/contracts and IO bridges for the selected economy rule class; no concrete fallback file.",
+        "assets/scripts/DungeonCombat/DungeonEconomyPresenterBase.hpp": "Common editable UIActor API, typed handles, IO/capture application and immutable values; selected HUD/widget callbacks own presentation decisions.",
+        "assets/scripts/DungeonCombat/DungeonEconomyPresenterEndpoint.hpp": "Abstract UIActor endpoint contract.",
+        "assets/scripts/DungeonCombat/DungeonEconomyStationBase.hpp": "InteractableComponent contract plus bounded geometry measurement/typed presenter resolution.",
+        "assets/scripts/DungeonCombat/DungeonEconomyWidgetBase.hpp": "Common editable UIActor contract/typed data application; selected widget owns menu/capture/completion decisions.",
+        "assets/scripts/DungeonCombat/DungeonEncounterBase.hpp": "Reflected encounter value/tuning/event contract and geometry/service adapters.",
+        "assets/scripts/DungeonCombat/DungeonGame.cpp": "World lifecycle, registry/query/projectile/health application and dispatch to selected flow/vitals/combat/encounter/economy/presenter classes.",
+        "assets/scripts/DungeonCombat/DungeonGame.hpp": "Typed scene orchestration component,12editable bindings and lifecycle declarations.",
+        "assets/scripts/DungeonCombat/DungeonHudAssets.hpp": "Shared HUD asset/texture slots.",
+        "assets/scripts/DungeonCombat/DungeonInventory.hpp": "Stable92-byte save record/receipt ABI and file identity; selected economy policy owns validation/transaction rules.",
+        "assets/scripts/DungeonCombat/DungeonPlayerCombatBase.hpp": "Reflected combat/controller/feedback contracts and generic mechanics adapters.",
+        "assets/scripts/DungeonCombat/DungeonPlayerController.cpp": "World input/query/motor/camera/animation mechanics; controller decisions dispatch to selected combat methods.",
+        "assets/scripts/DungeonCombat/DungeonPlayerController.hpp": "Typed common controller integration and state declarations.",
+        "assets/scripts/DungeonCombat/DungeonPlayerVitalsBase.hpp": "Reflected health event/property contract.",
+        "assets/scripts/DungeonCombat/DungeonProfiling.hpp": "Compile-time measurement/telemetry helpers.",
+        "assets/scripts/DungeonCombat/DungeonRulesBinding.hpp": "Generation/type-safe current-level policy resolution.",
+        "assets/scripts/DungeonCombat/DungeonRunFlowBase.hpp": "Reflected presentation/flow event/state contract.",
+        "assets/scripts/DungeonCombat/DungeonSceneBindings.hpp": "Four editable typed scene reference containers; no name lookup or selected game rule callback.",
+        "assets/scripts/DungeonCombat/DungeonTargeting.cpp": "Geometry-only squared distance/raycast adapters; no retired target selection policy.",
+        "assets/scripts/DungeonCombat/DungeonTargeting.hpp": "Geometry adapter declarations."
+      },
+      "selected_rule_hashes": {
+        "assets/scripts/DungeonCombat/DungeonRunFlow.lua": "bbe38fcbcf2adae549cd34c619c9466676da3907cd689f6f88e727fbc842101f",
+        "assets/scripts/DungeonCombat/DungeonPlayerVitals.lua": "b24d6a7fab4734731b777e248b30247ce804aaa59fc09f74064766be54388ba6",
+        "assets/scripts/DungeonCombat/DungeonPlayerCombat.lua": "a7fa801fbbb9cdbda0a8a901600c65b080e6021752da2fc1b074bab634241601",
+        "assets/scripts/DungeonCombat/DungeonEncounter.lua": "2c4ef1c72de3e2746d388660439e6e41ed8ca304b399c1085c4c3f6395468170",
+        "assets/scripts/DungeonCombat/DungeonEconomyPolicy.lua": "74985190effcca8b509ec8f1dbfb2e96f9723eb43f7666f6b0f820f4c4590294",
+        "assets/scripts/DungeonCombat/DungeonGameHUDWidget.lua": "cd6d5ac128562b002890ad8889d103f2554bcac95c9b0911c6b72fca4dce6970",
+        "assets/scripts/DungeonCombat/DungeonTerminalWidget.lua": "45d80177b4c65dcb0bfa18f75e5296308d183148e05aee008fd5a840b5b65447",
+        "assets/scripts/DungeonCombat/DungeonShopWidget.lua": "259348de2dd0731db22071eb1c47edbcd23369ca127d8838e8f75ca4b0367f8d",
+        "assets/scripts/DungeonCombat/DungeonInventoryWidget.lua": "cad9f8bd3467be5465afeca9fc6c9066c2c39df23b05b30c97d28034fbfe5d3e",
+        "assets/scripts/DungeonCombat/DungeonEconomyStation.lua": "2569d9ea0555a6a7e0a673024bec6978f3534800da1257ccae7df5ab884d2872"
+      },
+      "companion_composition": "Four common-designer.epokclass assets required inCPP/Lua; Blueprint embeds the same composition and must not install duplicate companions.",
+      "leaf_roles": {
+        "run_flow": {
+          "name": "DungeonRunFlow",
+          "class_id": "df3f7e3e-b99c-5530-9d86-a44f87e67c5f",
+          "source": "assets/scripts/DungeonCombat/DungeonRunFlow.lua"
+        },
+        "player_vitals": {
+          "name": "DungeonPlayerVitals",
+          "class_id": "070a2ac6-e00f-5e9c-8bd2-560acb25ad2f",
+          "source": "assets/scripts/DungeonCombat/DungeonPlayerVitals.lua"
+        },
+        "player_combat": {
+          "name": "DungeonPlayerCombat",
+          "class_id": "e8e7c9ff-ff0e-5c38-9eec-5434e6a45354",
+          "source": "assets/scripts/DungeonCombat/DungeonPlayerCombat.lua"
+        },
+        "encounter_policy": {
+          "name": "DungeonEncounter",
+          "class_id": "825024e2-d9f8-5578-8198-bc52b5c217f2",
+          "source": "assets/scripts/DungeonCombat/DungeonEncounter.lua"
+        },
+        "economy_policy": {
+          "name": "DungeonEconomyPolicy",
+          "class_id": "d3ed89cb-587b-57cb-a136-8172feb4c774",
+          "source": "assets/scripts/DungeonCombat/DungeonEconomyPolicy.lua"
+        },
+        "game_hud": {
+          "name": "DungeonGameHUDWidget",
+          "class_id": "b220c109-6a29-53a3-bbbc-dcf880abe73d",
+          "source": "assets/scripts/DungeonCombat/DungeonGameHUDWidget.lua"
+        },
+        "terminal_widget": {
+          "name": "DungeonTerminalWidget",
+          "class_id": "f5ddf390-875f-56c6-8efd-9265383c29ff",
+          "source": "assets/scripts/DungeonCombat/DungeonTerminalWidget.lua"
+        },
+        "shop_widget": {
+          "name": "DungeonShopWidget",
+          "class_id": "733195d2-87b9-5164-b675-53372b0a569c",
+          "source": "assets/scripts/DungeonCombat/DungeonShopWidget.lua"
+        },
+        "inventory_widget": {
+          "name": "DungeonInventoryWidget",
+          "class_id": "f0474611-dd51-5cea-9702-500ba3907dfd",
+          "source": "assets/scripts/DungeonCombat/DungeonInventoryWidget.lua"
+        },
+        "economy_station": {
+          "name": "DungeonEconomyStation",
+          "class_id": "81e70d57-1589-555f-9a42-fc6ba0683807",
+          "source": "assets/scripts/DungeonCombat/DungeonEconomyStation.lua"
+        }
+      },
+      "template_roles": {
+        "camera": {
+          "class_id": "a86b95c7-5021-5bd2-a87c-fc666a9ee174",
+          "name": "DungeonCamera"
+        },
+        "controller": {
+          "class_id": "78439d2a-85ff-5a98-8f38-23293bcf9a59",
+          "name": "DungeonPlayerController"
+        },
+        "economy_policy": {
+          "class_id": "d3ed89cb-587b-57cb-a136-8172feb4c774",
+          "name": "DungeonEconomyPolicy"
+        },
+        "economy_station": {
+          "class_id": "81e70d57-1589-555f-9a42-fc6ba0683807",
+          "name": "DungeonEconomyStation"
+        },
+        "encounter_policy": {
+          "class_id": "825024e2-d9f8-5578-8198-bc52b5c217f2",
+          "name": "DungeonEncounter"
+        },
+        "game_hud": {
+          "class_id": "b220c109-6a29-53a3-bbbc-dcf880abe73d",
+          "name": "DungeonGameHUDWidget"
+        },
+        "game_root": {
+          "class_id": "8d2bbf58-44f9-4ef8-adbb-2823ee734ac1",
+          "name": "DungeonGame"
+        },
+        "inventory_widget": {
+          "class_id": "f0474611-dd51-5cea-9702-500ba3907dfd",
+          "name": "DungeonInventoryWidget"
+        },
+        "player": {
+          "class_id": "a9264178-1960-5ec3-8407-2ef64bbdd9dd",
+          "name": "epok::Character3D"
+        },
+        "player_combat": {
+          "class_id": "e8e7c9ff-ff0e-5c38-9eec-5434e6a45354",
+          "name": "DungeonPlayerCombat"
+        },
+        "player_vitals": {
+          "class_id": "070a2ac6-e00f-5e9c-8bd2-560acb25ad2f",
+          "name": "DungeonPlayerVitals"
+        },
+        "run_flow": {
+          "class_id": "df3f7e3e-b99c-5530-9d86-a44f87e67c5f",
+          "name": "DungeonRunFlow"
+        },
+        "shop_widget": {
+          "class_id": "733195d2-87b9-5164-b675-53372b0a569c",
+          "name": "DungeonShopWidget"
+        },
+        "terminal_widget": {
+          "class_id": "f5ddf390-875f-56c6-8efd-9265383c29ff",
+          "name": "DungeonTerminalWidget"
+        }
+      }
+    }
+  }
+}

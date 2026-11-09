@@ -575,33 +575,98 @@ pub(crate) fn build_runner(
     } else {
         crate::blueprint::registry_from_catalog(root, catalog)
     };
+    let index = crate::assets::scan(root, &mut Default::default());
+    let mut localized = scene.clone();
+    crate::localization::resolve_runtime(&mut localized, &index, &registry)?;
+    let mut localized_banks = banks.map(<[Scene]>::to_vec);
+    if let Some(banks) = localized_banks.as_mut() {
+        for bank in banks {
+            crate::localization::resolve_runtime(bank, &index, &registry)?;
+        }
+    }
+    let selected_scenes = localized_banks
+        .as_deref()
+        .unwrap_or(std::slice::from_ref(&localized));
+    let templates = if runner == Runner::NativePlay {
+        crate::blueprint_spawn::prepare(root, catalog, &index)?
+    } else {
+        vec![]
+    };
+    let mut resource_scenes = selected_scenes.to_vec();
+    resource_scenes.extend(templates.iter().map(|t| t.scene.clone()));
+    let blueprint_files = crate::blueprint_asset::load_all(root)?;
+    let referenced = crate::blueprint_refs::resources(
+        &blueprint_files,
+        &resource_scenes,
+        &registry,
+        &index,
+        &[],
+    )?;
+    resource_scenes.push(referenced.clone());
+    let shared = crate::scene_bank::resources(&resource_scenes);
+    let selected = crate::dialogue_cook::Selection::prepare(
+        &blueprint_files,
+        &resource_scenes,
+        &registry,
+        &index,
+        &[],
+    )?;
+    let dialogues = crate::dialogue_cook::Bundle::prepare_widgets(
+        &selected,
+        &index,
+        &registry,
+        localized.display_size,
+        &shared.fonts,
+        &resource_scenes,
+    )?;
+    dialogues.install_languages(&mut localized);
+    if let Some(banks) = localized_banks.as_mut() {
+        for bank in banks {
+            dialogues.install_languages(bank);
+        }
+    }
+    let scene = &localized;
+    let banks = localized_banks.as_deref();
+    crate::dialogue_presenter::validate(&resource_scenes, &shared, &registry, &dialogues)?;
     let mut header = if let Some(banks) = banks {
         crate::scene_bank::header_with_templates(
             banks,
             &used,
             None,
-            &[],
-            None,
+            &templates,
+            Some(&referenced),
             &[],
             &[],
             &registry,
         )?
     } else {
-        crate::project::scene_header_with_registry(scene, &used, scene, true, scene, &registry)?
+        crate::project::scene_header_with_registry(scene, &used, &shared, true, &shared, &registry)?
     };
     if banks.is_none() {
-        header += &crate::blueprint_refs::asset_table(scene)?;
-        header += &crate::data_table::header(&scene.reference_tables)?;
+        header += &crate::blueprint_refs::asset_table(&shared)?;
+        header += &crate::data_table::header(&shared.reference_tables)?;
         header += &crate::blueprint_spawn::object_class_table_for_scenes(
             &registry,
             std::slice::from_ref(scene),
         )?;
     }
+    header += &dialogues.header(&shared)?;
     let registry_capacity = header
         .lines()
         .find_map(|line| line.strip_prefix("#define EPOK_OBJECT_REGISTRY_CAPACITY "))
         .unwrap_or("256")
         .to_owned();
+    let mut interaction = header.contains("#define EPOK_INTERACTION_USED 1");
+    let dialogue_helpers = header.contains("#define EPOK_DIALOGUE_USED 1");
+    let ui_anchor = header.contains("#define EPOK_UI_ANCHOR_USED 1");
+    let camera_helpers = header.contains("#define EPOK_CAMERA_RIG_USED 1");
+    let command_helpers = header.contains("#define EPOK_CHARACTER_COMMANDS_USED 1");
+    let character_input_helpers = header.contains("#define EPOK_CHARACTER_INPUT_USED 1");
+    let character_animation_helpers = header.contains("#define EPOK_CHARACTER_ANIMATION_USED 1");
+    let world_gameplay_helpers = header.contains("#define EPOK_WORLD_GAMEPLAY_USED 1");
+    if runner == Runner::HudPreview && ui_anchor {
+        return Err("ScreenAnchorComponent requires Native Play for world projection. The UI class designer previews its authored layout.".into());
+    }
     let mut files: BTreeMap<PathBuf, Vec<u8>> = crate::project::runtime_sources()
         .iter()
         .map(|(p, b)| (PathBuf::from(p), b.to_vec()))
@@ -619,7 +684,7 @@ pub(crate) fn build_runner(
     // gets the same global header rather than an empty one.
     files.insert(
         "fonts.hh".into(),
-        crate::hud::fonts_header(scene)?.into_bytes(),
+        crate::hud::fonts_header(&shared)?.into_bytes(),
     );
     files.insert(
         "display.hh".into(),
@@ -707,10 +772,28 @@ pub(crate) fn build_runner(
         sources = native.native_sources.iter().cloned().collect();
     }
     let native_blueprints = native.runtime_capabilities.contains("blueprint");
+    let world_gameplay =
+        world_gameplay_helpers || native.runtime_capabilities.contains("world-gameplay");
+    let character_input =
+        character_input_helpers || native.runtime_capabilities.contains("character-input");
+    let character_animation =
+        character_animation_helpers || native.runtime_capabilities.contains("character-animation");
+    let character_commands = command_helpers
+        || character_input
+        || native.runtime_capabilities.contains("character-commands");
+    let camera_rig =
+        camera_helpers || character_input || native.runtime_capabilities.contains("camera-rig");
+    let dialogue = dialogue_helpers
+        || !dialogues.variants.is_empty()
+        || native.runtime_capabilities.contains("dialogue");
+    interaction |= dialogue || native.runtime_capabilities.contains("interaction");
+    let gameplay_control =
+        interaction || character_input || native.runtime_capabilities.contains("gameplay-control");
+    let text_reveal = dialogue || native.runtime_capabilities.contains("text-reveal");
     files.extend(native.files);
     let compiler_signature = format!("{:?}", host_compiler()?);
     let compile_configuration = format!(
-        "runner={runner:?};blueprints={native_blueprints};registry={registry_capacity};objects=1;platform={};flags=cpp20,exceptions,o2,editor-preview,no-warnings",
+        "runner={runner:?};blueprints={native_blueprints};controls={gameplay_control};interaction={interaction};world_gameplay={world_gameplay};reveal={text_reveal};dialogue={dialogue};anchor={ui_anchor};camera={camera_rig};commands={character_commands};player_input={character_input};animation={character_animation};registry={registry_capacity};objects=1;platform={};flags=cpp20,exceptions,o2,editor-preview,no-warnings",
         if cfg!(windows) { "msvc" } else { "posix" }
     );
     use sha2::{Digest, Sha256};
@@ -755,7 +838,15 @@ pub(crate) fn build_runner(
     let common = common.finalize();
     let mut compile_sources = vec![PathBuf::from(runner_source)];
     compile_sources.extend(sources);
-    let stage = cache.join(uuid::Uuid::new_v4().to_string());
+    // Generated class headers have UUID filenames. Stage outside the 64-byte
+    // content-key directory so MSVC can open them in nested Windows projects.
+    // Exclusive directory creation prevents an accidental collision from ever
+    // overwriting another concurrent staging transaction.
+    fs::create_dir_all(&cache).map_err(|e| e.to_string())?;
+    let staging = base.join(".staging");
+    fs::create_dir_all(&staging).map_err(|e| e.to_string())?;
+    let stage = staging.join(format!("s{:016x}", uuid::Uuid::new_v4().as_u128() as u64));
+    fs::create_dir(&stage).map_err(|e| e.to_string())?;
     for (path, bytes) in &files {
         let path = stage.join(path);
         fs::create_dir_all(path.parent().unwrap()).map_err(|e| e.to_string())?;
@@ -809,6 +900,36 @@ pub(crate) fn build_runner(
                 if native_blueprints {
                     compiler.arg("/DEPOK_BLUEPRINTS");
                 }
+                if gameplay_control {
+                    compiler.arg("/DEPOK_GAMEPLAY_CONTROL");
+                }
+                if interaction {
+                    compiler.arg("/DEPOK_INTERACTION");
+                }
+                if ui_anchor {
+                    compiler.arg("/DEPOK_UI_ANCHOR");
+                }
+                if camera_rig {
+                    compiler.arg("/DEPOK_CAMERA_RIG");
+                }
+                if character_commands {
+                    compiler.arg("/DEPOK_CHARACTER_COMMANDS");
+                }
+                if character_input {
+                    compiler.arg("/DEPOK_CHARACTER_INPUT");
+                }
+                if character_animation {
+                    compiler.arg("/DEPOK_CHARACTER_ANIMATION");
+                }
+                if world_gameplay {
+                    compiler.arg("/DEPOK_WORLD_GAMEPLAY");
+                }
+                if text_reveal {
+                    compiler.arg("/DEPOK_TEXT_REVEAL");
+                }
+                if dialogue {
+                    compiler.arg("/DEPOK_DIALOGUE");
+                }
                 if runner == Runner::NativePlay {
                     compiler.arg(format!(
                         "/DEPOK_OBJECT_REGISTRY_CAPACITY={registry_capacity}"
@@ -828,6 +949,36 @@ pub(crate) fn build_runner(
                 ]);
                 if native_blueprints {
                     compiler.arg("-DEPOK_BLUEPRINTS");
+                }
+                if gameplay_control {
+                    compiler.arg("-DEPOK_GAMEPLAY_CONTROL");
+                }
+                if interaction {
+                    compiler.arg("-DEPOK_INTERACTION");
+                }
+                if ui_anchor {
+                    compiler.arg("-DEPOK_UI_ANCHOR");
+                }
+                if camera_rig {
+                    compiler.arg("-DEPOK_CAMERA_RIG");
+                }
+                if character_commands {
+                    compiler.arg("-DEPOK_CHARACTER_COMMANDS");
+                }
+                if character_input {
+                    compiler.arg("-DEPOK_CHARACTER_INPUT");
+                }
+                if character_animation {
+                    compiler.arg("-DEPOK_CHARACTER_ANIMATION");
+                }
+                if world_gameplay {
+                    compiler.arg("-DEPOK_WORLD_GAMEPLAY");
+                }
+                if text_reveal {
+                    compiler.arg("-DEPOK_TEXT_REVEAL");
+                }
+                if dialogue {
+                    compiler.arg("-DEPOK_DIALOGUE");
                 }
                 if runner == Runner::NativePlay {
                     compiler.arg(format!(
@@ -1219,6 +1370,74 @@ mod tests {
         drop(session);
         fs::remove_dir_all(root).unwrap();
     }
+    #[test]
+    fn gameplay_control_capture_consumes_frame_input_before_native_ticks() {
+        let root = crate::workspace::tests::temp("gameplay-control-preview");
+        crate::workspace::create(&root, "Capture Preview", crate::workspace::Template::Basic)
+            .unwrap();
+        fs::write(root.join("assets/scripts/CaptureProbe.hpp"), r#"#pragma once
+#include "epok.hpp"
+class EPOK_CLASS(Blueprintable,Owners=UI,Id="fc8a1c08-fcb1-59c9-b7d2-360d55ab94b2") CaptureProbe:public epok::ActorComponent {
+    epok::InputCapture token{};
+public:
+    using Controls=epok::GameplayInputLibrary;
+    void begin_play() override {token=Controls::capture(id(),Controls::mask(epok::GameplayAction::Confirm),100,0);}
+    void on_frame(uint32_t) override {
+        if(Controls::context_take_pressed(token,epok::GameplayAction::Confirm,true)){
+            get_owner()->data()->rect.position[0]+=epok::Fixed(1.0);Controls::release(token);
+        }
+    }
+    void tick(epok::Fixed) override {
+        if(Controls::button_pressed(epok::Button::Cross,0))get_owner()->data()->rect.position[0]+=epok::Fixed(100.0);
+    }
+};
+"#).unwrap();
+        let mut actor = crate::scene::Actor::cube("CapturePanel".into());
+        actor.kind = "Empty".into();
+        actor.rect = Some(crate::hud::RectTransform {
+            anchor_min: [0.; 2],
+            anchor_max: [0.; 2],
+            pivot: [0.; 2],
+            position: [0., 10.],
+            size: [32., 16.],
+            ..Default::default()
+        });
+        actor.image = Some(crate::hud::Image {
+            color: [1., 0., 0.],
+            ..Default::default()
+        });
+        crate::actor_components::sync(&mut actor);
+        actor
+            .components
+            .push(crate::actor_document::ComponentInstance::new(
+                uuid::Uuid::new_v4(),
+                crate::actor_document::ClassReference::new(
+                    "CaptureProbe",
+                    "fc8a1c08-fcb1-59c9-b7d2-360d55ab94b2",
+                ),
+                "CaptureProbe",
+            ));
+        let scene = Scene {
+            actors: vec![actor],
+            ..Default::default()
+        };
+        let catalog = crate::scripts::native_catalog(&root).unwrap();
+        let exe = build(&root, &scene, &catalog, &AtomicBool::new(false)).unwrap();
+        let mut session = Session::launch(&exe, scene).unwrap();
+        assert_eq!(session.wait_frame().unwrap().commands[0].0[3], 0);
+        for (elapsed, buttons, expected) in [
+            (10_000, 1 << 14, 1),
+            (10_000, 1 << 14, 1),
+            (16_667, 0, 1),
+            (16_667, 1 << 14, 101),
+        ] {
+            session.request(elapsed, buttons).unwrap();
+            assert_eq!(session.wait_frame().unwrap().commands[0].0[3], expected);
+        }
+        drop(session);
+        fs::remove_dir_all(root).unwrap();
+    }
+
     #[test]
     fn native_controller_runs_real_lifecycle_input_and_property_overrides() {
         let root = std::env::temp_dir().join(format!("epok-hud-actors-{}", uuid::Uuid::new_v4()));

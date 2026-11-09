@@ -25,6 +25,7 @@ PCSX.addBreakpoint=function(address,_,_,_,callback)
     breakpoints[address]=point;return point
 end
 local client={}
+function client:nodelay()end
 function client:connect(_,_,callback)callback()end
 function client:write(value)output[#output+1]=type(value)=='table' and table.concat(value) or value end
 function client:read_start(callback)receive=callback end

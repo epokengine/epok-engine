@@ -1,0 +1,815 @@
+class: b220c109-6a29-53a3-bbbc-dcf880abe73d
+template:
+  actors:
+  - entity:
+      active: true
+      class:
+        class_id: b220c109-6a29-53a3-bbbc-dcf880abe73d
+        name: DungeonGameHUDWidget
+      components:
+      - class:
+          class_id: dc805165-6c65-48dc-8ff8-4a638a5d21df
+          name: epok::RectTransformComponent
+        default_id: cpp:c:@N@epok@S@UIActor@FI@root
+        id: c1ac01ec-51c9-551c-8474-f0a1ee2bde4f
+        inherited: true
+        name: Rect Transform
+        overrides:
+        - rect
+        properties:
+          rect:
+            anchor_max:
+            - 1.0
+            - 1.0
+            anchor_min:
+            - 0.0
+            - 0.0
+            pivot:
+            - 0.0
+            - 0.0
+            position:
+            - 0.0
+            - 0.0
+            rotation: 0.0
+            size:
+            - 0.0
+            - 0.0
+        root: true
+      - class:
+          class_id: f2cfb26b-af53-4a46-9d91-1debea72e01b
+          name: epok::CanvasComponent
+        id: 591e6f30-ca14-5c97-bbda-909e29e68c88
+        name: Canvas
+        overrides:
+        - canvas
+        properties:
+          canvas:
+            enabled: true
+            focused: -1
+      - class:
+          class_id: d04c78d6-23bd-40d7-88f1-b1afc1b05b5b
+          name: epok::ImageComponent
+        id: 02e5e497-b501-4468-af78-34f46bc694a2
+        name: Damage Border
+        overrides:
+        - image
+        properties:
+          image:
+            borders:
+            - 6
+            - 6
+            - 6
+            - 6
+            color:
+            - 0.8799999952316284
+            - 0.06300000101327896
+            - 0.07800000160932541
+            enabled: false
+            region:
+            - 0
+            - 0
+            - 0
+            - 0
+            texture: null
+            tiling: none
+      id: 3735c331-4a51-5f1b-9274-09d5884aeee2
+      name: Combat HUD
+      overrides:
+      - energy_label
+      - energy_bar
+      - energy_panel
+      - boss_bar
+      - reticle
+      - message_panel
+      - objective
+      - key_status
+      - game_message
+      - boss_label
+      - controls_hint
+      properties:
+        boss_bar: 2472061b-7141-5411-8cc6-c1facd7a877e
+        boss_label: ad750672-a0c5-5e77-a87a-512ac2a3c9af
+        controls_hint: 088ef10a-eaa4-5c25-8ee4-ecc6de9ad263
+        energy_bar: 41527970-5050-5ecb-8059-3d2d9a517cd2
+        energy_label: e056ed47-a933-5d2d-906d-f52be1798f57
+        energy_panel: d1ff1aed-50b9-5a4c-8ded-459549a7c996
+        game_message: a46ef28d-61c2-5f3a-90af-ca0e50c49627
+        key_status: 9318a32d-8ed1-515c-b900-bfc3a2752ca6
+        message_panel: fdc8f5dc-df6f-5dac-97ef-c52f3b5087fa
+        objective: c250afe2-e00b-5337-9d19-75eb47c5b763
+        reticle: be196eb3-131c-5b5c-a544-ba84a53c0c15
+    parent: null
+  - entity:
+      active: true
+      class:
+        class_id: b09bd2fa-8b09-4c0f-a33a-c3ca08b21d8f
+        name: epok::UIActor
+      components:
+      - class:
+          class_id: dc805165-6c65-48dc-8ff8-4a638a5d21df
+          name: epok::RectTransformComponent
+        id: 0f594350-11ec-5e8e-aa8b-d39a75a75d8e
+        name: Rect Transform
+        overrides:
+        - rect
+        properties:
+          rect:
+            anchor_max:
+            - 0.0
+            - 1.0
+            anchor_min:
+            - 0.0
+            - 1.0
+            pivot:
+            - 0.0
+            - 1.0
+            position:
+            - 36.0
+            - -18.0
+            rotation: 0.0
+            size:
+            - 73.0
+            - 7.0
+        root: true
+      - class:
+          class_id: fd7f11d1-7ccf-40e8-a7ea-56d89deb3f34
+          name: epok::TextComponent
+        id: bfbe78d8-f99c-5f7b-8d14-605f9a78d629
+        name: Text
+        overrides:
+        - text
+        properties:
+          text:
+            align: left
+            color:
+            - 0.8999999761581421
+            - 0.949999988079071
+            - 1.0
+            enabled: false
+            font: 48ebb451-2bda-423f-8957-2cda25eae5d3
+            text: ENERGY 100
+            wrap: false
+      - class:
+          class_id: d04c78d6-23bd-40d7-88f1-b1afc1b05b5b
+          name: epok::ImageComponent
+        id: ff3624cc-ac72-515b-97c5-6bc43f0cc743
+        name: Gauge Image
+        overrides:
+        - image
+        properties:
+          image:
+            borders:
+            - 0
+            - 0
+            - 0
+            - 0
+            color:
+            - 0.019999999552965164
+            - 0.03500000014901161
+            - 0.054999999701976776
+            enabled: true
+            region:
+            - 0
+            - 0
+            - 0
+            - 0
+            texture: null
+            tiling: none
+      id: e056ed47-a933-5d2d-906d-f52be1798f57
+      name: Energy Label
+      overrides: []
+      properties: {}
+    parent: 3735c331-4a51-5f1b-9274-09d5884aeee2
+  - entity:
+      active: true
+      class:
+        class_id: b09bd2fa-8b09-4c0f-a33a-c3ca08b21d8f
+        name: epok::UIActor
+      components:
+      - class:
+          class_id: dc805165-6c65-48dc-8ff8-4a638a5d21df
+          name: epok::RectTransformComponent
+        id: 502b8689-7aa0-5f99-b8aa-6ccd161acbee
+        name: Rect Transform
+        overrides:
+        - rect
+        properties:
+          rect:
+            anchor_max:
+            - 0.0
+            - 1.0
+            anchor_min:
+            - 0.0
+            - 1.0
+            pivot:
+            - 0.0
+            - 1.0
+            position:
+            - 36.0
+            - -18.0
+            rotation: 0.0
+            size:
+            - 73.0
+            - 7.0
+        root: true
+      - class:
+          class_id: 28bf5245-5d80-4cba-a77d-1d74479ac276
+          name: epok::ProgressBarComponent
+        id: e6cef06d-2093-55b9-ad11-7524ea303acb
+        name: Progress Bar
+        overrides:
+        - progress
+        properties:
+          progress:
+            background:
+            - 0.09000000357627869
+            - 0.14000000059604645
+            - 0.20000000298023224
+            color:
+            - 0.25
+            - 0.8500000238418579
+            - 0.5
+            enabled: false
+            step: 0.0
+            value: 1.0
+      - class:
+          class_id: d04c78d6-23bd-40d7-88f1-b1afc1b05b5b
+          name: epok::ImageComponent
+        id: 40806e5e-74b1-5902-8188-9099527def0e
+        name: Gauge Image
+        overrides:
+        - image
+        properties:
+          image:
+            borders:
+            - 0
+            - 0
+            - 0
+            - 0
+            color:
+            - 0.5799999833106995
+            - 1.0
+            - 0.4000000059604645
+            enabled: true
+            region:
+            - 0
+            - 0
+            - 80
+            - 8
+            texture: 4746d2ef-2995-54a5-8049-3e793c5c355c
+            tiling: none
+      id: 41527970-5050-5ecb-8059-3d2d9a517cd2
+      name: Energy Bar
+      overrides: []
+      properties: {}
+    parent: 3735c331-4a51-5f1b-9274-09d5884aeee2
+  - entity:
+      active: true
+      class:
+        class_id: b09bd2fa-8b09-4c0f-a33a-c3ca08b21d8f
+        name: epok::UIActor
+      components:
+      - class:
+          class_id: dc805165-6c65-48dc-8ff8-4a638a5d21df
+          name: epok::RectTransformComponent
+        id: c5dc905f-b5b2-57be-a569-38d84ecb4967
+        name: Rect Transform
+        overrides:
+        - rect
+        properties:
+          rect:
+            anchor_max:
+            - 0.0
+            - 1.0
+            anchor_min:
+            - 0.0
+            - 1.0
+            pivot:
+            - 0.0
+            - 1.0
+            position:
+            - 8.0
+            - -8.0
+            rotation: 0.0
+            size:
+            - 112.0
+            - 24.0
+        root: true
+      - class:
+          class_id: d04c78d6-23bd-40d7-88f1-b1afc1b05b5b
+          name: epok::ImageComponent
+        id: dc3a4442-c350-5855-9c9a-c375da9bb4f2
+        name: Image
+        overrides:
+        - image
+        properties:
+          image:
+            borders:
+            - 0
+            - 0
+            - 0
+            - 0
+            color:
+            - 1.0
+            - 1.0
+            - 1.0
+            enabled: true
+            region:
+            - 0
+            - 0
+            - 0
+            - 0
+            texture: 26cedbc9-6d0d-5a4c-a16a-a09836fd9156
+            tiling: none
+      id: d1ff1aed-50b9-5a4c-8ded-459549a7c996
+      name: Energy Panel
+      overrides: []
+      properties: {}
+    parent: 3735c331-4a51-5f1b-9274-09d5884aeee2
+  - entity:
+      active: true
+      class:
+        class_id: b09bd2fa-8b09-4c0f-a33a-c3ca08b21d8f
+        name: epok::UIActor
+      components:
+      - class:
+          class_id: dc805165-6c65-48dc-8ff8-4a638a5d21df
+          name: epok::RectTransformComponent
+        id: 0f62f83e-e7fc-5d5c-b6de-6cdef06a5227
+        name: Rect Transform
+        overrides:
+        - rect
+        properties:
+          rect:
+            anchor_max:
+            - 0.0
+            - 1.0
+            anchor_min:
+            - 0.0
+            - 1.0
+            pivot:
+            - 0.0
+            - 1.0
+            position:
+            - 95.0
+            - -198.0
+            rotation: 0.0
+            size:
+            - 130.0
+            - 5.0
+        root: true
+      - class:
+          class_id: 28bf5245-5d80-4cba-a77d-1d74479ac276
+          name: epok::ProgressBarComponent
+        id: 3ac87331-30db-5727-9f1a-3439f934b47f
+        name: Progress Bar
+        overrides:
+        - progress
+        properties:
+          progress:
+            background:
+            - 0.09000000357627869
+            - 0.14000000059604645
+            - 0.20000000298023224
+            color:
+            - 0.949999988079071
+            - 0.3199999928474426
+            - 0.17000000178813934
+            enabled: false
+            step: 0.0
+            value: 1.0
+      id: 2472061b-7141-5411-8cc6-c1facd7a877e
+      name: Boss Bar
+      overrides: []
+      properties: {}
+    parent: 3735c331-4a51-5f1b-9274-09d5884aeee2
+  - entity:
+      active: true
+      class:
+        class_id: b09bd2fa-8b09-4c0f-a33a-c3ca08b21d8f
+        name: epok::UIActor
+      components:
+      - class:
+          class_id: dc805165-6c65-48dc-8ff8-4a638a5d21df
+          name: epok::RectTransformComponent
+        id: e6277360-73b9-5ded-9583-3b4886194c30
+        name: Rect Transform
+        overrides:
+        - rect
+        properties:
+          rect:
+            anchor_max:
+            - 0.0
+            - 1.0
+            anchor_min:
+            - 0.0
+            - 1.0
+            pivot:
+            - 0.0
+            - 1.0
+            position:
+            - 157.0
+            - -115.0
+            rotation: 0.0
+            size:
+            - 6.0
+            - 10.0
+        root: true
+      - class:
+          class_id: fd7f11d1-7ccf-40e8-a7ea-56d89deb3f34
+          name: epok::TextComponent
+        id: 9fd3c0f2-c3ce-5bc8-b150-d0776d3a72dd
+        name: Text
+        overrides:
+        - text
+        properties:
+          text:
+            align: left
+            color:
+            - 0.8500000238418579
+            - 1.0
+            - 1.0
+            enabled: false
+            font: 48ebb451-2bda-423f-8957-2cda25eae5d3
+            text: +
+            wrap: false
+      id: be196eb3-131c-5b5c-a544-ba84a53c0c15
+      name: Aim Reticle
+      overrides: []
+      properties: {}
+    parent: 3735c331-4a51-5f1b-9274-09d5884aeee2
+  - entity:
+      active: true
+      class:
+        class_id: b09bd2fa-8b09-4c0f-a33a-c3ca08b21d8f
+        name: epok::UIActor
+      components:
+      - class:
+          class_id: dc805165-6c65-48dc-8ff8-4a638a5d21df
+          name: epok::RectTransformComponent
+        id: 5cd570f4-2c29-57c4-a05d-a47641ce05f0
+        name: Rect Transform
+        overrides:
+        - rect
+        properties:
+          rect:
+            anchor_max:
+            - 0.0
+            - 1.0
+            anchor_min:
+            - 0.0
+            - 1.0
+            pivot:
+            - 0.0
+            - 1.0
+            position:
+            - 48.0
+            - -84.0
+            rotation: 0.0
+            size:
+            - 224.0
+            - 64.0
+        root: true
+      - class:
+          class_id: d04c78d6-23bd-40d7-88f1-b1afc1b05b5b
+          name: epok::ImageComponent
+        id: e46aa5e9-4341-56b8-840e-c04999636569
+        name: Image
+        overrides:
+        - image
+        properties:
+          image:
+            borders:
+            - 0
+            - 0
+            - 0
+            - 0
+            color:
+            - 0.03500000014901161
+            - 0.06499999761581421
+            - 0.09000000357627869
+            enabled: false
+            region:
+            - 0
+            - 0
+            - 0
+            - 0
+            texture: null
+            tiling: none
+      id: fdc8f5dc-df6f-5dac-97ef-c52f3b5087fa
+      name: Message Panel
+      overrides: []
+      properties: {}
+    parent: 3735c331-4a51-5f1b-9274-09d5884aeee2
+  - entity:
+      active: true
+      class:
+        class_id: b09bd2fa-8b09-4c0f-a33a-c3ca08b21d8f
+        name: epok::UIActor
+      components:
+      - class:
+          class_id: dc805165-6c65-48dc-8ff8-4a638a5d21df
+          name: epok::RectTransformComponent
+        id: 2ebe5e0d-49f7-5831-9b5a-f06324284b58
+        name: Rect Transform
+        overrides:
+        - rect
+        properties:
+          rect:
+            anchor_max:
+            - 0.0
+            - 1.0
+            anchor_min:
+            - 0.0
+            - 1.0
+            pivot:
+            - 0.0
+            - 1.0
+            position:
+            - 8.0
+            - -38.0
+            rotation: 0.0
+            size:
+            - 304.0
+            - 12.0
+        root: true
+      - class:
+          class_id: fd7f11d1-7ccf-40e8-a7ea-56d89deb3f34
+          name: epok::TextComponent
+        id: 959aa021-47c9-51f4-bb6a-d45f50aafdad
+        name: Text
+        overrides:
+        - text
+        properties:
+          text:
+            align: left
+            color:
+            - 0.8999999761581421
+            - 0.949999988079071
+            - 1.0
+            enabled: true
+            font: 48ebb451-2bda-423f-8957-2cda25eae5d3
+            text: FIND THE ACCESS KEY
+            wrap: false
+      id: c250afe2-e00b-5337-9d19-75eb47c5b763
+      name: Objective
+      overrides: []
+      properties: {}
+    parent: 3735c331-4a51-5f1b-9274-09d5884aeee2
+  - entity:
+      active: true
+      class:
+        class_id: b09bd2fa-8b09-4c0f-a33a-c3ca08b21d8f
+        name: epok::UIActor
+      components:
+      - class:
+          class_id: dc805165-6c65-48dc-8ff8-4a638a5d21df
+          name: epok::RectTransformComponent
+        id: 12cbb216-28ef-5b06-aeda-04c32e9334d7
+        name: Rect Transform
+        overrides:
+        - rect
+        properties:
+          rect:
+            anchor_max:
+            - 0.0
+            - 1.0
+            anchor_min:
+            - 0.0
+            - 1.0
+            pivot:
+            - 0.0
+            - 1.0
+            position:
+            - 246.0
+            - -12.0
+            rotation: 0.0
+            size:
+            - 66.0
+            - 12.0
+        root: true
+      - class:
+          class_id: fd7f11d1-7ccf-40e8-a7ea-56d89deb3f34
+          name: epok::TextComponent
+        id: 39e07d71-be58-55fe-a743-3499d8107585
+        name: Text
+        overrides:
+        - text
+        properties:
+          text:
+            align: left
+            color:
+            - 0.44999998807907104
+            - 0.8500000238418579
+            - 1.0
+            enabled: true
+            font: 48ebb451-2bda-423f-8957-2cda25eae5d3
+            text: 'KEY: --'
+            wrap: false
+      id: 9318a32d-8ed1-515c-b900-bfc3a2752ca6
+      name: Key Status
+      overrides: []
+      properties: {}
+    parent: 3735c331-4a51-5f1b-9274-09d5884aeee2
+  - entity:
+      active: true
+      class:
+        class_id: b09bd2fa-8b09-4c0f-a33a-c3ca08b21d8f
+        name: epok::UIActor
+      components:
+      - class:
+          class_id: dc805165-6c65-48dc-8ff8-4a638a5d21df
+          name: epok::RectTransformComponent
+        id: 180c77a9-a464-527a-bb61-a1c5dd1710ed
+        name: Rect Transform
+        overrides:
+        - rect
+        properties:
+          rect:
+            anchor_max:
+            - 0.0
+            - 1.0
+            anchor_min:
+            - 0.0
+            - 1.0
+            pivot:
+            - 0.0
+            - 1.0
+            position:
+            - 60.0
+            - -94.0
+            rotation: 0.0
+            size:
+            - 200.0
+            - 44.0
+        root: true
+      - class:
+          class_id: fd7f11d1-7ccf-40e8-a7ea-56d89deb3f34
+          name: epok::TextComponent
+        id: d995f746-b5be-5028-8ee1-7599d43f1afb
+        name: Text
+        overrides:
+        - text
+        properties:
+          text:
+            align: center
+            color:
+            - 0.75
+            - 0.9200000166893005
+            - 1.0
+            enabled: false
+            font: 48ebb451-2bda-423f-8957-2cda25eae5d3
+            text: ''
+            wrap: false
+      id: a46ef28d-61c2-5f3a-90af-ca0e50c49627
+      name: Game Message
+      overrides: []
+      properties: {}
+    parent: 3735c331-4a51-5f1b-9274-09d5884aeee2
+  - entity:
+      active: true
+      class:
+        class_id: b09bd2fa-8b09-4c0f-a33a-c3ca08b21d8f
+        name: epok::UIActor
+      components:
+      - class:
+          class_id: dc805165-6c65-48dc-8ff8-4a638a5d21df
+          name: epok::RectTransformComponent
+        id: e51ac8a9-4d44-5e6f-af35-02886153b61d
+        name: Rect Transform
+        overrides:
+        - rect
+        properties:
+          rect:
+            anchor_max:
+            - 0.0
+            - 1.0
+            anchor_min:
+            - 0.0
+            - 1.0
+            pivot:
+            - 0.0
+            - 1.0
+            position:
+            - 80.0
+            - -183.0
+            rotation: 0.0
+            size:
+            - 160.0
+            - 12.0
+        root: true
+      - class:
+          class_id: fd7f11d1-7ccf-40e8-a7ea-56d89deb3f34
+          name: epok::TextComponent
+        id: 31a6783d-a936-506e-9f35-ad0a46f0e5f1
+        name: Text
+        overrides:
+        - text
+        properties:
+          text:
+            align: center
+            color:
+            - 1.0
+            - 0.6499999761581421
+            - 0.3499999940395355
+            enabled: false
+            font: 48ebb451-2bda-423f-8957-2cda25eae5d3
+            text: REACTOR GUARDIAN
+            wrap: false
+      id: ad750672-a0c5-5e77-a87a-512ac2a3c9af
+      name: Boss Label
+      overrides: []
+      properties: {}
+    parent: 3735c331-4a51-5f1b-9274-09d5884aeee2
+  - entity:
+      active: true
+      class:
+        class_id: b09bd2fa-8b09-4c0f-a33a-c3ca08b21d8f
+        name: epok::UIActor
+      components:
+      - class:
+          class_id: dc805165-6c65-48dc-8ff8-4a638a5d21df
+          name: epok::RectTransformComponent
+        id: da4d4cc8-4840-55b1-87d4-8d672c1def82
+        name: Rect Transform
+        overrides:
+        - rect
+        properties:
+          rect:
+            anchor_max:
+            - 0.0
+            - 1.0
+            anchor_min:
+            - 0.0
+            - 1.0
+            pivot:
+            - 0.0
+            - 1.0
+            position:
+            - 8.0
+            - -224.0
+            rotation: 0.0
+            size:
+            - 304.0
+            - 10.0
+        root: true
+      - class:
+          class_id: fd7f11d1-7ccf-40e8-a7ea-56d89deb3f34
+          name: epok::TextComponent
+        id: 71c8f4c3-2fad-506c-b50f-508715b313c7
+        name: Text
+        overrides:
+        - text
+        properties:
+          text:
+            align: left
+            color:
+            - 0.6299999952316284
+            - 0.7300000190734863
+            - 0.8199999928474426
+            enabled: true
+            font: 48ebb451-2bda-423f-8957-2cda25eae5d3
+            text: J FIRE  Q AIM  E LOCK  SPACE JUMP
+            wrap: false
+      id: 088ef10a-eaa4-5c25-8ee4-ecc6de9ad263
+      name: Controls Hint
+      overrides: []
+      properties: {}
+    parent: 3735c331-4a51-5f1b-9274-09d5884aeee2
+  construction: []
+  overrides: {}
+  references:
+  - member: bbfdb35e-e4fc-56a4-b100-1202634cb07f
+    owner: 3735c331-4a51-5f1b-9274-09d5884aeee2
+    target: e056ed47-a933-5d2d-906d-f52be1798f57
+  - member: 22e84edf-3a74-5609-8443-8693a6ec9922
+    owner: 3735c331-4a51-5f1b-9274-09d5884aeee2
+    target: 41527970-5050-5ecb-8059-3d2d9a517cd2
+  - member: 95627b0a-38d3-52d0-9ac5-50077acfd9d8
+    owner: 3735c331-4a51-5f1b-9274-09d5884aeee2
+    target: d1ff1aed-50b9-5a4c-8ded-459549a7c996
+  - member: d18cdb6b-804d-5e2d-8bc1-d34e5034453d
+    owner: 3735c331-4a51-5f1b-9274-09d5884aeee2
+    target: 2472061b-7141-5411-8cc6-c1facd7a877e
+  - member: 217f7063-7d96-57e1-9ec7-c11131146f44
+    owner: 3735c331-4a51-5f1b-9274-09d5884aeee2
+    target: be196eb3-131c-5b5c-a544-ba84a53c0c15
+  - member: 700963ba-4592-5eda-b0df-7259c01dc15d
+    owner: 3735c331-4a51-5f1b-9274-09d5884aeee2
+    target: fdc8f5dc-df6f-5dac-97ef-c52f3b5087fa
+  - member: 2ed63aa7-b454-5313-9f18-601c80437a03
+    owner: 3735c331-4a51-5f1b-9274-09d5884aeee2
+    target: c250afe2-e00b-5337-9d19-75eb47c5b763
+  - member: cfe835e0-db7f-5674-8b48-74cbacd6191b
+    owner: 3735c331-4a51-5f1b-9274-09d5884aeee2
+    target: 9318a32d-8ed1-515c-b900-bfc3a2752ca6
+  - member: 66b130c5-922d-5e67-bf4c-91a3c7784b48
+    owner: 3735c331-4a51-5f1b-9274-09d5884aeee2
+    target: a46ef28d-61c2-5f3a-90af-ca0e50c49627
+  - member: 460a01fa-b042-507b-98a5-c3574a6cee50
+    owner: 3735c331-4a51-5f1b-9274-09d5884aeee2
+    target: ad750672-a0c5-5e77-a87a-512ac2a3c9af
+  - member: 402ee2de-55c1-54a8-8340-bb818d5a2e09
+    owner: 3735c331-4a51-5f1b-9274-09d5884aeee2
+    target: 088ef10a-eaa4-5c25-8ee4-ecc6de9ad263
+version: 4

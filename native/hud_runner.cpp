@@ -30,7 +30,11 @@ void AudioSource::play(){audio_playing[this]=true;}
 void AudioSource::stop(){audio_playing[this]=false;}
 bool AudioSource::is_playing() const {auto i=audio_playing.find(this);return i!=audio_playing.end()&&i->second;}
 void remove_runtime_owner(size_t){}
-void reset_runtime_services(){}
+void reset_runtime_services(){
+#ifdef EPOK_DIALOGUE
+    dialogue::session().reset();
+#endif
+}
 bool request_scene(const char* name){if(!name||!*name||!requested_scene.empty())return false;requested_scene=name;return true;}
 bool request_scene(size_t index){return request_scene(std::to_string(index).c_str());}
 bool request_scene(const char* name,const TransitionOptions&){return request_scene(name);}
@@ -99,18 +103,36 @@ int main(int argc,char** argv){
     uint32_t now=0,elapsed=0,buttons=0;
     while(read32(elapsed)&&read32(buttons)){
         if(elapsed>100000||buttons>65535)return 3;
+#ifdef EPOK_DIALOGUE
+        if(!editing&&epok::scene_loading())epok::dialogue::session().reset();
+#endif
         if(!editing&&epok::requested_scene.empty()){
             now+=elapsed;epok::input.sample(0,true,uint16_t(buttons));
+#ifdef EPOK_GAMEPLAY_CONTROL
+            epok::gameplay_controls().begin_frame();
+#endif
             // The same D-pad edges the console reads, so Interact mode shows
             // focus moving exactly where the runtime would move it.
             epok::hud_focus_update(epok::objects.data(),epok::object_count,epok::hud_focus_edges());
             const auto steps=epok::time.advance(now);
+#ifdef EPOK_DIALOGUE
+            epok::dialogue::session().update_microseconds(epok::time.frame_microseconds);
+#endif
             epok::level.frame_update(epok::time.frame_microseconds);
             if(epok::time.paused()||epok::scene_loading())epok::input.discard_edges();
+#ifdef EPOK_GAMEPLAY_CONTROL
+            if(epok::time.paused()||epok::scene_loading())epok::gameplay_controls().discard_tick_edges();
+#endif
             for(unsigned i=0;i<steps&&!epok::time.paused()&&!epok::scene_loading();++i){
                 epok::time.begin_tick();epok::input.begin_tick();
+#ifdef EPOK_GAMEPLAY_CONTROL
+                epok::gameplay_controls().begin_tick();
+#endif
                 epok::level.tick(epok::Fixed(epok::time.delta_raw,epok::Fixed::RAW));
                 epok::input.end_tick();
+#ifdef EPOK_GAMEPLAY_CONTROL
+                epok::gameplay_controls().end_tick();
+#endif
             }
             cards.pump();++epok::performance_stats.frame;
         }

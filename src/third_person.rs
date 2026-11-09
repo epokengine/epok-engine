@@ -223,10 +223,7 @@ pub const CPP_CONTROLLER_ID: &str = "9233f481-d27e-4765-a2d3-4dcfcb0cc910";
 pub const LUA_CONTROLLER_ID: &str = "5d5b3e5e-604d-4b2a-bd1d-313ce3bd2598";
 pub const LUA_CONTROLLER_PATH: &str = "assets/scripts/ThirdPersonController.lua";
 
-/// The six locomotion clips, in the order the controller indexes them. The C++
-/// flavor looks them up by name at begin_play; the Blueprint and Lua flavors are
-/// handed the resolved indices as typed properties, so neither depends on a
-/// display name surviving a rename.
+/// Resolve animation roles once during generation, independently of flavor.
 const CLIP_NAMES: [&str; 6] = [
     "CharacterRig|Sequence_00_Wait",
     "CharacterRig|Sequence_01_Sequence",
@@ -235,27 +232,59 @@ const CLIP_NAMES: [&str; 6] = [
     "CharacterRig|Sequence_25_Jump_Down",
     "CharacterRig|Sequence_26_Land",
 ];
-const CLIP_PROPERTIES: [&str; 6] = [
-    "idle_clip",
-    "walk_clip",
-    "run_clip",
-    "jump_up_clip",
-    "jump_down_clip",
-    "land_clip",
-];
 
 /// Where the shared scene keeps the actors a flavor has to bind to.
 struct Gameplay {
+    world: usize,
     player: usize,
     camera: usize,
     visual: usize,
 }
 
+/// Generated handles for a caller that supplies its own world geometry.
+pub(crate) struct PlayerScene {
+    pub scene: Scene,
+    pub world: Uuid,
+    pub player: Uuid,
+    pub roles: std::collections::BTreeMap<String, crate::actor_document::ClassReference>,
+}
+
 pub fn create(root: &Path, flavor: GameplayFlavor) -> Result<Scene, String> {
+    let mut assembly = create_assembly(root, flavor, true)?;
+    crate::template_install::write(
+        root,
+        crate::workspace::Template::ThirdPerson,
+        flavor,
+        assembly
+            .roles
+            .iter()
+            .map(|(role, class)| (role.as_str(), class.clone())),
+    )?;
+    finalize(root, &mut assembly.scene, flavor)
+}
+
+pub(crate) fn create_player_scene(
+    root: &Path,
+    flavor: GameplayFlavor,
+) -> Result<PlayerScene, String> {
+    create_assembly(root, flavor, false)
+}
+
+fn create_assembly(
+    root: &Path,
+    flavor: GameplayFlavor,
+    arena: bool,
+) -> Result<PlayerScene, String> {
     install_shared_assets(root)?;
-    let (mut scene, gameplay) = build_shared_scene(root)?;
-    install_gameplay(root, &mut scene, &gameplay, flavor)?;
-    finalize(root, &mut scene, flavor)
+    let (mut scene, gameplay) = build_shared_scene(root, arena)?;
+    let roles = install_gameplay(root, &mut scene, &gameplay, flavor)?;
+    scene.sync_actor_components();
+    Ok(PlayerScene {
+        world: scene.actors[gameplay.world].id,
+        player: scene.actors[gameplay.player].id,
+        scene,
+        roles,
+    })
 }
 
 fn install_shared_assets(root: &Path) -> Result<(), String> {
@@ -267,7 +296,7 @@ fn install_shared_assets(root: &Path) -> Result<(), String> {
 
 /// The level, the player and the camera. Identical for every flavor: one copy of
 /// the assets, one hierarchy, one set of transforms and colliders.
-fn build_shared_scene(root: &Path) -> Result<(Scene, Gameplay), String> {
+fn build_shared_scene(root: &Path, arena: bool) -> Result<(Scene, Gameplay), String> {
     let mut scene = Scene {
         name: "Main".into(),
         actors: Vec::new(),
@@ -280,6 +309,15 @@ fn build_shared_scene(root: &Path) -> Result<(Scene, Gameplay), String> {
     // their children retain the authored world transforms.
     let world = scene.actors.len();
     scene.actors.push(empty("World", None));
+    if arena {
+        build_arena(root, &mut scene, world)?;
+    }
+    let gameplay = build_player(&mut scene, world)?;
+    scene.sync_actor_components();
+    Ok((scene, gameplay))
+}
+
+fn build_arena(root: &Path, scene: &mut Scene, world: usize) -> Result<(), String> {
     let environment = scene.actors.len();
     scene.actors.push(empty("Environment", Some(world)));
     let geometry = scene.actors.len();
@@ -360,6 +398,10 @@ fn build_shared_scene(root: &Path) -> Result<(Scene, Gameplay), String> {
     });
     scene.actors.push(sun);
 
+    Ok(())
+}
+
+fn build_player(scene: &mut Scene, world: usize) -> Result<Gameplay, String> {
     let gameplay = scene.actors.len();
     scene.actors.push(empty("Gameplay", Some(world)));
 
@@ -396,15 +438,12 @@ fn build_shared_scene(root: &Path) -> Result<(Scene, Gameplay), String> {
     let visual_index = scene.actors.len();
     scene.actors.push(visual);
 
-    scene.sync_actor_components();
-    Ok((
-        scene,
-        Gameplay {
-            player: player_index,
-            camera: camera_index,
-            visual: visual_index,
-        },
-    ))
+    Ok(Gameplay {
+        world,
+        player: player_index,
+        camera: camera_index,
+        visual: visual_index,
+    })
 }
 
 /// The only part of the template a flavor owns: the controller source and the
@@ -414,7 +453,88 @@ fn install_gameplay(
     scene: &mut Scene,
     gameplay: &Gameplay,
     flavor: GameplayFlavor,
-) -> Result<(), String> {
+) -> Result<std::collections::BTreeMap<String, crate::actor_document::ClassReference>, String> {
+    let registry = crate::scripts::declaration_registry(root)?;
+    let model = crate::object_model::Model::from_registry(&registry).map_err(|errors| {
+        errors
+            .iter()
+            .map(|e| e.message.clone())
+            .collect::<Vec<_>>()
+            .join("\n")
+    })?;
+    for (index, name) in [
+        (gameplay.player, "epok::Character3D"),
+        (gameplay.camera, "epok::ThirdPersonCamera"),
+    ] {
+        let class = registry
+            .named(name)
+            .ok_or_else(|| format!("Missing shared class {name}"))?;
+        scene.actors[index].class = crate::actor_document::ClassReference::new(name, &class.id);
+        crate::class_composition::hydrate(&mut scene.actors[index], &model)?;
+    }
+    let mut roles = std::collections::BTreeMap::from([
+        ("player".into(), scene.actors[gameplay.player].class.clone()),
+        ("camera".into(), scene.actors[gameplay.camera].class.clone()),
+    ]);
+    let camera = scene.actors[gameplay.camera].id;
+    let player = scene.actors[gameplay.player].id;
+    let visual = scene.actors[gameplay.visual]
+        .components
+        .iter()
+        .find(|c| c.class.class_id.as_deref() == Some(crate::object_model::MESH3D_COMPONENT_ID))
+        .ok_or("Third Person template Visual actor has no mesh component")?
+        .id;
+    scene.actors[gameplay.player].properties.extend([
+        ("camera".into(), serde_json::json!(camera)),
+        ("visual".into(), serde_json::json!(visual)),
+    ]);
+    scene.actors[gameplay.player]
+        .overrides
+        .extend(["camera".into(), "visual".into()]);
+    scene.actors[gameplay.camera]
+        .properties
+        .insert("target".into(), serde_json::json!(player));
+    scene.actors[gameplay.camera]
+        .overrides
+        .insert("target".into());
+    // The rig writes world-space poses. Keep its hierarchy group logical so
+    // it does not also inherit that group's spatial transform.
+    scene.actors[gameplay.camera].attach = None;
+    for (index, role, class, label, properties) in [
+        (
+            gameplay.camera,
+            "camera_input",
+            "epok::CameraOrbitInputComponent",
+            "Orbit Input",
+            serde_json::json!({}),
+        ),
+        (
+            gameplay.player,
+            "locomotion",
+            "epok::SkeletalLocomotionComponent",
+            "Locomotion",
+            {
+                let [idle, walk, run, jump_up, jump_down, land] = clip_slots(root)?;
+                serde_json::json!({"visual": visual, "clips": {"idle": idle, "walk": walk, "run": run,
+                "jump_up": jump_up, "jump_down": jump_down, "land": land}})
+            },
+        ),
+    ] {
+        let declared = registry
+            .named(class)
+            .ok_or_else(|| format!("Missing shared class {class}"))?;
+        let mut component = crate::actor_document::ComponentInstance::new(
+            Uuid::new_v4(),
+            crate::actor_document::ClassReference::new(class, &declared.id),
+            label,
+        );
+        component.properties = serde_json::from_value(properties).map_err(|e| e.to_string())?;
+        component
+            .overrides
+            .extend(component.properties.keys().cloned());
+        roles.insert(role.into(), component.class.clone());
+        scene.actors[index].components.push(component);
+    }
     let class_id = match flavor {
         GameplayFlavor::Cpp => CPP_CONTROLLER_ID,
         GameplayFlavor::Blueprint => crate::third_person_blueprint::CLASS_ID,
@@ -425,44 +545,11 @@ fn install_gameplay(
         crate::actor_document::ClassReference::new(CONTROLLER_NAME, class_id),
         "Third Person Controller",
     );
-    if flavor != GameplayFlavor::Cpp {
-        // Typed references, resolved once here. Neither generated controller
-        // looks an actor up by display name, so renaming one is safe. The Lua
-        // flavor binds the camera's transform rather than the camera, because
-        // writing a transform component takes three scalars and a Lua class
-        // that never holds a whole vector compiles in every execution mode.
-        let camera = match flavor {
-            GameplayFlavor::Lua => {
-                scene.actors[gameplay.camera]
-                    .root()
-                    .ok_or("Third Person template Camera actor has no transform")?
-                    .id
-            }
-            _ => scene.actors[gameplay.camera].id,
-        };
-        let visual = scene.actors[gameplay.visual]
-            .components
-            .iter()
-            .find(|c| c.class.class_id.as_deref() == Some(crate::object_model::MESH3D_COMPONENT_ID))
-            .ok_or("Third Person template Visual actor has no mesh component")?
-            .id;
-        controller.properties.insert(
-            "camera".into(),
-            serde_json::Value::String(camera.to_string()),
-        );
-        controller.properties.insert(
-            "visual".into(),
-            serde_json::Value::String(visual.to_string()),
-        );
-        for (name, slot) in CLIP_PROPERTIES.iter().zip(clip_slots(root)?) {
-            controller
-                .properties
-                .insert((*name).into(), serde_json::Value::from(slot));
-        }
-        controller
-            .overrides
-            .extend(controller.properties.keys().cloned());
-    }
+    controller
+        .properties
+        .insert("camera".into(), serde_json::json!(camera));
+    controller.overrides.insert("camera".into());
+    roles.insert("controller".into(), controller.class.clone());
     scene.actors[gameplay.player].components.push(controller);
 
     match flavor {
@@ -470,19 +557,11 @@ fn install_gameplay(
             for (name, source) in [
                 (
                     "assets/scripts/ThirdPersonController.hpp",
-                    include_str!("../templates/ThirdPersonController.hpp"),
+                    include_str!("../templates/ThirdPersonInput.hpp"),
                 ),
                 (
                     "assets/scripts/ThirdPersonController.cpp",
-                    include_str!("../templates/ThirdPersonController.cpp"),
-                ),
-                (
-                    "assets/scripts/CharacterMotion.hpp",
-                    include_str!("../templates/CharacterMotion.hpp"),
-                ),
-                (
-                    "assets/scripts/CharacterClips.hpp",
-                    include_str!("../templates/CharacterClips.hpp"),
+                    include_str!("../templates/ThirdPersonInput.cpp"),
                 ),
             ] {
                 crate::project::write_changed(&assets::inside(root, name)?, source.as_bytes())?;
@@ -491,7 +570,7 @@ fn install_gameplay(
         GameplayFlavor::Lua => {
             crate::project::write_changed(
                 &assets::inside(root, LUA_CONTROLLER_PATH)?,
-                include_bytes!("../templates/ThirdPersonController.lua"),
+                include_bytes!("../templates/ThirdPersonInput.lua"),
             )?;
             let mut registry = crate::lua_identity::Registry::default();
             registry
@@ -504,10 +583,13 @@ fn install_gameplay(
             if let Some(directory) = asset.parent() {
                 std::fs::create_dir_all(directory).map_err(|e| e.to_string())?;
             }
-            crate::blueprint_asset::create(&asset, &crate::third_person_blueprint::asset())?;
+            crate::blueprint_asset::create(
+                &asset,
+                &crate::third_person_blueprint::shared_asset(&registry)?,
+            )?;
         }
     }
-    Ok(())
+    Ok(roles)
 }
 
 /// The clip index of each locomotion name, in the order the bundled model
@@ -566,14 +648,14 @@ fn readme(flavor: GameplayFlavor) -> String {
     let source = match flavor {
         GameplayFlavor::Cpp => concat!(
             "The controller is project-owned C++ in `assets/scripts/ThirdPersonController.hpp`\n",
-            "and `assets/scripts/ThirdPersonController.cpp`, with\n",
-            "`assets/scripts/CharacterMotion.hpp` for the locomotion state machine and\n",
-            "`assets/scripts/CharacterClips.hpp` for the clip names."
+            "and `assets/scripts/ThirdPersonController.cpp`. It derives from the shared local-player\n",
+            "input component. Character3D, locomotion and camera components own the common mechanisms."
         ),
         GameplayFlavor::Blueprint => concat!(
             "The controller is a project-owned visual graph in\n",
             "`assets/Blueprints/ThirdPersonController.epokbp`. Open it from the Project browser\n",
-            "to edit movement, the camera boom or the animation states. The build backend turns\n",
+            "to extend the shared input component. Edit motor, locomotion and camera properties\n",
+            "on their scene components. The build backend turns\n",
             "the graph into native console code; the source you edit stays visual."
         ),
         GameplayFlavor::Lua => concat!(
@@ -589,6 +671,79 @@ fn readme(flavor: GameplayFlavor) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn player_composition_uses_generated_handles_without_installing_an_arena() {
+        for flavor in GameplayFlavor::ALL {
+            let root = crate::workspace::tests::temp("player-composition");
+            std::fs::create_dir_all(root.join("assets/scripts")).unwrap();
+            let mut assembly = create_player_scene(&root, flavor).unwrap();
+            assert_eq!(assembly.scene.actors.len(), 5);
+            assert!(assembly.scene.bake.is_none());
+            assert!(!root.join("README.md").exists());
+            assert!(!root.join("UserSettings/SceneView.epokprefs").exists());
+            assert!(
+                !root.join(crate::template_install::PATH).exists(),
+                "the caller owns the template installation identity"
+            );
+            for (path, _) in LEVEL_ASSETS {
+                assert!(!root.join(path).exists(), "unused arena asset {path}");
+            }
+            let player = assembly
+                .scene
+                .actors
+                .iter()
+                .find(|a| a.id == assembly.player)
+                .unwrap();
+            assert_eq!(player.class, assembly.roles["player"]);
+            assert_eq!(player.components.len(), 5);
+            let camera_id =
+                serde_json::from_value::<Uuid>(player.properties["camera"].clone()).unwrap();
+            let camera = assembly
+                .scene
+                .actors
+                .iter()
+                .find(|a| a.id == camera_id)
+                .unwrap();
+            assert_eq!(camera.class, assembly.roles["camera"]);
+            assert_eq!(camera.components.len(), 4);
+            assert_eq!(
+                camera.properties["target"],
+                serde_json::json!(assembly.player)
+            );
+            assert!(camera.attach.is_none());
+            assert!(
+                player
+                    .components
+                    .iter()
+                    .any(|c| c.class == assembly.roles["controller"])
+            );
+            assert!(
+                player
+                    .components
+                    .iter()
+                    .any(|c| c.class == assembly.roles["locomotion"])
+            );
+            assert!(
+                camera
+                    .components
+                    .iter()
+                    .any(|c| c.class == assembly.roles["camera_input"])
+            );
+            assert!(assembly.scene.actors.iter().any(|a| a.id == assembly.world));
+            for (i, actor) in assembly.scene.actors.iter_mut().enumerate() {
+                actor.name = format!("Renamed role {i}");
+            }
+            let registry = crate::scripts::declaration_registry(&root).unwrap();
+            let model = registry.model().unwrap();
+            assembly.scene.validate_with_model(Some(&model)).unwrap();
+            let path = root.join("assets/scenes/Player.epokmap");
+            assembly.scene.save(&path).unwrap();
+            let reopened = Scene::load(&path).unwrap();
+            assert_eq!(reopened.actors, assembly.scene.actors);
+            std::fs::remove_dir_all(root).unwrap();
+        }
+    }
 
     fn disposable(flavor: GameplayFlavor) -> (std::path::PathBuf, std::path::PathBuf) {
         let parent = std::env::temp_dir().join(format!("epok-third-person-{}", Uuid::new_v4()));
@@ -611,8 +766,6 @@ mod tests {
         let cpp = [
             "assets/scripts/ThirdPersonController.hpp",
             "assets/scripts/ThirdPersonController.cpp",
-            "assets/scripts/CharacterMotion.hpp",
-            "assets/scripts/CharacterClips.hpp",
         ];
         let lua = [LUA_CONTROLLER_PATH];
         let blueprint = [crate::third_person_blueprint::ASSET_PATH];
@@ -627,6 +780,12 @@ mod tests {
                     root.join(path).is_file(),
                     mine.contains(path),
                     "{flavor:?} generated {path}"
+                );
+            }
+            for legacy in ["CharacterMotion.hpp", "CharacterClips.hpp"] {
+                assert!(
+                    !root.join("assets/scripts").join(legacy).exists(),
+                    "{flavor:?} installed the legacy controller implementation"
                 );
             }
             let readme = std::fs::read_to_string(root.join("README.md")).unwrap();
@@ -711,17 +870,14 @@ mod tests {
                 GameplayFlavor::Blueprint => crate::third_person_blueprint::CLASS_ID,
             };
             assert_eq!(controller.class.class_id.as_deref(), Some(expected));
-            if flavor != GameplayFlavor::Cpp {
+            {
                 // Typed references, not a display-name lookup at begin_play.
                 let camera = scene
                     .actors
                     .iter()
                     .find(|actor| actor.name == "Camera")
                     .unwrap();
-                let bound = match flavor {
-                    GameplayFlavor::Lua => camera.root().unwrap().id,
-                    _ => camera.id,
-                };
+                let bound = camera.id;
                 assert_eq!(
                     controller.properties.get("camera").and_then(|v| v.as_str()),
                     Some(bound.to_string().as_str())
@@ -740,15 +896,33 @@ mod tests {
                     })
                     .unwrap();
                 assert_eq!(
-                    controller.properties.get("visual").and_then(|v| v.as_str()),
+                    player.properties.get("visual").and_then(|v| v.as_str()),
                     Some(mesh.id.to_string().as_str())
                 );
-                let mut slots: Vec<u64> = CLIP_PROPERTIES
+                let animation = player
+                    .components
                     .iter()
-                    .map(|name| controller.properties[*name].as_u64().unwrap())
+                    .find(|c| c.class.name == "epok::SkeletalLocomotionComponent")
+                    .unwrap();
+                let mut slots: Vec<u64> = animation.properties["clips"]
+                    .as_object()
+                    .unwrap()
+                    .values()
+                    .map(|value| value.as_u64().unwrap())
                     .collect();
                 slots.sort_unstable();
                 assert_eq!(slots, vec![0, 1, 2, 3, 4, 5], "{flavor:?} clip indices");
+                assert_eq!(player.class.name, "epok::Character3D");
+                assert_eq!(camera.class.name, "epok::ThirdPersonCamera");
+                assert_eq!(player.components.len(), 5);
+                assert_eq!(camera.components.len(), 4);
+                assert!(
+                    player
+                        .components
+                        .iter()
+                        .any(|c| c.class.name == "epok::CharacterMotor3DComponent" && c.inherited)
+                );
+                assert_eq!(camera.properties["target"], serde_json::json!(player.id));
             }
             std::fs::remove_dir_all(parent).unwrap();
         }
@@ -785,7 +959,21 @@ mod tests {
             };
             assert_eq!(controller.id, expected);
             let scene = Scene::load(&crate::workspace::startup_scene(&root).unwrap()).unwrap();
-            let header = crate::project::scene_header(&scene, &catalog).unwrap();
+            let registry = crate::scripts::declaration_registry(&root).unwrap();
+            assert_eq!(
+                controller.parent.as_deref(),
+                Some(
+                    registry
+                        .named("epok::LocalPlayer3DInputComponent")
+                        .unwrap()
+                        .id
+                        .as_str()
+                )
+            );
+            let header = crate::project::scene_header_with_registry(
+                &scene, &catalog, &scene, true, &scene, &registry,
+            )
+            .unwrap();
             assert!(header.contains(CONTROLLER_NAME), "{flavor:?} scene header");
             std::fs::remove_dir_all(parent).unwrap();
         }
@@ -828,7 +1016,7 @@ mod tests {
     /// actually generated, so a change to one of the three has to be made to
     /// all three or this fails.
     #[test]
-    fn the_three_flavors_share_their_tuning_and_their_operations() {
+    fn legacy_controller_comparisons_share_their_tuning_and_operations() {
         let cpp = include_str!("../templates/ThirdPersonController.cpp");
         let lua = include_str!("../templates/ThirdPersonController.lua");
         let blueprint = String::from_utf8(
@@ -1063,7 +1251,11 @@ mod tests {
             "Template exceeds the PSX geometry limit: {triangles}"
         );
         let catalog = crate::scripts::catalog(&root).unwrap();
-        let header = crate::project::scene_header(&scene, &catalog).unwrap();
+        let registry = crate::scripts::declaration_registry(&root).unwrap();
+        let header = crate::project::scene_header_with_registry(
+            &scene, &catalog, &scene, true, &scene, &registry,
+        )
+        .unwrap();
         assert!(header.contains("ThirdPersonController"));
         assert!(root.join("UserSettings/SceneView.epokprefs").is_file());
 

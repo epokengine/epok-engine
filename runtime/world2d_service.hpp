@@ -352,12 +352,7 @@ private:
         return total;
     }
     static Collider2DComponent* solid_collider_of(ActorComponent& body) {
-        auto* owner = body.get_owner();
-        Collider2DComponent* found = nullptr;
-        colliders.each([&](Collider2DComponent& collider) {
-            if (!found && collider.get_owner() == owner && !collider.shape.trigger && collider.shape.enabled) found = &collider;
-        });
-        return found;
+        return world2d::solid_collider_of(body);
     }
     // A world-space displacement applied to the owner's root, through the inverse of the
     // linear part of the root's parent chain when the root is attached.

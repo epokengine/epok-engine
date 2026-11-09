@@ -38,7 +38,7 @@ pub struct Artifacts {
     pub blueprint_footprints: crate::blueprint_dependencies::Footprints,
 }
 
-fn cpp_without_comments(source: &str) -> String {
+pub(crate) fn cpp_without_comments(source: &str) -> String {
     let bytes = source.as_bytes();
     let mut output = bytes.to_vec();
     let mut index = 0;
@@ -140,10 +140,287 @@ fn identifier_calls(source: &str, name: &str) -> bool {
     false
 }
 
-fn native_requirements(source: &str) -> Result<BTreeSet<String>, String> {
+pub(crate) fn native_code(source: &str) -> String {
+    cpp_without_literals(&cpp_without_comments(source))
+}
+// All supported direct emitter spellings and generic runtime class creation
+// retain particles. A dynamic class ID cannot prove the instantiated type.
+fn native_particle_demand(source: &str) -> bool {
+    native_particle_demand_for(source, true)
+}
+
+fn native_particle_demand_for(source: &str, authored: bool) -> bool {
+    let comments = cpp_without_comments(source);
+    let code = cpp_without_literals(&comments);
+    // This sealed SDK constructor only copies values; it creates no actor or
+    // emitter. Keep aliases/foreign namespaces conservative. Generated provider
+    // bindings use this exact qualified spelling.
+    let mut dynamic_code = code.clone();
+    let constructor = "epok::ProjectileLibrary::spawn";
+    for (start, _) in code.match_indices(constructor) {
+        let end = start + constructor.len();
+        let bytes = code.as_bytes();
+        let before = start == 0
+            || bytes[start - 1].is_ascii_whitespace()
+            || matches!(
+                bytes[start - 1],
+                b'(' | b'&' | b'=' | b',' | b';' | b'{' | b'}'
+            );
+        let after = bytes.get(end).is_none_or(|byte| {
+            byte.is_ascii_whitespace() || matches!(byte, b'(' | b';' | b',' | b')' | b']' | b'}')
+        });
+        if before && after {
+            dynamic_code.replace_range(start..end, &" ".repeat(constructor.len()));
+        }
+    }
+    let macros = comments.lines().any(|line| {
+        line.trim_start()
+            .strip_prefix('#')
+            .is_some_and(|directive| {
+                let directive = directive.trim_start();
+                directive.starts_with("define") || directive.starts_with("undef")
+            })
+            || line.trim_end().ends_with(char::from(92))
+    });
+    let qualified = dynamic_code
+        .chars()
+        .filter(|character| !character.is_whitespace())
+        .collect::<String>();
+    (authored && macros)
+        || qualified.contains("::spawn")
+        || qualified.contains("::acquire")
+        || code.contains("Particle")
+        || code.contains("particle_emitter")
+        || code.contains("particle_stats")
+        || code.contains("play_effect")
+        || code.contains("##")
+        || [
+            "spawn_actor",
+            "spawn_batch",
+            "spawn_class",
+            "find_object_class",
+            "object_construct",
+            "object_classes",
+        ]
+        .into_iter()
+        .any(|name| dynamic_code.contains(name))
+        || ["spawn", "acquire"].into_iter().any(|name| {
+            dynamic_code.match_indices(name).any(|(start, _)| {
+                let end = start + name.len();
+                let bytes = dynamic_code.as_bytes();
+                let identifier =
+                    |byte: u8| byte.is_ascii_alphanumeric() || byte == b'_' || byte >= 128;
+                let bounded = (start == 0 || !identifier(bytes[start - 1]))
+                    && bytes.get(end).is_none_or(|byte| !identifier(*byte));
+                if !bounded {
+                    return false;
+                }
+                // acquire is always conservative. A sealed SDK spawn function
+                // cannot be an assignment LHS, array or object member; these
+                // are ordinary project variables (e.g. the player's spawn[3]).
+                name == "acquire"
+                    || !matches!(
+                        dynamic_code[end..].trim_start().as_bytes().first().copied(),
+                        Some(b'[' | b'.' | b'=')
+                    )
+            })
+        })
+        || [
+            "1d067605-c408-40b8-b2c2-718b8cf0c601",
+            "1d067605-c408-40b8-b2c2-718b8cf0c603",
+        ]
+        .into_iter()
+        .any(|id| comments.contains(id))
+}
+
+// This intentionally small allowlist contains shipped SDK headers whose own
+// implementation does not create particles implicitly, plus C/C++ standard
+// headers. Any other include must be in the observed native source closure;
+// external/unknown or macro-generated includes keep the pool conservatively.
+fn native_particle_includes_known(source: &str, observed: impl Fn(&str) -> bool) -> bool {
+    let source = cpp_without_comments(source);
+    if source
+        .lines()
+        .any(|line| line.trim_end().ends_with(char::from(92)))
+    {
+        return false;
+    }
+    for line in source.lines() {
+        let Some(directive) = line.trim_start().strip_prefix('#') else {
+            continue;
+        };
+        let directive = directive.trim_start();
+        let Some(rest) = directive.strip_prefix("include") else {
+            continue;
+        };
+        let rest = rest.trim_start();
+        let (open, close) = match rest.as_bytes().first() {
+            Some(b'"') => ('"', '"'),
+            Some(b'<') => ('<', '>'),
+            _ => return false,
+        };
+        let Some((header, _)) = rest.strip_prefix(open).and_then(|s| s.split_once(close)) else {
+            return false;
+        };
+        let trusted = matches!(
+            header,
+            "epok.hpp"
+                | "scene.hh"
+                | "gameplay_api.hpp"
+                | "blueprint_api.hpp"
+                | "object_model.hpp"
+                | "camera_rig.hpp"
+                | "character3d.hpp"
+                | "character2d.hpp"
+                | "world2d.hpp"
+                | "projectile3d.hpp"
+                | "pocketstation_async.hpp"
+                | "pocketstation_apps.hpp"
+                | "retained.hpp"
+                | "common/hardware/counters.h"
+                | "stdint.h"
+                | "stddef.h"
+                | "stdbool.h"
+                | "string.h"
+                | "stdlib.h"
+                | "math.h"
+                | "limits.h"
+                | "cstdint"
+                | "cstddef"
+                | "cstring"
+                | "cstdlib"
+                | "cmath"
+                | "limits"
+                | "type_traits"
+                | "array"
+                | "algorithm"
+                | "utility"
+                | "initializer_list"
+        );
+        if !observed(header) && !trusted {
+            return false;
+        }
+    }
+    true
+}
+
+pub(crate) fn particle_pool_required(
+    scenes: &[crate::scene::Scene],
+    needs_effects: bool,
+    artifacts: &Artifacts,
+) -> bool {
+    artifacts.native_set.is_none()
+        || needs_effects
+        || artifacts.runtime_capabilities.contains("particles")
+        || artifacts.runtime_capabilities.contains("effect")
+        || artifacts.runtime_capabilities.iter().any(|capability| {
+            !matches!(
+                capability.as_str(),
+                "native"
+                    | "blueprint"
+                    | "lua"
+                    | "lua-vm"
+                    | "rumble"
+                    | "playback_wait"
+                    | "audio"
+                    | "body2d"
+                    | "camera"
+                    | "camera2d"
+                    | "canvas"
+                    | "canvas2d"
+                    | "collider"
+                    | "collider2d"
+                    | "dialogue"
+                    | "focus"
+                    | "gameplay-control"
+                    | "health"
+                    | "image"
+                    | "interaction"
+                    | "layout"
+                    | "light"
+                    | "line2d"
+                    | "mesh"
+                    | "mesh-streaming"
+                    | "navigation2d"
+                    | "notifier2d"
+                    | "palette"
+                    | "parallax2d"
+                    | "particles2d"
+                    | "path2d"
+                    | "physics2d"
+                    | "polygon2d"
+                    | "progress"
+                    | "remote2d"
+                    | "shadow"
+                    | "skeletal-bone-query"
+                    | "skeletal-vertex-query"
+                    | "skeleton2d"
+                    | "sprite"
+                    | "sprite2d"
+                    | "text"
+                    | "tilemap2d"
+                    | "timeline"
+                    | "viewport2d"
+                    | "world-gameplay"
+                    | "world2d"
+                    | "ui-anchor"
+                    | "text-reveal"
+                    | "camera-rig"
+                    | "character-animation"
+                    | "character-commands"
+                    | "character-input"
+            )
+        })
+        || scenes.iter().any(|scene| {
+            scene
+                .actors
+                .iter()
+                .any(|actor| actor.particle_emitter.is_some() || actor.particle_effect.is_some())
+        })
+        || artifacts.files.iter().any(|(path, bytes)| {
+            if !path.extension().is_some_and(|extension| {
+                ["cpp", "cc", "hpp", "hh", "h", "inl"]
+                    .iter()
+                    .any(|name| extension == *name)
+            }) {
+                return false;
+            }
+            let authored = artifacts.native_inputs.contains_key(path);
+            // Only compiler-owned generated paths may contain trusted numeric
+            // configuration macros. Native/generated path collisions are
+            // rejected by prepare_all; native inputs take precedence here.
+            if !authored && !path.starts_with("scripts/generated") {
+                return true;
+            }
+            native_particle_demand_for(&String::from_utf8_lossy(bytes), authored)
+        })
+}
+
+pub(crate) fn native_requirements(source: &str) -> Result<BTreeSet<String>, String> {
     let mut requirements = BTreeSet::new();
     let without_comments = cpp_without_comments(source);
     let code = cpp_without_literals(&without_comments);
+    if native_particle_demand(source) {
+        requirements.insert("particles".into());
+    }
+    if [
+        "LocomotionClips",
+        "LocomotionTuning",
+        "LocomotionSelection",
+        "LocomotionSample",
+        "LocomotionState",
+        "LocomotionStatus",
+    ]
+    .into_iter()
+    .chain(
+        crate::game_helpers::ANIMATION_CLASSES
+            .iter()
+            .map(|(name, _)| *name),
+    )
+    .any(|name| code.contains(name))
+    {
+        requirements.insert("character-animation".into());
+    }
     // These spellings are deliberately conservative. Native source cannot be
     // proven unreachable on the host, so any recognized call retains its
     // corresponding cooker data/service implementation.
@@ -172,6 +449,70 @@ fn native_requirements(source: &str) -> Result<BTreeSet<String>, String> {
         if identifier_calls(&code, name) {
             requirements.insert(capability.to_string());
         }
+    }
+    if code.contains("GameplayInputLibrary") || code.contains("gameplay_controls") {
+        requirements.insert("gameplay-control".into());
+    }
+    if [
+        "CharacterCommandResult3D",
+        "CharacterCommandResult2D",
+        "CharacterCommandStatus",
+    ]
+    .into_iter()
+    .chain(
+        crate::game_helpers::COMMAND_SOURCE_CLASSES
+            .iter()
+            .map(|(name, _)| *name),
+    )
+    .any(|name| code.contains(name))
+    {
+        requirements.insert("character-commands".into());
+    }
+    if crate::game_helpers::CHARACTER_INPUT_CLASSES
+        .iter()
+        .any(|(name, _)| code.contains(name))
+    {
+        requirements.extend(
+            [
+                "character-input",
+                "character-commands",
+                "gameplay-control",
+                "camera-rig",
+            ]
+            .map(str::to_owned),
+        );
+    }
+    if ["CameraRigSample", "SpringArmSample"]
+        .into_iter()
+        .chain(
+            crate::game_helpers::CAMERA_CLASSES
+                .iter()
+                .map(|(name, _)| *name),
+        )
+        .any(|name| code.contains(name))
+    {
+        requirements.insert("camera-rig".into());
+    }
+    if code.contains("visible_glyphs") || identifier_calls(&code, "show_all_text") {
+        requirements.insert("text-reveal".into());
+    }
+    if code.contains("DialogueSessionLibrary")
+        || crate::game_helpers::DIALOGUE_CLASSES
+            .iter()
+            .any(|(name, _)| code.contains(name))
+    {
+        requirements.insert("dialogue".into());
+    }
+    if ["HelperResult", "DoorState"]
+        .into_iter()
+        .chain(
+            crate::game_helpers::WORLD_GAMEPLAY_CLASSES
+                .iter()
+                .map(|(name, _)| *name),
+        )
+        .any(|name| code.contains(name))
+    {
+        requirements.insert("world-gameplay".into());
     }
     // Opaque native libraries can declare requirements without teaching this
     // scanner their call syntax. The macro expands to no target code.
@@ -215,6 +556,10 @@ fn native_requirements(source: &str) -> Result<BTreeSet<String>, String> {
 pub fn prepare_native(root: &Path) -> Result<Artifacts, String> {
     let mut artifacts = Artifacts::default();
     let files = crate::staging_files::native_files(root)?;
+    let observed = files
+        .iter()
+        .filter_map(|path| std::fs::canonicalize(path).ok())
+        .collect::<BTreeSet<_>>();
     artifacts.native_set = Some(crate::staging_files::native_set(root, &files)?);
     let mut requirement_sources = BTreeMap::<String, Vec<String>>::new();
     for path in files {
@@ -224,7 +569,20 @@ pub fn prepare_native(root: &Path) -> Result<Artifacts, String> {
         );
         let bytes = std::fs::read(&path).map_err(|e| e.to_string())?;
         let text = String::from_utf8_lossy(&bytes);
-        for requirement in native_requirements(&text)? {
+        let mut requirements = native_requirements(&text)?;
+        if !native_particle_includes_known(&text, |header| {
+            [
+                path.parent().unwrap_or(root).join(header),
+                root.join("assets/scripts").join(header),
+            ]
+            .iter()
+            .any(|include| {
+                std::fs::canonicalize(include).is_ok_and(|resolved| observed.contains(&resolved))
+            })
+        }) {
+            requirements.insert("particles".into());
+        }
+        for requirement in requirements {
             artifacts.runtime_capabilities.insert(requirement.clone());
             requirement_sources
                 .entry(requirement)
@@ -405,16 +763,32 @@ pub fn capabilities(provider: &schema::Extension) -> Result<Capabilities, String
     }
 }
 pub fn can_derive(author: &schema::Extension, parent: &schema::Class) -> bool {
-    capabilities(author).is_ok_and(|c| c.create && c.derive_backends.contains(&parent.backend.id))
+    derivation_supported(
+        author,
+        &parent.provider,
+        &parent.backend,
+        parent.blueprintable,
+        parent.final_class,
+    )
+}
+
+pub fn derivation_supported(
+    author: &schema::Extension,
+    provider: &schema::Extension,
+    backend: &schema::Extension,
+    blueprintable: bool,
+    final_class: bool,
+) -> bool {
+    capabilities(author).is_ok_and(|c| c.create && c.derive_backends.contains(&backend.id))
         // A Lua class is a real native subclass in every execution mode, so it
         // is an eligible parent for every author. Lua itself derives from C++
         // or Lua only; Blueprint parents wait for a joint declaration order.
-        && (parent.provider == schema::native_provider()
-            || parent.provider == lua_provider()
-            || (*author == blueprint_provider() && parent.provider == blueprint_provider()))
-        && parent.backend == schema::native_backend()
-        && parent.blueprintable
-        && !parent.final_class
+        && (*provider == schema::native_provider()
+            || *provider == lua_provider()
+            || (*author == blueprint_provider() && *provider == blueprint_provider()))
+        && *backend == schema::native_backend()
+        && blueprintable
+        && !final_class
 }
 pub fn validate_binding(binding: &ClassDefaults) -> Result<(), String> {
     if !capabilities(&binding.provider)?.attach {
@@ -515,6 +889,244 @@ pub fn validate_invocation(
 mod tests {
     use super::*;
     #[test]
+    fn locomotion_types_select_animation_without_input_or_query_services() {
+        for name in [
+            "LocomotionClips",
+            "LocomotionTuning",
+            "LocomotionSelection",
+            "LocomotionSample",
+            "LocomotionState",
+            "LocomotionStatus",
+        ]
+        .into_iter()
+        .chain(
+            crate::game_helpers::ANIMATION_CLASSES
+                .iter()
+                .map(|(name, _)| *name),
+        ) {
+            assert_eq!(
+                native_requirements(&format!("using Animation=epok::{name};")).unwrap(),
+                BTreeSet::from(["character-animation".into()])
+            );
+            assert!(
+                native_requirements(&format!("// {name}\nconst char* ignored=\"{name}\";"))
+                    .unwrap()
+                    .is_empty()
+            );
+        }
+    }
+    #[test]
+    fn character_command_native_types_select_only_their_required_services() {
+        for name in [
+            "CharacterCommandResult3D",
+            "CharacterCommandResult2D",
+            "CharacterCommandStatus",
+        ]
+        .into_iter()
+        .chain(
+            crate::game_helpers::COMMAND_SOURCE_CLASSES
+                .iter()
+                .map(|(name, _)| *name),
+        ) {
+            assert_eq!(
+                native_requirements(&format!("using Source = epok::{name};")).unwrap(),
+                BTreeSet::from(["character-commands".into()])
+            );
+            assert!(
+                native_requirements(&format!("// epok::{name}\nconst char* ignored=\"{name}\";"))
+                    .unwrap()
+                    .is_empty()
+            );
+        }
+        for (name, _) in crate::game_helpers::CHARACTER_INPUT_CLASSES {
+            assert_eq!(
+                native_requirements(&format!("using Source = epok::{name};")).unwrap(),
+                BTreeSet::from(
+                    [
+                        "character-input",
+                        "character-commands",
+                        "gameplay-control",
+                        "camera-rig"
+                    ]
+                    .map(str::to_owned)
+                )
+            );
+        }
+    }
+    #[test]
+    fn camera_native_types_select_optional_header_without_comment_or_string_matches() {
+        for name in ["CameraRigSample", "SpringArmSample"].into_iter().chain(
+            crate::game_helpers::CAMERA_CLASSES
+                .iter()
+                .map(|(name, _)| *name),
+        ) {
+            let source = format!("using Camera = epok::{name};");
+            assert!(native_requirements(&source).unwrap().contains("camera-rig"));
+            for ignored in [
+                format!("// {source}"),
+                format!("const char* name=\"{name}\";"),
+            ] {
+                assert!(native_requirements(&ignored).unwrap().is_empty());
+            }
+        }
+    }
+    #[test]
+    fn particle_pool_demand_preserves_native_dynamic_and_opaque_uses() {
+        for source in [
+            "value.particle_emitter.enabled=true;",
+            "using E=epok::ParticleEmitter;",
+            "epok::ParticleEmitterComponent* emitter;",
+            "auto spawn=&epok::Level::spawn_actor;",
+            "auto type=epok::find_object_class(runtime_id);",
+            "auto factory=&epok::ObjectRegistry::acquire;",
+            "epok::bp::api::spawn_class(base, input, parent);",
+            "auto effect=&epok::PlaybackLibrary::play_effect;",
+            "#define FIELD(a,b) a ## b",
+            "#define TAKE acquire\nTAKE(type);",
+            "auto factory=& acquire;",
+            "auto factory=acquire;",
+            "using namespace epok::bp::api; auto factory=spawn;",
+            "install(spawn);",
+            "constexpr auto id=\"1d067605-c408-40b8-b2c2-718b8cf0c601\";",
+        ] {
+            assert!(
+                native_requirements(source).unwrap().contains("particles"),
+                "{source}"
+            );
+        }
+        for source in [
+            "// actor.particle_emitter.enabled=true;",
+            "const char* label=\"ParticleEmitterComponent\";",
+            "epok::Fixed spawn[3]{};",
+            "auto* rules=registry->resolve<HealthRules>(policy);",
+            "auto& spawn=encounters[index];spawn.health=health;",
+            "return epok::ProjectileLibrary::spawn(origin,velocity,lifetime,0);",
+            "auto constructor=&epok::ProjectileLibrary::spawn;",
+        ] {
+            assert!(
+                !native_requirements(source).unwrap().contains("particles"),
+                "{source}"
+            );
+        }
+        assert!(native_particle_demand(
+            "foreign::epok::ProjectileLibrary::spawn();"
+        ));
+        assert!(native_particle_demand(
+            "epok::ProjectileLibrary::spawn_other();"
+        ));
+        assert!(native_particle_includes_known(
+            "#include \"epok.hpp\"\n#include \"Observed.hpp\"",
+            |name| name == "Observed.hpp"
+        ));
+        for source in [
+            "#include \"Opaque.hpp\"",
+            "#include EXTERNAL_HEADER",
+            "#include_next <epok.hpp>",
+        ] {
+            assert!(
+                !native_particle_includes_known(source, |_| false),
+                "{source}"
+            );
+        }
+        assert!(native_particle_includes_known(
+            "// #include \"Opaque.hpp\"",
+            |_| false
+        ));
+    }
+
+    #[test]
+    fn particle_pool_demand_includes_every_bank_templates_and_generated_provider_calls() {
+        let scene = crate::scene::Scene::default();
+        let mut artifacts = Artifacts::default();
+        assert!(particle_pool_required(
+            std::slice::from_ref(&scene),
+            false,
+            &artifacts
+        ));
+        artifacts.native_set = Some("observed-test-native-closure".into());
+        assert!(!particle_pool_required(
+            std::slice::from_ref(&scene),
+            false,
+            &artifacts
+        ));
+        assert!(particle_pool_required(
+            std::slice::from_ref(&scene),
+            true,
+            &artifacts
+        ));
+        for capability in ["particles", "effect", "opaque-extension"] {
+            artifacts.runtime_capabilities.insert(capability.into());
+            assert!(particle_pool_required(
+                std::slice::from_ref(&scene),
+                false,
+                &artifacts
+            ));
+            artifacts.runtime_capabilities.clear();
+        }
+        let mut emitter_bank = scene.clone();
+        let mut emitter = crate::scene::Actor::cube("Emitter".into());
+        emitter.particle_emitter = Some(Default::default());
+        emitter_bank.actors.push(emitter);
+        assert!(particle_pool_required(
+            &[scene.clone(), emitter_bank],
+            false,
+            &artifacts
+        ));
+        artifacts.files.insert(
+            "scripts/generated/lua/lua_bindings.cpp".into(),
+            b"self.resolve<epok::ParticleEmitterComponent>(id)->play();".to_vec(),
+        );
+        assert!(particle_pool_required(&[scene], false, &artifacts));
+    }
+
+    #[test]
+    fn particle_pool_demand_distinguishes_compiler_configuration_from_authored_macros() {
+        let mut artifacts = Artifacts {
+            native_set: Some("observed".into()),
+            ..Default::default()
+        };
+        let path = PathBuf::from("scripts/generated/lua/lua_value_config.hpp");
+        artifacts.files.insert(
+            path.clone(),
+            b"#define EPOK_LUA_REQUIRED_VALUE_WORDS 10".to_vec(),
+        );
+        assert!(!particle_pool_required(&[], false, &artifacts));
+        artifacts
+            .native_inputs
+            .insert(path, ("native-file".into(), "hash".into()));
+        assert!(particle_pool_required(&[], false, &artifacts));
+        artifacts
+            .files
+            .insert("scripts/unproven.hpp".into(), b"void opaque();".to_vec());
+        artifacts.native_inputs.clear();
+        assert!(particle_pool_required(&[], false, &artifacts));
+    }
+
+    #[test]
+    fn dialogue_text_reveal_native_calls_select_capabilities_without_comment_matches() {
+        for source in [
+            "text.visible_glyphs = 3;",
+            "text.set_visible_glyphs (3);",
+            "text.show_all_text ();",
+        ] {
+            assert!(native_requirements(source).unwrap().contains("text-reveal"));
+        }
+        for source in [
+            "epok::DialogueSessionLibrary::snapshot();",
+            "using Speaker=epok::DialogueInteractionComponent;",
+            "EPOK_NATIVE_REQUIREMENTS(\"dialogue\")",
+        ] {
+            assert!(native_requirements(source).unwrap().contains("dialogue"));
+        }
+        for source in [
+            "// text.visible_glyphs = 3; DialogueSessionLibrary::snapshot();",
+            "const char* label = \"DialogueInteractionComponent visible_glyphs\";",
+            "/* text.show_all_text(); */",
+        ] {
+            assert!(native_requirements(source).unwrap().is_empty());
+        }
+    }
+    #[test]
     fn native_requirement_observation_is_lexical_and_supports_explicit_metadata() {
         let requirements = native_requirements(
             r#"
@@ -532,6 +1144,7 @@ mod tests {
             BTreeSet::from([
                 "custom-2d".into(),
                 "effect".into(),
+                "particles".into(),
                 "mesh-streaming".into(),
                 "skeletal-bone-query".into(),
                 "skeletal-vertex-query".into(),
@@ -552,6 +1165,27 @@ mod tests {
                 .unwrap_err()
                 .contains("Unterminated")
         );
+    }
+
+    #[test]
+    fn gameplay_control_native_aliases_and_spaced_calls_select_the_runtime() {
+        for source in [
+            "using Controls=epok::GameplayInputLibrary; Controls::sample(action,0);",
+            "epok::GameplayInputLibrary :: mask(action);",
+            "epok::gameplay_controls ().begin_frame();",
+        ] {
+            assert!(
+                native_requirements(source)
+                    .unwrap()
+                    .contains("gameplay-control")
+            );
+        }
+        for source in [
+            "// GameplayInputLibrary::sample(action,0);",
+            "const char* text=\"GameplayInputLibrary\";",
+        ] {
+            assert!(native_requirements(source).unwrap().is_empty());
+        }
     }
 
     #[test]
@@ -636,6 +1270,7 @@ mod tests {
                 component: None,
                 default_components: vec![],
                 explicit_abstract: false,
+                default_overrides: Default::default(),
                 id: "fake:enemy".into(),
                 provider: self.identity(),
                 backend: schema::Extension {
@@ -810,6 +1445,7 @@ mod tests {
             component: None,
             default_components: vec![],
             explicit_abstract: false,
+            default_overrides: Default::default(),
             id: "lua-test:parent".into(),
             provider,
             backend: schema::native_backend(),

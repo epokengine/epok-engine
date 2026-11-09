@@ -43,6 +43,8 @@ pub enum Kind {
     Font,
     TileSet,
     StringTable,
+    Dialogue,
+    DialogueStyle,
     DataTable,
     DungeonStyle,
     DungeonRecipe,
@@ -372,6 +374,7 @@ impl Package {
             (Kind::Terrain, crate::import_settings::Settings::Authored) => {}
             (Kind::TileSet, crate::import_settings::Settings::Authored) => {}
             (Kind::StringTable, crate::import_settings::Settings::Authored) => {}
+            (Kind::Dialogue | Kind::DialogueStyle, crate::import_settings::Settings::Authored) => {}
             (Kind::DataTable, crate::import_settings::Settings::Authored) => {}
             (Kind::DungeonStyle, crate::import_settings::Settings::Authored) => {}
             (Kind::DungeonRecipe, crate::import_settings::Settings::Authored) => {}
@@ -436,6 +439,12 @@ impl Package {
             }
             Kind::StringTable => {
                 crate::localization::StringTable::parse(&self.source)?;
+            }
+            Kind::Dialogue => {
+                crate::dialogue_asset::DialogueAsset::parse(&self.source)?;
+            }
+            Kind::DialogueStyle => {
+                crate::dialogue_asset::DialogueStyle::parse(&self.source)?;
             }
             Kind::DataTable => {
                 crate::data_table::DataTable::parse(&self.source)?;
@@ -511,7 +520,7 @@ enum Cached {
 }
 #[derive(Clone, Default)]
 pub struct ScanCache(BTreeMap<PathBuf, (Stamp, Cached)>);
-fn walk(directory: &Path, files: &mut Vec<PathBuf>, errors: &mut Vec<String>) {
+pub(crate) fn walk(directory: &Path, files: &mut Vec<PathBuf>, errors: &mut Vec<String>) {
     let entries = match fs::read_dir(directory) {
         Ok(v) => v,
         Err(e) => {
@@ -612,6 +621,7 @@ pub fn scan(root: &Path, cache: &mut ScanCache) -> Index {
             && !crate::video_import::EXTENSIONS.contains(&ext.as_str())
             && !name.ends_with(".epokmap")
             && !name.ends_with(".epokbp")
+            && !name.ends_with(".epokclass")
             && !name.ends_with(".timeline.json")
             && !name.ends_with(".particle-effect.json")
         {
@@ -665,6 +675,7 @@ pub fn scan(root: &Path, cache: &mut ScanCache) -> Index {
                         hash: hash(&bytes),
                     }))
                 } else if name.ends_with(".epokbp")
+                    || name.ends_with(".epokclass")
                     || name.ends_with(".timeline.json")
                     || name.ends_with(".particle-effect.json")
                 {

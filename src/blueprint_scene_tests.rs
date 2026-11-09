@@ -17,6 +17,7 @@ fn native(class_id: &str, cpp_name: &str, parent: Option<&str>) -> schema::Class
         component: None,
         default_components: vec![],
         explicit_abstract: false,
+        default_overrides: Default::default(),
         id: class_id.into(),
         provider: schema::native_provider(),
         backend: schema::native_backend(),
@@ -52,6 +53,7 @@ fn scene_registry() -> Registry {
         placeable: false,
         spawnable: false,
         scene_managed: true,
+        placed_only: false,
     };
 
     let mut mode = native(&id(70), "GameMode", Some(om::SCENE_SCRIPT_ACTOR_ID));
@@ -63,6 +65,7 @@ fn scene_registry() -> Registry {
         placeable: true,
         spawnable: true,
         scene_managed: false,
+        placed_only: false,
     };
 
     for class in [actor, script, mode, actor3d] {

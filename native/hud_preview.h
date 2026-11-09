@@ -50,6 +50,8 @@ struct EpokHudNode {
 // coordinates are atlas texels.
 struct EpokHudCommand { int32_t v[24]; };
 extern "C" {
+// Text record bytes and UTF-8 buffer bytes in each occupied ActorData slot.
+void epok_hud_text_storage(uint32_t* sizes);
 // `font_table` is a flat fixed-width description of the cooked fonts, in index
 // order: per font [count,width,height,line_height,baseline] then count*8 ints
 // per glyph (codepoint,u,v,width,height,advance,x_offset,y_offset). Placement

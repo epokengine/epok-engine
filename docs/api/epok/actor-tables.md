@@ -2,11 +2,11 @@
 
 > **Header:** `"actor_tables.hpp"` · **Tier:** Epok runtime API · **Source:** [open header](../../../runtime/actor_tables.hpp)
 
-This module covers the actor tables module. It documents 12 public callables declared directly in this header.
+This module covers the actor tables module. It documents 13 public callables declared directly in this header.
 
 ## Declared types
 
-`epok::ActorComponentRecord`, `epok::ActorPrototype`, `epok::ActorRecord`, `epok::ActorStats`, `epok::ActorTable`, `epok::SceneLevel`, `epok::SceneReferenceRecord`, `epok::SceneRefKind`
+`epok::ActorComponentRecord`, `epok::ActorPrototype`, `epok::ActorRecord`, `epok::ActorStats`, `epok::ActorTable`, `epok::PrototypeSlots`, `epok::SceneLevel`, `epok::SceneReferenceRecord`, `epok::SceneRefKind`
 
 ## Callable index
 
@@ -14,6 +14,7 @@ This module covers the actor tables module. It documents 12 public callables dec
 - [`epok::collect_object_quarantine`](#epok-collect-object-quarantine-1) — Performs `collect object quarantine` as part of the actor tables module.
 - [`epok::dispatch_slot_trigger`](#epok-dispatch-slot-trigger-1) — Performs `dispatch slot trigger` as part of the actor tables module.
 - [`epok::load_actor_bank`](#epok-load-actor-bank-1) — Loads actor bank as part of the actor tables module.
+- [`epok::PrototypeSlots::operator[]`](#epok-prototypeslots-operator-1) — Performs `operator []` as part of the actor tables module.
 - [`epok::SceneLevel::add_component_by_class`](#epok-scenelevel-add-component-by-class-1) — Adds component by class as part of the actor tables module.
 - [`epok::SceneLevel::bind_scene_references`](#epok-scenelevel-bind-scene-references-1) — Performs `bind scene references` as part of the actor tables module.
 - [`epok::SceneLevel::create_bank_scene_script`](#epok-scenelevel-create-bank-scene-script-1) — Creates bank scene script as part of the actor tables module.
@@ -35,7 +36,7 @@ This module covers the actor tables module. It documents 12 public callables dec
 inline ObjectId actor_for_slot(const ActorData* data)
 ```
 
-- **Declared at:** [line 159](../../../runtime/actor_tables.hpp#L159)
+- **Declared at:** [line 172](../../../runtime/actor_tables.hpp#L172)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -75,7 +76,7 @@ auto result = epok::actor_for_slot(data);
 inline void collect_object_quarantine()
 ```
 
-- **Declared at:** [line 158](../../../runtime/actor_tables.hpp#L158)
+- **Declared at:** [line 171](../../../runtime/actor_tables.hpp#L171)
 - **Kind:** `function decl`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -106,7 +107,7 @@ epok::collect_object_quarantine();
 inline size_t dispatch_slot_trigger(DataHandle self,DataHandle other,TriggerPhase phase)
 ```
 
-- **Declared at:** [line 160](../../../runtime/actor_tables.hpp#L160)
+- **Declared at:** [line 173](../../../runtime/actor_tables.hpp#L173)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -150,7 +151,7 @@ auto result = epok::dispatch_slot_trigger(self, other, phase);
 inline size_t load_actor_bank(const ActorTable& table,ActorData* slots,size_t count)
 ```
 
-- **Declared at:** [line 156](../../../runtime/actor_tables.hpp#L156)
+- **Declared at:** [line 169](../../../runtime/actor_tables.hpp#L169)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -182,6 +183,48 @@ auto result = epok::load_actor_bank(table, slots, count);
 
 **Trade-offs and warnings.** Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
 
+<a id="epok-prototypeslots-operator-1"></a>
+
+## `epok::PrototypeSlots::operator[]`
+
+**Purpose.** Performs `operator []` as part of the actor tables module.
+
+**Exact declaration**
+
+```cpp
+ActorData& operator[](size_t index)const
+```
+
+- **Declared at:** [line 24](../../../runtime/actor_tables.hpp#L24)
+- **Kind:** `cxx method`; qualifiers: `const`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `index` | `size_t` | Input | Value supplied for `index`. See the exact type and module contract. |
+
+**Returns.** Returns `ActorData &`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the actor tables module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "actor_tables.hpp"
+
+// Assume these named values have been initialized with valid data:
+// size_t index
+
+epok::PrototypeSlots& object = /* obtain a valid instance */;
+
+auto result = object.operator[](index);
+```
+
+**Why choose it.** The method is `const`, so it does not mutate the object through this API surface.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
 <a id="epok-scenelevel-add-component-by-class-1"></a>
 
 ## `epok::SceneLevel::add_component_by_class`
@@ -194,7 +237,7 @@ auto result = epok::load_actor_bank(table, slots, count);
 ObjectId add_component_by_class(Actor& actor,const ClassDescriptor& type,const char* name)
 ```
 
-- **Declared at:** [line 33](../../../runtime/actor_tables.hpp#L33)
+- **Declared at:** [line 38](../../../runtime/actor_tables.hpp#L38)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -240,7 +283,7 @@ auto result = object.add_component_by_class(actor, type, name);
 size_t bind_scene_references(const ActorTable& table,ObjectId owner)
 ```
 
-- **Declared at:** [line 75](../../../runtime/actor_tables.hpp#L75)
+- **Declared at:** [line 81](../../../runtime/actor_tables.hpp#L81)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -284,7 +327,7 @@ auto result = object.bind_scene_references(table, owner);
 ObjectId create_bank_scene_script(const ActorTable& table)
 ```
 
-- **Declared at:** [line 68](../../../runtime/actor_tables.hpp#L68)
+- **Declared at:** [line 74](../../../runtime/actor_tables.hpp#L74)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -326,7 +369,7 @@ auto result = object.create_bank_scene_script(table);
 bool ensure_bound(ObjectRegistry& registry)
 ```
 
-- **Declared at:** [line 32](../../../runtime/actor_tables.hpp#L32)
+- **Declared at:** [line 37](../../../runtime/actor_tables.hpp#L37)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -368,7 +411,7 @@ auto result = object.ensure_bound(registry);
 size_t load_bank(const ActorTable& table,ActorData* slots,size_t count)
 ```
 
-- **Declared at:** [line 40](../../../runtime/actor_tables.hpp#L40)
+- **Declared at:** [line 45](../../../runtime/actor_tables.hpp#L45)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -411,11 +454,17 @@ auto result = object.load_bank(table, slots, count);
 **Exact declaration**
 
 ```cpp
-void refresh_stats()
+void refresh_stats(bool force=false)
 ```
 
-- **Declared at:** [line 85](../../../runtime/actor_tables.hpp#L85)
+- **Declared at:** [line 91](../../../runtime/actor_tables.hpp#L91)
 - **Kind:** `cxx method`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `force` | `bool` | Input | Value supplied for `force`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -426,9 +475,12 @@ void refresh_stats()
 ```cpp
 #include "actor_tables.hpp"
 
+// Assume these named values have been initialized with valid data:
+// bool force
+
 epok::SceneLevel& object = /* obtain a valid instance */;
 
-object.refresh_stats();
+object.refresh_stats(force);
 ```
 
 **Why choose it.** It provides direct, allocation-conscious access to the actor tables module. No exception-based error path is implied by the signature.
@@ -447,7 +499,7 @@ object.refresh_stats();
 ObjectId spawn_actor(const ClassDescriptor& type,const char* name,ObjectId parent={}) override
 ```
 
-- **Declared at:** [line 48](../../../runtime/actor_tables.hpp#L48)
+- **Declared at:** [line 53](../../../runtime/actor_tables.hpp#L53)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -493,7 +545,7 @@ auto result = object.spawn_actor(type, name, parent);
 inline void unload_actor_bank()
 ```
 
-- **Declared at:** [line 157](../../../runtime/actor_tables.hpp#L157)
+- **Declared at:** [line 170](../../../runtime/actor_tables.hpp#L170)
 - **Kind:** `function decl`
 
 **Returns.** No value is returned; observe the documented state change or callback.

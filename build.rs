@@ -19,17 +19,22 @@ fn main() {
     println!("cargo:rerun-if-changed=native/hud_preview.cpp");
     println!("cargo:rerun-if-changed=native/hud_preview.h");
     println!("cargo:rerun-if-changed=native/hud_commands.hpp");
+    println!("cargo:rerun-if-changed=native/hud_nodes.hpp");
+    println!("cargo:rerun-if-changed=native/dialogue_preview.cpp");
+    println!("cargo:rerun-if-changed=native/dialogue_preview.h");
     println!("cargo:rerun-if-changed=runtime");
     println!("cargo:rerun-if-changed=third_party/nugget/psyqo/fixed-point.hh");
     cc::Build::new()
         .cpp(true)
         .std("c++20")
+        .flag_if_supported("/EHsc")
         .warnings(false)
         .include(&output)
         .include("third_party/nugget")
         .include("runtime")
         .file("native/effect_preview.cpp")
         .file("native/hud_preview.cpp")
+        .file("native/dialogue_preview.cpp")
         .compile("epok_effect_preview");
     println!("cargo:rerun-if-changed=native/sequence_preview.cpp");
     println!("cargo:rerun-if-changed=native/sequence_preview.h");

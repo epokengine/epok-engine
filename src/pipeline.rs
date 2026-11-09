@@ -944,8 +944,20 @@ fn execute(
     }
     quiet(&mut command);
     drop(reservation);
-    if let Some(script) = bridge_script {
-        command.arg("-dofile").arg(script);
+    // Automation can drive Redux, such as its virtual pad, beside the bridge.
+    // Redux runs one -dofile, so two scripts load through a small launcher.
+    let automation = std::env::var_os("EPOK_PLAY_LUA").map(PathBuf::from);
+    match (bridge_script, automation.as_deref()) {
+        (Some(bridge), Some(automation)) => {
+            let launcher = portable.join("play-scripts.lua");
+            fs::write(&launcher, play_launcher(&[bridge, automation]))
+                .map_err(|e| format!("Play scripts: {e}"))?;
+            command.arg("-dofile").arg(launcher);
+        }
+        (Some(script), None) | (None, Some(script)) => {
+            command.arg("-dofile").arg(script);
+        }
+        (None, None) => {}
     }
     // Redux calls AllocConsole itself for stdout/no-ui, defeating
     // CREATE_NO_WINDOW. An already-attached private ConPTY/PTY prevents that
@@ -1028,8 +1040,30 @@ fn execute(
     }
 }
 
+/// Load several Redux scripts in order, each by its absolute path.
+fn play_launcher(scripts: &[&Path]) -> String {
+    scripts
+        .iter()
+        .map(|script| {
+            let path = script.display().to_string().replace('\\', "/");
+            format!("dofile([==[{path}]==])\n")
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod output_tests {
+    #[test]
+    fn play_launcher_runs_each_script_in_order() {
+        let text = super::play_launcher(&[
+            std::path::Path::new(r"C:\one\bridge.lua"),
+            std::path::Path::new("two.lua"),
+        ]);
+        assert_eq!(
+            text,
+            "dofile([==[C:/one/bridge.lua]==])\ndofile([==[two.lua]==])\n"
+        );
+    }
     use super::native_command_echo;
     #[test]
     #[ignore = "requires a disposable Ironwood copy and native tools; builds without launching an emulator"]

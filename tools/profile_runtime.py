@@ -27,6 +27,10 @@ ORDERED_CAMERA_FIELDS = ([f"camera_origin_{c}" for c in range(3)]
 ORDERED_DRAW_FIELDS = ("frame candidates packets quads cpu_direct clipped_candidates page_switches origin_changes anchored_vertices anchor_rejections sample frame_microseconds".split()
                        + ORDERED_CAMERA_FIELDS)
 PLAYBACK_STATS = {
+    "hud_detail": ("hud_profile_detail", "draw parity retained key_scanlines layout_scanlines emit_scanlines total_scanlines".split(),
+                   set("draw parity retained key_scanlines layout_scanlines emit_scanlines total_scanlines".split())),
+    "hud_peak": ("hud_profile_peak", "draw parity retained key_scanlines layout_scanlines emit_scanlines total_scanlines".split(),
+                 set("draw parity retained key_scanlines layout_scanlines emit_scanlines total_scanlines".split())),
     "ordered_validation": ("ordered_validation_stats", "vertices triples range_fallback_vertices flagged_vertices camera_errors batch_errors screen_errors max_camera_delta max_screen_delta max_world_camera_delta first_error_kind first_error_sample first_error_token first_error_vertex".split(),
                            {"max_camera_delta", "max_screen_delta", "max_world_camera_delta", "first_error_kind", "first_error_sample", "first_error_token", "first_error_vertex"}),
     "streaming_verify": ("streaming_verify_stats", "batches bytes scanlines last_scanlines max_scanlines".split(),
@@ -207,7 +211,7 @@ def main():
     parser.add_argument("--input-replay", help="Explicit virtual-pad schedule: milliseconds:mask,... since emulator launch; final mask must be 0")
     parser.add_argument("--validate-gte", action="store_true")
     parser.add_argument("--optimization", choices=["Os","O2"])
-    parser.add_argument("--detail", action="store_true", help="Build with per-quad shade/fog/emit timers")
+    parser.add_argument("--detail", action="store_true", help="Build with per-quad shade/fog/emit and HUD phase timers")
     args = parser.parse_args()
     if args.output.exists() and any(args.output.iterdir()):
         parser.error("Output directory must be new or empty; existing measurements are never overwritten")
@@ -284,7 +288,7 @@ def main():
                             row["rail_navigation"] = read_rail_state(ram, rail_address, rail_position_available)
                         for key, (_, fields, _) in PLAYBACK_STATS.items():
                             counters = read_counters(ram, playback[key], fields)
-                            if counters is not None:
+                            if counters is not None and not (key in ("hud_detail", "hud_peak") and counters["draw"] == 0):
                                 row[key] = counters
                         if not latch_ordered_frame(row):
                             time.sleep(0.01)

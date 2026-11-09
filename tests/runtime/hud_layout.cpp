@@ -109,9 +109,10 @@ struct CachedRecorder:Recorder {
     hud_core::NodeCache<capacity> cache;
     std::vector<Draw> saved[2][capacity];size_t starts[capacity]={};unsigned parity=0,hits=0;
     static hud_core::NodeCache<capacity>::Counts counts(const HudStats& s){return {{s.rectangles,s.texts,s.glyphs,s.images,s.rotated,0}};}
-    bool begin_node(int owner,const Rect& r,const Affine2& m,const uint8_t* tint,HudStats& stats){
-        uint32_t key=2166136261u;auto hash=[&](const void* p,size_t n){auto* bytes=static_cast<const unsigned char*>(p);while(n--)key=(key^*bytes++)*16777619u;};
-        hash(&objects[owner],sizeof(ActorData));hash(&r,sizeof(r));hash(&m,sizeof(m));hash(tint,3);
+    bool begin_node(int owner,const Rect& r,const Affine2& m,const uint8_t* tint,bool outlined,HudStats& stats){
+        uint32_t key=hud_core::render_node_key(objects[owner],0,reinterpret_cast<uintptr_t>(fonts));
+        for(auto value:{r.x,r.y,r.w,r.h,m.c,m.s,m.tx,m.ty})key=hud_core::render_key_mix(key,uint32_t(value.raw()));
+        key=hud_core::render_key_mix(key,uint32_t(tint[0])|uint32_t(tint[1])<<8|uint32_t(tint[2])<<16|uint32_t(outlined)<<24);
         auto c=counts(stats);if(cache.begin(owner,key,c,stats)){auto& previous=saved[parity][owner];commands.insert(commands.end(),previous.begin(),previous.end());++hits;return true;}
         starts[owner]=commands.size();return false;
     }
@@ -128,6 +129,10 @@ void node_cache_matches_fresh_packets(){
         objects[1].active=frame%11<7;
         objects[2].rect.position[0]=Fixed(int(frame%17),0);
         objects[0].rect.rotation=frame%19<8?Fixed(17.0):Fixed(0.0);
+        objects[0].canvas.focused=frame%7<3?1:2;
+        objects[1].focusable.enabled=objects[2].focusable.enabled=true;
+        objects[1].focusable.outline=frame%13<7;
+        objects[2].focusable.outline=frame%17<11;
         if(frame==80)cached.cache.invalidate();
         auto expected=run(4,true,64,5,8);const auto commands=sink.commands;
         cached.parity=frame&1;cached.cache.rebuild(cached.parity);cached.commands.clear();
@@ -144,6 +149,61 @@ void node_cache_matches_fresh_packets(){
     slots.rebuild(0);counts={};stats={};assert(!slots.begin(1,7,counts,stats));counts.values[0]=9;slots.end(1,counts,stats);
     slots.rebuild(0);counts={};stats={};assert(!slots.begin(0,42,counts,stats));slots.end(0,counts,stats);
     slots.rebuild(1);assert(!slots.begin(0,42,counts,stats));slots.end(0,counts,stats);
+    // An appearance patch changes packets without a full compiler key update.
+    // Invalidating that node prevents reuse if a later full layout returns to
+    // its earlier key; the other parity retains its independent packets.
+    slots.invalidate_node(0,0);slots.rebuild(0);counts={};stats={};assert(!slots.begin(0,42,counts,stats));slots.end(0,counts,stats);
+    slots.rebuild(1);counts={};stats={};assert(slots.begin(0,42,counts,stats));
+}
+
+void unrelated_rectangle_packets_do_not_rebuild_static_text(){
+    canvas_with(3,160,32);
+    objects[1].text.enabled=true;objects[1].text.set_text("HEALTH 100");
+    objects[2].progress.enabled=true;objects[2].progress.value=0.5;
+    objects[3].text.enabled=true;objects[3].text.set_text("STATIC OBJECTIVE");
+    for(auto& edge:objects[0].image.borders)edge=4;
+    CachedRecorder cached;
+    for(unsigned frame=0;frame<2;++frame){
+        objects[0].image.enabled=frame!=0;
+        auto expected=run(4,true);const auto commands=sink.commands;
+        cached.parity=0;cached.cache.rebuild(0);cached.commands.clear();
+        hud_core::Compiler compiler(cached,screen_width,screen_height,{64,256,64,1024,256});
+        compiler.draw(objects,4,first,next,measured,rects,transforms);
+        assert(cached.commands==commands);
+        assert(expected.rectangles==compiler.stats.rectangles&&expected.glyphs==compiler.stats.glyphs&&expected.texts==compiler.stats.texts&&expected.dropped==compiler.stats.dropped);
+    }
+    assert(cached.hits>=2);
+}
+
+void related_packet_budgets_still_prune_cached_nodes(){
+    canvas_with(1,32,32);
+    objects[1].image.enabled=true;objects[1].image.texture=0;
+    sink.texture_width=sink.texture_height=8;
+    for(auto& edge:objects[0].image.borders)edge=4;
+    CachedRecorder cached;cached.texture_width=cached.texture_height=8;
+    for(unsigned frame=0;frame<2;++frame){
+        objects[0].image.enabled=frame!=0;
+        auto expected=run(2,true,64,4);const auto commands=sink.commands;
+        cached.parity=0;cached.cache.rebuild(0);cached.commands.clear();
+        hud_core::Compiler compiler(cached,screen_width,screen_height,{64,4,64,1024,256});
+        compiler.draw(objects,2,first,next,measured,rects,transforms);
+        assert(cached.commands==commands&&expected.images==compiler.stats.images&&expected.dropped==compiler.stats.dropped);
+        if(frame)assert(compiler.stats.images==0&&compiler.stats.dropped==1);
+    }
+    // Text checks the text budget before deciding its area emits no packets.
+    canvas_with(2,32,16);objects[1].text.enabled=true;objects[1].text.set_text("FIRST");
+    objects[2].text.enabled=true;objects[2].rect.size[0]=0.0;
+    CachedRecorder empty;
+    for(unsigned frame=0;frame<2;++frame){
+        objects[1].active=frame!=0;sink.commands.clear();
+        hud_core::Compiler fresh(sink,screen_width,screen_height,{64,4,1,1024,256});
+        fresh.draw(objects,3,first,next,measured,rects,transforms);const auto commands=sink.commands;
+        empty.parity=0;empty.cache.rebuild(0);empty.commands.clear();
+        hud_core::Compiler compiler(empty,screen_width,screen_height,{64,4,1,1024,256});
+        compiler.draw(objects,3,first,next,measured,rects,transforms);
+        assert(empty.commands==commands&&fresh.stats.texts==compiler.stats.texts&&fresh.stats.dropped==compiler.stats.dropped);
+        if(frame)assert(compiler.stats.texts==1&&compiler.stats.dropped==1);
+    }
 }
 void world_activation_cannot_change_hud_packets(){
     canvas_with(1,160,32);objects[1].text.enabled=true;objects[1].text.set_text("READY");
@@ -587,6 +647,9 @@ void the_exported_aggregates_keep_their_field_order() {
     const Focusable focus{true, {0, 1, 2, 3}, 4, {5, 6, 7}};
     assert(focus.order == 4 && focus.highlight[2] == 7 && focus.neighbors[3] == 3);
     assert(focus.kind == FocusKind::Button && !focus.checked && !focus.events);
+    assert(!focus.outline);
+    struct PreviousFocusable {bool enabled;int16_t neighbors[4];uint8_t order,highlight[3];FocusKind kind;bool checked;uint8_t events;};
+    static_assert(sizeof(Focusable)==sizeof(PreviousFocusable),"outline uses existing padding");
     const Focusable toggle{true, {0, 1, 2, 3}, 4, {5, 6, 7}, FocusKind(1), true};
     assert(toggle.kind == FocusKind::Toggle && toggle.checked);
     const ProgressBar bar{true, 0.5, {1, 2, 3}, {4, 5, 6}, 0.25};
@@ -811,6 +874,55 @@ void colour_tags_recolour_their_words() {
     assert(sink.commands.size() == 11);
 }
 
+void text_controls_can_draw_a_focus_outline_without_recolouring_markup() {
+    canvas_with_label("A[color=#ff0000]B[/color]C",100,16,nullptr);
+    objects[1].text.color[0]=objects[1].text.color[1]=objects[1].text.color[2]=255;
+    objects[1].focusable.enabled=objects[1].focusable.outline=true;
+    const uint8_t blue[3]={30,90,180};std::memcpy(objects[1].focusable.highlight,blue,3);
+    objects[0].canvas.focused=1;
+    auto stats=run(2,true);assert(stats.rectangles==4&&stats.glyphs==3&&!stats.dropped);
+    for(unsigned i=0;i<4;++i)assert(sink.commands[i].kind==0&&!std::memcmp(sink.commands[i].color,blue,3));
+    assert(sink.commands[4].color[1]==255&&sink.commands[5].color[0]==255&&sink.commands[5].color[1]==0&&sink.commands[6].color[2]==255);
+    stats=run(2,true,64,3);assert(stats.rectangles==3&&stats.dropped==1);
+    objects[1].rect.rotation=30.0;stats=run(2,true);assert(stats.rotated==7&&!stats.dropped);
+    stats=run(2,true,64,256,3);assert(stats.rotated==3&&stats.dropped==2);
+    objects[1].rect.rotation=0.0;objects[0].canvas.focused=-1;
+    stats=run(2,true);assert(!stats.rectangles&&stats.glyphs==3);
+    objects[0].canvas.focused=1;objects[1].focusable.outline=false;
+    stats=run(2,true);assert(!stats.rectangles&&stats.glyphs==3);
+    objects[1].focusable.outline=true;objects[1].rect.size[0]=objects[1].rect.size[1]=1.0;
+    stats=run(2,true);assert(stats.rectangles==1&&!stats.dropped);
+    objects[1].text.enabled=false;hud_focus_update(objects,2,{});
+    stats=run(2,true);assert(!stats.rectangles&&!stats.glyphs&&sink.commands.empty());
+}
+
+void a_nested_canvas_does_not_replace_its_siblings_focus() {
+    canvas_with(3,128,32);objects[0].canvas.focused=3;
+    objects[1].canvas.enabled=true;objects[1].canvas.focused=2;objects[2].parent=1;
+    for(int i:{2,3}){objects[i].text.enabled=true;objects[i].text.set_text("Label");objects[i].focusable.enabled=objects[i].focusable.outline=true;}
+    const auto stats=run(4,true);assert(stats.rectangles==8&&stats.glyphs==10&&!stats.dropped);
+}
+void a_nested_canvas_uses_its_own_rect_and_rotation() {
+    canvas_with(2,100,40);
+    objects[0].rect.enabled=true;objects[0].rect.position[0]=999.0;objects[0].rect.size[0]=1.0;objects[0].rect.rotation=90.0;
+    objects[1].canvas.enabled=true;objects[1].parent=0;
+    for(int a=0;a<2;++a){objects[1].rect.anchor_min[a]=objects[1].rect.anchor_max[a]=objects[1].rect.pivot[a]=0.0;objects[2].rect.anchor_min[a]=objects[2].rect.anchor_max[a]=objects[2].rect.pivot[a]=0.0;}
+    objects[1].rect.position[0]=20.0;objects[1].rect.position[1]=30.0;
+    objects[2].parent=1;objects[2].rect.position[0]=4.0;objects[2].rect.position[1]=5.0;objects[2].rect.size[0]=8.0;objects[2].rect.size[1]=16.0;
+    objects[2].text.enabled=true;objects[2].text.set_text("A");
+    auto stats=run(3,true);assert(rects[1].x==20.0&&rects[1].y==30.0&&rects[1].w==100.0&&rects[1].h==40.0);
+    assert(rects[2].x==24.0&&rects[2].y==35.0&&stats.glyphs==1&&!stats.dropped);
+    objects[1].rect.pivot[0]=objects[1].rect.pivot[1]=0.5;objects[1].rect.position[0]=70.0;objects[1].rect.position[1]=50.0;objects[1].rect.rotation=90.0;
+    stats=run(3,true);assert(rects[2].x==24.0&&rects[2].y==35.0&&stats.rotated==1&&stats.glyphs==0&&!stats.dropped);
+    stats=run(3,true,1);assert(stats.dropped==1&&!stats.glyphs&&!stats.rotated);
+    objects[1].canvas.screen_overlay=true;
+    stats=run(3,true);assert(rects[1].x==0.0&&rects[1].y==0.0&&rects[1].w==320.0&&rects[1].h==240.0);
+    assert(rects[2].x==4.0&&rects[2].y==5.0&&stats.glyphs==1&&!stats.rotated&&!stats.dropped);
+    objects[0].layout_container.enabled=true;objects[0].layout_container.kind=LayoutKind::Horizontal;
+    objects[3].parent=0;objects[3].rect.enabled=true;objects[3].rect.size[0]=16.0;objects[3].rect.size[1]=16.0;
+    stats=run(4,true);assert(rects[3].x==0.0&&stats.glyphs==1&&!stats.dropped);
+}
+
 void the_string_table_falls_back_to_the_first_language() {
     static const char* const strings[] = {"Start", "Quit", "", "Salir"};
     Localization table{strings, 2, 2, 0, nullptr};
@@ -826,12 +938,36 @@ void the_string_table_falls_back_to_the_first_language() {
     assert(std::strcmp(table.get(1), "Quit") == 0);
 }
 
+void a_layout_observer_preserves_the_same_draw_commands() {
+    canvas_with(2,80,24);
+    objects[0].layout_container.enabled=true;
+    objects[0].layout_container.kind=LayoutKind::Vertical;
+    objects[1].text.enabled=true;objects[1].text.set_text("Measured");
+    objects[2].image.enabled=true;
+    const auto expected=run(3,true);
+    const auto commands=sink.commands;
+    struct Observed : Recorder {
+        unsigned calls=0;
+        void layout_finished(){
+            ++calls;
+            assert(this->commands.empty());
+            assert(rects[1].w.raw()>0&&rects[2].h.raw()>0);
+        }
+    } observed;
+    hud_core::Compiler compiler(observed,screen_width,screen_height,{64,256,32,2048,256});
+    compiler.draw(objects,3,first,next,measured,rects,transforms);
+    assert(observed.calls==1&&observed.commands==commands);
+    assert(compiler.stats.glyphs==expected.glyphs&&compiler.stats.rectangles==expected.rectangles&&compiler.stats.dropped==expected.dropped);
+}
+
 static_assert(LayoutElementComponent::static_class_id == 0x7e1486803f88bac6ull, "LayoutElementComponent identity");
 static_assert(LayoutContainerComponent::static_class_id == 0xf37f18bd6de6c69eull, "LayoutContainerComponent identity");
 static_assert(sizeof(LayoutKind) == 1, "LayoutKind must fit the reflected 32-bit enum rule trivially");
 }  // namespace
 
 int main() {
+    unrelated_rectangle_packets_do_not_rebuild_static_text();
+    related_packet_budgets_still_prune_cached_nodes();
     node_cache_matches_fresh_packets();
     world_activation_cannot_change_hud_packets();
     no_container_matches_the_anchor_chain();
@@ -864,6 +1000,11 @@ int main() {
     a_toggle_draws_its_box_at_the_right_edge();
     a_slider_draws_its_handle_at_the_value();
     colour_tags_recolour_their_words();
+    text_controls_can_draw_a_focus_outline_without_recolouring_markup();
+    a_nested_canvas_does_not_replace_its_siblings_focus();
+    a_nested_canvas_uses_its_own_rect_and_rotation();
     the_string_table_falls_back_to_the_first_language();
+    a_layout_observer_preserves_the_same_draw_commands();
     std::puts("Runtime HUD layout, tiling, focus, rotation, font, toggle, slider handle, colour tag and string table tests passed.");
+    return 0;
 }

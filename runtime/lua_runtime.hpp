@@ -17,6 +17,7 @@
 
 #include "blueprint_runtime.hpp"
 #include "object_model.hpp"
+#include "lua_value_storage.hpp"
 
 #include "common/syscalls/syscalls.h"
 #include "psyqo/kernel.hh"
@@ -37,16 +38,26 @@ extern "C" {
 #ifndef EPOK_LUA_ARENA_BYTES
 #define EPOK_LUA_ARENA_BYTES (96 * 1024)
 #endif
-// Bound on the generated binding table. The bitmask below is 64 bits wide, so
-// a class may carry at most 64 Lua-bodied methods.
+// Binding classes remain separately bounded; each class supports128 method
+// slots using a MIPS32 word bitset. Wire/live-value/frame limits are unchanged.
 #ifndef EPOK_LUA_MAX_CLASSES
 #define EPOK_LUA_MAX_CLASSES 64
 #endif
-#define EPOK_LUA_MAX_SLOTS 64
+#define EPOK_LUA_MAX_SLOTS 128
 #define EPOK_LUA_MAX_ARGS 8
 #define EPOK_LUA_MAX_DEPTH 16
 #define EPOK_LUA_MAX_VALUES 64
+#if __has_include("scripts/generated/lua/lua_value_config.hpp")
+#include "scripts/generated/lua/lua_value_config.hpp"
+#endif
+#ifndef EPOK_LUA_MAX_VALUE_WORDS
 #define EPOK_LUA_MAX_VALUE_WORDS 32
+#endif
+#ifndef EPOK_LUA_PLANNED_VALUE_SLOTS
+#define EPOK_LUA_PLANNED_VALUE_SLOTS EPOK_LUA_MAX_VALUES
+#endif
+static_assert(EPOK_LUA_PLANNED_VALUE_SLOTS>0&&EPOK_LUA_PLANNED_VALUE_SLOTS<=EPOK_LUA_MAX_VALUES,"Lua value slot plan must preserve the 64-value limit");
+static_assert(EPOK_LUA_MAX_VALUE_WORDS>=3&&EPOK_LUA_MAX_VALUE_WORDS<=32,"Lua value capacity must support vectors and the 32-word ABI limit");
 
 namespace epok::lua {
 
@@ -56,8 +67,10 @@ namespace epok::lua {
 /// gameplay handle enters authored code.
 struct WireValue {
     uint8_t count = 0;
+    bool composite = false;
     int32_t words[EPOK_LUA_MAX_VALUE_WORDS]{};
 };
+static_assert(sizeof(WireValue)==4+4*EPOK_LUA_MAX_VALUE_WORDS,"Wire metadata must fit existing alignment padding");
 
 struct ClassBinding {
     uint64_t class_id;
@@ -264,9 +277,27 @@ namespace epok::lua {
 namespace detail {
 
 inline lua_State* state = nullptr;
-inline uint64_t bound_masks[EPOK_LUA_MAX_CLASSES] = {};
-// One report per (class, slot): a failing handler must not flood the link.
-inline uint64_t reported[EPOK_LUA_MAX_CLASSES] = {};
+// Method registry capacity is independent of the64-live-value wire budget.
+// Four native32-bit words avoid undefined/full-width64-bit shifts on MIPS.
+struct MethodMask {
+    uint32_t words[4]{};
+    bool contains(uint32_t slot)const{
+        if(slot>=EPOK_LUA_MAX_SLOTS)return false;
+        return (words[slot>>5]&(uint32_t(1)<<(slot&31u)))!=0;
+    }
+    // True only for the first mark; error reporting uses this same bounded
+    // primitive so every valid(class,method) is reported independently once.
+    bool mark(uint32_t slot){
+        if(slot>=EPOK_LUA_MAX_SLOTS)return false;
+        const uint32_t bit=uint32_t(1)<<(slot&31u);
+        auto& word=words[slot>>5];const bool first=(word&bit)==0;word|=bit;return first;
+    }
+};
+static_assert(EPOK_LUA_MAX_SLOTS==128);
+static_assert(sizeof(MethodMask)==4*sizeof(uint32_t));
+inline MethodMask bound_masks[EPOK_LUA_MAX_CLASSES] = {};
+// One report per(class,slot); normal VM error policy is unchanged.
+inline MethodMask reported[EPOK_LUA_MAX_CLASSES] = {};
 
 struct FrameState {
     Object* object;
@@ -280,6 +311,7 @@ inline uint32_t depth = 0;
 // still reserves.
 constexpr int kRegistryBase = 16;
 inline int registry_key(uint32_t class_index, uint32_t slot) {
+    if(class_index>=EPOK_LUA_MAX_CLASSES||slot>=EPOK_LUA_MAX_SLOTS)return -1;
     return kRegistryBase + int(class_index) * EPOK_LUA_MAX_SLOTS + int(slot);
 }
 
@@ -292,16 +324,13 @@ inline int registry_key(uint32_t class_index, uint32_t slot) {
 
 inline int32_t argument(lua_State* L, int index) { return int32_t(lua_tonumber(L, index)); }
 
-inline WireValue values[EPOK_LUA_MAX_DEPTH][EPOK_LUA_MAX_VALUES];
-inline uint8_t value_count[EPOK_LUA_MAX_DEPTH]{};
+inline ValueStorage<WireValue,EPOK_LUA_MAX_DEPTH,EPOK_LUA_PLANNED_VALUE_SLOTS> values;
 
 inline WireValue* value_from_lua(lua_State* L, int index) {
     if (!lua_islightuserdata(L, index) || depth == 0) return nullptr;
     auto* candidate = static_cast<WireValue*>(lua_touserdata(L, index));
     const uint32_t frame = depth - 1;
-    for (uint32_t i = 0; i < value_count[frame]; ++i)
-        if (candidate == &values[frame][i]) return candidate;
-    return nullptr;
+    return values.contains(frame,candidate)?candidate:nullptr;
 }
 
 inline WireValue wire_argument(lua_State* L, int index) {
@@ -315,11 +344,18 @@ inline WireValue wire_argument(lua_State* L, int index) {
 inline WireValue* retain_value(const WireValue& value) {
     if (depth == 0) return nullptr;
     const uint32_t frame = depth - 1;
-    if (value_count[frame] >= EPOK_LUA_MAX_VALUES)
-        psyqo::Kernel::abort("Lua composite value arena exceeds EPOK_LUA_MAX_VALUES");
-    WireValue* slot = &values[frame][value_count[frame]++];
-    *slot = value;
+    WireValue* slot = values.retain(frame,value);
+    if(!slot)psyqo::Kernel::abort("Lua composite value arena exceeds its proven live-value plan");
     return slot;
+}
+inline int h_sweep(lua_State* L) {
+    if(!depth)return 0;
+    const uint32_t frame=depth-1;
+    uint64_t roots=0;
+    for(int index=1;index<=lua_gettop(L);++index)
+        if(lua_islightuserdata(L,index))roots|=values.root(frame,lua_touserdata(L,index));
+    values.sweep(frame,roots);
+    return 0;
 }
 inline void push_int(lua_State* L, int32_t value) { lua_pushnumber(L, lua_Number(value)); }
 
@@ -440,7 +476,7 @@ inline int h_getwf(lua_State* L) {
         return luaL_error(L, "epok: no composite field binding");
     const WireValue result = binding->wide_get_field(*object, slot);
     if (result.count == 0) return 0;
-    if (result.count == 1) {
+    if (result.count == 1 && !result.composite) {
         push_int(L, result.words[0]);
         return 1;
     }
@@ -496,7 +532,7 @@ inline int dispatch_wide(lua_State* L, bool parent) {
     if (!entry) return luaL_error(L, "epok: no wide dispatch binding");
     const WireValue result = entry(*object, slot, args, uint32_t(count));
     if (result.count == 0) return 0;
-    if (result.count == 1) {
+    if (result.count == 1 && !result.composite) {
         push_int(L, result.words[0]);
         return 1;
     }
@@ -520,7 +556,7 @@ inline int dispatch_operation(lua_State* L, bool builtin) {
     auto entry = builtin ? binding->wide_builtin_call : binding->operation_call;
     const WireValue result = entry(*object, site, args, uint32_t(count));
     if (result.count == 0) return 0;
-    if (result.count == 1) {
+    if (result.count == 1 && !result.composite) {
         push_int(L, result.words[0]);
         return 1;
     }
@@ -538,11 +574,26 @@ inline int h_member(lua_State* L) {
     const uint32_t count = uint32_t(argument(L, 3));
     if (!count || offset >= value->count || count > value->count-offset)
         return luaL_error(L, "epok: composite member offset is outside the value");
-    if(count==1){push_int(L,value->words[offset]);return 1;}
-    WireValue result{};result.count=uint8_t(count);
+    const bool composite=lua_gettop(L)>=4&&lua_toboolean(L,4);
+    if(count==1&&!composite){push_int(L,value->words[offset]);return 1;}
+    WireValue result{};result.count=uint8_t(count);result.composite=composite;
     for(uint32_t i=0;i<count;++i)result.words[i]=value->words[offset+i];
     lua_pushlightuserdata(L,retain_value(result));
     return 1;
+}
+
+// Functional replacement preserves native value semantics when two locals
+// currently reference the same retained wire snapshot.
+inline int h_replace(lua_State* L) {
+    WireValue* value=value_from_lua(L,1);
+    if(!value)return luaL_error(L,"epok: stale or invalid composite value");
+    const uint32_t offset=uint32_t(argument(L,2)),count=uint32_t(argument(L,3));
+    const WireValue replacement=wire_argument(L,4);
+    if(!count||offset>=value->count||count>value->count-offset||replacement.count!=count)
+        return luaL_error(L,"epok: composite replacement is outside the value");
+    WireValue result=*value;
+    for(uint32_t i=0;i<count;++i)result.words[offset+i]=replacement.words[i];
+    lua_pushlightuserdata(L,retain_value(result));return 1;
 }
 
 inline void register_helper(lua_State* L, const char* name, lua_CFunction fn) {
@@ -617,6 +668,8 @@ inline void initialize() {
     register_helper(L, "__epok_wide_builtin", h_wide_builtin);
     register_helper(L, "__epok_operation", h_operation);
     register_helper(L, "__epok_member", h_member);
+    register_helper(L, "__epok_replace", h_replace);
+    register_helper(L, "__epok_sweep", h_sweep);
 
     // Mode 1 loads bytecode only; the no-parser core rejects text with its own
     // message, which is propagated rather than replaced.
@@ -629,7 +682,7 @@ inline void initialize() {
     for (uint32_t index = 0; index < class_binding_count; ++index) {
         const ClassBinding& binding = class_bindings[index];
         if (binding.method_count > EPOK_LUA_MAX_SLOTS)
-            psyqo::Kernel::abort("A Lua class exceeds the 64-method slot budget");
+            psyqo::Kernel::abort("A Lua class exceeds the 128-method slot capacity");
         Reader reader{binding.chunk, binding.chunk_size};
         if (lua_load(L, read_chunk, &reader, binding.name, mode) != 0) {
             sprintf(message, "Lua chunk %s was rejected: %s", binding.name, lua_tostring(L, -1));
@@ -643,14 +696,14 @@ inline void initialize() {
             sprintf(message, "Lua chunk %s did not return its class table", binding.name);
             psyqo::Kernel::abort(message);
         }
-        uint64_t mask = 0;
+        MethodMask mask;
         for (uint32_t slot = 0; slot < binding.method_count; ++slot) {
             lua_getfield(L, -1, binding.methods[slot]);
             if (lua_isfunction(L, -1)) {
                 // Cached under an integer registry key: dispatch is one
                 // `lua_rawgeti`, never a name lookup in a table.
                 lua_rawseti(L, LUA_REGISTRYINDEX, registry_key(index, slot));
-                mask |= uint64_t(1) << slot;
+                mask.mark(slot);
             } else {
                 lua_pop(L, 1);
             }
@@ -673,11 +726,15 @@ inline void initialize() {
 /// bitmask test against the table built by `initialize()`.
 class Frame {
   public:
+    // Pure overrides are const. The frontend rejects writes/effectful calls before
+    // emission; the VM still needs the same object identity for read dispatch.
+    Frame(const Object& self, uint32_t class_index, uint32_t slot)
+        : Frame(const_cast<Object&>(self), class_index, slot) {}
     Frame(Object& self, uint32_t class_index, uint32_t slot)
         : m_class(class_index), m_slot(slot) {
         if (!detail::state || class_index >= class_binding_count ||
-            slot >= EPOK_LUA_MAX_SLOTS ||
-            !(detail::bound_masks[class_index] & (uint64_t(1) << slot)))
+            class_index >= EPOK_LUA_MAX_CLASSES || slot >= EPOK_LUA_MAX_SLOTS ||
+            !detail::bound_masks[class_index].contains(slot))
             return;
         if (detail::depth >= EPOK_LUA_MAX_DEPTH)
             psyqo::Kernel::abort("Lua call depth exceeded EPOK_LUA_MAX_DEPTH");
@@ -688,7 +745,7 @@ class Frame {
             m_registry = active_object_registry;
             ++m_registry->dispatch;
         }
-        detail::value_count[detail::depth] = 0;
+        detail::values.begin(detail::depth);
         detail::frames[detail::depth++] = {&self, class_index};
         lua_State* L = detail::state;
         m_top = lua_gettop(L);
@@ -716,7 +773,7 @@ class Frame {
     }
     void arg(const WireValue& value) {
         if (!m_bound) return;
-        if (value.count <= 1) {
+        if (value.count <= 1 && !value.composite) {
             detail::push_int(detail::state, value.count ? value.words[0] : 0);
         } else {
             lua_pushlightuserdata(detail::state, detail::retain_value(value));
@@ -727,9 +784,7 @@ class Frame {
         if (!m_bound) return false;
         lua_State* L = detail::state;
         if (lua_pcall(L, m_args, int(results), 0) != 0) {
-            const uint64_t bit = uint64_t(1) << m_slot;
-            if (!(detail::reported[m_class] & bit)) {
-                detail::reported[m_class] |= bit;
+            if (detail::reported[m_class].mark(m_slot)) {
                 ramsyscall_printf("EPOK: Lua error in %s.%s: %s\n", class_bindings[m_class].name,
                                   class_bindings[m_class].methods[m_slot], lua_tostring(L, -1));
             }

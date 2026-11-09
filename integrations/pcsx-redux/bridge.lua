@@ -1,4 +1,6 @@
 -- Desktop-only PCSX-Redux adapter. This file is never compiled into the PSX game.
+-- Automated runs set EPOK_MUTE_AUDIO; the SPU still runs, only its output is silent.
+if os.getenv('EPOK_MUTE_AUDIO') then pcall(function() PCSX.settings.spu.Mute = true end) end
 local port, token = EPOK_PORT, EPOK_TOKEN
 local client = luv.new_tcp()
 -- Debug/status headers are small and precede the pixels. Do not let Nagle's
@@ -247,6 +249,8 @@ local function frame(mask, output_enabled)
     end
     debug_frame()
     pocket_poll()
+    -- An automation script loaded beside this adapter presses buttons here.
+    mask = bit.bor(mask, EPOK_AUTOMATION_PAD or 0)
     for i, name in ipairs(buttons) do
         local button = PCSX.CONSTS.PAD.BUTTON[name]
         if button then

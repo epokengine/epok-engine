@@ -19,12 +19,12 @@ pub const CATALOG: [Info; 6] = [
         template: Template::Basic,
         title: "Basic",
         summary: "An empty scene and a camera.",
-        description: "One scene, one camera, nothing else. Use it when the game is yours from \
-the first actor.",
+        description: "An empty world with a camera and an inert GameRoot class in the selected \
+language. Add your own rules to that class or start placing actors and game helpers.",
         features: &[
             "One empty scene with a camera",
             "Console rendering defaults ready to build",
-            "No starter gameplay in any language",
+            "Editable GameRoot in C++, Blueprint or Lua",
         ],
         preview: include_bytes!("../resources/templates/previews/basic.png"),
     },
@@ -117,8 +117,7 @@ impl Info {
     pub fn preview(&self) -> Option<(Vec<u8>, u32, u32)> {
         crate::branding::decode(self.preview).ok()
     }
-    /// Finished examples keep their authored implementation; unavailable
-    /// variants are disabled instead of relabelling C++ as another language.
+    /// Generation always writes the selected editable authoring language.
     pub fn supports(&self, flavor: GameplayFlavor) -> bool {
         self.template.supports(flavor)
     }
@@ -126,10 +125,26 @@ impl Info {
     /// short line: it sits under the two lists, not in place of the manual.
     pub fn gameplay_note(&self, flavor: GameplayFlavor) -> &'static str {
         if self.template == Template::DungeonComplete {
-            return "Includes project-owned C++ gameplay and the Pocket Lua mining game.";
+            return match flavor {
+                GameplayFlavor::Cpp => {
+                    "Writes editable C++ game rules and widget classes, plus the Pocket game."
+                }
+                GameplayFlavor::Blueprint => {
+                    "Writes editable Blueprint game rules and widget classes, plus the Pocket game."
+                }
+                GameplayFlavor::Lua => {
+                    "Writes editable Lua game rules and widget classes, compiled ahead of time, plus the Pocket game."
+                }
+            };
         }
         if self.template == Template::Basic {
-            return "Basic writes no gameplay. Every project can use all three.";
+            return match flavor {
+                GameplayFlavor::Cpp => "Writes an inert GameRoot C++ Actor under assets/scripts.",
+                GameplayFlavor::Blueprint => {
+                    "Writes an inert GameRoot Actor Blueprint under assets/Blueprints."
+                }
+                GameplayFlavor::Lua => "Writes an inert GameRoot Lua Actor under assets/scripts.",
+            };
         }
         match flavor {
             GameplayFlavor::Cpp => "Writes project-owned C++ under assets/scripts.",

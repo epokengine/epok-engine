@@ -70,11 +70,26 @@ project can use all three afterwards.
 | Blueprint | `assets/Blueprints/ThirdPersonController.epokbp` | `assets/Blueprints/DungeonKey.epokbp`, `DungeonDoor.epokbp` |
 | Lua | `assets/scripts/ThirdPersonController.lua` | `assets/scripts/DungeonKey.lua`, `DungeonDoor.lua` |
 
-All three behave the same: a key deactivates its actor the first time the actor its
-`player` property names enters its trigger; a door deactivates once the key actor its
-`key` property names is no longer active. C++ is the default because it is the most
-direct to read and change, and the lightest on the console; Blueprint suits visual
-editing, Lua short scripts. The generator keeps using the flavor the project holds
-when it places keys and doors.
+Fresh projects share PickupComponent and DoorComponent in all three languages.
+The key's `accepted_initiator` names the player and `auto_collect` enables pickup
+on entering its trigger. `collected_flag` names a GameplayFlagComponent on the key;
+the project's `collected` callback hides the actor after ownership is committed.
+The door's `requirement_flag` reads that same component, independently of the key's
+visibility. Its project tick requests opening and calls the parent tick to apply
+the state/collider transition; `door_changed` implements the visual result.
+
+The generated `lock_id` property stores the recipe lock number. Its name avoids
+colliding with the shared door's `lock()` operation. Collider references and
+key-state component identities are explicit. Template roles `key`, `door` and
+`key_state` select the classes by UUID and survive renaming or compatible
+replacement.
+
+Existing project sources are preserved, including unchanged older versions.
+Their legacy `lock`/`player`/`key` contract remains supported during regeneration;
+placing a helper does not implicitly migrate code and saved properties. New
+class installation also preserves existing Lua class identities.
+
+C++ is the default; Blueprint provides editable visual graphs and Lua provides
+editable scripts. The generator consumes the project's recorded class roles.
 
 ![C++, Lua and Blueprint on the console: before and after picking up the key](images/dungeon-template-flavors.png)

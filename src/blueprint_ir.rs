@@ -5,13 +5,13 @@ use crate::{
 };
 use std::collections::{BTreeMap, BTreeSet};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Expression {
     pub value_type: Type,
     pub cpp: String,
     pub lvalue: bool,
 }
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Statement {
     Node(String),
     Assign {
@@ -51,6 +51,72 @@ pub enum Statement {
     },
     Return(Option<Expression>),
 }
+/// Rejoin identical authored continuations after synchronous branches.
+///
+/// The validated IR declares captured call temporaries at function scope; its
+/// expressions cannot introduce an authored C++ block-local declaration. We
+/// move whole statement units only, starting at an identical authored Node ID.
+/// This keeps trace/source attribution together with its effects and does not
+/// merge unrelated getters, infer purity, or move a state read before a write.
+/// Availability/dominance checks have already completed on the expanded graph.
+/// Latent functions keep their existing state-machine scopes byte-for-byte.
+pub(crate) fn factor_shared_branch_tails(body: Vec<Statement>) -> Vec<Statement> {
+    fn latent(body: &[Statement]) -> bool {
+        body.iter().any(|statement| match statement {
+            Statement::Delay(_)
+            | Statement::WaitPlayback { .. }
+            | Statement::Timeline { .. }
+            | Statement::StopTimeline(_) => true,
+            Statement::Branch { yes, no, .. } => latent(yes) || latent(no),
+            Statement::Loop { body, .. } => latent(body),
+            _ => false,
+        })
+    }
+    fn factor(body: Vec<Statement>) -> Vec<Statement> {
+        let mut result = Vec::new();
+        for statement in body {
+            match statement {
+                Statement::Branch { condition, yes, no } => {
+                    let mut yes = factor(yes);
+                    let mut no = factor(no);
+                    let mut common = 0;
+                    while common < yes.len().min(no.len())
+                        && yes[yes.len() - common - 1] == no[no.len() - common - 1]
+                    {
+                        common += 1;
+                    }
+                    let begin = yes.len() - common;
+                    // A matching trailing assignment/return alone can belong to
+                    // different authored nodes. Do not detach it from its Node
+                    // marker or change its debugger/source identity.
+                    let boundary =
+                        (begin..yes.len()).find(|index| matches!(yes[*index], Statement::Node(_)));
+                    let tail = if let Some(boundary) = boundary {
+                        let common = yes.len() - boundary;
+                        no.truncate(no.len() - common);
+                        yes.split_off(boundary)
+                    } else {
+                        Vec::new()
+                    };
+                    // Keep the branch even when its arms are empty: evaluating
+                    // the condition remains at its authored execution point.
+                    result.push(Statement::Branch { condition, yes, no });
+                    result.extend(tail);
+                }
+                Statement::Loop { count, body } => {
+                    result.push(Statement::Loop {
+                        count,
+                        body: factor(body),
+                    });
+                }
+                statement => result.push(statement),
+            }
+        }
+        result
+    }
+    if latent(&body) { body } else { factor(body) }
+}
+
 #[derive(Clone, Debug)]
 pub struct FunctionIr {
     pub signature: schema::Function,
@@ -820,12 +886,63 @@ struct Lower<'a, 'b> {
     nodes: BTreeMap<String, &'a Node>,
     values: BTreeSet<String>,
     exec: BTreeSet<String>,
+    // Explicit execution wiring is an authored evaluation point even when a
+    // callable's body is later proven read-only. Its output stays a snapshot.
+    execution_nodes: BTreeSet<String>,
     budget: usize,
     available: BTreeSet<String>,
     temporaries: BTreeMap<String, Type>,
     data_budget: usize,
 }
+/// One effect policy for pure-body validation and conservative authored-helper
+/// inference. Unknown operations/callees never establish a purity proof.
+pub fn pure_node_read_only(
+    node: &Node,
+    registry: &crate::blueprint::Registry,
+    functions: &BTreeMap<String, schema::Function>,
+    parent_function: Option<&schema::Function>,
+) -> bool {
+    match &node.kind {
+        NodeKind::SetVariable { .. }
+        | NodeKind::Delay
+        | NodeKind::WaitPlayback { .. }
+        | NodeKind::Timeline { .. }
+        | NodeKind::StopTimeline { .. } => false,
+        NodeKind::Call { function } => functions.get(function).is_some_and(|f| f.pure),
+        NodeKind::CallParent => parent_function.is_some_and(|f| f.pure),
+        NodeKind::CallOn { class, function } => {
+            call_on_function(registry, class, function).is_ok_and(|f| f.pure)
+        }
+        NodeKind::Builtin { operation } => builtin_signature(operation).2,
+        NodeKind::Operation { operation } => registry.operation(operation).is_some_and(|op| {
+            matches!(
+                op.effect,
+                schema::OperationEffect::PureValue | schema::OperationEffect::StateRead
+            )
+        }),
+        _ => true,
+    }
+}
 impl Lower<'_, '_> {
+    fn validate_pure_node(&self, node: &Node) -> Result<(), Error> {
+        if !self.signature.pure {
+            return Ok(());
+        }
+        let read_only = pure_node_read_only(
+            node,
+            self.context.registry,
+            self.context.functions,
+            self.context.parent_function,
+        );
+        if read_only {
+            Ok(())
+        } else {
+            Err(err(
+                &node.id,
+                "Pure functions cannot mutate state, consume events or suspend",
+            ))
+        }
+    }
     fn operation_definition(&self, id: &str) -> Result<schema::Operation, Error> {
         self.context
             .registry
@@ -1311,6 +1428,7 @@ impl Lower<'_, '_> {
             .nodes
             .get(id)
             .ok_or_else(|| err(id, "Missing source node"))?;
+        self.validate_pure_node(n)?;
         let result = match &n.kind {
             NodeKind::Literal { value_type, value } => Ok(Expression {
                 value_type: value_type.clone(),
@@ -1403,19 +1521,19 @@ impl Lower<'_, '_> {
                         "Data calls require a public BlueprintPure function; impure calls need execution links",
                     ));
                 }
-                if !f.pure {
-                    if !self.available.contains(id) || f.returns == Type::Void {
-                        return Err(err(
-                            id,
-                            "Impure call result is only available after its execution on every incoming path",
-                        ));
-                    }
+                if self.available.contains(id) && f.returns != Type::Void {
                     self.values.remove(id);
                     return Ok(Expression {
                         value_type: f.returns.clone(),
                         cpp: temporary(id),
                         lvalue: true,
                     });
+                }
+                if !f.pure || self.execution_nodes.contains(id) {
+                    return Err(err(
+                        id,
+                        "Impure call result is only available after its execution on every incoming path",
+                    ));
                 }
                 let f = f.clone();
                 self.call(n, &f, false)
@@ -1480,18 +1598,17 @@ impl Lower<'_, '_> {
             NodeKind::CallOn { class, function } => {
                 let f = call_on_function(self.context.registry, class, function)
                     .map_err(|e| err(id, e))?;
-                if !f.pure {
-                    if !self.available.contains(id) || f.returns == Type::Void {
-                        return Err(err(
-                            id,
-                            "Impure receiver call result requires prior execution on every incoming path",
-                        ));
-                    }
+                if self.available.contains(id) && f.returns != Type::Void {
                     Ok(Expression {
                         value_type: f.returns,
                         cpp: temporary(id),
                         lvalue: true,
                     })
+                } else if !f.pure || self.execution_nodes.contains(id) {
+                    Err(err(
+                        id,
+                        "Impure receiver call result requires prior execution on every incoming path",
+                    ))
                 } else {
                     self.call_on(n, class, function, &f)
                 }
@@ -1632,6 +1749,7 @@ impl Lower<'_, '_> {
             .nodes
             .get(id)
             .ok_or_else(|| err(id, "Execution link targets a missing node"))?;
+        self.validate_pure_node(node)?;
         let mut out = vec![Statement::Node(id.into())];
         match &node.kind {
             NodeKind::Entry => {}
@@ -2251,12 +2369,22 @@ pub fn lower(
     {
         return Err(err(&graph.entry, "Graph entry must identify an Entry node"));
     }
+    let mut execution_nodes = BTreeSet::new();
+    let mut pending = vec![graph.entry.clone()];
+    while let Some(id) = pending.pop() {
+        if execution_nodes.insert(id.clone())
+            && let Some(node) = nodes.get(&id)
+        {
+            pending.extend(node.outputs.values().flatten().cloned());
+        }
+    }
     let mut lower = Lower {
         signature,
         context,
         nodes,
         values: BTreeSet::new(),
         exec: BTreeSet::new(),
+        execution_nodes,
         budget: 4096,
         available: BTreeSet::new(),
         temporaries: BTreeMap::new(),
@@ -2269,6 +2397,12 @@ pub fn lower(
             message: "Every execution path must return a value".into(),
         });
     }
+    let body = factor_shared_branch_tails(body);
+    let body = if signature.pure {
+        hoist_pure_calls(body)
+    } else {
+        body
+    };
     Ok(FunctionIr {
         signature: signature.clone(),
         body,
@@ -2277,6 +2411,232 @@ pub fn lower(
 }
 fn temporary(node: &str) -> String {
     format!("epok_result_{}", node.replace('-', ""))
+}
+
+/// A wired pure node is spelled at every consumer, so a graph that reads one
+/// result in several places runs the call that many times. Inside a pure
+/// function nothing can change between those reads, so each call needs one
+/// evaluation. A local is placed only where the call is very busy: every path
+/// onward evaluates it and one path evaluates it twice. Calls a branch or a
+/// short circuit guarded therefore never run earlier than they did.
+pub(crate) fn hoist_pure_calls(body: Vec<Statement>) -> Vec<Statement> {
+    const CALL: &str = "([&]() -> ";
+    // Whole-function scans are quadratic; a graph this large keeps its text.
+    const MAXIMUM_BODY_BYTES: usize = 256 * 1024;
+
+    fn hoistable(body: &[Statement]) -> bool {
+        body.iter().all(|statement| match statement {
+            Statement::Node(_) | Statement::Return(_) => true,
+            Statement::Branch { yes, no, .. } => hoistable(yes) && hoistable(no),
+            _ => false,
+        })
+    }
+    fn expressions<'a>(body: &'a [Statement], found: &mut Vec<&'a str>) {
+        for statement in body {
+            match statement {
+                Statement::Return(Some(value)) => found.push(&value.cpp),
+                Statement::Evaluate(text) => found.push(text),
+                Statement::Branch { condition, yes, no } => {
+                    found.push(&condition.cpp);
+                    expressions(yes, found);
+                    expressions(no, found);
+                }
+                _ => {}
+            }
+        }
+    }
+    /// Every complete call expression in `text`, including nested ones.
+    fn calls(text: &str, found: &mut BTreeSet<String>) {
+        for (start, _) in text.match_indices(CALL) {
+            let mut depth = 0usize;
+            for (offset, byte) in text.as_bytes()[start..].iter().enumerate() {
+                match byte {
+                    b'"' | b'\'' => break,
+                    b'(' => depth += 1,
+                    b')' => {
+                        depth -= 1;
+                        if depth == 0 {
+                            found.insert(text[start..=start + offset].to_string());
+                            break;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+    /// Evaluated whenever `text` is, and how many times `text` spells it.
+    fn uses_text(text: &str, key: &str) -> (bool, usize) {
+        let count = text.matches(key).count();
+        let unconditional = text.find(key).is_some_and(|first| {
+            let before = &text[..first];
+            !before.contains("&&") && !before.contains("||") && !before.contains('?')
+        });
+        (unconditional, count)
+    }
+    /// Evaluated on every path through `body`, and the most on any one path.
+    fn uses(body: &[Statement], key: &str) -> (bool, usize) {
+        let Some((first, rest)) = body.split_first() else {
+            return (false, 0);
+        };
+        match first {
+            Statement::Return(Some(value)) => uses_text(&value.cpp, key),
+            Statement::Return(None) => (false, 0),
+            Statement::Evaluate(text) => {
+                let (must, count) = uses_text(text, key);
+                let (later_must, later) = uses(rest, key);
+                (must || later_must, count + later)
+            }
+            Statement::Branch { condition, yes, no } => {
+                let (must, count) = uses_text(&condition.cpp, key);
+                let path = |arm: &[Statement]| {
+                    let mut steps = arm.to_vec();
+                    steps.extend_from_slice(rest);
+                    uses(&steps, key)
+                };
+                let (yes_must, yes_count) = path(yes);
+                let (no_must, no_count) = path(no);
+                (
+                    must || (yes_must && no_must),
+                    count + yes_count.max(no_count),
+                )
+            }
+            _ => uses(rest, key),
+        }
+    }
+    fn replace(body: &mut [Statement], key: &str, local: &str) {
+        for statement in body {
+            match statement {
+                Statement::Return(Some(value)) => value.cpp = value.cpp.replace(key, local),
+                Statement::Evaluate(text) => *text = text.replace(key, local),
+                Statement::Branch { condition, yes, no } => {
+                    condition.cpp = condition.cpp.replace(key, local);
+                    replace(yes, key, local);
+                    replace(no, key, local);
+                }
+                _ => {}
+            }
+        }
+    }
+    fn hoist(mut body: Vec<Statement>, serial: &mut usize) -> Vec<Statement> {
+        'search: loop {
+            let mut found = vec![];
+            expressions(&body, &mut found);
+            let mut keys = BTreeSet::new();
+            for text in found {
+                calls(text, &mut keys);
+            }
+            let mut keys = keys.into_iter().collect::<Vec<_>>();
+            keys.sort_by(|a, b| b.len().cmp(&a.len()).then_with(|| a.cmp(b)));
+            for key in keys {
+                for index in 0..body.len() {
+                    let (must, count) = uses(&body[index..], &key);
+                    if must && count >= 2 {
+                        *serial += 1;
+                        let local = format!("epok_pure_{serial}");
+                        replace(&mut body[index..], &key, &local);
+                        body.insert(
+                            index,
+                            Statement::Evaluate(format!("const auto {local}={key}")),
+                        );
+                        continue 'search;
+                    }
+                }
+            }
+            break;
+        }
+        for statement in &mut body {
+            if let Statement::Branch { yes, no, .. } = statement {
+                *yes = hoist(std::mem::take(yes), serial);
+                *no = hoist(std::mem::take(no), serial);
+            }
+        }
+        body
+    }
+    if !hoistable(&body) {
+        return body;
+    }
+    let mut found = vec![];
+    expressions(&body, &mut found);
+    if found.iter().map(|text| text.len()).sum::<usize>() > MAXIMUM_BODY_BYTES {
+        return body;
+    }
+    hoist(body, &mut 0)
+}
+
+#[cfg(test)]
+mod hoist_tests {
+    use super::*;
+    const WORK: &str = "([&]() -> Fixed {auto a=(x);return this->work(a);}())";
+    fn expr(cpp: &str) -> Expression {
+        Expression {
+            value_type: Type::Fixed,
+            cpp: cpp.into(),
+            lvalue: false,
+        }
+    }
+    fn returning(cpp: String) -> Statement {
+        Statement::Return(Some(expr(&cpp)))
+    }
+
+    #[test]
+    fn repeated_call_on_one_path_evaluates_once() {
+        let body = hoist_pure_calls(vec![returning(format!("add({WORK},{WORK})"))]);
+        assert_eq!(body.len(), 2);
+        let Statement::Evaluate(local) = &body[0] else {
+            panic!("expected a local");
+        };
+        assert_eq!(local, &format!("const auto epok_pure_1={WORK}"));
+        assert_eq!(body[1], returning("add(epok_pure_1,epok_pure_1)".into()));
+    }
+
+    #[test]
+    fn one_use_on_each_path_stays_in_place() {
+        let body = vec![Statement::Branch {
+            condition: expr("flag"),
+            yes: vec![returning(WORK.into())],
+            no: vec![returning(WORK.into())],
+        }];
+        assert_eq!(hoist_pure_calls(body.clone()), body);
+    }
+
+    #[test]
+    fn a_guard_keeps_protecting_its_call() {
+        let body = hoist_pure_calls(vec![
+            Statement::Branch {
+                condition: expr("!ready"),
+                yes: vec![returning("0".into())],
+                no: vec![],
+            },
+            returning(format!("add({WORK},{WORK})")),
+        ]);
+        assert!(matches!(body[0], Statement::Branch { .. }));
+        assert!(matches!(&body[1], Statement::Evaluate(_)));
+    }
+
+    #[test]
+    fn a_short_circuit_keeps_protecting_its_call() {
+        let body = vec![returning(format!("(ready && (({WORK})>0)) ? {WORK} : 0"))];
+        assert_eq!(hoist_pure_calls(body.clone()), body);
+    }
+
+    #[test]
+    fn unknown_statements_leave_the_function_untouched() {
+        let body = vec![
+            Statement::Evaluate("self_write()".into()),
+            returning(format!("add({WORK},{WORK})")),
+        ];
+        assert_eq!(hoist_pure_calls(body.clone()), body);
+    }
+
+    #[test]
+    fn nested_repetition_collapses_outermost_first() {
+        let outer = format!("([&]() -> Fixed {{auto a=({WORK});return this->more(a);}}())");
+        let body = hoist_pure_calls(vec![returning(format!("add({outer},{outer},{WORK})"))]);
+        let text = format!("{body:?}");
+        assert_eq!(text.matches("this->more").count(), 1);
+        assert_eq!(text.matches("this->work").count(), 1);
+    }
 }
 
 #[cfg(test)]
@@ -2313,5 +2673,300 @@ mod tests {
         assert_eq!(different.cpp, "((player)!=(other))");
         assert!(binary(BinaryOp::Less, other(), player()).is_err());
         assert!(binary(BinaryOp::Equal, other(), value(Type::Int32, "1")).is_err());
+    }
+}
+
+#[cfg(test)]
+mod shared_tail_tests {
+    use super::*;
+    fn e(cpp: &str) -> Expression {
+        Expression {
+            value_type: Type::Int32,
+            cpp: cpp.into(),
+            lvalue: false,
+        }
+    }
+    fn n(id: &str) -> Statement {
+        Statement::Node(id.into())
+    }
+    fn set(target: &str, value: &str) -> Statement {
+        Statement::Assign {
+            target: target.into(),
+            value: e(value),
+        }
+    }
+    fn branch(yes: Vec<Statement>, no: Vec<Statement>) -> Statement {
+        let mut condition = e("flag");
+        condition.value_type = Type::Bool;
+        Statement::Branch { condition, yes, no }
+    }
+    fn count(body: &[Statement], id: &str) -> usize {
+        body.iter()
+            .map(|s| match s {
+                Statement::Node(value) => usize::from(value == id),
+                Statement::Branch { yes, no, .. } => count(yes, id) + count(no, id),
+                Statement::Loop { body, .. } => count(body, id),
+                _ => 0,
+            })
+            .sum()
+    }
+    #[derive(Clone, Debug, PartialEq)]
+    struct State {
+        health: i32,
+        old: i32,
+        flag: bool,
+        alive: bool,
+        done: bool,
+        returned: Option<i32>,
+        calls: u32,
+        trace: Vec<String>,
+        conditions: u32,
+    }
+    impl State {
+        fn new(flag: bool) -> Self {
+            Self {
+                health: 35,
+                old: -1,
+                flag,
+                alive: true,
+                done: false,
+                returned: None,
+                calls: 0,
+                trace: vec![],
+                conditions: 0,
+            }
+        }
+        fn value(&mut self, value: &str) -> i32 {
+            match value {
+                "flag" => {
+                    self.conditions += 1;
+                    i32::from(self.flag)
+                }
+                "get_health()" => {
+                    self.calls += 1;
+                    self.health
+                }
+                "old" => self.old,
+                "health" => self.health,
+                "health+1" => self.health + 1,
+                _ => value.parse().unwrap(),
+            }
+        }
+    }
+    fn execute(body: &[Statement], state: &mut State) {
+        for statement in body {
+            if state.done {
+                return;
+            }
+            match statement {
+                Statement::Node(id) => state.trace.push(id.clone()),
+                Statement::Assign { target, value } => {
+                    let value = state.value(&value.cpp);
+                    match target.as_str() {
+                        "health" => state.health = value,
+                        "old" => state.old = value,
+                        _ => panic!("unknown target"),
+                    }
+                }
+                Statement::Evaluate(value) if value == "destroy_owner" => state.alive = false,
+                Statement::CheckOwner(_) => {
+                    if !state.alive {
+                        state.done = true;
+                    }
+                }
+                Statement::Branch { condition, yes, no } => {
+                    let flag = state.value(&condition.cpp) != 0;
+                    execute(if flag { yes } else { no }, state);
+                }
+                Statement::Loop { count, body } => {
+                    for _ in 0..*count {
+                        execute(body, state);
+                        if state.done {
+                            break;
+                        }
+                    }
+                }
+                Statement::Return(value) => {
+                    state.returned = value.as_ref().map(|value| state.value(&value.cpp));
+                    state.done = true;
+                }
+                _ => panic!("non-synchronous fixture"),
+            }
+        }
+    }
+    fn same(body: Vec<Statement>) -> Vec<Statement> {
+        let result = factor_shared_branch_tails(body.clone());
+        for flag in [false, true] {
+            let mut a = State::new(flag);
+            let mut b = a.clone();
+            execute(&body, &mut a);
+            execute(&result, &mut b);
+            assert_eq!(a, b);
+        }
+        result
+    }
+    #[test]
+    fn forward_shared_join_is_emitted_once_with_trace_and_effects() {
+        let tail = vec![
+            n("join"),
+            set("health", "health+1"),
+            n("return"),
+            Statement::Return(Some(e("health"))),
+        ];
+        let mut yes = vec![n("yes"), set("health", "1")];
+        yes.extend(tail.clone());
+        let mut no = vec![n("no"), set("health", "2")];
+        no.extend(tail);
+        let body = vec![n("branch"), branch(yes, no)];
+        assert_eq!(count(&body, "join"), 2);
+        let result = same(body);
+        assert_eq!(count(&result, "join"), 1);
+        assert!(matches!(result[2],Statement::Node(ref id) if id=="join"));
+    }
+    #[test]
+    fn explicit_captured_getter_stays_before_write_and_old_value_use() {
+        let tail = vec![n("join"), Statement::Return(Some(e("old")))];
+        let mut yes = vec![n("write-zero"), set("health", "0")];
+        yes.extend(tail.clone());
+        let mut no = vec![n("write-one"), set("health", "1")];
+        no.extend(tail);
+        let result = same(vec![
+            n("read"),
+            set("old", "get_health()"),
+            n("branch"),
+            branch(yes, no),
+        ]);
+        for flag in [false, true] {
+            let mut state = State::new(flag);
+            execute(&result, &mut state);
+            assert_eq!(state.returned, Some(35));
+            assert_eq!(state.calls, 1);
+        }
+    }
+    #[test]
+    fn branch_local_capture_is_not_moved_before_its_mutation() {
+        let tail = vec![
+            n("read-shared"),
+            set("old", "get_health()"),
+            n("return"),
+            Statement::Return(Some(e("old"))),
+        ];
+        let mut yes = vec![n("set0"), set("health", "0")];
+        yes.extend(tail.clone());
+        let mut no = vec![n("set1"), set("health", "1")];
+        no.extend(tail);
+        let result = same(vec![branch(yes, no)]);
+        for flag in [false, true] {
+            let mut state = State::new(flag);
+            execute(&result, &mut state);
+            assert_eq!(state.returned, Some(if flag { 0 } else { 1 }));
+            assert_eq!(state.calls, 1);
+        }
+    }
+    #[test]
+    fn different_capture_expression_or_node_origin_is_never_merged() {
+        let body = vec![branch(
+            vec![n("same"), set("old", "health")],
+            vec![n("same"), set("old", "get_health()")],
+        )];
+        assert_eq!(factor_shared_branch_tails(body.clone()), body);
+        let body = vec![branch(
+            vec![n("different-yes"), set("old", "get_health()")],
+            vec![n("different-no"), set("old", "get_health()")],
+        )];
+        assert_eq!(factor_shared_branch_tails(body.clone()), body);
+    }
+    #[test]
+    fn early_return_owner_guard_and_loop_exit_preserve_path_order() {
+        let body = vec![
+            Statement::Loop {
+                count: 4,
+                body: vec![branch(
+                    vec![n("return-early"), Statement::Return(Some(e("health")))],
+                    vec![n("continue"), set("health", "health+1")],
+                )],
+            },
+            n("end"),
+            Statement::Return(Some(e("health"))),
+        ];
+        same(body);
+        let tail = vec![
+            n("guard"),
+            Statement::CheckOwner(Type::Void),
+            n("after"),
+            set("health", "0"),
+        ];
+        let mut yes = vec![n("destroy"), Statement::Evaluate("destroy_owner".into())];
+        yes.extend(tail.clone());
+        same(vec![branch(yes, tail)]);
+    }
+    #[test]
+    fn nested_diamonds_and_loop_body_do_not_duplicate_effects() {
+        let mut tail = vec![n("last"), set("health", "health+1")];
+        for index in 0..7 {
+            let mut yes = vec![n(&format!("y{index}"))];
+            yes.extend(tail.clone());
+            let mut no = vec![n(&format!("n{index}"))];
+            no.extend(tail);
+            tail = vec![n(&format!("b{index}")), branch(yes, no)];
+        }
+        assert_eq!(count(&tail, "last"), 128);
+        let factored = same(vec![Statement::Loop {
+            count: 3,
+            body: tail,
+        }]);
+        assert_eq!(count(&factored, "last"), 1);
+    }
+    #[test]
+    fn condition_is_not_elided_when_its_continuation_is_shared() {
+        let result = same(vec![branch(
+            vec![n("join"), set("health", "0")],
+            vec![n("join"), set("health", "0")],
+        )]);
+        assert!(
+            matches!(result[0],Statement::Branch {ref yes,ref no,..} if yes.is_empty()&&no.is_empty())
+        );
+        for flag in [false, true] {
+            let mut state = State::new(flag);
+            execute(&result, &mut state);
+            assert_eq!(state.conditions, 1);
+        }
+    }
+    #[test]
+    fn latent_delay_timeline_wait_and_break_machine_remain_untouched() {
+        let timeline = Statement::Timeline {
+            node: "timeline".into(),
+            target: "x".into(),
+            keys: vec![],
+            looping: false,
+            updated: vec![],
+            finished: vec![],
+        };
+        let wait = Statement::WaitPlayback {
+            node: "wait".into(),
+            repeating: false,
+            target: e("0"),
+            asset: 1,
+            marker: 2,
+            reached: vec![],
+            completed: vec![],
+            cancelled: vec![],
+        };
+        for latent in [
+            Statement::Delay(e("1")),
+            timeline,
+            wait,
+            Statement::StopTimeline("x".into()),
+        ] {
+            let body = vec![branch(
+                vec![n("join"), latent.clone()],
+                vec![n("join"), latent],
+            )];
+            assert_eq!(
+                factor_shared_branch_tails(body.clone()),
+                body,
+                "latent state-machine break/resume scopes cannot be factored"
+            );
+        }
     }
 }

@@ -1,0 +1,1901 @@
+{
+  "version": 8,
+  "id": "070a2ac6-e00f-5e9c-8bd2-560acb25ad2f",
+  "name": "DungeonPlayerVitals",
+  "parent": "60930832-058d-5a4d-a0ef-9fde884c7396",
+  "family": "component",
+  "defaults": {},
+  "variables": [],
+  "functions": [
+    {
+      "id": "0954f3b3-6adf-568c-b406-82430f18bec7",
+      "name": "start",
+      "parameters": [],
+      "returns": {
+        "kind": "void"
+      },
+      "entry": "7ca3a851-7f2e-5768-82f8-d43f7996471b",
+      "nodes": [
+        {
+          "id": "69775a09-3b6a-521d-91d5-2f37ea6e506e",
+          "kind": {
+            "kind": "get_variable",
+            "member": "b0a2404e-e3e7-52a5-8919-c19cac5d7f7f"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "d878efc3-4c8d-5a01-8b24-8c0b8b82c5a3",
+          "kind": {
+            "kind": "binary",
+            "op": "greater"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "69775a09-3b6a-521d-91d5-2f37ea6e506e",
+              "pin": "value.maximum"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 0
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "e033c1f3-7d4d-528a-90e7-4c2a884e797f",
+          "kind": {
+            "kind": "binary",
+            "op": "greater_equal"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "69775a09-3b6a-521d-91d5-2f37ea6e506e",
+              "pin": "value.hit_immunity"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "fixed"
+              },
+              "value": 0.0
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "4a446a88-d28b-54a6-92ef-14bb19a20205",
+          "kind": {
+            "kind": "binary",
+            "op": "less_equal"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "69775a09-3b6a-521d-91d5-2f37ea6e506e",
+              "pin": "value.hit_immunity"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "fixed"
+              },
+              "value": 60.0
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "643d364f-8994-58c6-bb20-8501b3c11f0f",
+          "kind": {
+            "kind": "binary",
+            "op": "and"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "d878efc3-4c8d-5a01-8b24-8c0b8b82c5a3",
+              "pin": "value"
+            },
+            "b": {
+              "kind": "link",
+              "node": "e033c1f3-7d4d-528a-90e7-4c2a884e797f",
+              "pin": "value"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "78599209-e80d-58f0-89b3-e5a9e3a8fe74",
+          "kind": {
+            "kind": "binary",
+            "op": "and"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "643d364f-8994-58c6-bb20-8501b3c11f0f",
+              "pin": "value"
+            },
+            "b": {
+              "kind": "link",
+              "node": "4a446a88-d28b-54a6-92ef-14bb19a20205",
+              "pin": "value"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "bc2aca45-2837-58c2-955d-1b68d962dbd0",
+          "kind": {
+            "kind": "operation",
+            "operation": "43903550-2746-5f1c-af57-ac221db6681c"
+          },
+          "inputs": {
+            "43903550-2746-5f1c-af57-ac221db6681c:parameter:0": {
+              "kind": "link",
+              "node": "69775a09-3b6a-521d-91d5-2f37ea6e506e",
+              "pin": "value.maximum"
+            },
+            "43903550-2746-5f1c-af57-ac221db6681c:parameter:1": {
+              "kind": "link",
+              "node": "69775a09-3b6a-521d-91d5-2f37ea6e506e",
+              "pin": "value.maximum"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "f13bfde7-9b88-5502-90d4-d674d50c5621",
+          "kind": {
+            "kind": "call",
+            "function": "a600b3a7-1caa-52a9-ad7b-be1e3117e9b6"
+          },
+          "inputs": {
+            "value": {
+              "kind": "link",
+              "node": "bc2aca45-2837-58c2-955d-1b68d962dbd0",
+              "pin": "value"
+            },
+            "cooldown": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "fixed"
+              },
+              "value": 0.0
+            },
+            "available": {
+              "kind": "link",
+              "node": "78599209-e80d-58f0-89b3-e5a9e3a8fe74",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "next": [
+              "cfe6097f-a7b5-5589-925c-7da61ef3b9ae"
+            ]
+          }
+        },
+        {
+          "id": "cfe6097f-a7b5-5589-925c-7da61ef3b9ae",
+          "kind": {
+            "kind": "return"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "7ca3a851-7f2e-5768-82f8-d43f7996471b",
+          "kind": {
+            "kind": "entry"
+          },
+          "inputs": {},
+          "outputs": {
+            "next": [
+              "f13bfde7-9b88-5502-90d4-d674d50c5621"
+            ]
+          }
+        }
+      ],
+      "override_id": "e6d01f77-d4dc-5d3e-99cb-4222aaa4918e"
+    },
+    {
+      "id": "68178126-95c9-57ac-bd08-c2d35e87da1d",
+      "name": "advance",
+      "parameters": [
+        {
+          "name": "dt",
+          "value_type": {
+            "kind": "fixed"
+          },
+          "direction": "value"
+        }
+      ],
+      "returns": {
+        "kind": "void"
+      },
+      "entry": "0796b999-fd1d-52f5-bd07-0fb9579a0776",
+      "nodes": [
+        {
+          "id": "b24ef124-6312-5636-8d1e-934215bf6774",
+          "kind": {
+            "kind": "get_variable",
+            "member": "11f1a48e-8255-5744-8be7-76e25740544e"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "d6e713cc-7191-5f91-b254-de5a764f9170",
+          "kind": {
+            "kind": "binary",
+            "op": "subtract"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "b24ef124-6312-5636-8d1e-934215bf6774",
+              "pin": "value"
+            },
+            "b": {
+              "kind": "parameter",
+              "name": "dt"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "f2a93ce6-b13a-5364-bcde-56a904d1b3a3",
+          "kind": {
+            "kind": "get_variable",
+            "member": "3a8ccaf6-40c8-5c6f-8425-7c0d1a2c13f4"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "6fd9440c-f777-5ba4-9116-a1e0ab9e6b36",
+          "kind": {
+            "kind": "binary",
+            "op": "greater"
+          },
+          "inputs": {
+            "a": {
+              "kind": "parameter",
+              "name": "dt"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "fixed"
+              },
+              "value": 0.0
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "f84b463c-98ce-5ed5-9332-20a3ef68ac89",
+          "kind": {
+            "kind": "binary",
+            "op": "less_equal"
+          },
+          "inputs": {
+            "a": {
+              "kind": "parameter",
+              "name": "dt"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "fixed"
+              },
+              "value": 1.0
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "acd74abe-ff41-5613-a81a-5a65c1549922",
+          "kind": {
+            "kind": "binary",
+            "op": "greater"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "b24ef124-6312-5636-8d1e-934215bf6774",
+              "pin": "value"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "fixed"
+              },
+              "value": 0.0
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "d9864150-d578-5213-a835-bd10fd01ef60",
+          "kind": {
+            "kind": "binary",
+            "op": "and"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "f2a93ce6-b13a-5364-bcde-56a904d1b3a3",
+              "pin": "value"
+            },
+            "b": {
+              "kind": "link",
+              "node": "6fd9440c-f777-5ba4-9116-a1e0ab9e6b36",
+              "pin": "value"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "c0f98690-c99a-5b55-94b5-6a277f0f8533",
+          "kind": {
+            "kind": "binary",
+            "op": "and"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "d9864150-d578-5213-a835-bd10fd01ef60",
+              "pin": "value"
+            },
+            "b": {
+              "kind": "link",
+              "node": "f84b463c-98ce-5ed5-9332-20a3ef68ac89",
+              "pin": "value"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "c7d2e678-88e9-59b4-9ef5-cff5b9a60037",
+          "kind": {
+            "kind": "binary",
+            "op": "and"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "c0f98690-c99a-5b55-94b5-6a277f0f8533",
+              "pin": "value"
+            },
+            "b": {
+              "kind": "link",
+              "node": "acd74abe-ff41-5613-a81a-5a65c1549922",
+              "pin": "value"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "b80e3fad-d438-556a-b996-b5cf669a1769",
+          "kind": {
+            "kind": "binary",
+            "op": "less"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "d6e713cc-7191-5f91-b254-de5a764f9170",
+              "pin": "value"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "fixed"
+              },
+              "value": 0.0
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "c90d4349-be6b-5860-a956-a58a04180ce5",
+          "kind": {
+            "kind": "get_variable",
+            "member": "07e618de-b6f6-5e47-be5f-4fca7dc2ccd2"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "33d01a7b-7eb4-5062-9eeb-62744bdf9d63",
+          "kind": {
+            "kind": "call",
+            "function": "a600b3a7-1caa-52a9-ad7b-be1e3117e9b6"
+          },
+          "inputs": {
+            "value": {
+              "kind": "link",
+              "node": "c90d4349-be6b-5860-a956-a58a04180ce5",
+              "pin": "value"
+            },
+            "cooldown": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "fixed"
+              },
+              "value": 0.0
+            },
+            "available": {
+              "kind": "link",
+              "node": "f2a93ce6-b13a-5364-bcde-56a904d1b3a3",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "next": [
+              "7e052910-f8d1-529e-adff-a9ef8aa70140"
+            ]
+          }
+        },
+        {
+          "id": "7c1772b0-e66f-5e53-babd-34b512990b43",
+          "kind": {
+            "kind": "call",
+            "function": "a600b3a7-1caa-52a9-ad7b-be1e3117e9b6"
+          },
+          "inputs": {
+            "value": {
+              "kind": "link",
+              "node": "c90d4349-be6b-5860-a956-a58a04180ce5",
+              "pin": "value"
+            },
+            "cooldown": {
+              "kind": "link",
+              "node": "d6e713cc-7191-5f91-b254-de5a764f9170",
+              "pin": "value"
+            },
+            "available": {
+              "kind": "link",
+              "node": "f2a93ce6-b13a-5364-bcde-56a904d1b3a3",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "next": [
+              "7e052910-f8d1-529e-adff-a9ef8aa70140"
+            ]
+          }
+        },
+        {
+          "id": "7e052910-f8d1-529e-adff-a9ef8aa70140",
+          "kind": {
+            "kind": "return"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "b1b2b91a-66fd-59b9-86b5-607254e7d2b6",
+          "kind": {
+            "kind": "branch"
+          },
+          "inputs": {
+            "condition": {
+              "kind": "link",
+              "node": "c7d2e678-88e9-59b4-9ef5-cff5b9a60037",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "true": [
+              "44fbf4e6-60c9-56eb-96bb-16c0eefd849e"
+            ],
+            "false": [
+              "7e052910-f8d1-529e-adff-a9ef8aa70140"
+            ]
+          }
+        },
+        {
+          "id": "44fbf4e6-60c9-56eb-96bb-16c0eefd849e",
+          "kind": {
+            "kind": "branch"
+          },
+          "inputs": {
+            "condition": {
+              "kind": "link",
+              "node": "b80e3fad-d438-556a-b996-b5cf669a1769",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "true": [
+              "33d01a7b-7eb4-5062-9eeb-62744bdf9d63"
+            ],
+            "false": [
+              "7c1772b0-e66f-5e53-babd-34b512990b43"
+            ]
+          }
+        },
+        {
+          "id": "0796b999-fd1d-52f5-bd07-0fb9579a0776",
+          "kind": {
+            "kind": "entry"
+          },
+          "inputs": {},
+          "outputs": {
+            "next": [
+              "b1b2b91a-66fd-59b9-86b5-607254e7d2b6"
+            ]
+          }
+        }
+      ],
+      "override_id": "b1ce094f-f401-5d71-a766-51c677ba264f"
+    },
+    {
+      "id": "0e5695ba-9046-522d-83bb-78335cde5359",
+      "name": "damage_change",
+      "parameters": [
+        {
+          "name": "amount",
+          "value_type": {
+            "kind": "int32"
+          },
+          "direction": "value"
+        }
+      ],
+      "returns": {
+        "kind": "record",
+        "cpp_name": "epok::HealthChange",
+        "fields": [
+          {
+            "name": "state",
+            "value_type": {
+              "kind": "record",
+              "cpp_name": "epok::HealthState",
+              "fields": [
+                {
+                  "name": "maximum",
+                  "value_type": {
+                    "kind": "uint32"
+                  }
+                },
+                {
+                  "name": "current",
+                  "value_type": {
+                    "kind": "uint32"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "name": "applied",
+            "value_type": {
+              "kind": "uint32"
+            }
+          },
+          {
+            "name": "depleted",
+            "value_type": {
+              "kind": "bool"
+            }
+          },
+          {
+            "name": "revived",
+            "value_type": {
+              "kind": "bool"
+            }
+          },
+          {
+            "name": "result",
+            "value_type": {
+              "kind": "enum",
+              "cpp_name": "epok::HealthResult",
+              "variants": {
+                "Unchanged": 0,
+                "Applied": 1,
+                "InvalidState": 2
+              }
+            }
+          }
+        ]
+      },
+      "entry": "e58e6aaa-cc1f-5cb1-999b-20ccd9b65e13",
+      "nodes": [
+        {
+          "id": "182f771c-6339-55b9-8343-ab481f7f2c94",
+          "kind": {
+            "kind": "get_variable",
+            "member": "07e618de-b6f6-5e47-be5f-4fca7dc2ccd2"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "7dc9592c-ea13-52b7-a4b6-430f1b3758ae",
+          "kind": {
+            "kind": "operation",
+            "operation": "564672a4-0a4a-51e6-ad32-4d8f447b2da7"
+          },
+          "inputs": {
+            "564672a4-0a4a-51e6-ad32-4d8f447b2da7:parameter:0": {
+              "kind": "link",
+              "node": "182f771c-6339-55b9-8343-ab481f7f2c94",
+              "pin": "value"
+            },
+            "564672a4-0a4a-51e6-ad32-4d8f447b2da7:parameter:1": {
+              "kind": "parameter",
+              "name": "amount"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "403ec980-a579-5c83-b8fb-cb7f620c5622",
+          "kind": {
+            "kind": "return"
+          },
+          "inputs": {
+            "value": {
+              "kind": "link",
+              "node": "7dc9592c-ea13-52b7-a4b6-430f1b3758ae",
+              "pin": "value"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "e58e6aaa-cc1f-5cb1-999b-20ccd9b65e13",
+          "kind": {
+            "kind": "entry"
+          },
+          "inputs": {},
+          "outputs": {
+            "next": [
+              "403ec980-a579-5c83-b8fb-cb7f620c5622"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "803dd3de-4b47-57d8-9148-08d89936eda4",
+      "name": "healing_change",
+      "parameters": [
+        {
+          "name": "amount",
+          "value_type": {
+            "kind": "int32"
+          },
+          "direction": "value"
+        }
+      ],
+      "returns": {
+        "kind": "record",
+        "cpp_name": "epok::HealthChange",
+        "fields": [
+          {
+            "name": "state",
+            "value_type": {
+              "kind": "record",
+              "cpp_name": "epok::HealthState",
+              "fields": [
+                {
+                  "name": "maximum",
+                  "value_type": {
+                    "kind": "uint32"
+                  }
+                },
+                {
+                  "name": "current",
+                  "value_type": {
+                    "kind": "uint32"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "name": "applied",
+            "value_type": {
+              "kind": "uint32"
+            }
+          },
+          {
+            "name": "depleted",
+            "value_type": {
+              "kind": "bool"
+            }
+          },
+          {
+            "name": "revived",
+            "value_type": {
+              "kind": "bool"
+            }
+          },
+          {
+            "name": "result",
+            "value_type": {
+              "kind": "enum",
+              "cpp_name": "epok::HealthResult",
+              "variants": {
+                "Unchanged": 0,
+                "Applied": 1,
+                "InvalidState": 2
+              }
+            }
+          }
+        ]
+      },
+      "entry": "23c29016-be3a-5560-bb6f-89f2be3ffbea",
+      "nodes": [
+        {
+          "id": "43414f88-b0f2-5c5d-97c8-3759e8b33c57",
+          "kind": {
+            "kind": "get_variable",
+            "member": "07e618de-b6f6-5e47-be5f-4fca7dc2ccd2"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "b1901fb8-c7e6-55cc-815d-b886c7e403e7",
+          "kind": {
+            "kind": "operation",
+            "operation": "adc1907c-df26-56b3-8d13-25015e4792f2"
+          },
+          "inputs": {
+            "adc1907c-df26-56b3-8d13-25015e4792f2:parameter:0": {
+              "kind": "link",
+              "node": "43414f88-b0f2-5c5d-97c8-3759e8b33c57",
+              "pin": "value"
+            },
+            "adc1907c-df26-56b3-8d13-25015e4792f2:parameter:1": {
+              "kind": "parameter",
+              "name": "amount"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "af9bde64-6f12-5929-9ee3-12c217783da6",
+          "kind": {
+            "kind": "return"
+          },
+          "inputs": {
+            "value": {
+              "kind": "link",
+              "node": "b1901fb8-c7e6-55cc-815d-b886c7e403e7",
+              "pin": "value"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "23c29016-be3a-5560-bb6f-89f2be3ffbea",
+          "kind": {
+            "kind": "entry"
+          },
+          "inputs": {},
+          "outputs": {
+            "next": [
+              "af9bde64-6f12-5929-9ee3-12c217783da6"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "171dd19c-10cf-57dc-8319-6112c463df55",
+      "name": "damage",
+      "parameters": [
+        {
+          "name": "amount",
+          "value_type": {
+            "kind": "int32"
+          },
+          "direction": "value"
+        },
+        {
+          "name": "enabled",
+          "value_type": {
+            "kind": "bool"
+          },
+          "direction": "value"
+        }
+      ],
+      "returns": {
+        "kind": "record",
+        "cpp_name": "epok::HealthChange",
+        "fields": [
+          {
+            "name": "state",
+            "value_type": {
+              "kind": "record",
+              "cpp_name": "epok::HealthState",
+              "fields": [
+                {
+                  "name": "maximum",
+                  "value_type": {
+                    "kind": "uint32"
+                  }
+                },
+                {
+                  "name": "current",
+                  "value_type": {
+                    "kind": "uint32"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "name": "applied",
+            "value_type": {
+              "kind": "uint32"
+            }
+          },
+          {
+            "name": "depleted",
+            "value_type": {
+              "kind": "bool"
+            }
+          },
+          {
+            "name": "revived",
+            "value_type": {
+              "kind": "bool"
+            }
+          },
+          {
+            "name": "result",
+            "value_type": {
+              "kind": "enum",
+              "cpp_name": "epok::HealthResult",
+              "variants": {
+                "Unchanged": 0,
+                "Applied": 1,
+                "InvalidState": 2
+              }
+            }
+          }
+        ]
+      },
+      "entry": "832714ce-992e-504f-96cb-1a2f39f41169",
+      "nodes": [
+        {
+          "id": "676e6dad-600e-534d-a617-37884bfbb1d8",
+          "kind": {
+            "kind": "get_variable",
+            "member": "3a8ccaf6-40c8-5c6f-8425-7c0d1a2c13f4"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "64998990-6920-5aef-b259-47302ff6cab7",
+          "kind": {
+            "kind": "binary",
+            "op": "greater"
+          },
+          "inputs": {
+            "a": {
+              "kind": "parameter",
+              "name": "amount"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "int32"
+              },
+              "value": 0
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "46216ed2-6ea9-5384-89cf-89ff46613fa5",
+          "kind": {
+            "kind": "get_variable",
+            "member": "11f1a48e-8255-5744-8be7-76e25740544e"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "045b1b64-d2d1-56d2-b7e3-5832fef6fedc",
+          "kind": {
+            "kind": "binary",
+            "op": "less_equal"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "46216ed2-6ea9-5384-89cf-89ff46613fa5",
+              "pin": "value"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "fixed"
+              },
+              "value": 0.0
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "6bc59b2c-6f84-5df4-ad1d-07ca7c8969f7",
+          "kind": {
+            "kind": "binary",
+            "op": "and"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "676e6dad-600e-534d-a617-37884bfbb1d8",
+              "pin": "value"
+            },
+            "b": {
+              "kind": "parameter",
+              "name": "enabled"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "578b578c-5410-5db8-97e9-7919ef977108",
+          "kind": {
+            "kind": "binary",
+            "op": "and"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "6bc59b2c-6f84-5df4-ad1d-07ca7c8969f7",
+              "pin": "value"
+            },
+            "b": {
+              "kind": "link",
+              "node": "64998990-6920-5aef-b259-47302ff6cab7",
+              "pin": "value"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "e5fc09bc-c016-5ef0-9cfe-e07894a82b43",
+          "kind": {
+            "kind": "binary",
+            "op": "and"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "578b578c-5410-5db8-97e9-7919ef977108",
+              "pin": "value"
+            },
+            "b": {
+              "kind": "link",
+              "node": "045b1b64-d2d1-56d2-b7e3-5832fef6fedc",
+              "pin": "value"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "3edca0f0-2aa1-5219-94fa-3e15fd9b02f7",
+          "kind": {
+            "kind": "call",
+            "function": "0e5695ba-9046-522d-83bb-78335cde5359"
+          },
+          "inputs": {
+            "amount": {
+              "kind": "parameter",
+              "name": "amount"
+            }
+          },
+          "outputs": {
+            "next": [
+              "515ddc0f-edd3-5c42-a853-5b908e15d96e"
+            ]
+          }
+        },
+        {
+          "id": "985bbd42-13ab-508c-b4ca-c328c351443b",
+          "kind": {
+            "kind": "binary",
+            "op": "greater"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "3edca0f0-2aa1-5219-94fa-3e15fd9b02f7",
+              "pin": "value.applied"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 0
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "bc30bb6c-41b2-5326-b1e4-4af397d17963",
+          "kind": {
+            "kind": "get_variable",
+            "member": "b0a2404e-e3e7-52a5-8919-c19cac5d7f7f"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "30f39816-0c15-5619-9498-295eed0d3a6e",
+          "kind": {
+            "kind": "call",
+            "function": "a600b3a7-1caa-52a9-ad7b-be1e3117e9b6"
+          },
+          "inputs": {
+            "value": {
+              "kind": "link",
+              "node": "3edca0f0-2aa1-5219-94fa-3e15fd9b02f7",
+              "pin": "value.state"
+            },
+            "cooldown": {
+              "kind": "link",
+              "node": "bc30bb6c-41b2-5326-b1e4-4af397d17963",
+              "pin": "value.hit_immunity"
+            },
+            "available": {
+              "kind": "link",
+              "node": "676e6dad-600e-534d-a617-37884bfbb1d8",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "next": [
+              "190e55c1-b912-539e-a7f4-aa4495d5b7e2"
+            ]
+          }
+        },
+        {
+          "id": "190e55c1-b912-539e-a7f4-aa4495d5b7e2",
+          "kind": {
+            "kind": "return"
+          },
+          "inputs": {
+            "value": {
+              "kind": "link",
+              "node": "3edca0f0-2aa1-5219-94fa-3e15fd9b02f7",
+              "pin": "value"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "d21c217a-5682-5a15-9a9c-e93ce508785e",
+          "kind": {
+            "kind": "get_variable",
+            "member": "07e618de-b6f6-5e47-be5f-4fca7dc2ccd2"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "34768a8d-0853-5757-a739-880b2ca3ba1a",
+          "kind": {
+            "kind": "operation",
+            "operation": "564672a4-0a4a-51e6-ad32-4d8f447b2da7"
+          },
+          "inputs": {
+            "564672a4-0a4a-51e6-ad32-4d8f447b2da7:parameter:0": {
+              "kind": "link",
+              "node": "d21c217a-5682-5a15-9a9c-e93ce508785e",
+              "pin": "value"
+            },
+            "564672a4-0a4a-51e6-ad32-4d8f447b2da7:parameter:1": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "int32"
+              },
+              "value": 0
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "a78b6817-edeb-53bf-9cec-786cd119272a",
+          "kind": {
+            "kind": "return"
+          },
+          "inputs": {
+            "value": {
+              "kind": "link",
+              "node": "34768a8d-0853-5757-a739-880b2ca3ba1a",
+              "pin": "value"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "7ccdb359-43e3-5425-9f00-b6e143843aaa",
+          "kind": {
+            "kind": "branch"
+          },
+          "inputs": {
+            "condition": {
+              "kind": "link",
+              "node": "e5fc09bc-c016-5ef0-9cfe-e07894a82b43",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "true": [
+              "3edca0f0-2aa1-5219-94fa-3e15fd9b02f7"
+            ],
+            "false": [
+              "a78b6817-edeb-53bf-9cec-786cd119272a"
+            ]
+          }
+        },
+        {
+          "id": "515ddc0f-edd3-5c42-a853-5b908e15d96e",
+          "kind": {
+            "kind": "branch"
+          },
+          "inputs": {
+            "condition": {
+              "kind": "link",
+              "node": "985bbd42-13ab-508c-b4ca-c328c351443b",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "true": [
+              "30f39816-0c15-5619-9498-295eed0d3a6e"
+            ],
+            "false": [
+              "190e55c1-b912-539e-a7f4-aa4495d5b7e2"
+            ]
+          }
+        },
+        {
+          "id": "832714ce-992e-504f-96cb-1a2f39f41169",
+          "kind": {
+            "kind": "entry"
+          },
+          "inputs": {},
+          "outputs": {
+            "next": [
+              "7ccdb359-43e3-5425-9f00-b6e143843aaa"
+            ]
+          }
+        }
+      ],
+      "override_id": "79e4e6eb-28c2-5117-8999-78a721c76e7d"
+    },
+    {
+      "id": "7280055c-0dd8-5ac3-8055-fa9b307f9065",
+      "name": "heal",
+      "parameters": [
+        {
+          "name": "amount",
+          "value_type": {
+            "kind": "int32"
+          },
+          "direction": "value"
+        }
+      ],
+      "returns": {
+        "kind": "record",
+        "cpp_name": "epok::HealthChange",
+        "fields": [
+          {
+            "name": "state",
+            "value_type": {
+              "kind": "record",
+              "cpp_name": "epok::HealthState",
+              "fields": [
+                {
+                  "name": "maximum",
+                  "value_type": {
+                    "kind": "uint32"
+                  }
+                },
+                {
+                  "name": "current",
+                  "value_type": {
+                    "kind": "uint32"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "name": "applied",
+            "value_type": {
+              "kind": "uint32"
+            }
+          },
+          {
+            "name": "depleted",
+            "value_type": {
+              "kind": "bool"
+            }
+          },
+          {
+            "name": "revived",
+            "value_type": {
+              "kind": "bool"
+            }
+          },
+          {
+            "name": "result",
+            "value_type": {
+              "kind": "enum",
+              "cpp_name": "epok::HealthResult",
+              "variants": {
+                "Unchanged": 0,
+                "Applied": 1,
+                "InvalidState": 2
+              }
+            }
+          }
+        ]
+      },
+      "entry": "9454185e-c88b-546d-b52f-9e93eaca9c3e",
+      "nodes": [
+        {
+          "id": "d021f81f-5279-51af-b53f-0ef999aecb32",
+          "kind": {
+            "kind": "call",
+            "function": "803dd3de-4b47-57d8-9148-08d89936eda4"
+          },
+          "inputs": {
+            "amount": {
+              "kind": "parameter",
+              "name": "amount"
+            }
+          },
+          "outputs": {
+            "next": [
+              "d09ec3cd-dbe4-52c1-a148-2d34a7f0db50"
+            ]
+          }
+        },
+        {
+          "id": "8c7bedc2-bca1-5bfd-a1f8-83d888930654",
+          "kind": {
+            "kind": "get_variable",
+            "member": "3a8ccaf6-40c8-5c6f-8425-7c0d1a2c13f4"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "fb9ac520-d9fb-54e7-93ae-6ce681140f2b",
+          "kind": {
+            "kind": "binary",
+            "op": "greater"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "d021f81f-5279-51af-b53f-0ef999aecb32",
+              "pin": "value.applied"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 0
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "3013183e-2ef4-5821-9ad9-1125868855ac",
+          "kind": {
+            "kind": "get_variable",
+            "member": "11f1a48e-8255-5744-8be7-76e25740544e"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "aa91c084-5147-5409-a3ed-5165e30b051a",
+          "kind": {
+            "kind": "call",
+            "function": "a600b3a7-1caa-52a9-ad7b-be1e3117e9b6"
+          },
+          "inputs": {
+            "value": {
+              "kind": "link",
+              "node": "d021f81f-5279-51af-b53f-0ef999aecb32",
+              "pin": "value.state"
+            },
+            "cooldown": {
+              "kind": "link",
+              "node": "3013183e-2ef4-5821-9ad9-1125868855ac",
+              "pin": "value"
+            },
+            "available": {
+              "kind": "link",
+              "node": "8c7bedc2-bca1-5bfd-a1f8-83d888930654",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "next": [
+              "261af1fa-e414-58cf-bc3d-d86a58c083d7"
+            ]
+          }
+        },
+        {
+          "id": "261af1fa-e414-58cf-bc3d-d86a58c083d7",
+          "kind": {
+            "kind": "return"
+          },
+          "inputs": {
+            "value": {
+              "kind": "link",
+              "node": "d021f81f-5279-51af-b53f-0ef999aecb32",
+              "pin": "value"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "81bf7dae-ac6e-5f7d-a517-8c02295e193a",
+          "kind": {
+            "kind": "get_variable",
+            "member": "07e618de-b6f6-5e47-be5f-4fca7dc2ccd2"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "e1162afd-34d8-5fc7-904d-d9890ccb928b",
+          "kind": {
+            "kind": "operation",
+            "operation": "adc1907c-df26-56b3-8d13-25015e4792f2"
+          },
+          "inputs": {
+            "adc1907c-df26-56b3-8d13-25015e4792f2:parameter:0": {
+              "kind": "link",
+              "node": "81bf7dae-ac6e-5f7d-a517-8c02295e193a",
+              "pin": "value"
+            },
+            "adc1907c-df26-56b3-8d13-25015e4792f2:parameter:1": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "int32"
+              },
+              "value": 0
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "fcfd28ff-5198-5de9-96fb-94404dcf4ad0",
+          "kind": {
+            "kind": "return"
+          },
+          "inputs": {
+            "value": {
+              "kind": "link",
+              "node": "e1162afd-34d8-5fc7-904d-d9890ccb928b",
+              "pin": "value"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "ba24332e-3cdb-5da5-b89c-ee804f58d934",
+          "kind": {
+            "kind": "branch"
+          },
+          "inputs": {
+            "condition": {
+              "kind": "link",
+              "node": "8c7bedc2-bca1-5bfd-a1f8-83d888930654",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "true": [
+              "d021f81f-5279-51af-b53f-0ef999aecb32"
+            ],
+            "false": [
+              "fcfd28ff-5198-5de9-96fb-94404dcf4ad0"
+            ]
+          }
+        },
+        {
+          "id": "d09ec3cd-dbe4-52c1-a148-2d34a7f0db50",
+          "kind": {
+            "kind": "branch"
+          },
+          "inputs": {
+            "condition": {
+              "kind": "link",
+              "node": "fb9ac520-d9fb-54e7-93ae-6ce681140f2b",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "true": [
+              "aa91c084-5147-5409-a3ed-5165e30b051a"
+            ],
+            "false": [
+              "261af1fa-e414-58cf-bc3d-d86a58c083d7"
+            ]
+          }
+        },
+        {
+          "id": "9454185e-c88b-546d-b52f-9e93eaca9c3e",
+          "kind": {
+            "kind": "entry"
+          },
+          "inputs": {},
+          "outputs": {
+            "next": [
+              "ba24332e-3cdb-5da5-b89c-ee804f58d934"
+            ]
+          }
+        }
+      ],
+      "override_id": "0d4253ba-23f6-502a-b103-2a879b7a4fca"
+    },
+    {
+      "id": "ba22f6e5-456c-5c5d-996e-80785f1c59c2",
+      "name": "can_heal",
+      "parameters": [],
+      "returns": {
+        "kind": "bool"
+      },
+      "entry": "72c2329d-c62e-5620-abd3-7093b4205783",
+      "nodes": [
+        {
+          "id": "0e20b1ca-41bf-5f29-91cd-3ea66761f5cd",
+          "kind": {
+            "kind": "get_variable",
+            "member": "3a8ccaf6-40c8-5c6f-8425-7c0d1a2c13f4"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "99018c1d-6e81-5378-a0fb-058825c2df17",
+          "kind": {
+            "kind": "get_variable",
+            "member": "07e618de-b6f6-5e47-be5f-4fca7dc2ccd2"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "7f093233-e9f1-5bd9-9005-ad10732ff68e",
+          "kind": {
+            "kind": "operation",
+            "operation": "df6acd25-a526-5605-86e3-1a73c31737b8"
+          },
+          "inputs": {
+            "df6acd25-a526-5605-86e3-1a73c31737b8:parameter:0": {
+              "kind": "link",
+              "node": "99018c1d-6e81-5378-a0fb-058825c2df17",
+              "pin": "value"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "87fe683f-22f4-5a93-906d-67333c4273b0",
+          "kind": {
+            "kind": "binary",
+            "op": "less"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "99018c1d-6e81-5378-a0fb-058825c2df17",
+              "pin": "value.current"
+            },
+            "b": {
+              "kind": "link",
+              "node": "99018c1d-6e81-5378-a0fb-058825c2df17",
+              "pin": "value.maximum"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "34347ffd-ff56-519a-babd-96564c952555",
+          "kind": {
+            "kind": "binary",
+            "op": "and"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "0e20b1ca-41bf-5f29-91cd-3ea66761f5cd",
+              "pin": "value"
+            },
+            "b": {
+              "kind": "link",
+              "node": "7f093233-e9f1-5bd9-9005-ad10732ff68e",
+              "pin": "value"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "a2c82c3e-2934-5571-bc22-40821b71fe23",
+          "kind": {
+            "kind": "binary",
+            "op": "and"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "34347ffd-ff56-519a-babd-96564c952555",
+              "pin": "value"
+            },
+            "b": {
+              "kind": "link",
+              "node": "87fe683f-22f4-5a93-906d-67333c4273b0",
+              "pin": "value"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "676af42e-3f98-5e8c-a6d2-fff8b4a32cbb",
+          "kind": {
+            "kind": "return"
+          },
+          "inputs": {
+            "value": {
+              "kind": "link",
+              "node": "a2c82c3e-2934-5571-bc22-40821b71fe23",
+              "pin": "value"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "72c2329d-c62e-5620-abd3-7093b4205783",
+          "kind": {
+            "kind": "entry"
+          },
+          "inputs": {},
+          "outputs": {
+            "next": [
+              "676af42e-3f98-5e8c-a6d2-fff8b4a32cbb"
+            ]
+          }
+        }
+      ],
+      "override_id": "31cfbe2e-070b-55dc-b6c7-6d723232f1ba"
+    }
+  ],
+  "template": {
+    "actors": []
+  },
+  "layout": {
+    "positions": {
+      "69775a09-3b6a-521d-91d5-2f37ea6e506e": [
+        0.0,
+        0.0
+      ],
+      "d878efc3-4c8d-5a01-8b24-8c0b8b82c5a3": [
+        290.0,
+        0.0
+      ],
+      "e033c1f3-7d4d-528a-90e7-4c2a884e797f": [
+        580.0,
+        0.0
+      ],
+      "4a446a88-d28b-54a6-92ef-14bb19a20205": [
+        870.0,
+        0.0
+      ],
+      "643d364f-8994-58c6-bb20-8501b3c11f0f": [
+        1160.0,
+        0.0
+      ],
+      "78599209-e80d-58f0-89b3-e5a9e3a8fe74": [
+        1450.0,
+        0.0
+      ],
+      "bc2aca45-2837-58c2-955d-1b68d962dbd0": [
+        0.0,
+        180.0
+      ],
+      "f13bfde7-9b88-5502-90d4-d674d50c5621": [
+        290.0,
+        180.0
+      ],
+      "cfe6097f-a7b5-5589-925c-7da61ef3b9ae": [
+        580.0,
+        180.0
+      ],
+      "7ca3a851-7f2e-5768-82f8-d43f7996471b": [
+        870.0,
+        180.0
+      ],
+      "b24ef124-6312-5636-8d1e-934215bf6774": [
+        0.0,
+        0.0
+      ],
+      "d6e713cc-7191-5f91-b254-de5a764f9170": [
+        290.0,
+        0.0
+      ],
+      "f2a93ce6-b13a-5364-bcde-56a904d1b3a3": [
+        580.0,
+        0.0
+      ],
+      "6fd9440c-f777-5ba4-9116-a1e0ab9e6b36": [
+        870.0,
+        0.0
+      ],
+      "f84b463c-98ce-5ed5-9332-20a3ef68ac89": [
+        1160.0,
+        0.0
+      ],
+      "acd74abe-ff41-5613-a81a-5a65c1549922": [
+        1450.0,
+        0.0
+      ],
+      "d9864150-d578-5213-a835-bd10fd01ef60": [
+        0.0,
+        180.0
+      ],
+      "c0f98690-c99a-5b55-94b5-6a277f0f8533": [
+        290.0,
+        180.0
+      ],
+      "c7d2e678-88e9-59b4-9ef5-cff5b9a60037": [
+        580.0,
+        180.0
+      ],
+      "b80e3fad-d438-556a-b996-b5cf669a1769": [
+        870.0,
+        180.0
+      ],
+      "c90d4349-be6b-5860-a956-a58a04180ce5": [
+        1160.0,
+        180.0
+      ],
+      "33d01a7b-7eb4-5062-9eeb-62744bdf9d63": [
+        1450.0,
+        180.0
+      ],
+      "7c1772b0-e66f-5e53-babd-34b512990b43": [
+        0.0,
+        360.0
+      ],
+      "7e052910-f8d1-529e-adff-a9ef8aa70140": [
+        290.0,
+        360.0
+      ],
+      "b1b2b91a-66fd-59b9-86b5-607254e7d2b6": [
+        580.0,
+        360.0
+      ],
+      "44fbf4e6-60c9-56eb-96bb-16c0eefd849e": [
+        870.0,
+        360.0
+      ],
+      "0796b999-fd1d-52f5-bd07-0fb9579a0776": [
+        1160.0,
+        360.0
+      ],
+      "182f771c-6339-55b9-8343-ab481f7f2c94": [
+        0.0,
+        0.0
+      ],
+      "7dc9592c-ea13-52b7-a4b6-430f1b3758ae": [
+        290.0,
+        0.0
+      ],
+      "403ec980-a579-5c83-b8fb-cb7f620c5622": [
+        580.0,
+        0.0
+      ],
+      "e58e6aaa-cc1f-5cb1-999b-20ccd9b65e13": [
+        870.0,
+        0.0
+      ],
+      "43414f88-b0f2-5c5d-97c8-3759e8b33c57": [
+        0.0,
+        0.0
+      ],
+      "b1901fb8-c7e6-55cc-815d-b886c7e403e7": [
+        290.0,
+        0.0
+      ],
+      "af9bde64-6f12-5929-9ee3-12c217783da6": [
+        580.0,
+        0.0
+      ],
+      "23c29016-be3a-5560-bb6f-89f2be3ffbea": [
+        870.0,
+        0.0
+      ],
+      "676e6dad-600e-534d-a617-37884bfbb1d8": [
+        0.0,
+        0.0
+      ],
+      "64998990-6920-5aef-b259-47302ff6cab7": [
+        290.0,
+        0.0
+      ],
+      "46216ed2-6ea9-5384-89cf-89ff46613fa5": [
+        580.0,
+        0.0
+      ],
+      "045b1b64-d2d1-56d2-b7e3-5832fef6fedc": [
+        870.0,
+        0.0
+      ],
+      "6bc59b2c-6f84-5df4-ad1d-07ca7c8969f7": [
+        1160.0,
+        0.0
+      ],
+      "578b578c-5410-5db8-97e9-7919ef977108": [
+        1450.0,
+        0.0
+      ],
+      "e5fc09bc-c016-5ef0-9cfe-e07894a82b43": [
+        0.0,
+        180.0
+      ],
+      "3edca0f0-2aa1-5219-94fa-3e15fd9b02f7": [
+        290.0,
+        180.0
+      ],
+      "985bbd42-13ab-508c-b4ca-c328c351443b": [
+        580.0,
+        180.0
+      ],
+      "bc30bb6c-41b2-5326-b1e4-4af397d17963": [
+        870.0,
+        180.0
+      ],
+      "30f39816-0c15-5619-9498-295eed0d3a6e": [
+        1160.0,
+        180.0
+      ],
+      "190e55c1-b912-539e-a7f4-aa4495d5b7e2": [
+        1450.0,
+        180.0
+      ],
+      "d21c217a-5682-5a15-9a9c-e93ce508785e": [
+        0.0,
+        360.0
+      ],
+      "34768a8d-0853-5757-a739-880b2ca3ba1a": [
+        290.0,
+        360.0
+      ],
+      "a78b6817-edeb-53bf-9cec-786cd119272a": [
+        580.0,
+        360.0
+      ],
+      "7ccdb359-43e3-5425-9f00-b6e143843aaa": [
+        870.0,
+        360.0
+      ],
+      "515ddc0f-edd3-5c42-a853-5b908e15d96e": [
+        1160.0,
+        360.0
+      ],
+      "832714ce-992e-504f-96cb-1a2f39f41169": [
+        1450.0,
+        360.0
+      ],
+      "d021f81f-5279-51af-b53f-0ef999aecb32": [
+        0.0,
+        0.0
+      ],
+      "8c7bedc2-bca1-5bfd-a1f8-83d888930654": [
+        290.0,
+        0.0
+      ],
+      "fb9ac520-d9fb-54e7-93ae-6ce681140f2b": [
+        580.0,
+        0.0
+      ],
+      "3013183e-2ef4-5821-9ad9-1125868855ac": [
+        870.0,
+        0.0
+      ],
+      "aa91c084-5147-5409-a3ed-5165e30b051a": [
+        1160.0,
+        0.0
+      ],
+      "261af1fa-e414-58cf-bc3d-d86a58c083d7": [
+        1450.0,
+        0.0
+      ],
+      "81bf7dae-ac6e-5f7d-a517-8c02295e193a": [
+        0.0,
+        180.0
+      ],
+      "e1162afd-34d8-5fc7-904d-d9890ccb928b": [
+        290.0,
+        180.0
+      ],
+      "fcfd28ff-5198-5de9-96fb-94404dcf4ad0": [
+        580.0,
+        180.0
+      ],
+      "ba24332e-3cdb-5da5-b89c-ee804f58d934": [
+        870.0,
+        180.0
+      ],
+      "d09ec3cd-dbe4-52c1-a148-2d34a7f0db50": [
+        1160.0,
+        180.0
+      ],
+      "9454185e-c88b-546d-b52f-9e93eaca9c3e": [
+        1450.0,
+        180.0
+      ],
+      "0e20b1ca-41bf-5f29-91cd-3ea66761f5cd": [
+        0.0,
+        0.0
+      ],
+      "99018c1d-6e81-5378-a0fb-058825c2df17": [
+        290.0,
+        0.0
+      ],
+      "7f093233-e9f1-5bd9-9005-ad10732ff68e": [
+        580.0,
+        0.0
+      ],
+      "87fe683f-22f4-5a93-906d-67333c4273b0": [
+        870.0,
+        0.0
+      ],
+      "34347ffd-ff56-519a-babd-96564c952555": [
+        1160.0,
+        0.0
+      ],
+      "a2c82c3e-2934-5571-bc22-40821b71fe23": [
+        1450.0,
+        0.0
+      ],
+      "676af42e-3f98-5e8c-a6d2-fff8b4a32cbb": [
+        0.0,
+        180.0
+      ],
+      "72c2329d-c62e-5620-abd3-7093b4205783": [
+        290.0,
+        180.0
+      ]
+    },
+    "comments": {},
+    "split_pins": [
+      "3edca0f0-2aa1-5219-94fa-3e15fd9b02f7:out:value",
+      "69775a09-3b6a-521d-91d5-2f37ea6e506e:out:value",
+      "99018c1d-6e81-5378-a0fb-058825c2df17:out:value",
+      "bc30bb6c-41b2-5326-b1e4-4af397d17963:out:value",
+      "d021f81f-5279-51af-b53f-0ef999aecb32:out:value"
+    ]
+  }
+}

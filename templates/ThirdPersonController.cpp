@@ -1,3 +1,4 @@
+// Pre-extraction comparison fixture. New projects use ThirdPersonInput.cpp.
 #include "ThirdPersonController.hpp"
 #include "CharacterClips.hpp"
 using namespace epok;
@@ -16,7 +17,7 @@ constexpr Fixed camera_pull_in=0.04,camera_minimum_boom=0.12;
 bool same_name(const char* a,const char* b){
     while(*a&&*a==*b){++a;++b;}return *a==*b;
 }
-Fixed axis(Axis which){return Fixed(int32_t(input.axis_raw(which)),Fixed::RAW);}
+Fixed axis(Axis which){return Fixed(int32_t(GameplayInputLibrary::axis_raw(which)),Fixed::RAW);}
 uint32_t clip_frames(const Animator& animator){
     return animator.model&&animator.clip>=0&&size_t(animator.clip)<animator.model->clip_count
         ?uint32_t(animator.model->clips[animator.clip].frames):0;
@@ -100,8 +101,8 @@ void ThirdPersonController::update(Transform& transform,Fixed dt){
 
     // A held direction is full deflection, so the keyboard and the stick agree.
     Fixed move_x=axis(Axis::LeftX),move_z=axis(Axis::LeftY);
-    const int digital_x=int(input.held(Button::Right))-int(input.held(Button::Left));
-    const int digital_z=int(input.held(Button::Up))-int(input.held(Button::Down));
+    const int digital_x=int(GameplayInputLibrary::button_held(Button::Right))-int(GameplayInputLibrary::button_held(Button::Left));
+    const int digital_z=int(GameplayInputLibrary::button_held(Button::Up))-int(GameplayInputLibrary::button_held(Button::Down));
     if(digital_x||digital_z){move_x=Fixed(digital_x,0);move_z=Fixed(digital_z,0);}
     const auto intent=MathLibrary::stick_intent(move_x,move_z);
     const Fixed strafe=intent.x,forward=intent.y;
@@ -118,7 +119,7 @@ void ThirdPersonController::update(Transform& transform,Fixed dt){
     velocity[0]+=(desired_x-velocity[0])*response;
     velocity[2]+=(desired_z-velocity[2])*response;
 
-    const bool jumped=grounded&&input.pressed(Button::Cross);
+    const bool jumped=grounded&&GameplayInputLibrary::button_pressed(Button::Cross);
     if(grounded)velocity[1]=jumped?jump_speed:Fixed(0.0);
     else velocity[1]-=gravity*dt;
     const Fixed fall=grounded&&!jumped?stick_to_ground:velocity[1]*dt;

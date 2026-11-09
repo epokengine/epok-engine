@@ -126,6 +126,9 @@ impl LuaExecution {
             "#pragma once\n#define EPOK_LUA_MODE_NATIVE 0\n#define EPOK_LUA_MODE_VM_BYTECODE 1\n#define EPOK_LUA_MODE_VM_SOURCE 2\n#define EPOK_LUA_MODE {}\n",
             self.value()
         );
+        if self.is_vm() {
+            text.push_str("#if defined(__cplusplus) && __has_include(\"scripts/generated/lua/lua_value_config.hpp\")\n#include \"scripts/generated/lua/lua_value_config.hpp\"\n#endif\n");
+        }
         if let Some(bytes) = self.arena_bytes() {
             text.push_str(&format!(
                 "#ifndef EPOK_LUA_ARENA_BYTES\n#define EPOK_LUA_ARENA_BYTES {bytes}\n#endif\n"
@@ -133,9 +136,10 @@ impl LuaExecution {
         }
         text
     }
-    /// Static VM arena. Parsing source on the target allocates transiently
-    /// while each chunk loads (a full collection runs between chunks), so the
-    /// source packaging reserves more than the bytecode packaging; the
+    /// VM arena ceiling and fallback when no program plan is available.
+    /// Packaging emits a smaller plan for small programs. Parsing source on
+    /// target allocates transiently while each chunk loads, so source has a
+    /// larger ceiling than bytecode; the
     /// three-class conformance fixture peaks at 18 KiB and 21 KiB respectively.
     /// Native builds have no arena at all.
     pub fn arena_bytes(self) -> Option<u32> {

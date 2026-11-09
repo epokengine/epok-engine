@@ -974,14 +974,15 @@ fn warnings(
         ));
     }
     // Keys without a live Player are picked up by anything.
-    let has_keys = g.output.actors.iter().any(|actor| {
-        e.scene.actor_index(*actor).is_some_and(|i| {
-            e.scene.actors[i].components.iter().any(|c| {
-                c.class
-                    .class_id
-                    .as_deref()
-                    .is_some_and(crate::dungeon_gameplay::is_key)
-            })
+    // Generated key identities belong to the query map, independently of the
+    // project's class name, provider or replacement subclass. Older outputs
+    // without queries already request regeneration above.
+    let has_keys = g.output.queries.as_ref().is_some_and(|map| {
+        map.items.iter().any(|item| {
+            item.lock > 0
+                && item
+                    .actor
+                    .is_some_and(|actor| e.scene.actor_index(actor).is_some())
         })
     });
     if has_keys && g.spawn_actor.and_then(|p| e.scene.actor_index(p)).is_none() {
@@ -2131,7 +2132,7 @@ mod tests {
                 .filter(|c| c.class.class_id.as_deref() == Some(key.1))
                 .map(|c| {
                     c.properties
-                        .get(crate::dungeon_gameplay::PLAYER)
+                        .get("accepted_initiator")
                         .and_then(|v| v.as_str())
                         .map(str::to_owned)
                 })

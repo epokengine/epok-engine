@@ -186,6 +186,11 @@ impl Batch {
             .collect::<BTreeSet<_>>();
         ids.extend(crate::audio::clip_ids(scene));
         ids.extend(scene.reference_tables.keys().copied());
+        if scene.strings.is_some()
+            && let Some((record, _)) = crate::localization::project_table(index)
+        {
+            ids.insert(record.meta.id);
+        }
         ids.extend(
             scene
                 .reference_tables

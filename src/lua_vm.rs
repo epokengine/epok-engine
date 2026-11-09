@@ -1,9 +1,9 @@
 //! Lua VM packaging: normalized Lua emission and chunk payloads (M4).
 //!
 //! The chunks emitted here are not the author's source. They are a normalized
-//! form (contract §10.2) in which every arithmetic operation, field access and
+//! form (contract Â§10.2) in which every arithmetic operation, field access and
 //! dispatch is a call into a registered C function, so the numeric contract of
-//! §3 is the runtime's `epok::bp::*` rather than the Lua fork's `long`
+//! Â§3 is the runtime's `epok::bp::*` rather than the Lua fork's `long`
 //! arithmetic. A chunk is therefore mode-independent: the same text is either
 //! packaged verbatim (`VmSource`) or cooked to target bytecode (`VmBytecode`).
 #![allow(dead_code)] // Consumed by lua_compile once M4 lands.
@@ -32,6 +32,223 @@ pub struct VmPackage {
 pub const GENERATED_DIR: &str = "scripts/generated/lua";
 /// Native source carrying every class's chunk payload.
 pub const CHUNKS_SOURCE: &str = "scripts/generated/lua/lua_chunks.cpp";
+pub const VALUE_CONFIG: &str = "scripts/generated/lua/lua_value_config.hpp";
+
+/// Plan the VM heap from the normalized program, retaining the existing frame,
+/// argument and value bounds. Large programs retain the profile's original
+/// 96/128 KiB allowance; small programs do not reserve that entire allowance.
+/// Native extensions can still explicitly override EPOK_LUA_ARENA_BYTES.
+pub fn arena_budget(
+    mode: LuaExecution,
+    source_bytes: usize,
+    classes: usize,
+    locals: usize,
+) -> usize {
+    let Some(ceiling) = mode.arena_bytes() else {
+        return 0;
+    };
+    // State/kernel tables, retained prototypes/constants/parser workspace,
+    // class tables and 16 nested frames of 16-byte Lua stack values. Native
+    // compound values remain in the separately bounded wire-value storage.
+    let estimate = (16usize * 1024)
+        .saturating_add(source_bytes.saturating_mul(4))
+        .saturating_add(classes.saturating_mul(512))
+        .saturating_add(locals.saturating_add(32).saturating_mul(16 * 16));
+    let rounded = estimate.saturating_add(4095) / 4096 * 4096;
+    rounded.clamp(32 * 1024, ceiling as usize)
+}
+
+/// Size each scratch value for the actual generated bridge and typed bodies.
+/// Keep the number of frames/temporaries unchanged and retain the 32-word
+/// language limit. Generic vector helpers require at least three words.
+pub fn value_word_capacity(
+    classes: &[(schema::Class, script_ir::ClassIr)],
+    registry: &crate::blueprint::Registry,
+) -> Result<usize, String> {
+    fn ty(value: &schema::Type, max: &mut usize) {
+        *max = (*max).max(value.wire_words());
+    }
+    fn expr(value: &Expr, max: &mut usize) {
+        ty(value.value_type(), max);
+        match value {
+            Expr::Unary { operand, .. }
+            | Expr::Convert { operand, .. }
+            | Expr::Member { base: operand, .. } => expr(operand, max),
+            Expr::Binary { left, right, .. } => {
+                expr(left, max);
+                expr(right, max);
+            }
+            Expr::CallSelf { args, .. }
+            | Expr::CallParent { args, .. }
+            | Expr::MakeVector {
+                components: args, ..
+            } => {
+                for arg in args {
+                    expr(arg, max);
+                }
+            }
+            Expr::CallBuiltin { args, .. } => {
+                for arg in args {
+                    match arg {
+                        script_ir::BuiltinArg::Value(value) => expr(value, max),
+                        script_ir::BuiltinArg::Property { value_type, .. } => ty(value_type, max),
+                    }
+                }
+            }
+            Expr::CallOperation { receiver, args, .. } => {
+                if let Some(receiver) = receiver {
+                    expr(receiver, max);
+                }
+                for arg in args {
+                    expr(arg, max);
+                }
+            }
+            Expr::Literal { .. } | Expr::Read { .. } => {}
+        }
+    }
+    fn block(body: &script_ir::Block, max: &mut usize) {
+        for statement in body {
+            match &statement.kind {
+                StatementKind::Local { value, .. }
+                | StatementKind::Assign { value, .. }
+                | StatementKind::Evaluate(value)
+                | StatementKind::Return(Some(value)) => expr(value, max),
+                StatementKind::If {
+                    cond,
+                    then,
+                    otherwise,
+                } => {
+                    expr(cond, max);
+                    block(then, max);
+                    block(otherwise, max);
+                }
+                StatementKind::For { body, .. } => block(body, max),
+                StatementKind::Return(None) => {}
+            }
+        }
+    }
+    let mut max = 3;
+    for (_, ir) in classes {
+        for field in field_slots_for_ir(ir, registry) {
+            ty(&field.value_type, &mut max);
+        }
+        for function in method_slots(ir, registry) {
+            ty(&function.returns, &mut max);
+            for parameter in function.parameters {
+                ty(&parameter.value_type, &mut max);
+            }
+        }
+        for method in &ir.methods {
+            for local in method.parameters.iter().chain(&method.locals) {
+                ty(&local.value_type, &mut max);
+            }
+            block(&method.body, &mut max);
+        }
+    }
+    if max > 32 {
+        Err(format!(
+            "Lua VM value requires {max} words; the ABI supports at most 32."
+        ))
+    } else {
+        Ok(max)
+    }
+}
+
+/// A statement starts with only its composite parameters/locals rooted. Every
+/// helper-created snapshot in one expression remains live until the next
+/// statement boundary. Count both sides of short-circuit expressions and every
+/// argument conservatively; nested native re-entry owns a separate frame.
+fn expression_value_slots(value: &Expr) -> usize {
+    let own = usize::from(value.value_type().requires_wire_value());
+    match value {
+        Expr::Read {
+            place: Place::Local(_),
+            ..
+        }
+        | Expr::Literal { .. } => 0,
+        Expr::Read { .. } => own,
+        Expr::Unary { operand, .. } | Expr::Convert { operand, .. } => {
+            expression_value_slots(operand)
+        }
+        Expr::Binary { left, right, .. } => {
+            expression_value_slots(left) + expression_value_slots(right)
+        }
+        Expr::Member { base, .. } => expression_value_slots(base) + own,
+        Expr::CallSelf { args, .. }
+        | Expr::CallParent { args, .. }
+        | Expr::MakeVector {
+            components: args, ..
+        } => args.iter().map(expression_value_slots).sum::<usize>() + own,
+        Expr::CallBuiltin { args, .. } => {
+            args.iter()
+                .filter_map(script_ir::BuiltinArg::value)
+                .map(expression_value_slots)
+                .sum::<usize>()
+                + own
+        }
+        Expr::CallOperation { receiver, args, .. } => {
+            receiver.as_deref().map_or(0, expression_value_slots)
+                + args.iter().map(expression_value_slots).sum::<usize>()
+                + own
+        }
+    }
+}
+
+fn statement_value_slots(statement: &Statement) -> usize {
+    match &statement.kind {
+        StatementKind::Local { value, .. }
+        | StatementKind::Evaluate(value)
+        | StatementKind::Return(Some(value)) => expression_value_slots(value),
+        StatementKind::Assign { target, value } => {
+            expression_value_slots(value)
+                + usize::from(
+                    matches!(target, Place::Member { .. } | Place::VectorComponent { .. })
+                        && target.root_local().is_some(),
+                )
+        }
+        StatementKind::If { cond, .. } => expression_value_slots(cond),
+        StatementKind::For { .. } => 0,
+        StatementKind::Return(None) => 0,
+    }
+}
+
+fn block_value_slots(body: &[Statement]) -> usize {
+    body.iter()
+        .map(|statement| {
+            let nested = match &statement.kind {
+                StatementKind::If {
+                    then, otherwise, ..
+                } => block_value_slots(then).max(block_value_slots(otherwise)),
+                StatementKind::For { body, .. } => block_value_slots(body),
+                _ => 0,
+            };
+            statement_value_slots(statement).max(nested)
+        })
+        .max()
+        .unwrap_or(0)
+}
+
+fn method_value_roots(method: &script_ir::MethodIr) -> Vec<script_ir::LocalId> {
+    method
+        .parameters
+        .iter()
+        .chain(&method.locals)
+        .filter(|local| local.value_type.requires_wire_value())
+        .map(|local| local.id)
+        .collect()
+}
+
+/// This changes physical storage, not the language's 64-live-value/16-frame
+/// bounds. Projects whose proof needs all 64 slots retain the original capacity.
+pub fn value_slot_capacity(classes: &[(schema::Class, script_ir::ClassIr)]) -> usize {
+    classes
+        .iter()
+        .flat_map(|(_, ir)| &ir.methods)
+        .map(|method| method_value_roots(method).len() + block_value_slots(&method.body))
+        .max()
+        .unwrap_or(0)
+        .clamp(1, 64)
+}
 
 /// Identity of a field slot, and the key both emitters look a `Place` up by.
 /// `component` is the index inside a `Vector` and 0 for every scalar.
@@ -85,7 +302,7 @@ pub fn field_slots(class_cpp_name: &str, registry: &crate::blueprint::Registry) 
                     });
                 }
             }
-            value_type if value_type.wire_words() == 1 => slots.push(FieldSlot {
+            value_type if !value_type.requires_wire_value() => slots.push(FieldSlot {
                 key: SlotKey::Property {
                     member_id,
                     component: None,
@@ -123,10 +340,10 @@ pub fn field_slots_for_ir(
                 member_id,
                 name,
                 value_type,
-            } if value_type.wire_words() > 1 => {
+            } if value_type.requires_wire_value() => {
                 used.insert(member_id.clone(), (name.clone(), value_type.clone()));
             }
-            Place::VectorComponent { base, .. } => place(base, used),
+            Place::VectorComponent { base, .. } | Place::Member { base, .. } => place(base, used),
             _ => {}
         }
     }
@@ -412,7 +629,7 @@ pub fn operation_sites(ir: &script_ir::ClassIr) -> Result<Vec<Expr>, String> {
 /// the class's Lua-bodied methods, in declaration order, because generated
 /// trampolines index the chunk by that slot. Only inherited native call sites
 /// actually referenced by the typed IR follow. Merely publishing a large
-/// engine API must not consume the 64 Lua-body slots or retain one dispatch
+/// engine API must not consume the 128 Lua-body slots or retain one dispatch
 /// case per inherited callable in every class.
 ///
 /// `lua_aot::emit_bindings` and `emit_chunk` must agree slot for slot; this is
@@ -563,13 +780,14 @@ fn chunk_name(class: &schema::Class) -> String {
 struct Emitter<'a> {
     out: String,
     /// Local id -> emitted Lua name. Parameters are `epok_p<index>`, body
-    /// locals `epok_l<id>`, matching the trampoline signatures in §10.3.
+    /// locals `epok_l<id>`, matching the trampoline signatures in Â§10.3.
     names: BTreeMap<script_ir::LocalId, String>,
     fields: &'a BTreeMap<SlotKey, usize>,
     methods: &'a BTreeMap<String, usize>,
     class: &'a script_ir::ClassIr,
     method: &'a str,
     error: Option<(script_ir::Span, String)>,
+    value_roots: Option<Vec<script_ir::LocalId>>,
 }
 
 impl Emitter<'_> {
@@ -627,7 +845,7 @@ impl Emitter<'_> {
                     return 0;
                 }
             },
-            Place::Local(_) => {
+            Place::Local(_) | Place::Member { .. } => {
                 self.fail(span, "Internal: local place has no field slot.");
                 return 0;
             }
@@ -678,7 +896,7 @@ impl Emitter<'_> {
                 }
             }
             // The target's lua_Number is a signed 32-bit long, so a UInt32
-            // literal is emitted as its bit pattern reinterpreted as int32 —
+            // literal is emitted as its bit pattern reinterpreted as int32 â€”
             // the same ABI the helpers and field accessors use.
             schema::Type::UInt32 => int32_literal(value.as_u64().unwrap_or(0) as u32 as i32),
             schema::Type::Fixed => match value.as_f64() {
@@ -735,9 +953,31 @@ impl Emitter<'_> {
                         "0".into()
                     }
                 },
+                Place::Member { .. } | Place::VectorComponent { .. }
+                    if place.root_local().is_some() =>
+                {
+                    let (id, offset) = place.local_wire_offset().unwrap();
+                    let name = self
+                        .names
+                        .get(&id)
+                        .cloned()
+                        .unwrap_or_else(|| format!("epok_l{}", id.0));
+                    let composite = if value_type.requires_wire_value() {
+                        ", true"
+                    } else {
+                        ""
+                    };
+                    self.boundary_out(
+                        format!(
+                            "__epok_member({name}, {offset}, {}{composite})",
+                            value_type.wire_words()
+                        ),
+                        value_type,
+                    )
+                }
                 _ => {
                     let slot = self.field_slot(place, span);
-                    let helper = if value_type.wire_words() > 1 {
+                    let helper = if value_type.requires_wire_value() {
                         "__epok_getwf"
                     } else {
                         "__epok_getf"
@@ -797,9 +1037,14 @@ impl Emitter<'_> {
                     return self.boundary_out(format!("__epok_getf(self, {slot})"), value_type);
                 }
                 let base = self.expr(base, span);
+                let composite = if value_type.requires_wire_value() {
+                    ", true"
+                } else {
+                    ""
+                };
                 self.boundary_out(
                     format!(
-                        "__epok_member({base}, {index}, {})",
+                        "__epok_member({base}, {index}, {}{composite})",
                         value_type.wire_words()
                     ),
                     value_type,
@@ -826,11 +1071,11 @@ impl Emitter<'_> {
                 // Only the wire operands travel. A 64-bit asset or class id is
                 // read by the generated binding case from the native field, so
                 // it never enters Lua at all (contract section 10.1).
-                let helper = if returns.wire_words() > 1
+                let helper = if returns.requires_wire_value()
                     || args
                         .iter()
                         .filter_map(script_ir::BuiltinArg::value)
-                        .any(|value| value.value_type().wire_words() > 1)
+                        .any(|value| value.value_type().requires_wire_value())
                 {
                     "__epok_wide_builtin"
                 } else {
@@ -860,7 +1105,7 @@ impl Emitter<'_> {
                 }
                 for argument in args {
                     let rendered = self.expr(argument, span);
-                    let rendered = if argument.value_type().wire_words() == 1 {
+                    let rendered = if !argument.value_type().requires_wire_value() {
                         self.boundary_in(rendered, argument.value_type())
                     } else {
                         rendered
@@ -868,7 +1113,7 @@ impl Emitter<'_> {
                     let _ = write!(text, ", {rendered}");
                 }
                 text.push(')');
-                if returns.wire_words() == 1 {
+                if !returns.requires_wire_value() {
                     self.boundary_out(text, returns)
                 } else {
                     text
@@ -972,10 +1217,10 @@ impl Emitter<'_> {
         returns: &schema::Type,
         span: script_ir::Span,
     ) -> String {
-        let wide = returns.wire_words() > 1
+        let wide = returns.requires_wire_value()
             || args
                 .iter()
-                .any(|argument| argument.value_type().wire_words() > 1);
+                .any(|argument| argument.value_type().requires_wire_value());
         let helper = match (helper, wide) {
             ("__epok_call", true) => "__epok_wide_call",
             ("__epok_super", true) => "__epok_wide_super",
@@ -1011,7 +1256,7 @@ impl Emitter<'_> {
         for arg in args {
             let value_type = arg.value_type().clone();
             let rendered = self.expr(arg, span);
-            let rendered = if wide && value_type.wire_words() > 1 {
+            let rendered = if wide && value_type.requires_wire_value() {
                 rendered
             } else {
                 self.boundary_in(rendered, &value_type)
@@ -1029,6 +1274,17 @@ impl Emitter<'_> {
     }
 
     fn statement(&mut self, statement: &Statement, depth: usize) {
+        if let Some(roots) = &self.value_roots
+            && statement_value_slots(statement) > 0
+        {
+            let names = roots
+                .iter()
+                .filter_map(|id| self.names.get(id))
+                .cloned()
+                .collect::<Vec<_>>();
+            self.indent(depth);
+            let _ = writeln!(self.out, "S({})", names.join(", "));
+        }
         let span = statement.span;
         match &statement.kind {
             // Every local is declared once at the top of the function, so a
@@ -1057,9 +1313,25 @@ impl Emitter<'_> {
                             .unwrap_or_else(|| format!("epok_l{}", id.0));
                         let _ = writeln!(self.out, "{name} = {rendered}");
                     }
+                    Place::Member { .. } | Place::VectorComponent { .. }
+                        if target.root_local().is_some() =>
+                    {
+                        let (id, offset) = target.local_wire_offset().unwrap();
+                        let name = self
+                            .names
+                            .get(&id)
+                            .cloned()
+                            .unwrap_or_else(|| format!("epok_l{}", id.0));
+                        let value = self.boundary_in(rendered, &value_type);
+                        let _ = writeln!(
+                            self.out,
+                            "{name} = __epok_replace({name}, {offset}, {}, {value})",
+                            value_type.wire_words()
+                        );
+                    }
                     _ => {
                         let slot = self.field_slot(target, span);
-                        if value_type.wire_words() > 1 {
+                        if value_type.requires_wire_value() {
                             let _ = writeln!(self.out, "__epok_setwf(self, {slot}, {rendered})");
                         } else {
                             let value = self.boundary_in(rendered, &value_type);
@@ -1079,8 +1351,10 @@ impl Emitter<'_> {
                         args,
                         returns,
                     } => {
-                        let wide = returns.wire_words() > 1
-                            || args.iter().any(|arg| arg.value_type().wire_words() > 1);
+                        let wide = returns.requires_wire_value()
+                            || args
+                                .iter()
+                                .any(|arg| arg.value_type().requires_wire_value());
                         self.call_raw(
                             if wide {
                                 "__epok_wide_call"
@@ -1100,8 +1374,10 @@ impl Emitter<'_> {
                         args,
                         returns,
                     } => {
-                        let wide = returns.wire_words() > 1
-                            || args.iter().any(|arg| arg.value_type().wire_words() > 1);
+                        let wide = returns.requires_wire_value()
+                            || args
+                                .iter()
+                                .any(|arg| arg.value_type().requires_wire_value());
                         self.call_raw(
                             if wide {
                                 "__epok_wide_super"
@@ -1121,11 +1397,11 @@ impl Emitter<'_> {
                         returns,
                         ..
                     } => {
-                        let helper = if returns.wire_words() > 1
+                        let helper = if returns.requires_wire_value()
                             || args
                                 .iter()
                                 .filter_map(script_ir::BuiltinArg::value)
-                                .any(|value| value.value_type().wire_words() > 1)
+                                .any(|value| value.value_type().requires_wire_value())
                         {
                             "__epok_wide_builtin"
                         } else {
@@ -1155,7 +1431,7 @@ impl Emitter<'_> {
                         }
                         for argument in args {
                             let rendered = self.expr(argument, span);
-                            let rendered = if argument.value_type().wire_words() == 1 {
+                            let rendered = if !argument.value_type().requires_wire_value() {
                                 self.boundary_in(rendered, argument.value_type())
                             } else {
                                 rendered
@@ -1229,7 +1505,7 @@ impl Emitter<'_> {
     }
 }
 
-/// Emits one class's normalized chunk (contract §10.2).
+/// Emits one class's normalized chunk (contract Â§10.2).
 pub fn emit_chunk(
     ir: &script_ir::ClassIr,
     fields: &[FieldSlot],
@@ -1244,6 +1520,15 @@ pub fn emit_chunk(
     let method_index = method_index(methods);
 
     let mut out = String::from("local C = {}\n");
+    if ir
+        .methods
+        .iter()
+        .any(|method| block_value_slots(&method.body) > 0)
+    {
+        // Share the registered helper through one lexical upvalue. Repeated
+        // bookkeeping names inflate source/parser work and the heap estimate.
+        out.push_str("local S=__epok_sweep\n");
+    }
     for method in &ir.methods {
         let mut names = BTreeMap::new();
         let mut signature = String::from("self");
@@ -1263,6 +1548,10 @@ pub fn emit_chunk(
             class: ir,
             method: &method.function.name,
             error: None,
+            value_roots: {
+                let roots = method_value_roots(method);
+                (!roots.is_empty() || block_value_slots(&method.body) > 0).then_some(roots)
+            },
         };
         emitter.block(&method.body, 1);
         if let Some((span, message)) = emitter.error {
@@ -1274,6 +1563,14 @@ pub fn emit_chunk(
             });
         }
         let _ = writeln!(out, "function C.{}({signature})", method.function.name);
+        // The native boundary transports scalar arguments as numeric words.
+        // Lua considers 0 truthy, so bool parameters must become booleans
+        // before conditions or a subsequent native call read them.
+        for (index, parameter) in method.parameters.iter().enumerate() {
+            if parameter.value_type == schema::Type::Bool {
+                let _ = writeln!(out, "  epok_p{index} = (epok_p{index} ~= 0)");
+            }
+        }
         if !method.locals.is_empty() {
             let declared: Vec<String> = method
                 .locals
@@ -1347,14 +1644,31 @@ pub fn package(
             line: 0,
             column: 0,
             message: format!(
-                "Lua VM — bytecode cannot package this project: {}",
+                "Lua VM â€” bytecode cannot package this project: {}",
                 lua_bytecode::MISSING_SOURCES
             ),
         }]);
     }
     let mut package = VmPackage::default();
+    let words = value_word_capacity(classes, registry).map_err(|message| {
+        vec![lua_asset::Diagnostic {
+            file: _root.into(),
+            line: 0,
+            column: 0,
+            message,
+        }]
+    })?;
+    let mut config = format!(
+        "// Generated from typed Lua bodies and bridge signatures.\n#pragma once\n#define EPOK_LUA_REQUIRED_VALUE_WORDS {words}\n#ifndef EPOK_LUA_MAX_VALUE_WORDS\n#define EPOK_LUA_MAX_VALUE_WORDS EPOK_LUA_REQUIRED_VALUE_WORDS\n#endif\nstatic_assert(EPOK_LUA_MAX_VALUE_WORDS>=EPOK_LUA_REQUIRED_VALUE_WORDS,\"Lua value capacity is smaller than the generated bridge\");\n"
+    );
+    let value_slots = value_slot_capacity(classes);
+    let _ = writeln!(
+        config,
+        "// Conservative roots plus expression temporaries per re-entrant frame.\n#define EPOK_LUA_PLANNED_VALUE_SLOTS {value_slots}"
+    );
     let mut diagnostics = Vec::new();
     let mut entries: Vec<(String, String, Vec<u8>)> = Vec::new();
+    let mut source_bytes = 0usize;
     for (class, ir) in classes {
         let file = class.source.file.clone();
         let chunk = match emit_chunk(
@@ -1369,6 +1683,7 @@ pub fn package(
                 continue;
             }
         };
+        source_bytes = source_bytes.saturating_add(chunk.len());
         let symbol = chunk_symbol(&class.id);
         let bytes = match mode {
             LuaExecution::VmBytecode => match lua_bytecode::cook(&chunk_name(class), &chunk) {
@@ -1408,6 +1723,18 @@ pub fn package(
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
+    let locals = classes
+        .iter()
+        .flat_map(|(_, ir)| &ir.methods)
+        .map(|method| method.parameters.len() + method.locals.len())
+        .max()
+        .unwrap_or(0);
+    let arena = arena_budget(mode, source_bytes, classes.len(), locals);
+    config.push_str(&format!("// Heap plan for {source_bytes} normalized source bytes, {} classes and {locals} local/parameter slots.\n#define EPOK_LUA_PLANNED_ARENA_BYTES {arena}\n#ifndef EPOK_LUA_ARENA_BYTES\n#define EPOK_LUA_ARENA_BYTES EPOK_LUA_PLANNED_ARENA_BYTES\n#endif\n",classes.len()));
+    package
+        .files
+        .insert(VALUE_CONFIG.into(), config.into_bytes());
+    package.dependencies.insert(VALUE_CONFIG.into());
     let source = PathBuf::from(CHUNKS_SOURCE);
     package
         .files
@@ -1417,7 +1744,27 @@ pub fn package(
 }
 
 #[cfg(test)]
+#[path = "lua_vm_value_tests.rs"]
+mod value_storage_tests;
+
+#[cfg(test)]
 mod tests {
+    #[test]
+    fn vm_heap_plan_scales_with_program_and_preserves_profile_ceilings() {
+        use crate::settings::LuaExecution as Mode;
+        assert_eq!(super::arena_budget(Mode::NativeCpp, 1000, 3, 8), 0);
+        for mode in [Mode::VmBytecode, Mode::VmSource] {
+            let small = super::arena_budget(mode, 256, 3, 4);
+            let code = super::arena_budget(mode, 8192, 3, 4);
+            let locals = super::arena_budget(mode, 256, 3, 64);
+            assert!(small >= 32 * 1024 && small < mode.arena_bytes().unwrap() as usize);
+            assert!(code > small && locals > small);
+            assert_eq!(
+                super::arena_budget(mode, usize::MAX, 64, usize::MAX),
+                mode.arena_bytes().unwrap() as usize
+            );
+        }
+    }
     use super::*;
     use crate::script_ir::{Local, LocalId, Span};
     use serde_json::json;
@@ -1482,6 +1829,142 @@ mod tests {
                 value_type: schema::Type::Bool,
             },
         ]
+    }
+
+    #[test]
+    fn lua_vm_value_capacity_sizes_scalars_and_preserves_full_width_snapshots() {
+        let registry = crate::lua_frontend::tests::builtin_registry();
+        let source = format!("{}\nreturn EnemyLogic\n", lua_asset::tests::HEADER);
+        let (registry, mut ir) =
+            crate::lua_aot::tests::lower("assets/scripts/EnemyLogic.lua", &source, &registry);
+        let class = registry.named(&ir.cpp_name).unwrap().clone();
+        assert_eq!(
+            value_word_capacity(&[(class.clone(), ir.clone())], &registry).unwrap(),
+            3
+        );
+        let scalar_package = package(
+            Path::new("."),
+            LuaExecution::VmSource,
+            &[(class.clone(), ir.clone())],
+            &registry,
+        )
+        .unwrap();
+        assert!(
+            String::from_utf8(scalar_package.files[Path::new(VALUE_CONFIG)].clone())
+                .unwrap()
+                .contains("EPOK_LUA_REQUIRED_VALUE_WORDS 3")
+        );
+        let wide = |words| schema::Type::Record {
+            cpp_name: "CapacitySnapshot".into(),
+            fields: (0..words)
+                .map(|i| schema::RecordField {
+                    name: format!("word_{i}"),
+                    value_type: schema::Type::Int32,
+                })
+                .collect(),
+        };
+        let mut signature = function("read_last", "read-last", schema::Type::Int32);
+        signature.parameters[0].value_type = wide(32);
+        ir.methods.push(script_ir::MethodIr {
+            function: signature,
+            is_override: false,
+            parameters: vec![Local {
+                id: LocalId(0),
+                name: "snapshot".into(),
+                value_type: wide(32),
+            }],
+            locals: vec![],
+            span: span(),
+            body: vec![Statement::new(
+                StatementKind::Return(Some(Expr::Member {
+                    base: Box::new(Expr::Read {
+                        place: Place::Local(LocalId(0)),
+                        value_type: wide(32),
+                    }),
+                    name: "word_31".into(),
+                    index: 31,
+                    value_type: schema::Type::Int32,
+                })),
+                span(),
+            )],
+        });
+        assert_eq!(
+            value_word_capacity(&[(class.clone(), ir.clone())], &registry).unwrap(),
+            32
+        );
+        let wide_package = package(
+            Path::new("."),
+            LuaExecution::VmSource,
+            &[(class.clone(), ir.clone())],
+            &registry,
+        )
+        .unwrap();
+        let config =
+            String::from_utf8(wide_package.files[Path::new(VALUE_CONFIG)].clone()).unwrap();
+        assert!(config.contains("EPOK_LUA_REQUIRED_VALUE_WORDS 32"));
+        assert!(
+            config
+                .contains("static_assert(EPOK_LUA_MAX_VALUE_WORDS>=EPOK_LUA_REQUIRED_VALUE_WORDS")
+        );
+        // An unused parameter still crosses the bridge at its full width.
+        ir.methods[0].parameters[0].value_type = wide(33);
+        assert!(
+            value_word_capacity(&[(class, ir)], &registry)
+                .unwrap_err()
+                .contains("at most 32")
+        );
+    }
+
+    #[test]
+    fn lua_vm_bool_parameters_normalize_boundary_words_before_conditions() {
+        let mut signature = function("finished", "finished-id", schema::Type::Bool);
+        signature.parameters[0].name = "finished".into();
+        signature.parameters[0].value_type = schema::Type::Bool;
+        let literal = |value| Expr::Literal {
+            value: json!(value),
+            value_type: schema::Type::Bool,
+        };
+        let ir = script_ir::ClassIr {
+            class_id: "bool-boundary".into(),
+            cpp_name: "BoolBoundary".into(),
+            parent_cpp_name: "Base".into(),
+            methods: vec![script_ir::MethodIr {
+                function: signature,
+                is_override: true,
+                parameters: vec![Local {
+                    id: LocalId(0),
+                    name: "finished".into(),
+                    value_type: schema::Type::Bool,
+                }],
+                locals: vec![],
+                span: span(),
+                body: vec![Statement::new(
+                    StatementKind::If {
+                        cond: Expr::Read {
+                            place: Place::Local(LocalId(0)),
+                            value_type: schema::Type::Bool,
+                        },
+                        then: vec![Statement::new(
+                            StatementKind::Return(Some(literal(true))),
+                            span(),
+                        )],
+                        otherwise: vec![Statement::new(
+                            StatementKind::Return(Some(literal(false))),
+                            span(),
+                        )],
+                    },
+                    span(),
+                )],
+            }],
+        };
+        script_ir::validate(&ir).unwrap();
+        let chunk = emit_chunk(&ir, &[], &own_methods(&ir), Path::new("BoolBoundary.lua")).unwrap();
+        let conversion = chunk.find("epok_p0 = (epok_p0 ~= 0)").unwrap();
+        let condition = chunk.find("if epok_p0 then").unwrap();
+        assert!(conversion < condition, "{chunk}");
+        if lua_bytecode::available() {
+            lua_bytecode::cook("@BoolBoundary.lua", &chunk).unwrap();
+        }
     }
 
     #[test]
@@ -1751,6 +2234,7 @@ mod tests {
                 component: None,
                 default_components: vec![],
                 explicit_abstract: false,
+                default_overrides: Default::default(),
                 properties: vec![vector],
                 functions: vec![],
                 source: schema::Location {

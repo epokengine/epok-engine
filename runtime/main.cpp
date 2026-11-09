@@ -10,6 +10,7 @@
 #include "controller_pad.hpp"
 #include "memory_card_backend.hpp"
 #include "fixed_trigonometry.hpp"
+#include "camera_projection.hpp"
 #include "track_camera_pose.hpp"
 #include "scene.hh"
 #include "data_table_service.hpp"
@@ -30,6 +31,11 @@
 #include "scene_service.hpp"
 #include "sprites.hpp"
 #include "particles.hpp"
+// Manual/older builds retain the pool. Only the cooker can certify it unused;
+// effect playback always requires the shared particle simulation.
+#if !defined(EPOK_NO_PARTICLES) || defined(EPOK_EFFECTS)
+#define EPOK_PARTICLE_POOL 1
+#endif
 #ifdef EPOK_BLUEPRINTS
 #include "blueprint_playback_service.hpp"
 #endif
@@ -51,6 +57,9 @@
 #include "world2d_render.hpp"
 #endif
 #include "hud_focus.hpp"
+#ifdef EPOK_UI_ANCHOR
+#include "ui_anchor_service.hpp"
+#endif
 #include "loading_renderer.hpp"
 #include "sky_gradient.hpp"
 #include "debug_hud.hpp"
@@ -84,16 +93,37 @@ struct RecolorValidationStats {uint32_t quads=0,errors=0,uniform_chunks=0;};
 RecolorValidationStats recolor_validation_stats;
 #endif
 #ifdef EPOK_PROFILE_SAMPLE
-uint32_t cpu_sample_bins[8192]={};
+#ifndef EPOK_PROFILE_SAMPLE_BASE
+#define EPOK_PROFILE_SAMPLE_BASE 0x10000u
+#endif
+#ifndef EPOK_PROFILE_SAMPLE_SHIFT
+#define EPOK_PROFILE_SAMPLE_SHIFT 7u
+#endif
+#ifndef EPOK_PROFILE_SAMPLE_BINS
+#define EPOK_PROFILE_SAMPLE_BINS 8192u
+#endif
+#ifndef EPOK_PROFILE_SAMPLE_PERIOD
+#define EPOK_PROFILE_SAMPLE_PERIOD 64000u
+#endif
+static_assert(EPOK_PROFILE_SAMPLE_SHIFT>=2&&EPOK_PROFILE_SAMPLE_SHIFT<=16);
+static_assert(EPOK_PROFILE_SAMPLE_BINS>0&&EPOK_PROFILE_SAMPLE_BINS<=8192);
+static_assert(EPOK_PROFILE_SAMPLE_BASE>=0x10000u&&EPOK_PROFILE_SAMPLE_BASE%4u==0&&
+              uint64_t(EPOK_PROFILE_SAMPLE_BASE)+(uint64_t(EPOK_PROFILE_SAMPLE_BINS)<<EPOK_PROFILE_SAMPLE_SHIFT)<=0x200000u);
+uint32_t cpu_sample_bins[EPOK_PROFILE_SAMPLE_BINS]={};
 uint32_t cpu_sample_outside=0;
+volatile uint32_t cpu_sample_enabled=1;
+// Defaults cover 1 MiB at 128-byte resolution; focused builds can use less RAM.
+volatile const uint32_t cpu_sample_layout[3]={EPOK_PROFILE_SAMPLE_BASE,EPOK_PROFILE_SAMPLE_SHIFT,EPOK_PROFILE_SAMPLE_BINS};
 void cpu_sample_irq(){
-  uint32_t pc;asm volatile("mfc0 %0,$14":"=r"(pc));pc&=0x1fffffu;
-  if(pc>=0x10000u&&pc<0x90000u)++cpu_sample_bins[(pc-0x10000u)>>6];
+  if(!cpu_sample_enabled)return;
+  uint32_t pc;asm volatile("mfc0 %0,$14":"=r"(pc));pc&=0x1fffffffu;
+  const uint32_t base=cpu_sample_layout[0],shift=cpu_sample_layout[1],count=cpu_sample_layout[2];
+  if(pc>=base&&((pc-base)>>shift)<count)++cpu_sample_bins[(pc-base)>>shift];
   else ++cpu_sample_outside;
 }
 void cpu_sample_start(){
-#ifdef EPOK_HAS_SEQUENCES
-#error CPU sampling requires the otherwise unused Timer0
+#if defined(EPOK_HAS_SEQUENCES) && !defined(EPOK_NATIVE_SEQUENCES_ONLY)
+#error CPU sampling Timer0 conflicts with the legacy sequence clock
 #endif
   COUNTERS[0].mode=0;
   if(psyqo::Kernel::isKernelTakenOver()){
@@ -103,7 +133,7 @@ void cpu_sample_start(){
     const auto event=psyqo::Kernel::openEvent(0xf2000000,2,EVENT_MODE_CALLBACK,[]{cpu_sample_irq();});
     syscall_enableEvent(event);syscall_enableTimerIRQ(0);syscall_setTimerAutoAck(0,1);
   }
-  COUNTERS[0].target=64000;COUNTERS[0].mode=TM_RESET_TARGET|TM_IRQ_TARGET|TM_IRQ_REPEAT;
+  COUNTERS[0].target=EPOK_PROFILE_SAMPLE_PERIOD;COUNTERS[0].mode=TM_RESET_TARGET|TM_IRQ_TARGET|TM_IRQ_REPEAT;
 }
 #endif
 const Texture* pending_texture_bank=nullptr;
@@ -176,7 +206,9 @@ epok::ControllerPad pad;
 epok::PsyqoMemoryCardDriver card_driver;
 epok::CollisionWorld<Fixed,epok::objects.size()> collision_world;
 epok::SpriteRenderer<epok::sprite_triangle_budget> sprites;
+#ifdef EPOK_PARTICLE_POOL
 epok::ParticlePool particles;
+#endif
 epok::PaletteRenderer palettes;
 epok::HudRenderer hud;
 epok::dungeon::MinimapRenderer<epok::dungeon_minimap_capacity,epok::display_interlaced> minimap;
@@ -844,10 +876,7 @@ epok::CameraSpace<Fixed> camera_view(bool interpolated=false,const Matrix* rende
     for(int r=0;r<3;++r)frame.origin[r]=fallback.position[r];
     return frame;
   }
-  int32_t degrees=camera->camera_settings.field_of_view.raw();
-  if(degrees<25*4096)degrees=25*4096;if(degrees>120*4096)degrees=120*4096;
-  if(degrees!=90*4096){const uint32_t half=uint32_t(degrees)/720u;
-    epok::projection_focal=Fixed(epok::cosine_turn12(half),Fixed::RAW)/Fixed(epok::sine_turn12(half),Fixed::RAW);}
+  epok::projection_focal=Fixed(epok::camera_projection::focal(camera->camera_settings.field_of_view.raw()),Fixed::RAW);
   epok::projection_focal_x=camera->camera_settings.mirror_x?-epok::projection_focal:epok::projection_focal;
   auto view=Matrix::identity();
   const int camera_index=epok::entity_index(camera);
@@ -1005,14 +1034,15 @@ class Game final : public psyqo::Application {
     pad.initialize();
 #endif
     card_driver.prepare(gpu());
-#ifdef EPOK_PROFILE_SAMPLE
-    epok::cpu_sample_start();
-#endif
     // Expose all 240 lines / 480 interlaced rows after PsyQo initializes the range.
     psyqo::Hardware::GPU::Ctrl = 0x07000000 | 16 | (256 << 10);
     epok::audio_initialize(epok::audio_clips, epok::audio_clip_count);
 #ifdef EPOK_HAS_SEQUENCES
     if(!epok::sequence_clock_start())psyqo::Kernel::abort("PSX sequence bank/clock initialization failed; inspect music_sequence_stats.error");
+#endif
+#ifdef EPOK_PROFILE_SAMPLE
+    // Sequence setup clears Timer0; native-only music then uses Timer2.
+    epok::cpu_sample_start();
 #endif
     epok::music_prepare();
     epok::streaming_prepare();
@@ -1031,7 +1061,7 @@ Game game;
 
 __attribute__((optimize("O3"))) void GameScene::frame() {
   pad.synchronize(gpu().now());
-#if EPOK_SERIAL_DEBUG && defined(EPOK_RUMBLE)
+#if EPOK_SERIAL_DEBUG && defined(EPOK_RUMBLE) && defined(EPOK_PAD_TRACE)
   // Report a bounded number of state changes after the transfer, never from
   // inside its timing-sensitive byte/ACK loops. Keep ordinary frames quiet.
   static uint32_t pad_trace_key=0xffffffffu;
@@ -1065,6 +1095,9 @@ __attribute__((optimize("O3"))) void GameScene::frame() {
   const bool scene_changed=epok::scene_tick(gpu());
   if(scene_changed||epok::scene_loading())motion.clear();
   epok::input.poll_multitap(pad); // AdvancedPad's Pad1a..Pad1d are 0..3.
+#ifdef EPOK_GAMEPLAY_CONTROL
+  epok::gameplay_controls().begin_frame();
+#endif
   epok::debug_hud::toggle(epok::input.frame_pressed(epok::Button::Select));
 #ifdef EPOK_TRANSITIONS
   if(epok::stream_failed&&!epok::transition.loading())epok::transition.fail();
@@ -1103,9 +1136,16 @@ __attribute__((optimize("O3"))) void GameScene::frame() {
   }
   const unsigned steps=epok::scene_loading()?(epok::time.synchronize(gpu().now()),0u):epok::time.advance(gpu().now());
   performance_work.steps=steps;
+#ifdef EPOK_DIALOGUE
+  if(epok::scene_loading())epok::dialogue::session().reset();
+  else epok::dialogue::session().update_microseconds(epok::time.frame_microseconds);
+#endif
   if(!epok::scene_loading())epok::level.frame_update(epok::time.frame_microseconds);
   object_render_scanlines.fill(0);
   if(epok::time.paused()||epok::scene_loading())epok::input.discard_edges();
+#ifdef EPOK_GAMEPLAY_CONTROL
+  if(epok::time.paused()||epok::scene_loading())epok::gameplay_controls().discard_tick_edges();
+#endif
   motion.select(epok::objects,epok::object_count,[](size_t i){
     const auto& o=epok::objects[i];
     return (o.mesh||o.sprite.enabled||o.camera||o.camera_settings.enabled||o.light.enabled||o.blob_shadow.enabled)&&epok::is_active_slot(i);
@@ -1113,8 +1153,15 @@ __attribute__((optimize("O3"))) void GameScene::frame() {
   bool advanced_motion=false;
   if(!epok::time.paused()&&!epok::scene_loading())epok::nav::world.tick();
   for(unsigned step=0;step<steps&&!epok::time.paused()&&!epok::scene_loading();++step) {
-    {ScanlineScope timer{performance_work.motion_scanlines};motion.before_tick(epok::objects,epok::object_count);}advanced_motion=true;
+    // Interpolation spans the last step, so an earlier capture is overwritten
+    // unused. Stopping early clears the history below.
+    epok::time.drawn_step=step+1==steps;
+    if(epok::time.drawn_step){ScanlineScope timer{performance_work.motion_scanlines};motion.before_tick(epok::objects,epok::object_count);}
+    advanced_motion=true;
     epok::time.begin_tick();epok::input.begin_tick();
+#ifdef EPOK_GAMEPLAY_CONTROL
+    epok::gameplay_controls().begin_tick();
+#endif
     const Fixed dt(epok::time.delta_raw,Fixed::RAW);
 #ifdef EPOK_EFFECTS
     epok::effects::prepare();
@@ -1138,11 +1185,19 @@ __attribute__((optimize("O3"))) void GameScene::frame() {
       needs_triggers=epok::objects[i].collider.enabled&&epok::objects[i].collider.trigger&&epok::is_active_slot(i);
     if(needs_triggers){refresh_collisions();collision_world.update_triggers(dispatch_trigger);}
     const uint16_t animation_begin=COUNTERS[1].value;
+#ifdef EPOK_PARTICLE_POOL
     bool has_emitters=false;
+#endif
     for(size_t i=0;i<epok::object_count;++i)if(
-        (epok::objects[i].particle_emitter.enabled||epok::objects[i].animator.enabled||
+        (
+#ifdef EPOK_PARTICLE_POOL
+         epok::objects[i].particle_emitter.enabled||
+#endif
+         epok::objects[i].animator.enabled||
          epok::objects[i].sprite_animator.enabled||epok::objects[i].palette_animator.enabled)&&epok::is_active_slot(i)) {
+#ifdef EPOK_PARTICLE_POOL
       has_emitters|=epok::objects[i].particle_emitter.enabled;
+#endif
       epok::objects[i].animator.advance();
       epok::objects[i].sprite_animator.advance(dt,epok::objects[i].sprite);
       epok::objects[i].palette_animator.advance(dt);
@@ -1151,6 +1206,7 @@ __attribute__((optimize("O3"))) void GameScene::frame() {
     epok::effects::advance(dt);
     has_emitters|=epok::effect_stats.active!=0;
 #endif
+#ifdef EPOK_PARTICLE_POOL
     if(has_emitters||epok::particle_stats.alive){
       refresh_world();particles.begin(dt);particles.scene_emitters(epok::objects,world,epok::object_count);
 #ifdef EPOK_EFFECTS
@@ -1158,14 +1214,19 @@ __attribute__((optimize("O3"))) void GameScene::frame() {
 #endif
       particles.advance();
     }
+#endif
     performance_work.animation_scanlines+=uint16_t(COUNTERS[1].value-animation_begin);
     epok::input.end_tick();
+#ifdef EPOK_GAMEPLAY_CONTROL
+    epok::gameplay_controls().end_tick();
+#endif
   }
   {ScanlineScope timer{performance_work.audio_scanlines};epok::audio_tick();}
   // Storage a service still points at was skipped by the last release pass; retry it
   // here, next to the point where the legacy path re-checks music_active.
   epok::collect_object_quarantine();
   epok::level.refresh_stats();
+  epok::time.drawn_step=true;
   if(advanced_motion){ScanlineScope timer{performance_work.motion_scanlines};motion.after_tick(epok::objects,epok::object_count);}
   if(epok::time.paused()||epok::scene_loading()||steps==epok::Time::max_steps)motion.clear();
   epok::streaming_tick();
@@ -2470,6 +2531,7 @@ __attribute__((optimize("O3"))) void GameScene::frame() {
   };
   if(epok::effect_stats.active)epok::effects::pool.sprites(draw_effect);
 #endif
+#ifdef EPOK_PARTICLE_POOL
   if(epok::particle_stats.alive)particles.each_all([&](epok::timeline::BoundTarget owner,const epok::Sprite& source,const Matrix& matrix) {
     if(owner.internal){
 #ifdef EPOK_EFFECTS
@@ -2482,6 +2544,7 @@ __attribute__((optimize("O3"))) void GameScene::frame() {
     if(!sprite.unlit&&epok::objects[i].lighting.enabled&&!epok::objects[i].material.unlit)lighting.shade(i,epok::objects,render_world,true);
     sprites.draw(parity,table,sprite,matrix,view,epok::objects[i].lighting.enabled&&!epok::objects[i].material.unlit);
   });
+#endif
   }
   if constexpr(epok::dither_3d) {
     auto& page=geometry_pages[parity];page.primitive.attr.setDithering(true);
@@ -2600,16 +2663,19 @@ bool set_active_camera(ActorData* camera) {
 }
 DataHandle active_camera(){return handle(camera_entity());}
 bool camera_project(const Fixed* world_point,Fixed* screen_xy) {
-  if(!world_point||!screen_xy)return false;
-  Fixed p[3];camera_view().point(world_point,p);p[0]*=projection_focal_x;p[1]*=projection_focal;
-  const int64_t x=p[0].raw(),y=p[1].raw(),z=p[2].raw();
-  if(z<1024||z>=128*4096)return false;
-  const int64_t sx=int64_t(display_width/2)*4096+x*(display_width/2)*4096/z;
-  const int64_t sy=int64_t(display_height/2)*4096-y*(display_height*2/3)*4096/z;
-  if(sx<0||sy<0||sx>=int64_t(display_width)*4096||sy>=int64_t(display_height)*4096)return false;
-  screen_xy[0]=Fixed(int32_t(sx),Fixed::RAW);screen_xy[1]=Fixed(int32_t(sy),Fixed::RAW);return true;
+  if(!world_point||!screen_xy||!camera_entity())return false;
+  Fixed p[3];camera_view().point(world_point,p);
+  const int32_t camera[3]={p[0].raw(),p[1].raw(),p[2].raw()};int32_t screen[2];
+  if(!camera_projection::point(camera,projection_focal_x.raw(),projection_focal.raw(),display_width,display_height,screen))return false;
+  screen_xy[0]=Fixed(screen[0],Fixed::RAW);screen_xy[1]=Fixed(screen[1],Fixed::RAW);return true;
 }
 void reset_runtime_services() {
+#ifdef EPOK_DIALOGUE
+  epok::dialogue::session().reset();
+#endif
+#ifdef EPOK_GAMEPLAY_CONTROL
+  epok::gameplay_controls().reset();
+#endif
   epok::rumble.suspend();
   world3d_visible=true;
 #ifdef EPOK_EFFECTS
@@ -2632,7 +2698,11 @@ void reset_runtime_services() {
   palettes.clear();
   lighting.clear();
   camera_override={};projection_focal=1.0;projection_focal_x=1.0;
-  collision_world.clear();particles.clear();input.discard_edges();time=Time{};
+  collision_world.clear();
+#ifdef EPOK_PARTICLE_POOL
+  particles.clear();
+#endif
+  input.discard_edges();time=Time{};
 #ifdef EPOK_WORLD2D
   world2d::service.reset();
 #endif
@@ -2648,7 +2718,10 @@ void remove_runtime_owner(size_t index) {
 #ifdef EPOK_TIMELINES
   epok::timeline::remove_owner(handle(&objects[index]));
 #endif
-  particles.remove_owner(index);lighting.reset_owner(index);retained.forget(index);
+#ifdef EPOK_PARTICLE_POOL
+  particles.remove_owner(index);
+#endif
+  lighting.reset_owner(index);retained.forget(index);
 }
 #ifdef EPOK_EFFECTS
 Affine<Fixed> effect_world(DataHandle owner){refresh_world();return owner.get()?world[owner.index]:Affine<Fixed>::identity();}
@@ -2683,8 +2756,11 @@ bool skeletal_world_point(const ActorData& entity,const Fixed* model,Fixed* outp
   world[size_t(index)].point(model,output);return true;
 }
 WorldAffineSample gameplay_world_affine(const ActorData* entity) {
-  WorldAffineSample result;if(!entity)return result;refresh_world();const int index=entity_index(entity);
-  if(index<0||size_t(index)>=object_count)return result;const auto& value=world[size_t(index)];result.success=true;
+  WorldAffineSample result;if(!entity)return result;const int index=entity_index(entity);
+  if(index<0||size_t(index)>=object_count)return result;
+  // Helpers query this every tick: resolve the target's ancestor path, not every slot.
+  refresh_world_for(size_t(index));
+  const auto& value=world[size_t(index)];result.success=true;
   for(int row=0;row<3;++row){result.basis_x[row]=value.values[row][0];result.basis_y[row]=value.values[row][1];result.basis_z[row]=value.values[row][2];result.position[row]=value.values[row][3];}
   return result;
 }

@@ -122,8 +122,8 @@ pub fn compile_lua(
         crate::lua_dependencies::observe_sources(root, &files)?;
         return Ok(None);
     }
-    // A script the project has no entry for — one copied in by hand, or added
-    // by a merge — is adopted here, before anything is compiled, so this very
+    // A script the project has no entry for â€” one copied in by hand, or added
+    // by a merge â€” is adopted here, before anything is compiled, so this very
     // refresh already names the class by the identity it will keep. Only the
     // settings document is written; the author's `.lua` is never rewritten.
     if files.iter().any(|file| file.id.is_none()) {
@@ -272,6 +272,19 @@ pub fn native_catalog(root: &Path) -> Result<Vec<Script>, String> {
                         id: p.id.clone(),
                     });
                 }
+                for (name, value) in &base.default_overrides {
+                    let property =
+                        properties
+                            .iter_mut()
+                            .find(|p| &p.name == name)
+                            .ok_or_else(|| {
+                                format!(
+                                    "{}: constructor default references missing property {name}",
+                                    base.cpp_name
+                                )
+                            })?;
+                    property.default = value.clone();
+                }
             }
             let header = header
                 .strip_prefix(canonical_root.join("assets/scripts"))
@@ -334,39 +347,39 @@ pub fn create_named(root: &Path, name: &str, parent: &str) -> Result<(), String>
 /// Reflected runtime bases a new C++ class may derive from directly. These are declared
 /// in `runtime/object_model.hpp`, so they never appear in the `assets/scripts` catalog;
 /// the extractor is what validates the result, this list only decides the header text.
-fn runtime_base(parent: &str) -> Option<String> {
-    const BASES: &[&str] = &[
-        "Actor",
-        "Actor3D",
-        "Actor2D",
-        "UIActor",
-        "SceneScriptActor",
-        "ActorComponent",
-        "SceneComponent3D",
-        "SceneComponent2D",
-        "UIComponent",
-        "RectTransformComponent",
-        "AudioComponent",
-        "Mesh3DComponent",
-        "Sprite3DComponent",
-        "Camera3DComponent",
-        "Light3DComponent",
-        "Collider3DComponent",
-        "CanvasComponent",
-        "ImageComponent",
-        "TextComponent",
-        "ProgressBarComponent",
-        "LayoutElementComponent",
-        "LayoutContainerComponent",
-        "FocusableComponent",
-        "ParticleEmitterComponent",
-        "TimelineComponent",
-        "ParticleEffectComponent",
-        "PaletteAnimatorComponent",
-        "BlobShadowComponent",
-    ];
-    let short = parent.strip_prefix("epok::").unwrap_or(parent);
-    BASES.contains(&short).then(|| format!("epok::{short}"))
+fn runtime_base(
+    root: &Path,
+    parent: &str,
+    registry: &crate::blueprint::Registry,
+) -> Result<Option<String>, String> {
+    let name = if parent.contains("::") {
+        parent.to_owned()
+    } else {
+        format!("epok::{parent}")
+    };
+    let Some(class) = registry.named(&name) else {
+        return Ok(None);
+    };
+    let runtime = root
+        .join(".epok/reflection/runtime")
+        .canonicalize()
+        .map_err(|e| e.to_string())?;
+    let source = if class.source.file.is_absolute() {
+        class.source.file.clone()
+    } else {
+        root.join(&class.source.file)
+    };
+    let source = source.canonicalize().map_err(|e| e.to_string())?;
+    if !source.starts_with(runtime) {
+        return Ok(None);
+    }
+    if !crate::script_backend::can_derive(&schema::native_provider(), class) {
+        return Err(format!(
+            "{} is not an eligible native parent",
+            class.cpp_name
+        ));
+    }
+    Ok(Some(class.cpp_name.clone()))
 }
 
 pub fn create_in(
@@ -384,7 +397,11 @@ pub fn create_in(
     if catalog.iter().any(|s| s.name.eq_ignore_ascii_case(name)) {
         return Err(format!("A class named {name} already exists"));
     }
-    let (include, base, implementation) = if let Some(base) = runtime_base(parent) {
+    let (include, base, implementation) = if let Some(base) = runtime_base(
+        root,
+        parent,
+        &crate::blueprint::native_registry(root, &catalog)?,
+    )? {
         // Actor and Component bases live in the runtime headers, not in assets/scripts,
         // and their lifecycle events (begin_play/tick/end_play/on_enable/on_disable) all
         // have defaults, so the generated class needs no body to be concrete.
@@ -520,6 +537,87 @@ pub fn editable_class_source(root: &Path, class: &schema::Class) -> Option<PathB
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn project_configuration_records_require_explicit_declarative_values() {
+        let root = crate::workspace::tests::temp("project-configuration-records");
+        crate::workspace::create(&root, "Configuration", crate::workspace::Template::Basic)
+            .unwrap();
+        let path = root.join("assets/scripts/ConfigurationProbe.hpp");
+        let source = |marker: &str, field_type: &str, initializer: &str| {
+            format!(
+                r#"#pragma once
+#include "epok.hpp"
+struct EPOK_VALUE({marker}Id="4c4b0abf-2383-576e-9882-1bb0db0565e9") ProjectTuning {{
+    epok::Fixed duration; bool enabled; {field_type} count;
+}};
+class EPOK_CLASS(Blueprintable,Id="bf842efe-0487-59ed-a75b-d0fe722fa58a") ConfigurationProbe:public epok::Actor3D {{
+public:
+    EPOK_PROPERTY(EditAnywhere,Id="b399af7f-e06d-5a14-a155-dc835a370ff2") ProjectTuning tuning{initializer};
+}};
+"#
+            )
+        };
+        fs::write(
+            &path,
+            source("Configuration,", "uint32_t", "{1.25,true,4294967295u}"),
+        )
+        .unwrap();
+        let scripts = catalog(&root).unwrap();
+        let registry = crate::blueprint::native_registry(&root, &scripts).unwrap();
+        let tuning = &registry.named("ConfigurationProbe").unwrap().properties[0];
+        assert_eq!(
+            tuning.default,
+            serde_json::json!({"duration":1.25,"enabled":true,"count":4294967295u32})
+        );
+        assert!(script_values::valid(&tuning.default, &tuning.value_type));
+        for (marker, field_type, initializer, diagnostic) in [
+            (
+                "",
+                "uint32_t",
+                "{1.25,true,1}",
+                "no editable authoring value",
+            ),
+            ("Configuration,", "uint32_t", "{}", "every field default"),
+            (
+                "Configuration,",
+                "epok::ObjectId",
+                "{1.25,true,{}}",
+                "Unsupported persistent configuration member",
+            ),
+        ] {
+            fs::write(&path, source(marker, field_type, initializer)).unwrap();
+            let error = catalog(&root).unwrap_err();
+            assert!(error.contains(diagnostic), "{error}");
+        }
+        fs::remove_dir_all(root).unwrap();
+    }
+    #[test]
+    fn native_helper_parents_are_discovered_from_the_registry() {
+        let root = crate::workspace::tests::temp("native-helper-parents");
+        crate::workspace::create(&root, "Parents", crate::workspace::Template::Basic).unwrap();
+        let registry = crate::blueprint::native_registry(&root, &[]).unwrap();
+        for (name, id) in crate::game_helpers::WORLD_GAMEPLAY_CLASSES
+            .iter()
+            .chain(crate::game_helpers::CAMERA_CLASSES)
+            .chain(crate::game_helpers::CHARACTER_CLASSES)
+            .chain(crate::game_helpers::COMMAND_SOURCE_CLASSES)
+            .chain(crate::game_helpers::CHARACTER_INPUT_CLASSES)
+            .chain(crate::game_helpers::ANIMATION_CLASSES)
+            .chain(crate::game_helpers::QUERY_CLASSES)
+            .chain(crate::game_helpers::DIALOGUE_CLASSES)
+        {
+            assert_eq!(
+                runtime_base(&root, name, &registry).unwrap().as_deref(),
+                Some(registry.classes[*id].cpp_name.as_str())
+            );
+        }
+        assert!(
+            runtime_base(&root, "epok::MissingClass", &registry)
+                .unwrap()
+                .is_none()
+        );
+        std::fs::remove_dir_all(root).unwrap();
+    }
     #[test]
     fn inspector_class_source_opens_project_declarations_and_excludes_engine_headers() {
         let root = std::env::temp_dir().join(format!("epok-class-source-{}", uuid::Uuid::new_v4()));

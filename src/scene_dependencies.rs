@@ -305,6 +305,15 @@ fn inspect_inputs(
 ) -> Result<Observation, String> {
     let graph = artifact_dependencies::Graph::load(root)?;
     let mut observations = BTreeMap::new();
+    if graph
+        .nodes
+        .contains_key(crate::class_composition::SOURCE_SET)
+    {
+        observations.insert(
+            crate::class_composition::SOURCE_SET.into(),
+            crate::class_composition::load(root).map(|index| index.signature(root)),
+        );
+    }
     let loaded_registry = (supplied_registry.is_none()
         && graph
             .nodes

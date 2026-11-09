@@ -12,6 +12,8 @@ public:
     static constexpr unsigned rate=60,max_steps=8;
     uint32_t ticks=0,dropped_steps=0,frame_microseconds=0;
     int32_t delta_raw=68; // Q12 seconds, 68/69 alternating without cumulative drift.
+    // False during a catch-up step, whose result the renderer never shows.
+    bool drawn_step=true;
     bool paused() const { return paused_; }
     void set_paused(bool value) { const bool was=paused_;if(value!=paused_)accumulated=0;paused_=value;if(value)rumble.suspend();else if(was)rumble.suspend(false); }
     void reset(uint32_t now) { previous=now;accumulated=delta_remainder=0;initialized=true;ticks=dropped_steps=frame_microseconds=0;delta_raw=68; }

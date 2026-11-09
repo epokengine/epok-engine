@@ -33,7 +33,7 @@ pub fn graph_resources(
 
 /// Every asset an AssetRef default, literal or override selects, with the
 /// kind its reference declares.
-fn asset_refs(
+pub(crate) fn asset_refs(
     files: &[crate::blueprint_asset::AssetFile],
     scenes: &[Scene],
     registry: &Registry,
@@ -100,26 +100,69 @@ fn asset_refs(
             }
         }
     }
-    // Follow every row of a reachable table, including nested tables, exactly
-    // once. A row may be selected dynamically at runtime.
+    // Follow every reachable document, including later dialogue branches and
+    // nested tables, once. Runtime selection cannot depend on the initial label.
     let mut visited = std::collections::BTreeSet::new();
     loop {
         let pending: Vec<_> = ids
             .iter()
-            .filter(|(id, kind)| **kind == crate::assets::Kind::DataTable && !visited.contains(*id))
-            .map(|(id, _)| *id)
+            .filter(|(id, kind)| {
+                matches!(
+                    kind,
+                    crate::assets::Kind::DataTable
+                        | crate::assets::Kind::Dialogue
+                        | crate::assets::Kind::DialogueStyle
+                ) && !visited.contains(*id)
+            })
+            .map(|(id, kind)| (*id, kind.clone()))
             .collect();
         if pending.is_empty() {
             break;
         }
-        for id in pending {
+        for (id, kind) in pending {
             visited.insert(id);
-            let table = crate::data_table::document(index.resolve(id)?)?;
-            table
-                .validate_assets(index)
-                .map_err(|e| format!("DataTable {id}: {e}"))?;
-            for row in table.rows {
-                ids.insert(row.asset, row.kind);
+            match kind {
+                crate::assets::Kind::DataTable => {
+                    let table = crate::data_table::document(index.resolve(id)?)?;
+                    table
+                        .validate_assets(index)
+                        .map_err(|e| format!("DataTable {id}: {e}"))?;
+                    for row in table.rows {
+                        ids.insert(row.asset, row.kind);
+                    }
+                }
+                crate::assets::Kind::Dialogue => {
+                    let source = crate::dialogue_asset::document(index.resolve(id)?)?;
+                    source
+                        .validate_resources(index)
+                        .map_err(|e| format!("Dialogue {id}: {e}"))?;
+                    ids.extend(
+                        source
+                            .texts()
+                            .into_iter()
+                            .map(|key| (key.table, crate::assets::Kind::StringTable)),
+                    );
+                    ids.extend(
+                        source
+                            .participants
+                            .iter()
+                            .filter_map(|r| r.portrait)
+                            .map(|id| (id, crate::assets::Kind::Texture)),
+                    );
+                }
+                crate::assets::Kind::DialogueStyle => {
+                    let style = crate::dialogue_asset::style_document(index.resolve(id)?)?;
+                    style
+                        .validate_resources(index)
+                        .map_err(|e| format!("Dialogue Style {id}: {e}"))?;
+                    ids.extend(
+                        [style.open_sound, style.advance_sound, style.close_sound]
+                            .into_iter()
+                            .flatten()
+                            .map(|id| (id, crate::assets::Kind::AudioClip)),
+                    );
+                }
+                _ => unreachable!("filtered resource document"),
             }
         }
     }
@@ -176,6 +219,17 @@ pub fn resources(
                     .insert(id, crate::data_table::document(index.resolve(id)?)?);
                 continue;
             }
+            crate::assets::Kind::Font => {
+                entity.text = Some(crate::hud::Text {
+                    font: Some(id),
+                    enabled: false,
+                    ..Default::default()
+                });
+            }
+            // These documents are compiled into dialogue tables, not actors.
+            crate::assets::Kind::Dialogue
+            | crate::assets::Kind::DialogueStyle
+            | crate::assets::Kind::StringTable => continue,
             _ => {
                 return Err(format!(
                     "Blueprint runtime AssetRef<{kind:?}> is not supported; use Texture, AudioClip or Video"
@@ -261,34 +315,59 @@ pub fn inspector(
             .filter(|class| class_is_a(registry, &class.id, base))
             .map(|class| (class.id.clone(), class.cpp_name.clone()))
             .collect(),
-        Type::AssetRef { kind } => index
-            .assets
-            .iter()
-            .filter_map(|(id, records)| {
-                let [record] = records.as_slice() else {
-                    return None;
-                };
-                let compatible = kind == "Asset"
-                    || crate::assets::Kind::runtime_reference(kind)
-                        .is_ok_and(|expected| expected.accepts_runtime(&record.meta.kind));
-                compatible.then(|| {
-                    (
-                        id.to_string(),
-                        record
-                            .path
-                            .file_stem()
-                            .unwrap_or_default()
-                            .to_string_lossy()
-                            .into_owned(),
-                    )
-                })
-            })
-            .collect(),
+        Type::AssetRef { kind } => asset_choices(index, kind),
         _ => return crate::script_values::inspector(ui, label, value, ty),
     };
+    let changed = reference_picker(ui, label, value, choices, "None");
+    if ui.is_item_hovered() {
+        ui.tooltip_text(format!("{}\n{}", ty.label(), value));
+    }
+    changed
+}
+pub(crate) fn asset_choices(index: &crate::assets::Index, kind: &str) -> Vec<(String, String)> {
+    let mut choices = index
+        .usable()
+        .filter(|record| {
+            kind == "Asset"
+                || crate::assets::Kind::runtime_reference(kind)
+                    .is_ok_and(|expected| expected.accepts_runtime(&record.meta.kind))
+        })
+        .map(|record| (record.meta.id.to_string(), record.meta.source.clone()))
+        .collect::<Vec<_>>();
+    choices.sort_by(|a, b| a.1.cmp(&b.1).then_with(|| a.0.cmp(&b.0)));
+    choices
+}
+pub(crate) fn asset_inspector(
+    ui: &imgui::Ui,
+    label: &str,
+    value: &mut Option<uuid::Uuid>,
+    kind: &str,
+    index: &crate::assets::Index,
+    empty: &str,
+) -> bool {
+    let mut reflected = value.map_or(Value::Null, |id| Value::String(id.to_string()));
+    let changed = reference_picker(ui, label, &mut reflected, asset_choices(index, kind), empty);
+    if changed {
+        *value = reflected
+            .as_str()
+            .and_then(|s| uuid::Uuid::parse_str(s).ok());
+    }
+    crate::blueprint_editor::record_control(ui, &format!("asset-field:{label}"));
+    if ui.is_item_hovered() {
+        ui.tooltip_text(format!("{kind}\n{reflected}"));
+    }
+    changed
+}
+fn reference_picker(
+    ui: &imgui::Ui,
+    label: &str,
+    value: &mut Value,
+    choices: Vec<(String, String)>,
+    empty: &str,
+) -> bool {
     let current = value.as_str();
     let preview = if value.is_null() {
-        "None".to_owned()
+        empty.to_owned()
     } else {
         choices
             .iter()
@@ -298,13 +377,14 @@ pub fn inspector(
     };
     if let Some(_combo) = ui.begin_combo(label, &preview) {
         if ui
-            .selectable_config("None")
+            .selectable_config(empty)
             .selected(value.is_null())
             .build()
         {
             *value = Value::Null;
             return true;
         }
+        crate::blueprint_editor::record_control(ui, &format!("reference-none:{label}"));
         for (id, name) in choices {
             if ui
                 .selectable_config(format!("{name}##{id}"))
@@ -314,10 +394,8 @@ pub fn inspector(
                 *value = Value::String(id);
                 return true;
             }
+            crate::blueprint_editor::record_control(ui, &format!("reference-choice:{id}"));
         }
-    }
-    if ui.is_item_hovered() {
-        ui.tooltip_text(format!("{}\n{}", ty.label(), value));
     }
     false
 }
@@ -493,6 +571,7 @@ mod tests {
             component: None,
             default_components: vec![],
             explicit_abstract: false,
+            default_overrides: Default::default(),
             properties: vec![],
             functions: vec![],
             source: schema::Location {

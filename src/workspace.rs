@@ -78,6 +78,7 @@ impl Project {
     pub fn open(path: &Path) -> Result<Self, String> {
         let (root, manifest_path) = resolve(path)?;
         let manifest = read_manifest_at(&root, &manifest_path)?;
+        crate::template_install::read(&root)?;
         // Validate the document here; the project loader indexes and decodes
         // its resources once, after acquiring the project lock.
         Scene::load_unresolved(&scene_path(&root, &manifest)?)?;
@@ -470,8 +471,8 @@ impl Template {
     pub fn parse(value: &str) -> Option<Self> {
         Self::ALL.into_iter().find(|t| t.key() == value)
     }
-    pub fn supports(self, flavor: GameplayFlavor) -> bool {
-        self != Self::DungeonComplete || flavor == GameplayFlavor::Cpp
+    pub fn supports(self, _flavor: GameplayFlavor) -> bool {
+        true
     }
 }
 
@@ -613,17 +614,10 @@ fn populate(destination: &Path, name: &str, options: CreateOptions) -> Result<Pr
         Template::ThirdPerson => crate::third_person::create(destination, gameplay)?,
         Template::Platformer2D => crate::platformer_template::create(destination, gameplay)?,
         Template::Dungeon => crate::dungeon_template::create(destination, gameplay)?,
-        Template::DungeonComplete => crate::dungeon_complete_template::create(destination)?,
-        Template::Basic => {
-            // Basic stays basic: no starter behaviour in any flavor, so nothing
-            // here depends on the selection beyond the descriptor it records.
-            let mut scene = Scene {
-                name: "Main".into(),
-                ..Scene::default()
-            };
-            scene.actors.truncate(1);
-            scene
+        Template::DungeonComplete => {
+            crate::dungeon_complete_template::create(destination, gameplay)?
         }
+        Template::Basic => crate::basic_template::create(destination, gameplay)?,
         Template::Sample => crate::sample_template::create(destination, gameplay)?,
     };
     let mut manifest = Manifest {
@@ -657,6 +651,9 @@ fn populate(destination: &Path, name: &str, options: CreateOptions) -> Result<Pr
         default_sound_bank: None,
         default_scene_script_parent: None,
     };
+    if template == Template::Dungeon {
+        manifest.rendering.sprite_triangle_budget = crate::dungeon_template::SPRITE_TRIANGLE_BUDGET;
+    }
     if template == Template::DungeonComplete {
         manifest = crate::dungeon_complete_template::manifest()?;
         manifest.name = name.into();
@@ -856,13 +853,15 @@ pub(crate) mod tests {
     }
     use super::*;
     pub fn temp(label: &str) -> PathBuf {
+        static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
         std::env::temp_dir().join(format!(
-            "epok-{label}-{}-{}",
+            "epok-{label}-{}-{}-{}",
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()
-                .as_nanos()
+                .as_nanos(),
+            NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
         ))
     }
     #[test]

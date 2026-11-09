@@ -1,7 +1,8 @@
-"""PSX integration test with bounded, state-driven controller edge injection.
+"""PSX integration test driven through Redux's virtual pad.
 
-Only validation RAM is patched: pad edges and player position. All currency and
-items must go through the real link, inventory, shop and memory-card services.
+Only the player position is patched. Presses reach the game as physical input,
+because stations read frame edges that RAM injection cannot reach. All currency
+and items must go through the real link, inventory, shop and memory-card services.
 Original memory cards are restored after both test runs.
 """
 from pathlib import Path
@@ -57,20 +58,49 @@ def wait(predicate,label,timeout=35):
         if time.monotonic()>deadline:raise TimeoutError((label,economy()))
         time.sleep(.15)
 def ready():wait(lambda:economy()[13]==0,'memory card completion')
+PAD_SCRIPT = """
+local remaining=0
+EPOK_ECONOMY_PAD=PCSX.Events.createEventListener('GPU::Vsync',function()
+ if remaining>0 then
+  remaining=remaining-1
+  if remaining==0 then EPOK_AUTOMATION_PAD=0 end
+ end
+end)
+PCSX.WebServer=PCSX.WebServer or {};PCSX.WebServer.Handlers=PCSX.WebServer.Handlers or {}
+for _,index in ipairs({4,5,6,7,12,13,14,15}) do
+ PCSX.WebServer.Handlers['pad-'..index]=function()
+  EPOK_AUTOMATION_PAD=bit.lshift(1,index);remaining=8
+  return 'ok'
+ end
+end
+"""
+(OUT/'economy-pad.lua').write_text(PAD_SCRIPT,encoding='utf-8')
+os.environ['EPOK_PLAY_LUA']=str(OUT/'economy-pad.lua')
+os.environ.setdefault('EPOK_MUTE_AUDIO','1')
+
 def press(button):
-    request('execution-flow?function=pause',b'')
-    offset=symbols['input']+2
-    prior=struct.unpack_from('<H',ram(),offset)[0]
-    write(offset,struct.pack('<H',prior|(1<<button)))
-    request('execution-flow?function=resume',b'');time.sleep(.18)
+    """Hold one virtual pad button, so every reader sees a physical press."""
+    request(f'lua/pad-{button}',b'')
+    time.sleep(.25)
+def capacity_state():
+    """Spawn and object-arena counters, so a refused widget is named, not inferred."""
+    text=(P/'.epok/build/epok.map').read_text();data=ram()
+    actors=int(re.findall(r'0x([0-9a-fA-F]+)\s+epok::actor_stats\s*$',text,re.M)[-1],16)&0x1fffff
+    state={'actor_stats':struct.unpack_from('<9I',data,actors)}
+    found=re.search(r'_ZN4epok19object_pool_storageE\s+0x([0-9a-fA-F]+)\s+0x([0-9a-fA-F]+)',text)
+    if found:
+        base,size=int(found[1],16)&0x1fffff,int(found[2],16)
+        # Arena tail: Stats{used,peak,live,peak_live,rejected,invalid} then first_free.
+        state['arena_bytes']=size;state['arena_tail']=struct.unpack_from('<7I',data,base+size-28)
+    return state
 def check(name,expected):
     ready();data=capture.snapshot(name,quiet=True);e=data['economy_telemetry']
-    for k,v in expected.items():assert e[k]==v,(name,k,v,e)
+    for k,v in expected.items():assert e[k]==v,(name,k,v,e,capacity_state())
     assert data['hud_stats'][4]==0,(name,'HUD dropped',data['hud_stats'])
     audio=data['dungeon_audio_telemetry'];assert audio[-1]==0,(name,'Missing sound asset',audio)
     music=struct.unpack_from('<16I',ram(),symbols['music'])
     assert music[10]==1 and music[11]==0 and music[12]==0,(name,'Music stopped or clock failed',music)
-    events.append({'name':name,'economy':e,'audio':audio});print('PASS',name,flush=True)
+    events.append({'name':name,'economy':e,'audio':audio,'hud':data['hud_stats']});print('PASS',name,flush=True)
 def start(seconds,name):
     global process,symbols
     log=(OUT/(name+'.log')).open('w',encoding='utf-8')

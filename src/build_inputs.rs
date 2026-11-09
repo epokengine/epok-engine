@@ -38,6 +38,7 @@ const ENVIRONMENT: &[&str] = &[
     "EPOK_VISIBILITY_SWEEP",
     "EPOK_SWEEP_CAMERAS",
     "EPOK_PROFILE_DETAIL",
+    "EPOK_PAD_TRACE",
 ];
 
 fn configuration(config: &Config) -> String {

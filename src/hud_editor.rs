@@ -1,6 +1,8 @@
 use crate::{editor::Editor, hud, scene::Actor};
 fn heading(ui: &imgui::Ui, label: &str) -> bool {
-    crate::gui::heading(ui, label)
+    let open = crate::gui::heading(ui, label);
+    crate::blueprint_editor::record_control(ui, &format!("hud-band:{label}"));
+    open
 }
 fn vector(ui: &imgui::Ui, label: &str, value: &mut [f32; 2]) {
     crate::gui::Drag::new(crate::gui::field(ui, label))
@@ -32,42 +34,49 @@ fn anchor_preset(r: &hud::RectTransform) -> &'static str {
         .find(|(_, p)| r.anchor_min == *p && r.anchor_max == *p && r.pivot == *p)
         .map_or("Custom", |(name, _)| *name)
 }
-/// One entry per element a focus link can point at: the actor index the runtime
-/// table stores, and the name the author recognises.
-pub type FocusTargets<'a> = &'a [(usize, String)];
-/// A combo over `targets` plus "None", editing an actor index in place.
-fn actor_picker(ui: &imgui::Ui, label: &str, targets: FocusTargets, value: &mut i32) {
+/// Persistent actor identities and display names within the source Canvas.
+pub type FocusTargets<'a> = &'a [(uuid::Uuid, String)];
+fn actor_picker(
+    ui: &imgui::Ui,
+    label: &str,
+    targets: FocusTargets,
+    value: &mut hud::FocusLink,
+) -> bool {
     let preview = targets
         .iter()
-        .find(|(index, _)| *index as i32 == *value)
-        .map_or("None", |(_, name)| name.as_str());
+        .find(|(id, _)| Some(*id) == value.target)
+        .map_or_else(
+            || {
+                value.target.map_or_else(
+                    || "None".into(),
+                    |id| format!("Missing / incompatible: {id}"),
+                )
+            },
+            |(_, name)| name.clone(),
+        );
+    let mut changed = false;
     if let Some(_combo) = ui.begin_combo(crate::gui::field(ui, label), preview) {
         if ui.selectable("None") {
-            *value = -1;
+            value.target = None;
+            changed = true;
         }
-        for (index, name) in targets {
-            if ui.selectable(format!("{name}##{label}-{index}")) {
-                *value = *index as i32;
+        crate::blueprint_editor::record_control(ui, &format!("focus-none:{label}"));
+        for (id, name) in targets {
+            if ui.selectable(format!("{name}##{label}-{id}")) {
+                value.target = Some(*id);
+                changed = true;
             }
+            crate::blueprint_editor::record_control(ui, &format!("focus-choice:{label}:{id}"));
         }
     }
+    crate::blueprint_editor::record_control(ui, &format!("focus-field:{label}"));
+    changed
 }
-/// Every Font asset in the project, by id and display name, for the Text font
-/// combo. The template editor has no asset index and passes an empty slice; a
-/// font already chosen there still shows as its UUID.
-pub fn font_choices(index: &crate::assets::Index) -> Vec<(uuid::Uuid, String)> {
-    let mut out: Vec<_> = index
-        .assets
-        .iter()
-        .filter_map(|(id, records)| match records.as_slice() {
-            [record] if record.meta.kind == crate::assets::Kind::Font => {
-                Some((*id, record.meta.source.clone()))
-            }
-            _ => None,
-        })
-        .collect();
-    out.sort_by(|a, b| a.1.cmp(&b.1));
-    out
+/// Project resources borrowed by the scene and class control inspectors.
+pub struct Resources<'a> {
+    pub index: &'a crate::assets::Index,
+    pub strings: Option<&'a crate::localization::StringTable>,
+    pub language: usize,
 }
 /// The HUD component bands of an actor. Returns true when the string table editor
 /// should open.
@@ -75,23 +84,65 @@ pub fn inspector(
     ui: &imgui::Ui,
     e: &mut Actor,
     targets: FocusTargets,
-    fonts: &[(uuid::Uuid, String)],
-    strings: Option<&crate::localization::StringTable>,
-    language: usize,
+    resources: &Resources<'_>,
 ) -> bool {
+    inspector_fields(ui, e, targets, resources, None)
+}
+pub fn component_inspector(
+    ui: &imgui::Ui,
+    e: &mut Actor,
+    targets: FocusTargets,
+    resources: &Resources<'_>,
+    class: &str,
+) -> bool {
+    inspector_fields(ui, e, targets, resources, Some(class))
+}
+pub fn has_component_inspector(class: &str) -> bool {
+    use crate::object_model as om;
+    matches!(
+        class,
+        om::RECT_TRANSFORM_COMPONENT_ID
+            | om::CANVAS_COMPONENT_ID
+            | om::IMAGE_COMPONENT_ID
+            | om::TEXT_COMPONENT_ID
+            | om::PROGRESS_BAR_COMPONENT_ID
+            | om::LAYOUT_ELEMENT_COMPONENT_ID
+            | om::LAYOUT_CONTAINER_COMPONENT_ID
+            | om::FOCUSABLE_COMPONENT_ID
+    )
+}
+fn inspector_fields(
+    ui: &imgui::Ui,
+    e: &mut Actor,
+    targets: FocusTargets,
+    resources: &Resources<'_>,
+    only: Option<&str>,
+) -> bool {
+    use crate::object_model as om;
+    let show = |class| only.is_none_or(|id| id == class);
+    let Resources {
+        index,
+        strings,
+        language,
+    } = *resources;
     let mut open_strings = false;
     if let Some(c) = &mut e.canvas
+        && show(om::CANVAS_COMPONENT_ID)
         && heading(ui, "Canvas")
     {
         crate::gui::toggle(ui, "Enabled##canvas", &mut c.enabled);
-        ui.text("Screen Space - Overlay");
-        actor_picker(ui, "Initial focus", targets, &mut c.focused);
+        crate::gui::toggle(ui, "Screen overlay##canvas", &mut c.screen_overlay);
+        let mut link = c.initial_focus.unwrap_or_default();
+        if actor_picker(ui, "Initial focus", targets, &mut link) {
+            c.initial_focus = Some(link);
+        }
         crate::gui::muted(
             ui,
-            "Native pixels; canvas follows Project Settings resolution.",
+            "Native pixels. Nested canvases use their parent bounds; Screen overlay uses the full viewport.",
         );
     }
     if let Some(r) = &mut e.rect
+        && show(om::RECT_TRANSFORM_COMPONENT_ID)
         && heading(ui, "Rect Transform")
     {
         if let Some(_combo) = ui.begin_combo(crate::gui::field(ui, "Anchors"), anchor_preset(r)) {
@@ -131,23 +182,25 @@ pub fn inspector(
     let mut remove_element = false;
     let mut remove_container = false;
     let image_open = e.image.is_some()
+        && show(om::IMAGE_COMPONENT_ID)
         && crate::gui::section(ui, "Image", || {
-            remove_image = ui.menu_item("Remove Image");
+            if only.is_none() {
+                remove_image = ui.menu_item("Remove Image");
+            }
         });
     if image_open && let Some(c) = &mut e.image {
+        crate::blueprint_editor::record_control(ui, "hud-band:Image");
         crate::gui::toggle(ui, "Enabled##image", &mut c.enabled);
         ui.color_edit3(crate::gui::field(ui, "Color##image"), &mut c.color);
-        let mut asset = c.texture.map_or_else(String::new, |id| id.to_string());
-        if ui
-            .input_text("Texture asset UUID##image", &mut asset)
-            .build()
-        {
-            if asset.trim().is_empty() {
-                c.texture = None;
-            } else if let Ok(id) = uuid::Uuid::parse_str(asset.trim()) {
-                c.texture = Some(id);
-            }
-        }
+        crate::blueprint_refs::asset_inspector(
+            ui,
+            &crate::gui::field(ui, "Texture##image"),
+            &mut c.texture,
+            "Texture",
+            index,
+            "None",
+        );
+        crate::blueprint_editor::record_control(ui, "hud-texture");
         let mut region = c.region.map(i32::from);
         if crate::gui::Drag::new(crate::gui::field(ui, "Atlas x/y/w/h##image"))
             .speed(1.)
@@ -185,10 +238,14 @@ pub fn inspector(
         );
     }
     let text_open = e.text.is_some()
+        && show(om::TEXT_COMPONENT_ID)
         && crate::gui::section(ui, "Text", || {
-            remove_text = ui.menu_item("Remove Text");
+            if only.is_none() {
+                remove_text = ui.menu_item("Remove Text");
+            }
         });
     if text_open && let Some(c) = &mut e.text {
+        crate::blueprint_editor::record_control(ui, "hud-band:Text");
         crate::gui::toggle(ui, "Enabled##text", &mut c.enabled);
         let none = "None (its own text)";
         let current = if c.key.is_empty() {
@@ -217,15 +274,21 @@ pub fn inspector(
                         {
                             c.key = entry.key.clone();
                         }
+                        crate::blueprint_editor::record_control(
+                            ui,
+                            &format!("hud-key:{}", entry.key),
+                        );
                     }
                 }
                 _ => ui.text_disabled("No strings yet: open Strings... to add some."),
             }
         }
+        crate::blueprint_editor::record_control(ui, "hud-string-key");
         ui.same_line();
         if ui.small_button("Strings...") {
             open_strings = true;
         }
+        crate::blueprint_editor::record_control(ui, "hud-open-strings");
         if ui.is_item_hovered() {
             ui.tooltip_text("Edit the project's translated texts");
         }
@@ -247,23 +310,15 @@ pub fn inspector(
         }
         crate::gui::toggle(ui, "Wrap text##hud", &mut c.wrap);
         ui.color_edit3(crate::gui::field(ui, "Color##text"), &mut c.color);
-        let label = match c.font {
-            None => "Built-in".to_string(),
-            Some(id) => fonts
-                .iter()
-                .find(|(v, _)| *v == id)
-                .map_or_else(|| id.to_string(), |(_, name)| name.clone()),
-        };
-        if let Some(_combo) = ui.begin_combo(crate::gui::field(ui, "Font"), label) {
-            if ui.selectable("Built-in") {
-                c.font = None;
-            }
-            for (id, name) in fonts {
-                if ui.selectable(name) {
-                    c.font = Some(*id);
-                }
-            }
-        }
+        crate::blueprint_refs::asset_inspector(
+            ui,
+            &crate::gui::field(ui, "Font"),
+            &mut c.font,
+            "Font",
+            index,
+            "Built-in",
+        );
+        crate::blueprint_editor::record_control(ui, "hud-font");
         if let Some(_combo) = ui.begin_combo(crate::gui::field(ui, "Align"), c.align.label()) {
             for align in hud::TextAlign::ALL {
                 if ui.selectable(align.label()) {
@@ -283,8 +338,11 @@ pub fn inspector(
         );
     }
     let progress_open = e.progress.is_some()
+        && show(om::PROGRESS_BAR_COMPONENT_ID)
         && crate::gui::section(ui, "Progress Bar", || {
-            remove_progress = ui.menu_item("Remove Progress Bar");
+            if only.is_none() {
+                remove_progress = ui.menu_item("Remove Progress Bar");
+            }
         });
     if progress_open && let Some(c) = &mut e.progress {
         crate::gui::toggle(ui, "Enabled##progress", &mut c.enabled);
@@ -302,8 +360,11 @@ pub fn inspector(
         }
     }
     let element_open = e.layout_element.is_some()
+        && show(om::LAYOUT_ELEMENT_COMPONENT_ID)
         && crate::gui::section(ui, "Layout Element", || {
-            remove_element = ui.menu_item("Remove Layout Element");
+            if only.is_none() {
+                remove_element = ui.menu_item("Remove Layout Element");
+            }
         });
     if element_open && let Some(c) = &mut e.layout_element {
         crate::gui::toggle(ui, "Enabled##layout-element", &mut c.enabled);
@@ -334,8 +395,11 @@ pub fn inspector(
     }
     let mut remove_focusable = false;
     let container_open = e.layout_container.is_some()
+        && show(om::LAYOUT_CONTAINER_COMPONENT_ID)
         && crate::gui::section(ui, "Layout Container", || {
-            remove_container = ui.menu_item("Remove Layout Container");
+            if only.is_none() {
+                remove_container = ui.menu_item("Remove Layout Container");
+            }
         });
     if container_open && let Some(c) = &mut e.layout_container {
         crate::gui::toggle(ui, "Enabled##layout-container", &mut c.enabled);
@@ -370,13 +434,19 @@ pub fn inspector(
         );
     }
     let focus_open = e.focusable.is_some()
+        && show(om::FOCUSABLE_COMPONENT_ID)
         && crate::gui::section(ui, "Focusable", || {
-            remove_focusable = ui.menu_item("Remove Focusable");
+            if only.is_none() {
+                remove_focusable = ui.menu_item("Remove Focusable");
+            }
         });
     if focus_open && let Some(c) = &mut e.focusable {
         crate::gui::toggle(ui, "Enabled##focusable", &mut c.enabled);
+        let mut links = c.navigation.unwrap_or_default();
         for (index, label) in NEIGHBOURS.into_iter().enumerate() {
-            actor_picker(ui, label, targets, &mut c.neighbors[index]);
+            if actor_picker(ui, label, targets, &mut links[index]) {
+                c.navigation = Some(links);
+            }
         }
         let mut order = i32::from(c.order);
         if crate::gui::Drag::new(crate::gui::field(ui, "Order"))
@@ -386,6 +456,7 @@ pub fn inspector(
             c.order = order.clamp(0, 255) as u8;
         }
         ui.color_edit3(crate::gui::field(ui, "Highlight##focus"), &mut c.highlight);
+        crate::gui::toggle(ui, "Focus outline", &mut c.outline);
         let mut kind = usize::from(c.kind == hud::FocusKind::Toggle);
         if crate::world2d_editor::segmented(ui, "Kind##focus", &["Button", "Toggle"], &mut kind) {
             c.kind = if kind == 1 {
@@ -399,7 +470,7 @@ pub fn inspector(
         }
         crate::gui::muted(
             ui,
-            "The D-pad follows these links; the highlight multiplies this element's colours while it holds focus. Cross presses the focused element (a Toggle flips its check box) and Circle cancels: gameplay reads take_pressed, take_changed, take_cancelled and is_checked.",
+            "The highlight tints images and fills. Focus outline draws a frame in that colour without changing text colours and uses up to four primitives. The D-pad follows the links; Cross presses the focused element and Circle cancels.",
         );
     }
     if remove_image {
@@ -490,7 +561,7 @@ fn handle_point(p: &hud::Placement, sides: [Option<Side>; 2]) -> [f32; 2] {
 }
 /// The element's accumulated rotation in degrees, read back off the corners its
 /// own transform produced. Zero for everything the runtime did not turn.
-fn placement_angle(p: &hud::Placement) -> f32 {
+pub(crate) fn placement_angle(p: &hud::Placement) -> f32 {
     let [a, b, ..] = p.corners;
     let (dx, dy) = (b[0] - a[0], b[1] - a[1]);
     if dx.abs() < 1e-4 && dy.abs() < 1e-4 {
@@ -500,7 +571,7 @@ fn placement_angle(p: &hud::Placement) -> f32 {
     }
 }
 /// A cursor delta in HUD units turned back into the frame `degrees` rotated out of.
-fn unrotate(delta: [f32; 2], degrees: f32) -> [f32; 2] {
+pub(crate) fn unrotate(delta: [f32; 2], degrees: f32) -> [f32; 2] {
     if degrees == 0. {
         return delta;
     }
@@ -658,6 +729,7 @@ pub fn view(ui: &imgui::Ui, e: &mut Editor, texture: imgui::TextureId) {
     ];
     ui.set_cursor_screen_pos(origin);
     imgui::Image::new(texture, [width * scale, height * scale]).build(ui);
+    crate::game_helper_catalog::scene_drop(ui, e);
     let hovered = ui.is_item_hovered();
     if e.hud_simulation.interactive {
         if ui.is_mouse_clicked(imgui::MouseButton::Left) {
@@ -852,7 +924,7 @@ pub fn view(ui: &imgui::Ui, e: &mut Editor, texture: imgui::TextureId) {
             .focusable
             .as_ref()
             .map(|c| {
-                c.neighbors
+                hud::focus_neighbors(&e.scene, c)
                     .iter()
                     .filter_map(|n| usize::try_from(*n).ok())
                     .filter_map(|n| boxes.get(n).copied().flatten())

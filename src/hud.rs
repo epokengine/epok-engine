@@ -24,6 +24,13 @@ impl Default for Budget {
     }
 }
 impl Budget {
+    pub const EMPTY: Budget = Budget {
+        layouts: 0,
+        rectangles: 0,
+        texts: 0,
+        glyphs: 0,
+        rotated: 0,
+    };
     pub fn validate(&self) -> Result<(), String> {
         if self.layouts == 0
             || self.layouts > 128
@@ -42,6 +49,24 @@ impl Budget {
             );
         }
         Ok(())
+    }
+    /// Grow to hold `required` on every pool. Authored values are never lowered.
+    pub fn include(&mut self, required: &Budget) {
+        self.layouts = self.layouts.max(required.layouts);
+        self.rectangles = self.rectangles.max(required.rectangles);
+        self.texts = self.texts.max(required.texts);
+        self.glyphs = self.glyphs.max(required.glyphs);
+        self.rotated = self.rotated.max(required.rotated);
+    }
+    /// The pools two simultaneously visible element sets need together.
+    pub fn plus(&self, other: &Budget) -> Budget {
+        Budget {
+            layouts: self.layouts + other.layouts,
+            rectangles: self.rectangles + other.rectangles,
+            texts: self.texts + other.texts,
+            glyphs: self.glyphs + other.glyphs,
+            rotated: self.rotated + other.rotated,
+        }
     }
     pub fn header(&self) -> Result<String, String> {
         self.validate()?;
@@ -173,6 +198,20 @@ pub fn stage_fonts(
     })
 }
 
+/// A persistent authored focus reference. The wrapper distinguishes an explicit
+/// None from an absent binding in documents that still contain legacy indices.
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct FocusLink {
+    pub target: Option<uuid::Uuid>,
+}
+impl FocusLink {
+    pub fn index(self, scene: &crate::scene::Scene) -> i32 {
+        self.target
+            .and_then(|id| scene.actor_index(id))
+            .map_or(-1, |i| i as i32)
+    }
+}
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
 pub struct Canvas {
@@ -180,12 +219,18 @@ pub struct Canvas {
     /// The focused element, as an actor index, or -1. The authored initial focus
     /// and the runtime's current focus are this one field.
     pub focused: i32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub initial_focus: Option<FocusLink>,
+    #[serde(skip_serializing_if = "crate::actor_document::is_false")]
+    pub screen_overlay: bool,
 }
 impl Default for Canvas {
     fn default() -> Self {
         Self {
             enabled: true,
             focused: -1,
+            initial_focus: None,
+            screen_overlay: false,
         }
     }
 }
@@ -495,33 +540,36 @@ impl Default for LayoutContainer {
 }
 /// Per-child focus and D-pad navigation, read by the runtime's focus pass.
 ///
-/// `neighbors` holds actor indices rather than actor UUIDs. No other
-/// `BuiltinData` component references another actor — the UUID references in a
-/// document are `logical_parent` and `attach`, both on the actor itself — so
-/// there is no remapping precedent to follow here, and the runtime table is
-/// indices either way. Reordering actors therefore rewrites these by hand.
+/// Authored navigation uses persistent actor identities. Legacy indices remain
+/// readable; the runtime still receives the existing compact index table.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
 pub struct Focusable {
     pub enabled: bool,
     /// Left, right, up, down; -1 for no neighbour that way.
     pub neighbors: [i32; 4],
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub navigation: Option<[FocusLink; 4]>,
     pub order: u8,
     /// Multiplied into the image and fill colours while this element is focused.
     pub highlight: [f32; 3],
     /// A Toggle flips `checked` when pressed and draws a check box.
     pub kind: FocusKind,
     pub checked: bool,
+    /// Draw a one-pixel frame in the highlight colour while focused.
+    pub outline: bool,
 }
 impl Default for Focusable {
     fn default() -> Self {
         Self {
             enabled: true,
             neighbors: [-1; 4],
+            navigation: None,
             order: 0,
             highlight: [1.; 3],
             kind: FocusKind::Button,
             checked: false,
+            outline: false,
         }
     }
 }
@@ -534,6 +582,136 @@ impl Focusable {
             ..Default::default()
         }
     }
+}
+pub fn canvas_focus(scene: &crate::scene::Scene, canvas: &Canvas) -> i32 {
+    canvas
+        .initial_focus
+        .map_or(canvas.focused, |link| link.index(scene))
+}
+pub fn focus_neighbors(scene: &crate::scene::Scene, focus: &Focusable) -> [i32; 4] {
+    focus
+        .navigation
+        .map_or(focus.neighbors, |links| links.map(|link| link.index(scene)))
+}
+/// Materialize legacy authored indices while the original ordering is known,
+/// before capture, duplication, deletion or namespace expansion can move them.
+pub fn stabilize_focus(actors: &mut [crate::scene::Actor]) {
+    let ids = actors.iter().map(|actor| actor.id).collect::<Vec<_>>();
+    let link = |index: i32| FocusLink {
+        target: usize::try_from(index)
+            .ok()
+            .and_then(|i| ids.get(i))
+            .copied(),
+    };
+    for actor in actors {
+        if let Some(canvas) = &mut actor.canvas
+            && canvas.initial_focus.is_none()
+            && canvas.focused >= 0
+            && (canvas.focused as usize) < ids.len()
+        {
+            canvas.initial_focus = Some(link(canvas.focused));
+        }
+        if let Some(focus) = &mut actor.focusable
+            && focus.navigation.is_none()
+            && focus.neighbors.iter().any(|i| *i >= 0)
+            && focus
+                .neighbors
+                .iter()
+                .all(|i| *i >= -1 && *i < ids.len() as i32)
+        {
+            focus.navigation = Some(focus.neighbors.map(link));
+        }
+        crate::actor_components::sync(actor);
+    }
+}
+pub fn clear_focus_targets(
+    actor: &mut crate::scene::Actor,
+    removed: &std::collections::BTreeSet<uuid::Uuid>,
+) {
+    let clear = |link: &mut FocusLink| {
+        if link.target.is_some_and(|id| removed.contains(&id)) {
+            link.target = None;
+        }
+    };
+    if let Some(link) = actor
+        .canvas
+        .as_mut()
+        .and_then(|canvas| canvas.initial_focus.as_mut())
+    {
+        clear(link);
+    }
+    if let Some(links) = actor
+        .focusable
+        .as_mut()
+        .and_then(|focus| focus.navigation.as_mut())
+    {
+        for link in links {
+            clear(link);
+        }
+    }
+    crate::actor_components::sync(actor);
+}
+pub fn has_focus_links(actor: &crate::scene::Actor) -> bool {
+    actor
+        .canvas
+        .as_ref()
+        .is_some_and(|canvas| canvas.initial_focus.is_some())
+        || actor
+            .focusable
+            .as_ref()
+            .is_some_and(|focus| focus.navigation.is_some())
+}
+pub fn focus_canvas(scene: &crate::scene::Scene, mut index: usize) -> Option<uuid::Uuid> {
+    for _ in 0..=scene.actors.len() {
+        let actor = scene.actors.get(index)?;
+        if actor.canvas.is_some() {
+            return Some(actor.id);
+        }
+        index = actor
+            .logical_parent
+            .and_then(|id| scene.actor_index(id))
+            .or(actor.parent)?;
+    }
+    None
+}
+pub fn focus_targets(scene: &crate::scene::Scene, owner: usize) -> Vec<(uuid::Uuid, String)> {
+    let canvas = focus_canvas(scene, owner);
+    scene
+        .actors
+        .iter()
+        .enumerate()
+        .filter(|(i, actor)| {
+            canvas.is_some()
+                && focus_canvas(scene, *i) == canvas
+                && actor.rect.is_some()
+                && actor.focusable.is_some()
+        })
+        .map(|(_, actor)| (actor.id, actor.name.clone()))
+        .collect()
+}
+fn validate_focus_link(
+    scene: &crate::scene::Scene,
+    owner: usize,
+    link: FocusLink,
+) -> Result<(), String> {
+    let Some(id) = link.target else {
+        return Ok(());
+    };
+    let target = scene.actor_index(id).ok_or_else(|| {
+        format!("Missing focus target {id}; restore the actor or reset the binding.")
+    })?;
+    let actor = &scene.actors[target];
+    if actor.rect.is_none() || actor.focusable.is_none() {
+        return Err(format!(
+            "Focus target {} requires a UI RectTransform and Focusable component.",
+            actor.name
+        ));
+    }
+    let canvas = focus_canvas(scene, owner);
+    if canvas.is_none() || focus_canvas(scene, target) != canvas {
+        return Err("Focus target must belong to the same Canvas as its source.".into());
+    }
+    Ok(())
 }
 pub type Rect = [f32; 4]; // bottom-left x/y, width/height; positive Y points upward.
 /// Where one element sits: the axis-aligned rect the layout pass decided, and
@@ -576,8 +754,8 @@ pub fn order(scene: &Scene) -> Vec<usize> {
     }
     let mut out = Vec::new();
     for (i, e) in scene.actors.iter().enumerate() {
-        if e.canvas.as_ref().is_some_and(|c| c.enabled)
-            || (e.rect.is_some() && scene.spatial_parent(i).is_none())
+        if scene.spatial_parent(i).is_none()
+            && (e.canvas.as_ref().is_some_and(|c| c.enabled) || e.rect.is_some())
         {
             visit(scene, i, &mut out);
         }
@@ -586,6 +764,23 @@ pub fn order(scene: &Scene) -> Vec<usize> {
 }
 pub fn validate(scene: &Scene) -> Result<(), String> {
     scene.hud_budget.validate()?;
+    let used = usage(scene)?;
+    if used.texts > scene.hud_budget.texts
+        || used.layouts > scene.hud_budget.layouts
+        || used.glyphs > scene.hud_budget.glyphs
+        || used.rectangles > scene.hud_budget.rectangles
+        || used.rotated > scene.hud_budget.rotated
+    {
+        return Err(
+            "Scene exceeds its configured HUD layout/text/glyph/rectangle/rotated budget".into(),
+        );
+    }
+    Ok(())
+}
+/// What one scene or prefab draws from each double-buffered HUD pool, counted
+/// the way the runtime spends them. Text is measured at its longest authored
+/// translation; a script that writes longer strings needs an authored budget.
+pub fn usage(scene: &Scene) -> Result<Budget, String> {
     let mut texts = 0;
     for e in &scene.actors {
         if let Some(image) = &e.image {
@@ -674,7 +869,7 @@ pub fn validate(scene: &Scene) -> Result<(), String> {
         }
         if let Some(c) = &e.focusable {
             let count = scene.actors.len() as i32;
-            if c.neighbors.iter().any(|n| *n < -1 || *n >= count)
+            if (c.navigation.is_none() && c.neighbors.iter().any(|n| *n < -1 || *n >= count))
                 || c.highlight
                     .iter()
                     .any(|v| !v.is_finite() || !(0. ..=1.).contains(v))
@@ -685,9 +880,19 @@ pub fn validate(scene: &Scene) -> Result<(), String> {
             }
         }
         if let Some(c) = &e.canvas
+            && c.initial_focus.is_none()
             && (c.focused < -1 || c.focused >= scene.actors.len() as i32)
         {
             return Err("Canvas initial focus must be an actor index or -1".into());
+        }
+        let owner = scene.actor_index(e.id).expect("validated actor identity");
+        if let Some(link) = e.canvas.as_ref().and_then(|c| c.initial_focus) {
+            validate_focus_link(scene, owner, link)?;
+        }
+        if let Some(links) = e.focusable.as_ref().and_then(|c| c.navigation) {
+            for link in links {
+                validate_focus_link(scene, owner, link)?;
+            }
         }
         let valid_color = |c: &[f32; 3]| c.iter().all(|v| v.is_finite() && (0. ..=1.).contains(v));
         if e.image.as_ref().is_some_and(|c| !valid_color(&c.color))
@@ -742,12 +947,44 @@ pub fn validate(scene: &Scene) -> Result<(), String> {
     // counts are accumulated together over the laid-out rects the runtime sees.
     let places = layouts(scene);
     let (mut glyphs, mut rectangles, mut rotated) = (0usize, 0usize, 0usize);
+    let mut outlines = vec![[0usize; 2]; scene.actors.len()];
     for (i, e) in scene.actors.iter().enumerate() {
+        let turned = places.get(i).copied().flatten().is_some_and(|p| {
+            let [x, y, w, h] = p.rect;
+            p.corners != [[x, y + h], [x + w, y + h], [x, y], [x + w, y]]
+        });
         let size = places
             .get(i)
             .copied()
             .flatten()
             .map_or([0., 0.], |p| [p.rect[2], p.rect[3]]);
+        if e.focusable.as_ref().is_some_and(|f| f.enabled && f.outline)
+            && size[0] > 0.
+            && size[1] > 0.
+        {
+            let cost = 1
+                + usize::from(size[1] > 1.)
+                + if size[1] > 2. * size[1].min(1.) {
+                    1 + usize::from(size[0] > 1.)
+                } else {
+                    0
+                };
+            // Navigation may focus any row, but only one row of each Canvas.
+            // Reserve each pool's largest frame, rather than every row at once.
+            let pool = usize::from(turned);
+            let mut current = Some(i);
+            for _ in 0..33 {
+                let Some(index) = current else { break };
+                let Some(ancestor) = scene.actors.get(index) else {
+                    break;
+                };
+                if ancestor.canvas.as_ref().is_some_and(|c| c.enabled) {
+                    outlines[index][pool] = outlines[index][pool].max(cost);
+                    break;
+                }
+                current = ancestor.parent;
+            }
+        }
         let pictures = e.image.as_ref().filter(|v| v.enabled).map_or(0, |v| {
             let dimensions = v
                 .texture
@@ -782,24 +1019,24 @@ pub fn validate(scene: &Scene) -> Result<(), String> {
                 .max()
                 .unwrap_or(0)
         });
-        if e.rect.as_ref().is_some_and(|r| r.rotation != 0.) {
+        if turned {
             rotated += pictures + letters;
         } else {
             rectangles += pictures;
             glyphs += letters;
         }
     }
-    if texts > scene.hud_budget.texts
-        || scene.actors.iter().filter(|e| e.rect.is_some()).count() > scene.hud_budget.layouts
-        || glyphs > scene.hud_budget.glyphs
-        || rectangles > scene.hud_budget.rectangles
-        || rotated > scene.hud_budget.rotated
-    {
-        return Err(
-            "Scene exceeds its configured HUD layout/text/glyph/rectangle/rotated budget".into(),
-        );
+    for [axis_aligned, turned] in outlines {
+        rectangles += axis_aligned;
+        rotated += turned;
     }
-    Ok(())
+    Ok(Budget {
+        layouts: scene.actors.iter().filter(|e| e.rect.is_some()).count(),
+        rectangles,
+        texts,
+        glyphs,
+        rotated,
+    })
 }
 /// How many textured quads one Image draws, the way `hud_core::picture` counts
 /// them: one per nine-slice piece, and one per tile of the piece that tiles.
@@ -893,6 +1130,140 @@ mod tests {
         });
         scene.sync_actor_components();
         scene
+    }
+    #[test]
+    fn persistent_focus_survives_reorder_duplicate_delete_and_wire_generation() {
+        let mut scene = labelled("A", None);
+        scene.actors[1].focusable = Some(Focusable::lit());
+        let root = scene.actors[0].id;
+        let first = scene.actors[1].id;
+        let second = scene.duplicate_actor_branch(first).unwrap();
+        let i = scene.actor_index(second).unwrap();
+        scene.actors[i].name = "Second".into();
+        scene.actors[0].canvas.as_mut().unwrap().initial_focus = Some(FocusLink {
+            target: Some(first),
+        });
+        scene.actors[1].focusable.as_mut().unwrap().navigation = Some([
+            FocusLink::default(),
+            FocusLink {
+                target: Some(second),
+            },
+            FocusLink::default(),
+            FocusLink::default(),
+        ]);
+        scene.sync_actor_components();
+        scene.validate().unwrap();
+        scene.actors.reverse();
+        scene.refresh_actor_hierarchy();
+        scene.sync_actor_components();
+        scene.validate().unwrap();
+        let r = scene.actor_index(root).unwrap();
+        let a = scene.actor_index(first).unwrap();
+        let b = scene.actor_index(second).unwrap();
+        assert_eq!(
+            canvas_focus(&scene, scene.actors[r].canvas.as_ref().unwrap()),
+            a as i32
+        );
+        assert_eq!(
+            focus_neighbors(&scene, scene.actors[a].focusable.as_ref().unwrap())[1],
+            b as i32
+        );
+        let header = crate::project::scene_header(&scene, &[]).unwrap();
+        assert!(header.contains(&format!("objects[{r}].canvas.focused={a};")));
+        let duplicate = scene.duplicate_actor_branch(root).unwrap();
+        let copy = &scene.actors[scene.actor_index(duplicate).unwrap()];
+        let target = copy
+            .canvas
+            .as_ref()
+            .unwrap()
+            .initial_focus
+            .unwrap()
+            .target
+            .unwrap();
+        assert_ne!(target, first);
+        assert_eq!(
+            scene.actors[scene.actor_index(target).unwrap()].logical_parent,
+            Some(duplicate)
+        );
+        scene.delete_actor_branch(first);
+        scene.validate().unwrap();
+        assert_eq!(
+            scene.actors[scene.actor_index(root).unwrap()]
+                .canvas
+                .as_ref()
+                .unwrap()
+                .initial_focus,
+            Some(FocusLink::default())
+        );
+        assert_eq!(
+            scene.actors[scene.actor_index(duplicate).unwrap()]
+                .canvas
+                .as_ref()
+                .unwrap()
+                .initial_focus
+                .unwrap()
+                .target,
+            Some(target)
+        );
+        let removed = scene.actor_index(second).unwrap();
+        scene.actors[removed].focusable.as_mut().unwrap().navigation = Some(
+            [FocusLink {
+                target: Some(uuid::Uuid::new_v4()),
+            }; 4],
+        );
+        scene.sync_actor_components();
+        assert!(
+            scene
+                .validate()
+                .unwrap_err()
+                .contains("Missing focus target")
+        );
+    }
+    #[test]
+    fn legacy_focus_migrates_only_in_memory_and_rejects_mislabelled_bindings() {
+        let root = crate::workspace::tests::temp("focus-links-migration");
+        std::fs::create_dir_all(&root).unwrap();
+        let path = root.join("Focus.epokmap");
+        let mut scene = labelled("A", None);
+        scene.actors[1].focusable = Some(Focusable::lit());
+        scene.actors[0].canvas.as_mut().unwrap().focused = 1;
+        scene.actors[1].focusable.as_mut().unwrap().neighbors[0] = 1;
+        scene.version = 7;
+        scene.sync_actor_components();
+        let bytes = crate::document::to_vec(&scene).unwrap();
+        std::fs::write(&path, &bytes).unwrap();
+        let migrated = Scene::load_unresolved(&path).unwrap();
+        assert_eq!(migrated.version, 8);
+        assert_eq!(std::fs::read(&path).unwrap(), bytes);
+        assert_eq!(
+            migrated.actors[0]
+                .canvas
+                .as_ref()
+                .unwrap()
+                .initial_focus
+                .unwrap()
+                .target,
+            Some(scene.actors[1].id)
+        );
+        assert_eq!(
+            focus_neighbors(&migrated, migrated.actors[1].focusable.as_ref().unwrap())[0],
+            1
+        );
+        migrated.save(&path).unwrap();
+        let saved = std::fs::read(&path).unwrap();
+        Scene::load_unresolved(&path).unwrap().save(&path).unwrap();
+        assert_eq!(std::fs::read(&path).unwrap(), saved);
+        let mut mislabeled = migrated;
+        mislabeled.version = 7;
+        let bytes = crate::document::to_vec(&mislabeled).unwrap();
+        std::fs::write(&path, &bytes).unwrap();
+        assert!(
+            Scene::load_unresolved(&path)
+                .unwrap_err()
+                .contains("version 8")
+        );
+        assert_eq!(std::fs::read(&path).unwrap(), bytes);
+        std::fs::remove_dir_all(root).unwrap();
     }
     #[test]
     fn an_authored_font_answers_for_its_own_character_set() {
@@ -1185,10 +1556,12 @@ mod tests {
         let focus = Focusable {
             enabled: true,
             neighbors: [3, -1, 0, 7],
+            navigation: None,
             order: 4,
             highlight: [0.5, 1., 0.25],
             kind: FocusKind::Toggle,
             checked: true,
+            outline: true,
         };
         let text = serde_json::to_string(&focus).unwrap();
         assert_eq!(serde_json::from_str::<Focusable>(&text).unwrap(), focus);
@@ -1210,6 +1583,39 @@ mod tests {
                 .rotation,
             0.
         );
+    }
+    #[test]
+    fn measured_demand_grows_a_budget_and_never_shrinks_an_authored_one() {
+        let authored = Budget {
+            layouts: 32,
+            rectangles: 40,
+            texts: 12,
+            glyphs: 352,
+            rotated: 8,
+        };
+        let scene = Budget {
+            layouts: 12,
+            rectangles: 10,
+            texts: 7,
+            glyphs: 90,
+            rotated: 0,
+        };
+        let prefab = Budget {
+            layouts: 6,
+            rectangles: 1,
+            texts: 5,
+            glyphs: 70,
+            rotated: 0,
+        };
+        let mut budget = authored.clone();
+        budget.include(&scene.plus(&prefab));
+        assert_eq!(budget, authored);
+        budget.include(&Budget {
+            glyphs: 400,
+            ..Budget::EMPTY
+        });
+        assert_eq!(budget.glyphs, 400);
+        assert_eq!(budget.rectangles, 40);
     }
     #[test]
     fn tiles_and_rotated_elements_are_counted_against_their_own_budgets() {
@@ -1247,6 +1653,61 @@ mod tests {
         s.validate().unwrap();
         s.actors[1].rect.as_mut().unwrap().rotation = f32::NAN;
         assert!(s.validate().unwrap_err().contains("rotation"));
+    }
+    #[test]
+    fn text_only_focus_outlines_reach_native_preview_pixels_and_budget_checks() {
+        let mut scene = fixture();
+        scene.actors[0].image = Some(Image {
+            color: [0.92; 3],
+            ..Default::default()
+        });
+        scene.actors[0].canvas.as_mut().unwrap().focused = 1;
+        scene.actors[1].image = None;
+        scene.actors[1].text = Some(Text {
+            text: "A".into(),
+            color: [0.; 3],
+            ..Default::default()
+        });
+        scene.actors[1].focusable = Some(Focusable {
+            highlight: [0.1, 0.35, 0.7],
+            outline: true,
+            ..Default::default()
+        });
+        scene.sync_actor_components();
+        let (commands, selected) = crate::hud_native::compile(&scene);
+        assert_eq!((selected[0], selected[1], selected[4]), (5, 1, 0));
+        assert!(
+            commands
+                .iter()
+                .filter(|c| c.0[0] == 2)
+                .all(|c| c.0[11..14] == [0; 3])
+        );
+        let pixels = crate::hud_native::render(&scene, &commands, 0., 0);
+        scene.actors[0].canvas.as_mut().unwrap().focused = -1;
+        let (commands, unselected) = crate::hud_native::compile(&scene);
+        assert_eq!((unselected[0], unselected[1]), (1, 1));
+        let other = crate::hud_native::render(&scene, &commands, 0., 0);
+        let point = (12 * 320 + 150) * 4;
+        assert_ne!(pixels[point..point + 3], other[point..point + 3]);
+        scene.actors[0].canvas.as_mut().unwrap().focused = 1;
+        scene.hud_budget.rectangles = 4;
+        scene.sync_actor_components();
+        assert!(scene.validate().unwrap_err().contains("budget"));
+        scene.hud_budget.rectangles = 5;
+        scene.validate().unwrap();
+        // Four selectable rows still need one frame per Canvas, not four.
+        for _ in 0..3 {
+            let mut row = scene.actors[1].clone();
+            let ids = crate::actor_document::fresh_identities(std::slice::from_ref(&row));
+            crate::actor_document::remap_actor(&mut row, &ids);
+            scene.actors.push(row);
+        }
+        scene.sync_actor_components();
+        scene.validate().unwrap();
+        for focused in 1..5 {
+            scene.actors[0].canvas.as_mut().unwrap().focused = focused;
+            assert_eq!(crate::hud_native::compile(&scene).1[4], 0);
+        }
     }
     #[test]
     fn focus_links_are_actor_indices_the_scene_still_has() {

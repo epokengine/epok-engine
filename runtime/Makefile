@@ -3,6 +3,8 @@ TYPE = ps-exe
 include sources.mk
 SRCS = main.cpp $(SCRIPT_SRCS)
 CPPFLAGS += -I. -Iscripts
+# Every build here links the cooked object table, which is sorted by class id.
+CPPFLAGS += -DEPOK_SORTED_CLASS_TABLE
 ifeq ($(EPOK_VALIDATE_GTE),1)
 CPPFLAGS += -DEPOK_VALIDATE_GTE
 endif
@@ -14,6 +16,9 @@ CPPFLAGS += -DEPOK_SWEEP_CAMERAS=\"$(EPOK_SWEEP_CAMERAS)\"
 endif
 ifeq ($(EPOK_PROFILE_DETAIL),1)
 CPPFLAGS += -DEPOK_PROFILE_DETAIL
+endif
+ifeq ($(EPOK_PAD_TRACE),1)
+CPPFLAGS += -DEPOK_PAD_TRACE
 endif
 NUGGET_DIR ?= ../../third_party/nugget
 # The editor writes this fragment: it links external scene data as overlays
@@ -28,8 +33,13 @@ EPOK_SCRIPT_OPT ?= -O2
 ifeq ($(BUILD),Release)
 main.o main.dep: CPPFLAGS += $(EPOK_RUNTIME_OPT)
 $(SCRIPT_SRCS:.cpp=.o) $(SCRIPT_SRCS:.cpp=.dep): CPPFLAGS += $(EPOK_SCRIPT_OPT)
+# Header-defined gameplay classes compile inside main.o; give them the same profile.
+ifeq ($(EPOK_SCRIPT_OPT),-Os)
+main.o main.dep: CPPFLAGS += -DEPOK_SCRIPT_SIZE_OPT
+endif
 endif
 main.o: Makefile
+main.o $(SCRIPT_SRCS:.cpp=.o): sources.mk
 
 # MIPS has no 64-bit divide instruction. Collision, clipping and measured time
 # use GCC's integer helpers; append the archive after application/PsyQo objects.

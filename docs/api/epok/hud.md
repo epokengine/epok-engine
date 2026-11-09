@@ -2,7 +2,7 @@
 
 > **Header:** `"hud.hpp"` · **Tier:** Epok runtime API · **Source:** [open header](../../../runtime/hud.hpp)
 
-This module covers native HUD layout, drawing and focus navigation. It documents 15 public callables declared directly in this header.
+This module covers native HUD layout, drawing and focus navigation. It documents 16 public callables declared directly in this header.
 
 ## Declared types
 
@@ -25,6 +25,7 @@ This module covers native HUD layout, drawing and focus navigation. It documents
 - [`epok::HudRenderer::rectangle`](#epok-hudrenderer-rectangle-1) — Performs `rectangle` as part of native HUD layout, drawing and focus navigation.
 - [`epok::HudRenderer::texture_size`](#epok-hudrenderer-texture-size-1) — Performs `texture size` as part of native HUD layout, drawing and focus navigation.
 - [`epok::HudRenderer::textured_quad`](#epok-hudrenderer-textured-quad-1) — Performs `textured quad` as part of native HUD layout, drawing and focus navigation.
+- [`epok::HudRenderer::write_rectangle`](#epok-hudrenderer-write-rectangle-1) — Writes rectangle as part of native HUD layout, drawing and focus navigation.
 
 <a id="epok-hudrenderer-begin-node-1"></a>
 
@@ -35,10 +36,10 @@ This module covers native HUD layout, drawing and focus navigation. It documents
 **Exact declaration**
 
 ```cpp
-bool begin_node(int owner,const hud_core::Rect& rect,const hud_core::Affine2& transform,const uint8_t* tint,HudStats& stats)
+bool begin_node(int owner,const hud_core::Rect& rect,const hud_core::Affine2& transform,const uint8_t* tint,bool outlined,HudStats& stats)
 ```
 
-- **Declared at:** [line 77](../../../runtime/hud.hpp#L77)
+- **Declared at:** [line 86](../../../runtime/hud.hpp#L86)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -49,6 +50,7 @@ bool begin_node(int owner,const hud_core::Rect& rect,const hud_core::Affine2& tr
 | `rect` | `const hud_core::Rect &` | Input | Value supplied for `rect`. See the exact type and module contract. |
 | `transform` | `const hud_core::Affine2 &` | Input | Value supplied for `transform`. See the exact type and module contract. |
 | `tint` | `const uint8_t *` | Input | Value supplied for `tint`. See the exact type and module contract. |
+| `outlined` | `bool` | Input | Value supplied for `outlined`. See the exact type and module contract. |
 | `stats` | `HudStats &` | Input/output; inspect the function contract | Value supplied for `stats`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -65,11 +67,12 @@ bool begin_node(int owner,const hud_core::Rect& rect,const hud_core::Affine2& tr
 // const hud_core::Rect & rect
 // const hud_core::Affine2 & transform
 // const uint8_t * tint
+// bool outlined
 // HudStats & stats
 
 epok::HudRenderer& object = /* obtain a valid instance */;
 
-auto result = object.begin_node(owner, rect, transform, tint, stats);
+auto result = object.begin_node(owner, rect, transform, tint, outlined, stats);
 ```
 
 **Why choose it.** The boolean result makes success, availability or state explicit without exceptions. The API maps closely to PSX GPU work, giving predictable ordering and low overhead.
@@ -88,7 +91,7 @@ auto result = object.begin_node(owner, rect, transform, tint, stats);
 void begin_text(int index)
 ```
 
-- **Declared at:** [line 110](../../../runtime/hud.hpp#L110)
+- **Declared at:** [line 126](../../../runtime/hud.hpp#L126)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -130,7 +133,7 @@ object.begin_text(index);
 NodeCounts counts()const
 ```
 
-- **Declared at:** [line 76](../../../runtime/hud.hpp#L76)
+- **Declared at:** [line 85](../../../runtime/hud.hpp#L85)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `NodeCounts`. Check the purpose and failure notes before using the value.
@@ -163,7 +166,7 @@ auto result = object.counts();
 template<size_t N>void draw(psyqo::GPU& gpu,std::array<ActorData,N>& entities,size_t count)
 ```
 
-- **Declared at:** [line 160](../../../runtime/hud.hpp#L160)
+- **Declared at:** [line 176](../../../runtime/hud.hpp#L176)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -212,7 +215,7 @@ object.draw<N>(gpu, entities, count);
 void end_node(int owner,const HudStats& stats)
 ```
 
-- **Declared at:** [line 88](../../../runtime/hud.hpp#L88)
+- **Declared at:** [line 100](../../../runtime/hud.hpp#L100)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -258,7 +261,7 @@ object.end_node(owner, stats);
 const Font* font(int index)
 ```
 
-- **Declared at:** [line 109](../../../runtime/hud.hpp#L109)
+- **Declared at:** [line 125](../../../runtime/hud.hpp#L125)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -300,7 +303,7 @@ auto result = object.font(index);
 void glyph(int,int index,int u,int v,int x0,int y0,int x1,int y1,const uint8_t* color)
 ```
 
-- **Declared at:** [line 117](../../../runtime/hud.hpp#L117)
+- **Declared at:** [line 133](../../../runtime/hud.hpp#L133)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -358,7 +361,7 @@ object.glyph(arg1, index, u, v, x0, y0, x1, y1, color);
 void glyph_quad(int,int index,const int* x,const int* y,const int* u,const int* v,const uint8_t* color)
 ```
 
-- **Declared at:** [line 145](../../../runtime/hud.hpp#L145)
+- **Declared at:** [line 161](../../../runtime/hud.hpp#L161)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -412,7 +415,7 @@ object.glyph_quad(arg1, index, x, y, u, v, color);
 void image(int,int id,int x0,int y0,int x1,int y1,int u0,int v0,int u1,int v1,const uint8_t* color)
 ```
 
-- **Declared at:** [line 96](../../../runtime/hud.hpp#L96)
+- **Declared at:** [line 112](../../../runtime/hud.hpp#L112)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -474,7 +477,7 @@ object.image(arg1, id, x0, y0, x1, y1, u0, v0, u1, v1, color);
 void initialize(psyqo::GPU& gpu)
 ```
 
-- **Declared at:** [line 159](../../../runtime/hud.hpp#L159)
+- **Declared at:** [line 175](../../../runtime/hud.hpp#L175)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -516,7 +519,7 @@ object.initialize(gpu);
 void invalidate()
 ```
 
-- **Declared at:** [line 180](../../../runtime/hud.hpp#L180)
+- **Declared at:** [line 250](../../../runtime/hud.hpp#L250)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -551,7 +554,7 @@ object.invalidate();
 void quad(int,const int* x,const int* y,const uint8_t* color)
 ```
 
-- **Declared at:** [line 126](../../../runtime/hud.hpp#L126)
+- **Declared at:** [line 142](../../../runtime/hud.hpp#L142)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -599,7 +602,7 @@ object.quad(arg1, x, y, color);
 void rectangle(int,int x0,int y0,int x1,int y1,const uint8_t* color)
 ```
 
-- **Declared at:** [line 90](../../../runtime/hud.hpp#L90)
+- **Declared at:** [line 108](../../../runtime/hud.hpp#L108)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -651,7 +654,7 @@ object.rectangle(arg1, x0, y0, x1, y1, color);
 bool texture_size(int id,int& width,int& height)
 ```
 
-- **Declared at:** [line 89](../../../runtime/hud.hpp#L89)
+- **Declared at:** [line 101](../../../runtime/hud.hpp#L101)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -697,7 +700,7 @@ auto result = object.texture_size(id, width, height);
 void textured_quad(int,int id,const int* x,const int* y,const int* u,const int* v,const uint8_t* color)
 ```
 
-- **Declared at:** [line 132](../../../runtime/hud.hpp#L132)
+- **Declared at:** [line 148](../../../runtime/hud.hpp#L148)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -738,3 +741,52 @@ object.textured_quad(arg1, id, x, y, u, v, color);
 **Why choose it.** The API maps closely to PSX GPU work, giving predictable ordering and low overhead.
 
 **Trade-offs and warnings.** Respect packet lifetime, ordering-table direction and per-frame GPU/VRAM budgets; submission is not a desktop immediate-mode draw call. Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
+
+<a id="epok-hudrenderer-write-rectangle-1"></a>
+
+## `epok::HudRenderer::write_rectangle`
+
+**Purpose.** Writes rectangle as part of native HUD layout, drawing and focus navigation.
+
+**Exact declaration**
+
+```cpp
+template<class Rectangle> void write_rectangle(unsigned parity,size_t index,const Rectangle& rectangle)
+```
+
+- **Declared at:** [line 102](../../../runtime/hud.hpp#L102)
+- **Kind:** `function template`; qualifiers: `template`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `parity` | `unsigned int` | Input | Value supplied for `parity`. See the exact type and module contract. |
+| `index` | `size_t` | Input | Value supplied for `index`. See the exact type and module contract. |
+| `rectangle` | `const Rectangle &` | Input | Value supplied for `rectangle`. See the exact type and module contract. |
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** You need native HUD layout, drawing and focus navigation and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "hud.hpp"
+
+// Replace these template arguments with types or values accepted by the declaration:
+// Rectangle
+
+// Assume these named values have been initialized with valid data:
+// unsigned int parity
+// size_t index
+// const Rectangle & rectangle
+
+epok::HudRenderer& object = /* obtain a valid instance */;
+
+object.write_rectangle<Rectangle>(parity, index, rectangle);
+```
+
+**Why choose it.** Template dispatch is resolved at compile time and normally adds no runtime indirection. The API maps closely to PSX GPU work, giving predictable ordering and low overhead.
+
+**Trade-offs and warnings.** Every instantiated type must satisfy the header's compile-time requirements; extra instantiations can increase code size. Respect packet lifetime, ordering-table direction and per-frame GPU/VRAM budgets; submission is not a desktop immediate-mode draw call. Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.

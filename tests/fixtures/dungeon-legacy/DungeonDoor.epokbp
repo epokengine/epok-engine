@@ -1,0 +1,167 @@
+component:
+  can_root: false
+  cardinality: single
+  owners:
+  - world3d
+  - world2d
+defaults: {}
+family: component
+functions:
+- entry: c5525435-b4ef-587c-87e0-66b586505589
+  id: 8e6a3668-8fb3-5874-b1fb-f88f17ab4a2e
+  name: tick
+  nodes:
+  - id: 3a25fdbb-636c-5db1-a90a-013110eef0f0
+    inputs: {}
+    kind:
+      kind: builtin
+      operation:
+        kind: get_owner
+    outputs: {}
+  - id: 00bc63ea-065f-58f0-99c6-c09dd6340f4d
+    inputs:
+      active:
+        kind: literal
+        value: false
+        value_type:
+          kind: bool
+      target:
+        kind: link
+        node: 3a25fdbb-636c-5db1-a90a-013110eef0f0
+        pin: value
+    kind:
+      kind: builtin
+      operation:
+        kind: set_active
+    outputs: {}
+  - id: c5525435-b4ef-587c-87e0-66b586505589
+    inputs: {}
+    kind:
+      kind: entry
+    outputs:
+      next:
+      - 412c3465-62b7-5c8b-9f79-712fdb4482a3
+  - id: f695bc82-c931-556f-af24-0e149b67d939
+    inputs: {}
+    kind:
+      kind: get_variable
+      member: b42705d6-2573-5a95-97c7-6c721864245c
+    outputs: {}
+  - id: 7c69964f-92d4-55d3-aee8-0905187f1277
+    inputs:
+      target:
+        kind: link
+        node: f695bc82-c931-556f-af24-0e149b67d939
+        pin: value
+    kind:
+      kind: builtin
+      operation:
+        kind: is_valid
+    outputs: {}
+  - id: 412c3465-62b7-5c8b-9f79-712fdb4482a3
+    inputs:
+      condition:
+        kind: link
+        node: 7c69964f-92d4-55d3-aee8-0905187f1277
+        pin: value
+    kind:
+      kind: branch
+    outputs:
+      'true':
+      - fcd5b1b6-1084-5538-b7d0-0ca7c3b4832d
+  - id: 3ea81f23-3c0c-5f40-8ae0-13b443516d9f
+    inputs:
+      __target:
+        kind: link
+        node: f695bc82-c931-556f-af24-0e149b67d939
+        pin: value
+    kind:
+      class: 6e6efc67-66c4-4dae-90f8-7c8c4e612dea
+      function: 66f0ed92-0e29-498a-aff0-1102dd0c9783
+      kind: call_on
+    outputs: {}
+  - id: 653ac15d-bf6e-5a26-ab9a-286916478576
+    inputs:
+      value:
+        kind: link
+        node: 3ea81f23-3c0c-5f40-8ae0-13b443516d9f
+        pin: value
+    kind:
+      kind: not
+    outputs: {}
+  - id: fcd5b1b6-1084-5538-b7d0-0ca7c3b4832d
+    inputs:
+      condition:
+        kind: link
+        node: 653ac15d-bf6e-5a26-ab9a-286916478576
+        pin: value
+    kind:
+      kind: branch
+    outputs:
+      'true':
+      - 00bc63ea-065f-58f0-99c6-c09dd6340f4d
+  override_id: cpp:c:@N@epok@S@ActorComponent@F@tick#$@N@psyqo@S@FixedPoint>#Vi12#I#Vi4096#
+  parameters:
+  - direction: value
+    name: delta_seconds
+    value_type:
+      kind: fixed
+  returns:
+    kind: void
+  timeline: null
+id: 11d781e2-ff89-4a88-823a-e690ec14f761
+layout:
+  comments:
+    fcd5b1b6-1084-5538-b7d0-0ca7c3b4832d: Open once the key has been picked up
+  positions:
+    00bc63ea-065f-58f0-99c6-c09dd6340f4d:
+    - 960.0
+    - 0.0
+    3a25fdbb-636c-5db1-a90a-013110eef0f0:
+    - 720.0
+    - 320.0
+    3ea81f23-3c0c-5f40-8ae0-13b443516d9f:
+    - 480.0
+    - 180.0
+    412c3465-62b7-5c8b-9f79-712fdb4482a3:
+    - 240.0
+    - 0.0
+    653ac15d-bf6e-5a26-ab9a-286916478576:
+    - 720.0
+    - 180.0
+    7c69964f-92d4-55d3-aee8-0905187f1277:
+    - 240.0
+    - 180.0
+    c5525435-b4ef-587c-87e0-66b586505589:
+    - 0.0
+    - 0.0
+    f695bc82-c931-556f-af24-0e149b67d939:
+    - 0.0
+    - 180.0
+    fcd5b1b6-1084-5538-b7d0-0ca7c3b4832d:
+    - 720.0
+    - 0.0
+name: DungeonDoor
+parent: 2e5021ee-d14d-4d77-9112-455f29d639d2
+template:
+  actors: []
+  construction: []
+  overrides: {}
+  references: []
+variables:
+- default: 0
+  editable: true
+  id: 626df095-a17d-5627-9cbb-0de1bf30407d
+  name: lock
+  timeline_animatable: false
+  value_type:
+    kind: uint32
+- default: null
+  editable: true
+  id: b42705d6-2573-5a95-97c7-6c721864245c
+  name: key
+  timeline_animatable: false
+  value_type:
+    class: 6e6efc67-66c4-4dae-90f8-7c8c4e612dea
+    kind: actor_ref
+version: 8

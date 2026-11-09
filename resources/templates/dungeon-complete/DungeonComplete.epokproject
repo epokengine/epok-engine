@@ -1,6 +1,7 @@
 auto_build: false
 build:
   generate_asset_report: true
+  script_optimization: size
 controls:
   mouse_sensitivity: 16
   pads:

@@ -16,6 +16,49 @@ fn editor() -> crate::editor::Editor {
     e
 }
 #[test]
+fn camera_placement_through_mcp_keeps_native_components_and_undo() {
+    let mut e = editor();
+    let root = e.root.clone();
+    e.scene.actors.clear();
+    e.auto_build = false;
+    let mut state = mcp::State::default();
+    let added = at_revision(
+        &mut e,
+        &mut state,
+        "scene_add_actor",
+        json!({"class":"epok::ThirdPersonCamera","name":"Follow Camera"}),
+    )
+    .unwrap();
+    let camera = &e.scene.actors[0];
+    assert_eq!(camera.id.to_string(), added["id"].as_str().unwrap());
+    assert_eq!(camera.name, "Follow Camera");
+    assert_eq!(camera.components.len(), 3);
+    assert_eq!(camera.kind, "Camera");
+    assert!(
+        camera
+            .components
+            .iter()
+            .all(|c| c.inherited && c.default_id.is_some())
+    );
+    assert!(
+        camera
+            .components
+            .iter()
+            .any(|c| c.class.name == "epok::SpringArmComponent")
+    );
+    assert_eq!(state.undo.len(), 1);
+    at_revision(
+        &mut e,
+        &mut state,
+        "scene_history",
+        json!({"action":"undo"}),
+    )
+    .unwrap();
+    assert!(e.scene.actors.is_empty());
+    drop(e);
+    fs::remove_dir_all(root).unwrap();
+}
+#[test]
 fn editor_state_exposes_native_frames_without_emulator_counters() {
     let mut e = editor();
     let root = e.root.clone();
@@ -633,6 +676,7 @@ fn actor_tools_place_validate_edit_and_undo_through_the_class_model() {
     e.scene.actors.clear();
     e.auto_build = false;
     e.catalog = actor_catalog();
+    e.class_registry = crate::blueprint::registry_from_catalog(&e.root, &e.catalog);
     let mut state = mcp::State::default();
 
     // Reading is class-aware and shows the derived view of the legacy actors.
@@ -761,7 +805,11 @@ fn actor_tools_place_validate_edit_and_undo_through_the_class_model() {
 fn scene_set_actor_reparents_and_edits_the_component_set_like_the_inspector_does() {
     let mut e = editor();
     e.auto_build = false;
+    // This operation fixture supplies its own synthetic catalog and actors.
+    // Keep it independent of the project template's authored startup classes.
+    e.scene.actors.clear();
     e.catalog = actor_catalog();
+    e.class_registry = crate::blueprint::registry_from_catalog(&e.root, &e.catalog);
     let mut state = mcp::State::default();
     let add = |e: &mut crate::editor::Editor, state: &mut mcp::State, class: &str, name: &str| {
         let value = at_revision(

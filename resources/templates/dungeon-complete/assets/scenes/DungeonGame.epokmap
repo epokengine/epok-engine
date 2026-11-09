@@ -40,7 +40,91 @@ actors:
         pitch: 1.0
         play_on_start: false
         priority: 96
-        volume: 0.35
+        volume: 0.3499999940395355
+  - class:
+      class_id: 7f0eb028-5301-4ac7-b93b-5665fab12b20
+      name: epok::AudioComponent
+    id: 0bbcba23-7412-55fc-ac75-ae11c8c94713
+    name: AudioComponent
+    overrides:
+    - audio
+    properties:
+      audio:
+        clip: 655f6fcb-fe0a-527a-9295-589c96a3eae0
+        pitch: 1.0
+        play_on_start: false
+        priority: 220
+        volume: 0.47999998927116394
+  - class:
+      class_id: 7f0eb028-5301-4ac7-b93b-5665fab12b20
+      name: epok::AudioComponent
+    id: 77fc6e59-cafa-5325-bbc8-28ebe00c9604
+    name: AudioComponent
+    overrides:
+    - audio
+    properties:
+      audio:
+        clip: f610d1dc-4a4f-5a45-9cf6-e56b749fde82
+        pitch: 1.0
+        play_on_start: false
+        priority: 220
+        volume: 0.3199999928474426
+  - class:
+      class_id: 7f0eb028-5301-4ac7-b93b-5665fab12b20
+      name: epok::AudioComponent
+    id: 1ec1c778-5de9-5994-96e8-638cb320b679
+    name: AudioComponent
+    overrides:
+    - audio
+    properties:
+      audio:
+        clip: 8af6c03e-0699-5c51-ad2b-108c8a3fe07a
+        pitch: 1.0
+        play_on_start: false
+        priority: 220
+        volume: 0.5799999833106995
+  - class:
+      class_id: 7f0eb028-5301-4ac7-b93b-5665fab12b20
+      name: epok::AudioComponent
+    id: a9e7af50-32ba-531f-87bf-979cc2e236e1
+    name: AudioComponent
+    overrides:
+    - audio
+    properties:
+      audio:
+        clip: 7e730347-8663-5c4a-887d-390d7ffd4845
+        pitch: 1.0
+        play_on_start: false
+        priority: 220
+        volume: 0.7200000286102295
+  - class:
+      class_id: 7f0eb028-5301-4ac7-b93b-5665fab12b20
+      name: epok::AudioComponent
+    id: 5f04a19f-50c1-50c4-8178-ab0d0b6168bf
+    name: AudioComponent
+    overrides:
+    - audio
+    properties:
+      audio:
+        clip: 0bbf757c-46fb-5a24-9e6c-b5241af3a4bd
+        pitch: 1.0
+        play_on_start: false
+        priority: 220
+        volume: 0.3499999940395355
+  - class:
+      class_id: 7f0eb028-5301-4ac7-b93b-5665fab12b20
+      name: epok::AudioComponent
+    id: 6fe087d9-bdd3-5d62-af1c-c678fad7f3e0
+    name: AudioComponent
+    overrides:
+    - audio
+    properties:
+      audio:
+        clip: 0cb95f85-bfa4-5e6a-9007-a15a966950ef
+        pitch: 1.0
+        play_on_start: false
+        priority: 220
+        volume: 0.6800000071525574
   id: ec46f555-7a0c-59ab-ab8f-4a8c23afe121
   name: Reactor Station
   overrides: []
@@ -439,6 +523,119 @@ actors:
         - 0.0
       skeletal_mesh: null
       terrain: null
+  - class:
+      class_id: 382ad26d-3bc1-53e4-94a2-c1e18e6b25e9
+      name: epok::SpatialQueryContextComponent
+    id: 66fa4182-81a1-5dbf-b9d3-ec5ff151ddf8
+    name: World queries
+    overrides:
+    - automatic_reset
+    properties:
+      automatic_reset: false
+  - class:
+      class_id: 99c8c724-d8ee-5697-9d7f-927bfb9adc7e
+      name: epok::ProjectilePool3DComponent
+    id: 93a4e730-b121-5008-96b0-ac67f84571a1
+    name: Projectile Pool
+    overrides:
+    - query_context
+    - manage_sprite_visibility
+    - sprite_grid
+    - visual0
+    - visual1
+    - visual2
+    - visual3
+    - visual4
+    - visual5
+    - visual6
+    - visual7
+    properties:
+      manage_sprite_visibility: true
+      query_context: 66fa4182-81a1-5dbf-b9d3-ec5ff151ddf8
+      sprite_grid:
+        cell_height: 32
+        cell_width: 32
+        enabled: true
+        frames: 4
+        start_x: 0
+        start_y: 0
+        ticks_per_frame: 2
+      visual0: 30e8e7e1-e6c4-5918-a327-f4f659685150
+      visual1: 99386b09-ad22-5dc9-8b02-f05d73f123e9
+      visual2: 0396c6e2-19b9-5502-b253-9df5fa385ac7
+      visual3: 18ce7340-5971-53d0-afd3-641477528e3c
+      visual4: d5132932-9390-56e2-8c6c-0ead8d4290ce
+      visual5: d79bdc4d-0f71-5753-b781-16beab8d8401
+      visual6: dfe8c5ab-8420-5e3b-9693-aa9915ad1df5
+      visual7: 5f25856d-f3bd-5447-bf73-84650ed88bd3
+  - class:
+      class_id: 825024e2-d9f8-5578-8198-bc52b5c217f2
+      name: DungeonEncounter
+    id: 2b09ca0c-2ac1-555e-b02e-aca93cc44cc8
+    name: Encounter Rules
+    overrides:
+    - health_tuning
+    - movement
+    - guard_timing
+    - boss_timing
+    properties:
+      boss_timing:
+        boss_cooldown: 1.9
+        boss_fan_cooldown: 1.35
+        boss_fan_speed: 1.3
+        boss_fan_windup: 0.5
+        boss_flash: 0.16
+        boss_initial_delay: 1.8
+        boss_range: 7.0
+        boss_speed: 0.85
+        boss_windup: 0.7
+      guard_timing:
+        ai_interval: 0.03333333333333333
+        guard_cooldown: 2.1
+        guard_death: 0.85
+        guard_flash: 0.14
+        guard_initial_delay: 1.1
+        guard_windup: 0.5
+        sight_interval: 0.1
+      health_tuning:
+        boss_health: 280
+        boss_phase_health: 140
+        guard_health: 60
+      movement:
+        activation_radius: 14.0
+        chase_speed: 1.05
+        guard_range: 5.0
+        patrol_arrival: 0.2
+        patrol_extent: 1.25
+        patrol_speed: 0.6
+        retention_radius: 22.0
+        sight_radius: 11.0
+  - class:
+      class_id: d3ed89cb-587b-57cb-a136-8172feb4c774
+      name: DungeonEconomyPolicy
+    id: 3e07eeae-69bf-5b68-a4d5-3d4a979f793a
+    name: Economy Rules
+    overrides:
+    - pocket_channel
+    - hud_owner
+    - pocket_station
+    - trading_station
+    properties:
+      hud_owner: 3735c331-4a51-5f1b-9274-09d5884aeee2
+      pocket_channel: 8a8d8156-67dd-5fb8-83b3-e1744f37d406
+      pocket_station: f2e4a8fe-0c60-5990-bdc2-aa77b9a5168c
+      trading_station: fcc1931b-1472-54a8-a01d-95fa497ece3d
+  - class:
+      class_id: abd3923b-cc40-589c-b755-5d607835a22f
+      name: epok::PocketTransactionComponent
+    id: 8a8d8156-67dd-5fb8-83b3-e1744f37d406
+    name: Pocket transport
+    overrides:
+    - port
+    - automatic_poll
+    properties:
+      automatic_poll: false
+      port: 0
   id: 778ebcff-1a18-5641-bfcf-27972da0898a
   logical_parent: ec46f555-7a0c-59ab-ab8f-4a8c23afe121
   name: Station Collision
@@ -1895,11 +2092,9 @@ actors:
   overrides: []
   properties: {}
 - active: true
-  attach:
-    actor: ec46f555-7a0c-59ab-ab8f-4a8c23afe121
   class:
-    class_id: fc24ce9b-558c-49de-bc35-e040f350e486
-    name: epok::Actor3D
+    class_id: a86b95c7-5021-5bd2-a87c-fc666a9ee174
+    name: DungeonCamera
   components:
   - class:
       class_id: ed73d249-b6cb-4a3c-a0e8-696de55e286f
@@ -1940,17 +2135,114 @@ actors:
       - 0.05000000074505806
       - 0.06499999761581421
       - 0.09000000357627869
+  - class:
+      class_id: 37538bc0-b257-52af-be93-b344301667b1
+      name: epok::SpringArmComponent
+    id: c9baacdd-aab0-5cc1-bb43-4afff27b5491
+    name: Spring Arm
+    overrides:
+    - adaptive_pull_in
+    - minimum_fraction
+    - collision_mask
+    properties:
+      adaptive_pull_in: true
+      collision_mask: 1
+      minimum_fraction: 0
+  - class:
+      class_id: df3f7e3e-b99c-5530-9d86-a44f87e67c5f
+      name: DungeonRunFlow
+    id: ce29e2a0-0e35-5335-a348-f9da76737fa9
+    name: Run Flow
+    overrides: []
+    properties: {}
+  - class:
+      class_id: e8e7c9ff-ff0e-5c38-9eec-5434e6a45354
+      name: DungeonPlayerCombat
+    id: f76ff66b-ee77-57ca-ab43-444a972d786f
+    name: Player Combat Rules
+    overrides:
+    - tuning
+    properties:
+      tuning:
+        acquire_distance: 13.0
+        damage: 20
+        keep_distance: 16.0
+        projectile_lifetime: 1.7
+        projectile_speed: 22.0
+        visibility_period: 8
+  - class:
+      class_id: 3046197f-9623-56fa-8ee2-449e818130e0
+      name: DungeonEncounterBindings
+    id: be341570-c8cb-5630-80bd-37ed732636bd
+    name: EncounterBindings
+    overrides:
+    - guard0
+    - guard1
+    - guard2
+    - boss
+    - key
+    - pack0
+    - pack1
+    - pack2
+    properties:
+      boss: 975c6871-fe26-57d6-ad73-6f10c2e4f662
+      guard0: 5cf54c12-ee86-5e1b-9754-368a33b459ff
+      guard1: 997b2f23-202f-5e11-b4b0-c517dca549af
+      guard2: 2f6c0a66-c6bd-5a78-b19c-4379b022314f
+      key: 132077fc-a317-5707-b30f-883352fd0d3c
+      pack0: 37390632-1f03-5cc0-8f59-309a85819b9a
+      pack1: e014da85-5e80-5918-a9a4-e1c75ed5992e
+      pack2: 86188077-ea6c-545b-a563-16e3464d2dd9
+  - class:
+      class_id: f622e994-4e5b-51dc-86c3-40bd52bba3f3
+      name: DungeonWorldBindings
+    id: eea2266e-13e8-58aa-af1c-4a117d770f8d
+    name: WorldBindings
+    overrides:
+    - door0_left
+    - door0_right
+    - door1_left
+    - door1_right
+    - door2_left
+    - door2_right
+    - door3_left
+    - door3_right
+    - room0
+    - room1
+    - room2
+    - room3
+    - room4
+    properties:
+      door0_left: 12e9bf9e-b5cb-5e39-ad41-65b6475977b8
+      door0_right: b3f966b8-c821-5a56-b7fb-195071dafdf8
+      door1_left: 2b0f0ccb-0ef3-5d7d-9c00-499b054065da
+      door1_right: 7d9197a4-6f81-587a-85da-94c56b8be895
+      door2_left: 7a8d186c-ee65-5cd2-aefb-53b0fbd2ad62
+      door2_right: 0b227b56-bea1-591c-ab40-e727e398bc91
+      door3_left: 83e1d243-4fd3-517a-9290-1637ec042534
+      door3_right: 9730e655-3850-5aaa-8cd7-a355c13ffa47
+      room0: 5ea476ce-d8f8-52d2-85e9-db3b0acb6b34
+      room1: 1621eb38-d7fd-55b9-b50d-8541bce901ec
+      room2: 90c7aafc-eeb5-5876-8c8f-e091e4e7867e
+      room3: 28e92698-be37-5472-b837-8b7db923b00a
+      room4: 58a44716-04fb-5126-aa80-afae8991af7e
   id: 41eba3a6-5a45-5eef-86f6-cb77d27f00cd
   logical_parent: ec46f555-7a0c-59ab-ab8f-4a8c23afe121
   name: Follow Camera
-  overrides: []
-  properties: {}
+  overrides:
+  - automatic_tick
+  - query_context
+  - target
+  properties:
+    automatic_tick: false
+    query_context: 66fa4182-81a1-5dbf-b9d3-ec5ff151ddf8
+    target: 3848576c-2fb0-553f-8feb-72dd172934f8
 - active: true
   attach:
     actor: ec46f555-7a0c-59ab-ab8f-4a8c23afe121
   class:
-    class_id: fc24ce9b-558c-49de-bc35-e040f350e486
-    name: epok::Actor3D
+    class_id: a9264178-1960-5ec3-8407-2ef64bbdd9dd
+    name: epok::Character3D
   components:
   - class:
       class_id: ed73d249-b6cb-4a3c-a0e8-696de55e286f
@@ -1997,6 +2289,33 @@ actors:
         mask: 4294967295
         trigger: false
   - class:
+      class_id: 34a2d5d2-b0bb-5faf-8dc4-7f34f07f9c95
+      name: epok::CharacterMotor3DComponent
+    id: 328142be-9802-544d-93c9-60d768704a81
+    name: Motor
+    overrides:
+    - automatic_tick
+    - measure_speed
+    - gravity
+    - jump_speed
+    - ground_stick
+    - step_height
+    - ground_response
+    - air_response
+    - turn_rate
+    - collision_mask
+    properties:
+      air_response: 3.0
+      automatic_tick: false
+      collision_mask: 4294967295
+      gravity: 24.0
+      ground_response: 12.0
+      ground_stick: -0.05
+      jump_speed: 9.0
+      measure_speed: false
+      step_height: 0.0
+      turn_rate: 540.0
+  - class:
       class_id: 7f0eb028-5301-4ac7-b93b-5665fab12b20
       name: epok::AudioComponent
     id: 2f95ce41-3193-5a4e-a5e8-1d3ce889196e
@@ -2020,25 +2339,41 @@ actors:
     - shoulder_camera_distance
     - sound_effects
     - use_aqua_visual
+    - combat_policy
+    - game_component
+    - lock_marker
     properties:
+      combat_policy: f76ff66b-ee77-57ca-ab43-444a972d786f
+      game_component: 8dea5cdb-c987-5e0a-9fe6-14b7ca2c44c7
+      lock_marker: 44cf0223-52da-53b4-9c0e-61881ef7c65a
       muzzle_vertex: 144
       shoulder_camera_distance: 2.15
       sound_effects: 48270760-b133-4c2d-bd17-7be72b4fbbf8
       use_aqua_visual: true
   - class:
-      class_id: 8d2bbf58-44f9-4ef8-adbb-2823ee734ac1
-      name: DungeonGame
-    id: 8dea5cdb-c987-5e0a-9fe6-14b7ca2c44c7
-    name: Dungeon Game
+      class_id: ebe82fcd-e9db-5de5-89a7-ed42f3a6d29a
+      name: epok::InteractorComponent
+    id: c167fb98-58c1-5b71-88bb-17d78a08fb85
+    name: Generic Interactor
     overrides:
-    - sound_effects
+    - range_3d
+    - input_port
+    - auto_input
+    - proximity
     properties:
-      sound_effects: 48270760-b133-4c2d-bd17-7be72b4fbbf8
+      auto_input: true
+      input_port: 0
+      proximity: true
+      range_3d: 3.61
   id: 3848576c-2fb0-553f-8feb-72dd172934f8
   logical_parent: ec46f555-7a0c-59ab-ab8f-4a8c23afe121
   name: Player Aqua
-  overrides: []
-  properties: {}
+  overrides:
+  - camera
+  - visual
+  properties:
+    camera: 41eba3a6-5a45-5eef-86f6-cb77d27f00cd
+    visual: d6074b6d-9f37-51b7-81c6-8d5b1b26ebcf
 - active: true
   attach:
     actor: 3848576c-2fb0-553f-8feb-72dd172934f8
@@ -2107,6 +2442,104 @@ actors:
         looping: true
         play_on_start: true
       terrain: null
+  - class:
+      class_id: c838c844-a361-512a-96e5-242bd7be91c4
+      name: DungeonAudioBindings
+    id: 1c91c567-b1ca-52e3-97c0-d56c006d6fe0
+    name: AudioBindings
+    overrides:
+    - player_shot_source
+    - world_hit_source
+    - robot_hit_source
+    - player_damage_source
+    - enemy_shot_source
+    - robot_destroyed_source
+    - ui_source
+    - music_source
+    properties:
+      enemy_shot_source: 5f04a19f-50c1-50c4-8178-ab0d0b6168bf
+      music_source: c79ea97b-7ff5-5aab-8eaa-4e8fb3755736
+      player_damage_source: a9e7af50-32ba-531f-87bf-979cc2e236e1
+      player_shot_source: 0bbcba23-7412-55fc-ac75-ae11c8c94713
+      robot_destroyed_source: 6fe087d9-bdd3-5d62-af1c-c678fad7f3e0
+      robot_hit_source: 1ec1c778-5de9-5994-96e8-638cb320b679
+      ui_source: 0ceae4b4-2acd-5d3f-b014-51ee0aecd284
+      world_hit_source: 77fc6e59-cafa-5325-bbc8-28ebe00c9604
+  - class:
+      class_id: 42a3ede0-d683-5c4a-b4dd-1a932654f76b
+      name: DungeonEffectBindings
+    id: ffd3c078-4be0-568c-98a3-4c375acac573
+    name: EffectBindings
+    overrides:
+    - effect0
+    - effect1
+    - effect2
+    - effect3
+    - effect4
+    - effect5
+    - effect6
+    - effect7
+    - effect8
+    - effect9
+    - effect10
+    - effect11
+    properties:
+      effect0: 30e8e7e1-e6c4-5918-a327-f4f659685150
+      effect1: 99386b09-ad22-5dc9-8b02-f05d73f123e9
+      effect10: 620951d6-14dc-5ea6-a7b8-1ebe668158de
+      effect11: 2290fec4-24fe-515f-9072-1fb538870b4c
+      effect2: 0396c6e2-19b9-5502-b253-9df5fa385ac7
+      effect3: 18ce7340-5971-53d0-afd3-641477528e3c
+      effect4: d5132932-9390-56e2-8c6c-0ead8d4290ce
+      effect5: d79bdc4d-0f71-5753-b781-16beab8d8401
+      effect6: dfe8c5ab-8420-5e3b-9693-aa9915ad1df5
+      effect7: 5f25856d-f3bd-5447-bf73-84650ed88bd3
+      effect8: 6ccb566c-16e5-5d61-b2f1-8c4dc386f7c3
+      effect9: 68238b00-ae19-5fb5-a543-a218cb406750
+  - class:
+      class_id: 8d2bbf58-44f9-4ef8-adbb-2823ee734ac1
+      name: DungeonGame
+    id: 8dea5cdb-c987-5e0a-9fe6-14b7ca2c44c7
+    name: Dungeon Game
+    overrides:
+    - collision_queries
+    - sound_effects
+    - run_flow
+    - player_actor
+    - player_vitals
+    - projectile_pool
+    - encounter_policy
+    - combat_policy
+    - economy_policy
+    - audio_bindings
+    - encounter_bindings
+    - world_bindings
+    - effect_bindings
+    properties:
+      audio_bindings: 1c91c567-b1ca-52e3-97c0-d56c006d6fe0
+      collision_queries: 66fa4182-81a1-5dbf-b9d3-ec5ff151ddf8
+      combat_policy: f76ff66b-ee77-57ca-ab43-444a972d786f
+      economy_policy: 3e07eeae-69bf-5b68-a4d5-3d4a979f793a
+      effect_bindings: ffd3c078-4be0-568c-98a3-4c375acac573
+      encounter_bindings: be341570-c8cb-5630-80bd-37ed732636bd
+      encounter_policy: 2b09ca0c-2ac1-555e-b02e-aca93cc44cc8
+      player_actor: 3848576c-2fb0-553f-8feb-72dd172934f8
+      player_vitals: 0b433ac4-357f-5976-be24-29ee5e8b7974
+      projectile_pool: 93a4e730-b121-5008-96b0-ac67f84571a1
+      run_flow: ce29e2a0-0e35-5335-a348-f9da76737fa9
+      sound_effects: 48270760-b133-4c2d-bd17-7be72b4fbbf8
+      world_bindings: eea2266e-13e8-58aa-af1c-4a117d770f8d
+  - class:
+      class_id: 070a2ac6-e00f-5e9c-8bd2-560acb25ad2f
+      name: DungeonPlayerVitals
+    id: 0b433ac4-357f-5976-be24-29ee5e8b7974
+    name: Player Vitals
+    overrides:
+    - tuning
+    properties:
+      tuning:
+        hit_immunity: 0.7
+        maximum: 100
   id: 66c867d9-7e24-5d41-8811-00c3d9aebedf
   logical_parent: 3848576c-2fb0-553f-8feb-72dd172934f8
   name: Character Aqua
@@ -2558,8 +2991,6 @@ actors:
   overrides: []
   properties: {}
 - active: true
-  attach:
-    actor: ec46f555-7a0c-59ab-ab8f-4a8c23afe121
   class:
     class_id: fc24ce9b-558c-49de-bc35-e040f350e486
     name: epok::Actor3D
@@ -2627,8 +3058,6 @@ actors:
   overrides: []
   properties: {}
 - active: true
-  attach:
-    actor: ec46f555-7a0c-59ab-ab8f-4a8c23afe121
   class:
     class_id: fc24ce9b-558c-49de-bc35-e040f350e486
     name: epok::Actor3D
@@ -2696,8 +3125,6 @@ actors:
   overrides: []
   properties: {}
 - active: true
-  attach:
-    actor: ec46f555-7a0c-59ab-ab8f-4a8c23afe121
   class:
     class_id: fc24ce9b-558c-49de-bc35-e040f350e486
     name: epok::Actor3D
@@ -2765,8 +3192,6 @@ actors:
   overrides: []
   properties: {}
 - active: true
-  attach:
-    actor: ec46f555-7a0c-59ab-ab8f-4a8c23afe121
   class:
     class_id: fc24ce9b-558c-49de-bc35-e040f350e486
     name: epok::Actor3D
@@ -2834,8 +3259,6 @@ actors:
   overrides: []
   properties: {}
 - active: true
-  attach:
-    actor: ec46f555-7a0c-59ab-ab8f-4a8c23afe121
   class:
     class_id: fc24ce9b-558c-49de-bc35-e040f350e486
     name: epok::Actor3D
@@ -2903,8 +3326,6 @@ actors:
   overrides: []
   properties: {}
 - active: true
-  attach:
-    actor: ec46f555-7a0c-59ab-ab8f-4a8c23afe121
   class:
     class_id: fc24ce9b-558c-49de-bc35-e040f350e486
     name: epok::Actor3D
@@ -2972,8 +3393,6 @@ actors:
   overrides: []
   properties: {}
 - active: true
-  attach:
-    actor: ec46f555-7a0c-59ab-ab8f-4a8c23afe121
   class:
     class_id: fc24ce9b-558c-49de-bc35-e040f350e486
     name: epok::Actor3D
@@ -3041,8 +3460,6 @@ actors:
   overrides: []
   properties: {}
 - active: true
-  attach:
-    actor: ec46f555-7a0c-59ab-ab8f-4a8c23afe121
   class:
     class_id: fc24ce9b-558c-49de-bc35-e040f350e486
     name: epok::Actor3D
@@ -3395,312 +3812,6 @@ actors:
   - class:
       class_id: ed73d249-b6cb-4a3c-a0e8-696de55e286f
       name: epok::SceneComponent3D
-    default_id: cpp:c:@N@epok@S@Actor3D@FI@root
-    id: 07bbdb53-471b-5f8a-b3cb-c88e24a5c835
-    inherited: true
-    name: Root
-    overrides:
-    - position
-    - rotation
-    - scale
-    properties:
-      position:
-      - 0.0
-      - 0.0
-      - 0.0
-      rotation:
-      - 0.0
-      - 0.0
-      - 0.0
-      scale:
-      - 1.0
-      - 1.0
-      - 1.0
-    root: true
-  - class:
-      class_id: 7f0eb028-5301-4ac7-b93b-5665fab12b20
-      name: epok::AudioComponent
-    id: 0bbcba23-7412-55fc-ac75-ae11c8c94713
-    name: AudioComponent
-    overrides:
-    - audio
-    properties:
-      audio:
-        clip: 655f6fcb-fe0a-527a-9295-589c96a3eae0
-        pitch: 1.0
-        play_on_start: false
-        priority: 220
-        volume: 0.47999998927116394
-  id: 825a0c33-1920-58e8-8c83-9a7ebe623bd8
-  logical_parent: ec46f555-7a0c-59ab-ab8f-4a8c23afe121
-  name: Player Weapon Sound
-  overrides: []
-  properties: {}
-- active: true
-  attach:
-    actor: ec46f555-7a0c-59ab-ab8f-4a8c23afe121
-  class:
-    class_id: fc24ce9b-558c-49de-bc35-e040f350e486
-    name: epok::Actor3D
-  components:
-  - class:
-      class_id: ed73d249-b6cb-4a3c-a0e8-696de55e286f
-      name: epok::SceneComponent3D
-    default_id: cpp:c:@N@epok@S@Actor3D@FI@root
-    id: 961d01f9-38d2-57a6-accb-3aafddced163
-    inherited: true
-    name: Root
-    overrides:
-    - position
-    - rotation
-    - scale
-    properties:
-      position:
-      - 0.0
-      - 0.0
-      - 0.0
-      rotation:
-      - 0.0
-      - 0.0
-      - 0.0
-      scale:
-      - 1.0
-      - 1.0
-      - 1.0
-    root: true
-  - class:
-      class_id: 7f0eb028-5301-4ac7-b93b-5665fab12b20
-      name: epok::AudioComponent
-    id: 77fc6e59-cafa-5325-bbc8-28ebe00c9604
-    name: AudioComponent
-    overrides:
-    - audio
-    properties:
-      audio:
-        clip: f610d1dc-4a4f-5a45-9cf6-e56b749fde82
-        pitch: 1.0
-        play_on_start: false
-        priority: 220
-        volume: 0.3199999928474426
-  id: b686cf97-db30-5339-9ad2-1561df88f78a
-  logical_parent: ec46f555-7a0c-59ab-ab8f-4a8c23afe121
-  name: World Impact Sound
-  overrides: []
-  properties: {}
-- active: true
-  attach:
-    actor: ec46f555-7a0c-59ab-ab8f-4a8c23afe121
-  class:
-    class_id: fc24ce9b-558c-49de-bc35-e040f350e486
-    name: epok::Actor3D
-  components:
-  - class:
-      class_id: ed73d249-b6cb-4a3c-a0e8-696de55e286f
-      name: epok::SceneComponent3D
-    default_id: cpp:c:@N@epok@S@Actor3D@FI@root
-    id: 3457c7c7-1aee-5dbc-a9e4-bf09c156168f
-    inherited: true
-    name: Root
-    overrides:
-    - position
-    - rotation
-    - scale
-    properties:
-      position:
-      - 0.0
-      - 0.0
-      - 0.0
-      rotation:
-      - 0.0
-      - 0.0
-      - 0.0
-      scale:
-      - 1.0
-      - 1.0
-      - 1.0
-    root: true
-  - class:
-      class_id: 7f0eb028-5301-4ac7-b93b-5665fab12b20
-      name: epok::AudioComponent
-    id: 1ec1c778-5de9-5994-96e8-638cb320b679
-    name: AudioComponent
-    overrides:
-    - audio
-    properties:
-      audio:
-        clip: 8af6c03e-0699-5c51-ad2b-108c8a3fe07a
-        pitch: 1.0
-        play_on_start: false
-        priority: 220
-        volume: 0.5799999833106995
-  id: ae0d53ab-9bd0-51b5-b227-b8a490a13c69
-  logical_parent: ec46f555-7a0c-59ab-ab8f-4a8c23afe121
-  name: Robot Impact Sound
-  overrides: []
-  properties: {}
-- active: true
-  attach:
-    actor: ec46f555-7a0c-59ab-ab8f-4a8c23afe121
-  class:
-    class_id: fc24ce9b-558c-49de-bc35-e040f350e486
-    name: epok::Actor3D
-  components:
-  - class:
-      class_id: ed73d249-b6cb-4a3c-a0e8-696de55e286f
-      name: epok::SceneComponent3D
-    default_id: cpp:c:@N@epok@S@Actor3D@FI@root
-    id: da61333f-5e74-5034-bae3-43030efd950a
-    inherited: true
-    name: Root
-    overrides:
-    - position
-    - rotation
-    - scale
-    properties:
-      position:
-      - 0.0
-      - 0.0
-      - 0.0
-      rotation:
-      - 0.0
-      - 0.0
-      - 0.0
-      scale:
-      - 1.0
-      - 1.0
-      - 1.0
-    root: true
-  - class:
-      class_id: 7f0eb028-5301-4ac7-b93b-5665fab12b20
-      name: epok::AudioComponent
-    id: a9e7af50-32ba-531f-87bf-979cc2e236e1
-    name: AudioComponent
-    overrides:
-    - audio
-    properties:
-      audio:
-        clip: 7e730347-8663-5c4a-887d-390d7ffd4845
-        pitch: 1.0
-        play_on_start: false
-        priority: 220
-        volume: 0.7200000286102295
-  id: 97a0c69a-44f2-5996-9f55-a0b155dea887
-  logical_parent: ec46f555-7a0c-59ab-ab8f-4a8c23afe121
-  name: Player Damage Sound
-  overrides: []
-  properties: {}
-- active: true
-  attach:
-    actor: ec46f555-7a0c-59ab-ab8f-4a8c23afe121
-  class:
-    class_id: fc24ce9b-558c-49de-bc35-e040f350e486
-    name: epok::Actor3D
-  components:
-  - class:
-      class_id: ed73d249-b6cb-4a3c-a0e8-696de55e286f
-      name: epok::SceneComponent3D
-    default_id: cpp:c:@N@epok@S@Actor3D@FI@root
-    id: 4f901edc-251b-5963-9e48-931848a801e0
-    inherited: true
-    name: Root
-    overrides:
-    - position
-    - rotation
-    - scale
-    properties:
-      position:
-      - 0.0
-      - 0.0
-      - 0.0
-      rotation:
-      - 0.0
-      - 0.0
-      - 0.0
-      scale:
-      - 1.0
-      - 1.0
-      - 1.0
-    root: true
-  - class:
-      class_id: 7f0eb028-5301-4ac7-b93b-5665fab12b20
-      name: epok::AudioComponent
-    id: 5f04a19f-50c1-50c4-8178-ab0d0b6168bf
-    name: AudioComponent
-    overrides:
-    - audio
-    properties:
-      audio:
-        clip: 0bbf757c-46fb-5a24-9e6c-b5241af3a4bd
-        pitch: 1.0
-        play_on_start: false
-        priority: 220
-        volume: 0.3499999940395355
-  id: 37775a90-3912-595f-ba26-f29f553ab895
-  logical_parent: ec46f555-7a0c-59ab-ab8f-4a8c23afe121
-  name: Enemy Weapon Sound
-  overrides: []
-  properties: {}
-- active: true
-  attach:
-    actor: ec46f555-7a0c-59ab-ab8f-4a8c23afe121
-  class:
-    class_id: fc24ce9b-558c-49de-bc35-e040f350e486
-    name: epok::Actor3D
-  components:
-  - class:
-      class_id: ed73d249-b6cb-4a3c-a0e8-696de55e286f
-      name: epok::SceneComponent3D
-    default_id: cpp:c:@N@epok@S@Actor3D@FI@root
-    id: bfda3828-2d29-51f8-b0f5-e1029e5812ee
-    inherited: true
-    name: Root
-    overrides:
-    - position
-    - rotation
-    - scale
-    properties:
-      position:
-      - 0.0
-      - 0.0
-      - 0.0
-      rotation:
-      - 0.0
-      - 0.0
-      - 0.0
-      scale:
-      - 1.0
-      - 1.0
-      - 1.0
-    root: true
-  - class:
-      class_id: 7f0eb028-5301-4ac7-b93b-5665fab12b20
-      name: epok::AudioComponent
-    id: 6fe087d9-bdd3-5d62-af1c-c678fad7f3e0
-    name: AudioComponent
-    overrides:
-    - audio
-    properties:
-      audio:
-        clip: 0cb95f85-bfa4-5e6a-9007-a15a966950ef
-        pitch: 1.0
-        play_on_start: false
-        priority: 220
-        volume: 0.6800000071525574
-  id: 6d55f119-5690-57e7-b954-5fcd709555c2
-  logical_parent: ec46f555-7a0c-59ab-ab8f-4a8c23afe121
-  name: Robot Destruction Sound
-  overrides: []
-  properties: {}
-- active: true
-  attach:
-    actor: ec46f555-7a0c-59ab-ab8f-4a8c23afe121
-  class:
-    class_id: fc24ce9b-558c-49de-bc35-e040f350e486
-    name: epok::Actor3D
-  components:
-  - class:
-      class_id: ed73d249-b6cb-4a3c-a0e8-696de55e286f
-      name: epok::SceneComponent3D
     id: c14c10cc-4423-50f8-80a0-1dac0318b230
     name: Transform
     overrides:
@@ -3771,6 +3882,25 @@ actors:
         - 0.0
       skeletal_mesh: null
       terrain: null
+  - class:
+      class_id: 81e70d57-1589-555f-9a42-fc6ba0683807
+      name: DungeonEconomyStation
+    id: 367abe60-a6af-54e1-b5fa-064c7531c967
+    name: Station Interactable
+    overrides:
+    - hud
+    - menu
+    - input_port
+    - range_3d
+    - horizontal_range
+    - height_range
+    properties:
+      height_range: 2.6
+      horizontal_range: 2.5
+      hud: 3735c331-4a51-5f1b-9274-09d5884aeee2
+      input_port: 0
+      menu: 1
+      range_3d: 3.61
   id: f2e4a8fe-0c60-5990-bdc2-aa77b9a5168c
   logical_parent: ec46f555-7a0c-59ab-ab8f-4a8c23afe121
   name: PocketStation Terminal
@@ -4061,9 +4191,32 @@ actors:
   overrides: []
   properties: {}
 - active: true
+  blueprint_instance:
+    class: b220c109-6a29-53a3-bbbc-dcf880abe73d
+    component_ids:
+      02e5e497-b501-4468-af78-34f46bc694a2: 02e5e497-b501-4468-af78-34f46bc694a2
+      591e6f30-ca14-5c97-bbda-909e29e68c88: 591e6f30-ca14-5c97-bbda-909e29e68c88
+      c1ac01ec-51c9-551c-8474-f0a1ee2bde4f: c1ac01ec-51c9-551c-8474-f0a1ee2bde4f
+    instance: 3735c331-4a51-5f1b-9274-09d5884aeee2
+    overrides:
+      /overrides: &id001
+      - policy
+      - energy_label
+      - energy_bar
+      - energy_panel
+      - boss_bar
+      - reticle
+      - message_panel
+      - objective
+      - key_status
+      - game_message
+      - boss_label
+      - controls_hint
+      /properties/policy: 3e07eeae-69bf-5b68-a4d5-3d4a979f793a
+    template_entity: 3735c331-4a51-5f1b-9274-09d5884aeee2
   class:
-    class_id: b09bd2fa-8b09-4c0f-a33a-c3ca08b21d8f
-    name: epok::UIActor
+    class_id: b220c109-6a29-53a3-bbbc-dcf880abe73d
+    name: DungeonGameHUDWidget
   components:
   - class:
       class_id: dc805165-6c65-48dc-8ff8-4a638a5d21df
@@ -4111,19 +4264,51 @@ actors:
     - image
     properties:
       image:
-        borders: [6, 6, 6, 6]
-        color: [0.88, 0.063, 0.078]
+        borders:
+        - 6
+        - 6
+        - 6
+        - 6
+        color:
+        - 0.8799999952316284
+        - 0.06300000101327896
+        - 0.07800000160932541
         enabled: false
-        region: [0, 0, 0, 0]
+        region:
+        - 0
+        - 0
+        - 0
+        - 0
         texture: null
         tiling: none
   id: 3735c331-4a51-5f1b-9274-09d5884aeee2
   name: Combat HUD
-  overrides: []
-  properties: {}
+  overrides: *id001
+  properties:
+    boss_bar: 2472061b-7141-5411-8cc6-c1facd7a877e
+    boss_label: ad750672-a0c5-5e77-a87a-512ac2a3c9af
+    controls_hint: 088ef10a-eaa4-5c25-8ee4-ecc6de9ad263
+    energy_bar: 41527970-5050-5ecb-8059-3d2d9a517cd2
+    energy_label: e056ed47-a933-5d2d-906d-f52be1798f57
+    energy_panel: d1ff1aed-50b9-5a4c-8ded-459549a7c996
+    game_message: a46ef28d-61c2-5f3a-90af-ca0e50c49627
+    key_status: 9318a32d-8ed1-515c-b900-bfc3a2752ca6
+    message_panel: fdc8f5dc-df6f-5dac-97ef-c52f3b5087fa
+    objective: c250afe2-e00b-5337-9d19-75eb47c5b763
+    policy: 3e07eeae-69bf-5b68-a4d5-3d4a979f793a
+    reticle: be196eb3-131c-5b5c-a544-ba84a53c0c15
 - active: true
   attach:
     actor: 3735c331-4a51-5f1b-9274-09d5884aeee2
+  blueprint_instance:
+    class: b220c109-6a29-53a3-bbbc-dcf880abe73d
+    component_ids:
+      0f594350-11ec-5e8e-aa8b-d39a75a75d8e: 0f594350-11ec-5e8e-aa8b-d39a75a75d8e
+      bfbe78d8-f99c-5f7b-8d14-605f9a78d629: bfbe78d8-f99c-5f7b-8d14-605f9a78d629
+      ff3624cc-ac72-515b-97c5-6bc43f0cc743: ff3624cc-ac72-515b-97c5-6bc43f0cc743
+    instance: 3735c331-4a51-5f1b-9274-09d5884aeee2
+    overrides: {}
+    template_entity: e056ed47-a933-5d2d-906d-f52be1798f57
   class:
     class_id: b09bd2fa-8b09-4c0f-a33a-c3ca08b21d8f
     name: epok::UIActor
@@ -4206,6 +4391,15 @@ actors:
 - active: true
   attach:
     actor: 3735c331-4a51-5f1b-9274-09d5884aeee2
+  blueprint_instance:
+    class: b220c109-6a29-53a3-bbbc-dcf880abe73d
+    component_ids:
+      40806e5e-74b1-5902-8188-9099527def0e: 40806e5e-74b1-5902-8188-9099527def0e
+      502b8689-7aa0-5f99-b8aa-6ccd161acbee: 502b8689-7aa0-5f99-b8aa-6ccd161acbee
+      e6cef06d-2093-55b9-ad11-7524ea303acb: e6cef06d-2093-55b9-ad11-7524ea303acb
+    instance: 3735c331-4a51-5f1b-9274-09d5884aeee2
+    overrides: {}
+    template_entity: 41527970-5050-5ecb-8059-3d2d9a517cd2
   class:
     class_id: b09bd2fa-8b09-4c0f-a33a-c3ca08b21d8f
     name: epok::UIActor
@@ -4290,6 +4484,14 @@ actors:
 - active: true
   attach:
     actor: 3735c331-4a51-5f1b-9274-09d5884aeee2
+  blueprint_instance:
+    class: b220c109-6a29-53a3-bbbc-dcf880abe73d
+    component_ids:
+      c5dc905f-b5b2-57be-a569-38d84ecb4967: c5dc905f-b5b2-57be-a569-38d84ecb4967
+      dc3a4442-c350-5855-9c9a-c375da9bb4f2: dc3a4442-c350-5855-9c9a-c375da9bb4f2
+    instance: 3735c331-4a51-5f1b-9274-09d5884aeee2
+    overrides: {}
+    template_entity: d1ff1aed-50b9-5a4c-8ded-459549a7c996
   class:
     class_id: b09bd2fa-8b09-4c0f-a33a-c3ca08b21d8f
     name: epok::UIActor
@@ -4354,6 +4556,14 @@ actors:
 - active: true
   attach:
     actor: 3735c331-4a51-5f1b-9274-09d5884aeee2
+  blueprint_instance:
+    class: b220c109-6a29-53a3-bbbc-dcf880abe73d
+    component_ids:
+      0f62f83e-e7fc-5d5c-b6de-6cdef06a5227: 0f62f83e-e7fc-5d5c-b6de-6cdef06a5227
+      3ac87331-30db-5727-9f1a-3439f934b47f: 3ac87331-30db-5727-9f1a-3439f934b47f
+    instance: 3735c331-4a51-5f1b-9274-09d5884aeee2
+    overrides: {}
+    template_entity: 2472061b-7141-5411-8cc6-c1facd7a877e
   class:
     class_id: b09bd2fa-8b09-4c0f-a33a-c3ca08b21d8f
     name: epok::UIActor
@@ -4412,6 +4622,14 @@ actors:
 - active: true
   attach:
     actor: 3735c331-4a51-5f1b-9274-09d5884aeee2
+  blueprint_instance:
+    class: b220c109-6a29-53a3-bbbc-dcf880abe73d
+    component_ids:
+      9fd3c0f2-c3ce-5bc8-b150-d0776d3a72dd: 9fd3c0f2-c3ce-5bc8-b150-d0776d3a72dd
+      e6277360-73b9-5ded-9583-3b4886194c30: e6277360-73b9-5ded-9583-3b4886194c30
+    instance: 3735c331-4a51-5f1b-9274-09d5884aeee2
+    overrides: {}
+    template_entity: be196eb3-131c-5b5c-a544-ba84a53c0c15
   class:
     class_id: b09bd2fa-8b09-4c0f-a33a-c3ca08b21d8f
     name: epok::UIActor
@@ -4552,6 +4770,25 @@ actors:
         layer: 1
         mask: 4294967295
         trigger: false
+  - class:
+      class_id: 81e70d57-1589-555f-9a42-fc6ba0683807
+      name: DungeonEconomyStation
+    id: 6872f85e-d931-5930-aa91-30902b37f331
+    name: Station Interactable
+    overrides:
+    - hud
+    - menu
+    - input_port
+    - range_3d
+    - horizontal_range
+    - height_range
+    properties:
+      height_range: 2.6
+      horizontal_range: 2.5
+      hud: 3735c331-4a51-5f1b-9274-09d5884aeee2
+      input_port: 0
+      menu: 2
+      range_3d: 3.61
   id: fcc1931b-1472-54a8-a01d-95fa497ece3d
   logical_parent: ec46f555-7a0c-59ab-ab8f-4a8c23afe121
   name: Trading PC
@@ -4560,6 +4797,14 @@ actors:
 - active: true
   attach:
     actor: 3735c331-4a51-5f1b-9274-09d5884aeee2
+  blueprint_instance:
+    class: b220c109-6a29-53a3-bbbc-dcf880abe73d
+    component_ids:
+      5cd570f4-2c29-57c4-a05d-a47641ce05f0: 5cd570f4-2c29-57c4-a05d-a47641ce05f0
+      e46aa5e9-4341-56b8-840e-c04999636569: e46aa5e9-4341-56b8-840e-c04999636569
+    instance: 3735c331-4a51-5f1b-9274-09d5884aeee2
+    overrides: {}
+    template_entity: fdc8f5dc-df6f-5dac-97ef-c52f3b5087fa
   class:
     class_id: b09bd2fa-8b09-4c0f-a33a-c3ca08b21d8f
     name: epok::UIActor
@@ -4624,6 +4869,14 @@ actors:
 - active: true
   attach:
     actor: 3735c331-4a51-5f1b-9274-09d5884aeee2
+  blueprint_instance:
+    class: b220c109-6a29-53a3-bbbc-dcf880abe73d
+    component_ids:
+      2ebe5e0d-49f7-5831-9b5a-f06324284b58: 2ebe5e0d-49f7-5831-9b5a-f06324284b58
+      959aa021-47c9-51f4-bb6a-d45f50aafdad: 959aa021-47c9-51f4-bb6a-d45f50aafdad
+    instance: 3735c331-4a51-5f1b-9274-09d5884aeee2
+    overrides: {}
+    template_entity: c250afe2-e00b-5337-9d19-75eb47c5b763
   class:
     class_id: b09bd2fa-8b09-4c0f-a33a-c3ca08b21d8f
     name: epok::UIActor
@@ -4680,6 +4933,14 @@ actors:
 - active: true
   attach:
     actor: 3735c331-4a51-5f1b-9274-09d5884aeee2
+  blueprint_instance:
+    class: b220c109-6a29-53a3-bbbc-dcf880abe73d
+    component_ids:
+      12cbb216-28ef-5b06-aeda-04c32e9334d7: 12cbb216-28ef-5b06-aeda-04c32e9334d7
+      39e07d71-be58-55fe-a743-3499d8107585: 39e07d71-be58-55fe-a743-3499d8107585
+    instance: 3735c331-4a51-5f1b-9274-09d5884aeee2
+    overrides: {}
+    template_entity: 9318a32d-8ed1-515c-b900-bfc3a2752ca6
   class:
     class_id: b09bd2fa-8b09-4c0f-a33a-c3ca08b21d8f
     name: epok::UIActor
@@ -4736,6 +4997,14 @@ actors:
 - active: true
   attach:
     actor: 3735c331-4a51-5f1b-9274-09d5884aeee2
+  blueprint_instance:
+    class: b220c109-6a29-53a3-bbbc-dcf880abe73d
+    component_ids:
+      180c77a9-a464-527a-bb61-a1c5dd1710ed: 180c77a9-a464-527a-bb61-a1c5dd1710ed
+      d995f746-b5be-5028-8ee1-7599d43f1afb: d995f746-b5be-5028-8ee1-7599d43f1afb
+    instance: 3735c331-4a51-5f1b-9274-09d5884aeee2
+    overrides: {}
+    template_entity: a46ef28d-61c2-5f3a-90af-ca0e50c49627
   class:
     class_id: b09bd2fa-8b09-4c0f-a33a-c3ca08b21d8f
     name: epok::UIActor
@@ -4792,6 +5061,14 @@ actors:
 - active: true
   attach:
     actor: 3735c331-4a51-5f1b-9274-09d5884aeee2
+  blueprint_instance:
+    class: b220c109-6a29-53a3-bbbc-dcf880abe73d
+    component_ids:
+      31a6783d-a936-506e-9f35-ad0a46f0e5f1: 31a6783d-a936-506e-9f35-ad0a46f0e5f1
+      e51ac8a9-4d44-5e6f-af35-02886153b61d: e51ac8a9-4d44-5e6f-af35-02886153b61d
+    instance: 3735c331-4a51-5f1b-9274-09d5884aeee2
+    overrides: {}
+    template_entity: ad750672-a0c5-5e77-a87a-512ac2a3c9af
   class:
     class_id: b09bd2fa-8b09-4c0f-a33a-c3ca08b21d8f
     name: epok::UIActor
@@ -4848,6 +5125,14 @@ actors:
 - active: true
   attach:
     actor: 3735c331-4a51-5f1b-9274-09d5884aeee2
+  blueprint_instance:
+    class: b220c109-6a29-53a3-bbbc-dcf880abe73d
+    component_ids:
+      71c8f4c3-2fad-506c-b50f-508715b313c7: 71c8f4c3-2fad-506c-b50f-508715b313c7
+      da4d4cc8-4840-55b1-87d4-8d672c1def82: da4d4cc8-4840-55b1-87d4-8d672c1def82
+    instance: 3735c331-4a51-5f1b-9274-09d5884aeee2
+    overrides: {}
+    template_entity: 088ef10a-eaa4-5c25-8ee4-ecc6de9ad263
   class:
     class_id: b09bd2fa-8b09-4c0f-a33a-c3ca08b21d8f
     name: epok::UIActor
@@ -13110,4 +13395,5 @@ scene_script:
   parent:
     class_id: b4c08aa0-fa85-4abf-8f45-7501e1c8a040
     name: epok::SceneScriptActor
-version: 6
+spawn_reserve: 6
+version: 8

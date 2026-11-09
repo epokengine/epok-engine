@@ -4,6 +4,7 @@ use std::{collections::BTreeMap, path::Path};
 
 #[derive(Clone, Debug)]
 pub struct Registry {
+    pub demanded_classes: std::collections::BTreeSet<String>,
     pub classes: BTreeMap<String, schema::Class>,
     /// One compiler-facing operation catalog for instance methods and static
     /// function libraries. Frontends never maintain independent signatures.
@@ -65,6 +66,7 @@ impl Registry {
     }
     pub fn new() -> Self {
         Self {
+            demanded_classes: Default::default(),
             classes: BTreeMap::new(),
             operations: BTreeMap::new(),
             function_libraries: BTreeMap::new(),
@@ -279,16 +281,32 @@ impl Registry {
     ) -> Result<crate::object_model::Model, Vec<crate::object_model::Diagnostic>> {
         crate::object_model::Model::from_registry(self)
     }
-    pub fn properties(&self, name: &str) -> Vec<&schema::Property> {
+    pub fn properties(&self, name: &str) -> Vec<schema::Property> {
         // Legacy catalog entries already contain flattened inherited fields.
         // Resolve by name once; semantic classes reject shadowing during discovery.
         let mut properties = BTreeMap::new();
         for class in self.ancestry(name) {
             for property in &class.properties {
-                properties.insert(&property.name, property);
+                properties.insert(property.name.clone(), property.clone());
+            }
+            for (name, value) in &class.default_overrides {
+                if let Some(property) = properties.get_mut(name) {
+                    property.default = value.clone();
+                }
             }
         }
         properties.into_values().collect()
+    }
+    pub fn default_value(&self, class: &str, name: &str) -> Option<&serde_json::Value> {
+        for class in self.ancestry(class).into_iter().rev() {
+            if let Some(value) = class.default_overrides.get(name) {
+                return Some(value);
+            }
+            if let Some(property) = class.properties.iter().find(|p| p.name == name) {
+                return Some(&property.default);
+            }
+        }
+        None
     }
 }
 /// Obtain the actual root signatures even in a project with no user C++ class.
@@ -309,6 +327,7 @@ pub fn native_registry(root: &Path, scripts: &[Script]) -> Result<Registry, Stri
         registry.value_types.insert(value.id.clone(), value);
     }
     registry.normalize_functions();
+    registry.demanded_classes = crate::game_helpers::source_demands(root, &registry)?;
     Ok(registry)
 }
 /// Legacy sidecars remain a compatibility provider. They have no fabricated function

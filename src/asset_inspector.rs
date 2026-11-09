@@ -40,6 +40,7 @@ pub struct State {
     pub model_dirty: bool,
     pub media: Cache,
     pub video: crate::video_preview::VideoPreview,
+    dialogue_styles: crate::dialogue_style_inspector::Drafts,
     height: f32,
     collapsed: bool,
     image_zoom: f32,
@@ -58,6 +59,7 @@ impl Default for State {
             model_dirty: true,
             media: Cache::inspector(),
             video: Default::default(),
+            dialogue_styles: Default::default(),
             height: 260.,
             collapsed: false,
             image_zoom: 1.,
@@ -158,6 +160,10 @@ pub fn draw(ui: &Ui, e: &mut Editor) {
                 ui.text_disabled("Loading file details...");
             }
             ui.spacing();
+            let style_record=e.assets.index.usable().find(|r|r.path==path&&r.meta.kind==Kind::DialogueStyle).cloned();
+            if let Some(record)=style_record && crate::dialogue_style_inspector::draw(ui,&mut state.dialogue_styles,&e.root,&record,&e.assets.index) {
+                e.assets.refresh();state.checked=None;
+            }
             let audio_record = e
                 .assets
                 .index
@@ -602,6 +608,8 @@ fn load(root: &Path, path: &Path, index: &Index) -> Result<Details, String> {
             Kind::Font => "Font",
             Kind::TileSet => "TileSet",
             Kind::StringTable => "String Table",
+            Kind::Dialogue => "Dialogue",
+            Kind::DialogueStyle => "Dialogue Style",
             Kind::DataTable => "Data Table",
             Kind::DungeonStyle => "Dungeon Style",
             Kind::DungeonRecipe => "Dungeon Recipe",

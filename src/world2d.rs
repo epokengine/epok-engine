@@ -891,8 +891,14 @@ pub fn project_uses_world2d<'a>(
 ) -> bool {
     scenes.into_iter().any(scene_uses_world2d)
         || registry.classes.values().any(|class| {
-            class.domain == Some(crate::reflection_schema::Domain::World2D)
-                && !engine_2d_class(&class.id)
+            registry
+                .ancestry(&class.cpp_name)
+                .iter()
+                .rev()
+                .find_map(|c| c.domain)
+                == Some(crate::reflection_schema::Domain::World2D)
+                && ((!engine_2d_class(&class.id) && !crate::game_helpers::optional(&class.id))
+                    || registry.demanded_classes.contains(&class.id))
         })
 }
 /// `#define`s that switch the World2D service on for this build and size it, or nothing
