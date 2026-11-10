@@ -5,6 +5,7 @@
 #include <crtdbg.h>
 #endif
 namespace epok {
+int entity_index(const ActorData*){return -1;}
 void AudioSource::stop(){}
 ActorData* DataHandle::get()const{return nullptr;}
 DataHandle handle(const ActorData*){return {};}

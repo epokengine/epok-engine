@@ -38,6 +38,7 @@ fn native_class(id: &str, cpp_name: &str, parent: Option<&str>) -> schema::Class
         component: None,
         default_components: vec![],
         explicit_abstract: false,
+        default_overrides: Default::default(),
         id: id.into(),
         provider: schema::native_provider(),
         backend: schema::native_backend(),
@@ -110,6 +111,7 @@ fn actor_registry() -> Registry {
         placeable: true,
         spawnable: true,
         scene_managed: false,
+        placed_only: false,
     };
 
     let mut component = native_class(om::ACTOR_COMPONENT_ID, "epok::ActorComponent", None);

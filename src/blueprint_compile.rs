@@ -434,12 +434,30 @@ fn validate_resources(
             }
         }
     }
+    let compositions = crate::class_composition::load(root)
+        .and_then(|index| {
+            index.validate(root, registry)?;
+            Ok(index.templates())
+        })
+        .map_err(|message| {
+            vec![Diagnostic {
+                asset: root.into(),
+                graph: None,
+                node: None,
+                message,
+            }]
+        })?;
     let templates = files
         .iter()
         .map(|file| {
-            crate::blueprint_templates::resolve_assets(files, registry, &file.asset.id)
-                .map(|template| (file, template))
-                .map_err(|e| vec![diagnostic(file, e)])
+            crate::blueprint_templates::resolve_class(
+                files,
+                registry,
+                &file.asset.id,
+                &compositions,
+            )
+            .map(|template| (file, template))
+            .map_err(|e| vec![diagnostic(file, e)])
         })
         .collect::<Result<Vec<_>, _>>()?;
     let mut dependencies = ValidatedResources::default();
@@ -595,6 +613,9 @@ fn declarations(file: &AssetFile, registry: &Registry) -> Result<schema::Class, 
             names.insert(f.name.clone());
             ids.insert(f.id.clone());
         }
+    }
+    for property in registry.properties(&parent.cpp_name) {
+        properties.insert(property.id.clone(), property);
     }
     let mut own = vec![];
     for (id, value) in &a.defaults {
@@ -796,6 +817,7 @@ fn declarations(file: &AssetFile, registry: &Registry) -> Result<schema::Class, 
         component: a.component.clone(),
         default_components: vec![],
         explicit_abstract: false,
+        default_overrides: Default::default(),
         id: a.id.clone(),
         provider: provider(),
         backend: schema::native_backend(),
@@ -914,7 +936,7 @@ fn expects_latent(asset: &asset::BlueprintAsset) -> bool {
 
 fn debug_members(properties: &BTreeMap<String, schema::Property>, class_id: &str) -> String {
     let mut output = format!(
-        "#if defined(EPOK_BLUEPRINT_TRACE) && EPOK_BLUEPRINT_TRACE\nvoid epok_debug(uint32_t node){{epok::bp::debug_begin({}u,node,this->id());\n",
+        "#if defined(EPOK_BLUEPRINT_TRACE) && EPOK_BLUEPRINT_TRACE\nvoid epok_debug(uint32_t node) const{{epok::bp::debug_begin({}u,node,this->id());\n",
         trace_id(class_id)
     );
     for property in properties.values() {
@@ -1344,6 +1366,7 @@ fn register_declarations(
         registry.classes.insert(class.id.clone(), class);
     }
     registry.normalize_functions();
+    infer_local_purity(&mut registry, order);
     Ok(registry)
 }
 
@@ -1356,6 +1379,103 @@ pub fn declaration_registry(
     files: &[AssetFile],
 ) -> Result<Registry, Vec<Diagnostic>> {
     register_declarations(native, &declaration_order(native, files)?)
+}
+
+/// Prove local authored helpers without adding an asset/schema flag. Start
+/// with no authored bodies proven, so forward chains settle to a fixed point
+/// while cycles (including calls through reflected override aliases) do not.
+fn infer_local_purity(registry: &mut Registry, files: &[&AssetFile]) {
+    let authored: BTreeSet<_> = files
+        .iter()
+        .flat_map(|file| file.asset.functions.iter().map(|graph| graph.id.clone()))
+        .collect();
+    let mut proven = BTreeSet::new();
+    loop {
+        // Const inherited contracts remain mandatory even when a body fails
+        // the proof: ordinary lowering must still reject its mutating nodes.
+        registry.normalize_functions();
+        let mut added = Vec::new();
+        for file in files {
+            let class = &registry.classes[&file.asset.id];
+            let mut parent_functions = BTreeMap::new();
+            let parent_name = class
+                .parent
+                .as_ref()
+                .and_then(|id| registry.classes.get(id))
+                .map_or("", |parent| parent.cpp_name.as_str());
+            for ancestor in registry.ancestry(parent_name) {
+                for function in &ancestor.functions {
+                    insert_function(&mut parent_functions, function);
+                }
+            }
+            let mut functions = parent_functions.clone();
+            for function in &class.functions {
+                insert_function(&mut functions, function);
+            }
+            for graph in &file.asset.functions {
+                if proven.contains(&graph.id) {
+                    continue;
+                }
+                let parent = graph
+                    .override_id
+                    .as_ref()
+                    .and_then(|id| parent_functions.get(id));
+                let read_only = graph.compilation_nodes().all(|node| {
+                    let callee = match &node.kind {
+                        asset::NodeKind::Call { function } => functions.get(function).cloned(),
+                        asset::NodeKind::CallParent => parent.cloned(),
+                        asset::NodeKind::CallOn { class, function } => {
+                            ir::call_on_function(registry, class, function).ok()
+                        }
+                        asset::NodeKind::Operation { operation } => registry
+                            .operation(operation)
+                            .and_then(|op| match &op.receiver {
+                                schema::ReceiverKind::Instance { class } => {
+                                    ir::call_on_function(registry, class, &op.id).ok()
+                                }
+                                _ => None,
+                            }),
+                        _ => None,
+                    };
+                    // A reflected pure signature alone cannot prove an authored
+                    // body; this also prevents optimistic proofs of cycles.
+                    if callee
+                        .as_ref()
+                        .is_some_and(|f| authored.contains(&f.id) && !proven.contains(&f.id))
+                    {
+                        return false;
+                    }
+                    ir::pure_node_read_only(node, registry, &functions, parent)
+                });
+                if read_only {
+                    added.push((
+                        file.asset.id.clone(),
+                        graph.id.clone(),
+                        graph.override_id.is_none(),
+                    ));
+                }
+            }
+        }
+        if added.is_empty() {
+            break;
+        }
+        for (class, function, local) in added {
+            proven.insert(function.clone());
+            // An impure native event cannot acquire a const override. Only
+            // custom helpers get a newly inferred callable signature.
+            if local {
+                registry
+                    .classes
+                    .get_mut(&class)
+                    .unwrap()
+                    .functions
+                    .iter_mut()
+                    .find(|f| f.id == function)
+                    .unwrap()
+                    .pure = true;
+            }
+        }
+    }
 }
 
 pub fn compile(
@@ -1781,6 +1901,9 @@ pub fn compile(
                 insert_function(&mut functions, f);
             }
         }
+        for property in registry.properties(&parent.cpp_name) {
+            properties.insert(property.id.clone(), property);
+        }
         for p in &class.properties {
             properties.insert(p.id.clone(), p.clone());
         }
@@ -1973,9 +2096,10 @@ pub fn compile(
                 .map_err(|e| vec![diagnostic(file, e)])?
                 .join(",");
             text.push_str(&format!(
-                "virtual {} {}({parameters}){} {{\n",
+                "virtual {} {}({parameters}){}{} {{\n",
                 ir::cpp_type(&lowered.signature.returns).map_err(|e| vec![diagnostic(file, e)])?,
                 lowered.signature.name,
+                if signature.pure { " const" } else { "" },
                 if graph.override_id.is_some() && !renamed {
                     " override"
                 } else {
@@ -2097,6 +2221,10 @@ pub fn compile(
             }
         }
         text.push_str("};\n");
+        artifacts.runtime_capabilities.extend(
+            crate::script_backend::native_requirements(&text)
+                .map_err(|message| vec![diagnostic(file, message)])?,
+        );
         let header = PathBuf::from(format!("generated/{}.hpp", a.id));
         let artifact_header = Path::new("scripts").join(&header);
         artifacts.files.insert(artifact_header, text.into_bytes());
@@ -2159,6 +2287,111 @@ mod tests {
     fn id(n: u128) -> String {
         uuid::Uuid::from_u128(n).to_string()
     }
+    #[test]
+    fn synchronous_forward_join_keeps_one_source_node_and_continuation() {
+        let mut file = asset();
+        let mut entry = node(10, NodeKind::Entry);
+        entry.outputs.insert("next".into(), vec![id(11)]);
+        let mut branch = node(11, NodeKind::Branch);
+        branch.inputs.insert(
+            "condition".into(),
+            Input::Literal {
+                value_type: schema::Type::Bool,
+                value: json!(true),
+            },
+        );
+        branch.outputs.insert("true".into(), vec![id(12)]);
+        branch.outputs.insert("false".into(), vec![id(13)]);
+        let assign = |node_id, value, next| {
+            let mut write = node(node_id, NodeKind::SetVariable { member: id(2) });
+            write.inputs.insert(
+                "value".into(),
+                Input::Literal {
+                    value_type: schema::Type::Fixed,
+                    value: json!(value),
+                },
+            );
+            write.outputs.insert("next".into(), vec![id(next)]);
+            write
+        };
+        file.asset.functions.push(event(vec![
+            entry,
+            branch,
+            assign(12, 1, 14),
+            assign(13, 2, 14),
+            assign(14, 3, 15),
+            node(15, NodeKind::Return),
+        ]));
+        let source = generated(&compile(Path::new(""), &registry(), &[file]).unwrap());
+        let marker = format!("Blueprint/{}/{}/{}", id(4), id(5), id(14));
+        assert_eq!(
+            source.matches(&marker).count(),
+            1,
+            "Shared authored join must keep one emitted/source-attributed continuation"
+        );
+    }
+    #[test]
+    fn shared_join_retains_explicit_getter_snapshot_across_both_mutating_arms() {
+        let (mut native, mut file) = pure_helper_fixture();
+        native.classes.get_mut(&id(1)).unwrap().functions[0].pure = false;
+        file.asset.defaults.insert(id(2), json!(35));
+        let graph = &mut file.asset.functions[0];
+        graph.nodes[0].outputs.insert("next".into(), vec![id(11)]);
+        graph.nodes[1].outputs.insert("next".into(), vec![id(14)]);
+        let mut branch = node(14, NodeKind::Branch);
+        branch.inputs.insert(
+            "condition".into(),
+            Input::Literal {
+                value_type: schema::Type::Bool,
+                value: json!(true),
+            },
+        );
+        branch.outputs.insert("true".into(), vec![id(13)]);
+        branch.outputs.insert("false".into(), vec![id(15)]);
+        graph.nodes.push(branch);
+        for (node_id, value) in [(13, 0), (15, 1)] {
+            let mut write = node(node_id, NodeKind::SetVariable { member: id(2) });
+            write.inputs.insert(
+                "value".into(),
+                Input::Literal {
+                    value_type: schema::Type::Fixed,
+                    value: json!(value),
+                },
+            );
+            write.outputs.insert("next".into(), vec![id(12)]);
+            graph.nodes.push(write);
+        }
+        let source = generated(&compile(Path::new(""), &native, &[file]).unwrap());
+        let body = source
+            .split("virtual epok::Fixed damage(")
+            .nth(1)
+            .unwrap()
+            .split("virtual ")
+            .next()
+            .unwrap();
+        let temporary = format!("epok_result_{}", id(11).replace('-', ""));
+        let capture = body.find(&format!("{temporary}=")).unwrap();
+        let mutation = body.find("this->health").unwrap();
+        let returned = body.find(&format!("return {temporary};")).unwrap();
+        assert!(capture < mutation && mutation < returned, "{body}");
+        assert_eq!(
+            body.matches("this->bounded(").count(),
+            1,
+            "Never reread after mutation"
+        );
+        assert_eq!(
+            body.matches(&format!("return {temporary};")).count(),
+            1,
+            "Shared return joins once"
+        );
+        let marker = format!("Blueprint/{}/{}/{}", id(4), id(5), id(12));
+        assert_eq!(
+            source.matches(&marker).count(),
+            1,
+            "Capture use remains at the shared authored join"
+        );
+    }
+
     fn registry() -> Registry {
         let class = schema::Class {
             family: None,
@@ -2167,6 +2400,7 @@ mod tests {
             component: None,
             default_components: vec![],
             explicit_abstract: false,
+            default_overrides: Default::default(),
             id: id(1),
             provider: schema::native_provider(),
             backend: schema::native_backend(),
@@ -2291,6 +2525,295 @@ mod tests {
         assert!(generated(&result).contains("void damage(epok::Fixed amount) override"));
         f.asset.functions[0].parameters[0].value_type = schema::Type::Bool;
         assert!(error(f).contains("signature differs"));
+    }
+    #[test]
+    fn pure_event_overrides_are_const_and_reject_mutation() {
+        let mut registry = registry();
+        let query = &mut registry.classes.get_mut(&id(1)).unwrap().functions[0];
+        query.pure = true;
+        query.returns = schema::Type::Bool;
+        let mut file = asset();
+        let mut entry = node(10, NodeKind::Entry);
+        let mut parent = node(11, NodeKind::CallParent);
+        parent.inputs.insert(
+            "amount".into(),
+            Input::Parameter {
+                name: "amount".into(),
+            },
+        );
+        let mut returned = node(12, NodeKind::Return);
+        returned.inputs.insert(
+            "value".into(),
+            Input::Link {
+                node: id(11),
+                pin: "value".into(),
+            },
+        );
+        entry.outputs.insert("next".into(), vec![id(11)]);
+        parent.outputs.insert("next".into(), vec![id(12)]);
+        let mut graph = event(vec![entry, parent, returned]);
+        graph.returns = schema::Type::Bool;
+        file.asset.functions.push(graph);
+        let result = compile(Path::new(""), &registry, &[file.clone()]).unwrap();
+        assert!(generated(&result).contains("bool damage(epok::Fixed amount) const override"));
+        let mut write = node(13, NodeKind::SetVariable { member: id(2) });
+        write.inputs.insert(
+            "value".into(),
+            Input::Literal {
+                value_type: schema::Type::Fixed,
+                value: json!(1),
+            },
+        );
+        write.outputs.insert("next".into(), vec![id(11)]);
+        file.asset.functions[0].nodes[0]
+            .outputs
+            .insert("next".into(), vec![id(13)]);
+        file.asset.functions[0].nodes.push(write);
+        let errors = compile(Path::new(""), &registry, &[file]).err().unwrap();
+        assert!(
+            errors[0]
+                .to_string()
+                .contains("Pure functions cannot mutate")
+        );
+    }
+    fn pure_helper_fixture() -> (Registry, AssetFile) {
+        let mut native = registry();
+        native.classes.get_mut(&id(1)).unwrap().functions[0].pure = true;
+        native.classes.get_mut(&id(1)).unwrap().functions[0].returns = schema::Type::Fixed;
+        let mut file = asset();
+        let helper = |graph_id, name: &str, first, value: Node| {
+            let mut entry = node(first, NodeKind::Entry);
+            let mut returned = node(first + 1, NodeKind::Return);
+            entry
+                .outputs
+                .insert("next".into(), vec![returned.id.clone()]);
+            returned.inputs.insert(
+                "value".into(),
+                Input::Link {
+                    node: value.id.clone(),
+                    pin: "value".into(),
+                },
+            );
+            Graph {
+                id: id(graph_id),
+                name: name.into(),
+                override_id: None,
+                timeline: None,
+                parameters: vec![],
+                returns: schema::Type::Fixed,
+                entry: entry.id.clone(),
+                nodes: vec![entry, returned, value],
+            }
+        };
+        let mut event = event(vec![
+            node(10, NodeKind::Entry),
+            node(11, NodeKind::Call { function: id(100) }),
+            node(12, NodeKind::Return),
+        ]);
+        event.returns = schema::Type::Fixed;
+        event.nodes[0].outputs.insert("next".into(), vec![id(12)]);
+        event.nodes[2].inputs.insert(
+            "value".into(),
+            Input::Link {
+                node: id(11),
+                pin: "value".into(),
+            },
+        );
+        // Deliberately forward-declared and in reverse dependency order.
+        file.asset.functions = vec![
+            event,
+            helper(
+                100,
+                "bounded",
+                1000,
+                node(1002, NodeKind::Call { function: id(101) }),
+            ),
+            helper(
+                101,
+                "bounded_size",
+                1010,
+                node(1012, NodeKind::GetVariable { member: id(2) }),
+            ),
+        ];
+        (native, file)
+    }
+    #[test]
+    fn pure_local_helpers_follow_forward_dependencies_without_changing_assets() {
+        let (native, file) = pure_helper_fixture();
+        let source = serde_json::to_vec(&file.asset).unwrap();
+        let result = compile(Path::new(""), &native, std::slice::from_ref(&file)).unwrap();
+        let cpp = generated(&result);
+        assert!(
+            cpp.contains("epok::Fixed damage(epok::Fixed amount) const override"),
+            "{cpp}"
+        );
+        assert!(cpp.contains("epok::Fixed bounded() const"), "{cpp}");
+        assert!(cpp.contains("epok::Fixed bounded_size() const"), "{cpp}");
+        assert!(
+            result.registry.classes[&id(4)]
+                .functions
+                .iter()
+                .all(|f| f.pure)
+        );
+        let early = declaration_registry(&native, std::slice::from_ref(&file)).unwrap();
+        assert_eq!(
+            serde_json::to_vec(&early.classes[&id(4)].functions).unwrap(),
+            serde_json::to_vec(&result.registry.classes[&id(4)].functions).unwrap(),
+            "Early dependency snapshots and emitted callable contracts must agree"
+        );
+        assert_eq!(source, serde_json::to_vec(&file.asset).unwrap());
+    }
+    #[test]
+    fn explicit_exec_read_is_captured_before_write_even_when_helper_is_inferred_pure() {
+        let (mut native, mut file) = pure_helper_fixture();
+        // This event is impure/non-const; only its readonly helpers may become
+        // const. Starting health35, capture read -> set health0 -> return old35.
+        native.classes.get_mut(&id(1)).unwrap().functions[0].pure = false;
+        file.asset.defaults.insert(id(2), json!(35));
+        let graph = &mut file.asset.functions[0];
+        graph.nodes[0].outputs.insert("next".into(), vec![id(11)]);
+        graph.nodes[1].outputs.insert("next".into(), vec![id(13)]);
+        let mut write = node(13, NodeKind::SetVariable { member: id(2) });
+        write.inputs.insert(
+            "value".into(),
+            Input::Literal {
+                value_type: schema::Type::Fixed,
+                value: json!(0),
+            },
+        );
+        write.outputs.insert("next".into(), vec![id(12)]);
+        graph.nodes.push(write);
+        let compiled = compile(Path::new(""), &native, &[file.clone()]).unwrap();
+        let cpp = generated(&compiled);
+        let body = cpp
+            .split("virtual epok::Fixed damage(")
+            .nth(1)
+            .unwrap()
+            .split("virtual ")
+            .next()
+            .unwrap();
+        let temporary = format!("epok_result_{}", id(11).replace('-', ""));
+        let capture = body.find(&format!("{temporary}=")).unwrap();
+        let mutation = body.find("this->health").unwrap();
+        let returned = body.find(&format!("return {temporary};")).unwrap();
+        assert!(capture < mutation && mutation < returned, "{body}");
+        assert_eq!(
+            body.matches("this->bounded(").count(),
+            1,
+            "The captured read must never be reissued after mutation: {body}"
+        );
+        assert!(!compiled.registry.classes[&id(4)].functions[0].pure);
+        assert!(
+            !body.contains("const override"),
+            "Impure lifecycle/event overrides must stay non-const"
+        );
+        assert!(
+            compiled.registry.classes[&id(4)].functions[1..]
+                .iter()
+                .all(|f| f.pure)
+        );
+
+        // Explicitly wired reads still require execution on EVERY path. A
+        // pure signature cannot silently synthesize a fresh read on the path
+        // that skipped the original evaluation point.
+        let graph = &mut file.asset.functions[0];
+        let mut branch = node(14, NodeKind::Branch);
+        branch.inputs.insert(
+            "condition".into(),
+            Input::Literal {
+                value_type: schema::Type::Bool,
+                value: json!(true),
+            },
+        );
+        branch.outputs.insert("true".into(), vec![id(11)]);
+        branch.outputs.insert("false".into(), vec![id(12)]);
+        graph.nodes[0].outputs.insert("next".into(), vec![id(14)]);
+        graph.nodes.push(branch);
+        let errors = compile(Path::new(""), &native, &[file]).err().unwrap();
+        assert!(
+            errors[0]
+                .to_string()
+                .contains("only available after its execution on every incoming path"),
+            "{}",
+            errors[0]
+        );
+    }
+    #[test]
+    fn pure_local_helper_chains_reject_writes_suspension_and_impure_calls() {
+        let (native, file) = pure_helper_fixture();
+        for kind in [
+            NodeKind::SetVariable { member: id(2) },
+            NodeKind::Delay,
+            NodeKind::Builtin {
+                operation: asset::Builtin::RequestScene,
+            },
+            NodeKind::Operation {
+                operation: "unknown-operation".into(),
+            },
+        ] {
+            let mut file = file.clone();
+            let mut effect = node(1013, kind);
+            effect.outputs.insert("next".into(), vec![id(1011)]);
+            file.asset.functions[2].nodes[0]
+                .outputs
+                .insert("next".into(), vec![id(1013)]);
+            file.asset.functions[2].nodes.push(effect);
+            let errors = compile(Path::new(""), &native, &[file]).err().unwrap();
+            assert!(
+                errors[0]
+                    .to_string()
+                    .contains("Pure functions cannot mutate"),
+                "{}",
+                errors[0]
+            );
+        }
+        // A reflected pure override alias is not a proof of its authored body:
+        // event -> bounded -> bounded_size -> native event UUID is a cycle.
+        let mut file = file;
+        file.asset.functions[2].nodes[2].kind = NodeKind::Call { function: id(3) };
+        let files = [file.clone()];
+        let order = declaration_order(&native, &files).unwrap();
+        let mut declarations = register_declarations(&native, &order).unwrap();
+        infer_local_purity(&mut declarations, &[&file]);
+        assert!(declarations.classes[&id(4)].functions[0].pure);
+        assert!(
+            declarations.classes[&id(4)].functions[1..]
+                .iter()
+                .all(|f| !f.pure)
+        );
+    }
+    #[test]
+    fn pure_node_inference_uses_the_same_operation_effect_policy() {
+        let mut registry = registry();
+        registry.normalize_functions();
+        let mut operation = registry.operations.values().next().unwrap().clone();
+        operation.id = "purity-effect-test".into();
+        let check = node(
+            90,
+            NodeKind::Operation {
+                operation: operation.id.clone(),
+            },
+        );
+        for effect in [
+            schema::OperationEffect::PureValue,
+            schema::OperationEffect::StateRead,
+            schema::OperationEffect::Mutation,
+            schema::OperationEffect::EventConsumption,
+            schema::OperationEffect::AsyncRequest,
+            schema::OperationEffect::ResourceAcquisition,
+        ] {
+            operation.effect = effect;
+            registry
+                .operations
+                .insert(operation.id.clone(), operation.clone());
+            assert_eq!(
+                ir::pure_node_read_only(&check, &registry, &BTreeMap::new(), None),
+                matches!(
+                    effect,
+                    schema::OperationEffect::PureValue | schema::OperationEffect::StateRead
+                )
+            );
+        }
     }
     #[test]
     fn cycles_stale_ids_and_types_are_diagnosed_without_mutation() {

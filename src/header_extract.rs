@@ -114,6 +114,7 @@ pub fn class_options(options: &[String]) -> Result<ClassOptions, String> {
             "Placeable" => parsed.placement.placeable = true,
             "Spawnable" => parsed.placement.spawnable = true,
             "SceneManaged" => parsed.placement.scene_managed = true,
+            "PlacedOnly" => parsed.placement.placed_only = true,
             "Root" => {
                 declared_component = true;
                 component.can_root = true;
@@ -159,6 +160,9 @@ pub fn class_options(options: &[String]) -> Result<ClassOptions, String> {
     if parsed.placement.scene_managed && (parsed.placement.placeable || parsed.placement.spawnable)
     {
         return Err("`SceneManaged` actors are never Placeable or Spawnable".into());
+    }
+    if parsed.placement.placed_only && parsed.placement.spawnable {
+        return Err("`PlacedOnly` withdraws `Spawnable`; declare one of them".into());
     }
     if declared_component {
         parsed.component = Some(component);
@@ -515,6 +519,215 @@ fn fixed_default(entity: Actor<'_>) -> Result<Value, String> {
     ))
 }
 
+// Persistent configuration aggregates require complete, declarative defaults.
+// EPOK_VALUE(Configuration, ...) opts project aggregates in without granting
+// authoring semantics to runtime result/identity records.
+fn configuration_default(entity: Actor<'_>, ty: &schema::Type) -> Result<Value, String> {
+    match ty {
+        schema::Type::Record { fields, .. } => {
+            if entity.get_kind() != K::InitListExpr {
+                return Err(error(
+                    entity,
+                    "Configuration records require a complete initializer list",
+                ));
+            }
+            let values = entity
+                .get_children()
+                .into_iter()
+                .filter(|e| e.is_expression())
+                .collect::<Vec<_>>();
+            if values.len() != fields.len() {
+                return Err(error(
+                    entity,
+                    "Configuration records require every field default",
+                ));
+            }
+            Ok(Value::Object(
+                fields
+                    .iter()
+                    .zip(values)
+                    .map(|(field, value)| {
+                        configuration_default(value, &field.value_type)
+                            .map(|value| (field.name.clone(), value))
+                    })
+                    .collect::<Result<_, _>>()?,
+            ))
+        }
+        schema::Type::Fixed => fixed_default(entity),
+        schema::Type::Bool => match entity.evaluate() {
+            Some(Eval::UnsignedInteger(value)) => Ok(json!(value != 0)),
+            Some(Eval::SignedInteger(value)) => Ok(json!(value != 0)),
+            _ => Err(error(entity, "Bool requires a constant initializer")),
+        },
+        schema::Type::Int32 => entity
+            .evaluate()
+            .and_then(numeric)
+            .filter(|value| {
+                value
+                    .as_i64()
+                    .is_some_and(|value| i32::try_from(value).is_ok())
+            })
+            .ok_or_else(|| {
+                error(
+                    entity,
+                    "Configuration integers require a constant int32 initializer",
+                )
+            }),
+        schema::Type::UInt32 => entity
+            .evaluate()
+            .and_then(numeric)
+            .filter(|value| {
+                value
+                    .as_u64()
+                    .is_some_and(|value| u32::try_from(value).is_ok())
+            })
+            .ok_or_else(|| {
+                error(
+                    entity,
+                    "Configuration integers require a constant uint32 initializer",
+                )
+            }),
+        _ => Err(error(entity, "Unsupported persistent configuration member")),
+    }
+}
+
+fn constructor_defaults(
+    entity: Actor<'_>,
+    class: Actor<'_>,
+) -> Result<BTreeMap<String, Value>, String> {
+    fn contains_macro(entity: Actor<'_>) -> bool {
+        if let Some(location) = entity.get_location() {
+            let spelling = location.get_spelling_location();
+            let expansion = location.get_expansion_location();
+            if spelling.offset != expansion.offset
+                || spelling.file.map(|f| f.get_path()) != expansion.file.map(|f| f.get_path())
+            {
+                return true;
+            }
+        }
+        entity.get_children().into_iter().any(contains_macro)
+    }
+    fn field<'a>(class: Actor<'a>, name: &str, depth: usize) -> Option<Actor<'a>> {
+        if depth > 16 {
+            return None;
+        }
+        for child in class.get_children() {
+            if child.get_kind() == K::FieldDecl && child.get_name().as_deref() == Some(name) {
+                return (!annotations(child, "EPOK_PROPERTY:").is_empty()).then_some(child);
+            }
+        }
+        class
+            .get_children()
+            .into_iter()
+            .filter(|c| c.get_kind() == K::BaseSpecifier)
+            .find_map(|base| field(base.get_type()?.get_declaration()?, name, depth + 1))
+    }
+    let invalid = || {
+        error(
+            entity,
+            "Native constructors only support parameterless, constant assignments to reflected scalar properties; initializer lists, calls and other effects are unsupported",
+        )
+    };
+    if entity.get_arguments().is_none_or(|args| !args.is_empty()) {
+        return Err(invalid());
+    }
+    if entity
+        .get_children()
+        .into_iter()
+        .filter(|c| c.get_kind() == K::CompoundStmt)
+        .any(contains_macro)
+    {
+        return Err(invalid());
+    }
+    let range = entity.get_range().ok_or_else(invalid)?;
+    let start_location = range.get_start().get_expansion_location();
+    let end_location = range.get_end().get_expansion_location();
+    let path = start_location.file.map(|f| f.get_path());
+    if entity
+        .get_translation_unit()
+        .get_entity()
+        .get_children()
+        .into_iter()
+        .any(|entry| {
+            entry.get_kind() == K::MacroExpansion
+                && entry.get_location().is_some_and(|location| {
+                    let value = location.get_expansion_location();
+                    value.file.map(|f| f.get_path()) == path
+                        && value.offset >= start_location.offset
+                        && value.offset < end_location.offset
+                })
+        })
+    {
+        return Err(invalid());
+    }
+    let tokens: Vec<_> = range
+        .tokenize()
+        .into_iter()
+        .filter(|t| t.get_kind() != clang::token::TokenKind::Comment)
+        .map(|t| t.get_spelling())
+        .collect();
+    let start = tokens.iter().position(|t| t == "{").ok_or_else(invalid)?;
+    if start != 3
+        || tokens[1] != "("
+        || tokens[2] != ")"
+        || tokens.last().map(String::as_str) != Some("}")
+    {
+        return Err(invalid());
+    }
+    let mut result = BTreeMap::new();
+    let body = &tokens[start + 1..tokens.len() - 1];
+    if body.last().is_some_and(|token| token != ";") {
+        return Err(invalid());
+    }
+    for statement in body.split(|t| t == ";").filter(|s| !s.is_empty()) {
+        if statement.len() < 3 || statement[1] != "=" {
+            return Err(invalid());
+        }
+        let name = &statement[0];
+        let declaration = field(class, name, 0).ok_or_else(invalid)?;
+        let property = property(declaration)?;
+        let literal = statement[2..].join("");
+        let value = match &property.value_type {
+            schema::Type::Fixed => {
+                if !literal.contains(['.', 'e', 'E']) {
+                    return Err(invalid());
+                }
+                let number: f64 = literal.parse().map_err(|_| invalid())?;
+                if !number.is_finite() || !(-524288.0..524288.0).contains(&number) {
+                    return Err(invalid());
+                }
+                json!(number)
+            }
+            schema::Type::Bool => match literal.as_str() {
+                "true" => json!(true),
+                "false" => json!(false),
+                _ => return Err(invalid()),
+            },
+            schema::Type::Int32 => json!(literal.parse::<i32>().map_err(|_| invalid())?),
+            schema::Type::UInt32 => json!(
+                literal
+                    .trim_end_matches(['u', 'U'])
+                    .parse::<u32>()
+                    .map_err(|_| invalid())?
+            ),
+            schema::Type::Enum { cpp_name, variants } => {
+                let variant = literal
+                    .strip_prefix(&format!("{cpp_name}::"))
+                    .unwrap_or(&literal);
+                json!(variants.get(variant).ok_or_else(invalid)?)
+            }
+            _ => return Err(invalid()),
+        };
+        if result.insert(name.clone(), value).is_some() {
+            return Err(error(
+                entity,
+                "A constructor default assigns the same property more than once",
+            ));
+        }
+    }
+    Ok(result)
+}
+
 fn property(entity: Actor<'_>) -> Result<schema::Property, String> {
     let ty = entity.get_type().unwrap();
     if entity.get_accessibility() != Some(Accessibility::Public)
@@ -534,7 +747,33 @@ fn property(entity: Actor<'_>) -> Result<schema::Property, String> {
                 .strip_prefix("AssetKind=")
                 .map(|kind| kind.trim_matches('"').to_owned())
         });
-    let value_type = if let Some(kind) = asset_kind {
+    let reference = annotations(entity, "EPOK_PROPERTY:")
+        .into_iter()
+        .find_map(|option| {
+            option.split_once('=').and_then(|(kind, class)| match kind {
+                "ActorClass" | "ComponentClass" => {
+                    Some((kind.to_owned(), class.trim_matches('"').to_owned()))
+                }
+                _ => None,
+            })
+        });
+    let value_type = if let Some((kind, class)) = reference {
+        if !matches!(
+            object_reference(value_type(ty, entity)?),
+            schema::Type::ObjectRef { .. }
+        ) || class.is_empty()
+        {
+            return Err(error(
+                entity,
+                "ActorClass/ComponentClass require ObjectId storage and a reflected target class",
+            ));
+        }
+        if kind == "ActorClass" {
+            schema::Type::ActorRef { class: Some(class) }
+        } else {
+            schema::Type::ComponentRef { class: Some(class) }
+        }
+    } else if let Some(kind) = asset_kind {
         if !matches!(
             ty.get_canonical_type().get_kind(),
             TypeKind::ULongLong | TypeKind::ULong
@@ -547,6 +786,10 @@ fn property(entity: Actor<'_>) -> Result<schema::Property, String> {
                 "Video",
                 "PocketStationApp",
                 "DataTable",
+                "Dialogue",
+                "DialogueStyle",
+                "StringTable",
+                "Font",
             ]
             .contains(&kind.as_str())
         {
@@ -579,7 +822,9 @@ fn property(entity: Actor<'_>) -> Result<schema::Property, String> {
             }
             Value::Null
         }
-        schema::Type::ObjectRef { .. } => {
+        schema::Type::ObjectRef { .. }
+        | schema::Type::ActorRef { .. }
+        | schema::Type::ComponentRef { .. } => {
             fn empty(entity: Actor<'_>) -> bool {
                 match entity.get_kind() {
                     K::CallExpr => {
@@ -633,6 +878,72 @@ fn property(entity: Actor<'_>) -> Result<schema::Property, String> {
                 return Err(error(entity, "Vector requires every component default"));
             }
             json!(values)
+        }
+        schema::Type::Record { cpp_name, .. }
+            if matches!(
+                cpp_name.as_str(),
+                "epok::CharacterCommand3D"
+                    | "epok::CharacterCommand2D"
+                    | "epok::GameplayVector2"
+                    | "epok::GameplayVector3"
+                    | "epok::LocomotionClips"
+                    | "epok::LocomotionTuning"
+            ) || ty
+                .get_canonical_type()
+                .get_declaration()
+                .is_some_and(|declaration| {
+                    annotations(declaration, "EPOK_VALUE:")
+                        .iter()
+                        .any(|option| option == "Configuration")
+                }) =>
+        {
+            configuration_default(
+                *expressions.last().ok_or_else(|| {
+                    error(
+                        entity,
+                        "Configuration records require a complete initializer list",
+                    )
+                })?,
+                &value_type,
+            )?
+        }
+        schema::Type::Record { cpp_name, fields } if cpp_name == "epok::DialogueTiming" => {
+            // This SDK configuration record has persistent scalar values.
+            // Runtime result/identity records remain ineligible for authoring.
+            let init = expressions
+                .last()
+                .filter(|e| e.get_kind() == K::InitListExpr)
+                .ok_or_else(|| {
+                    error(
+                        entity,
+                        "DialogueTiming requires both constant millisecond values",
+                    )
+                })?;
+            let values = init
+                .get_children()
+                .into_iter()
+                .map(|child| {
+                    child.evaluate().and_then(numeric).ok_or_else(|| {
+                        error(
+                            entity,
+                            "DialogueTiming requires constant millisecond values",
+                        )
+                    })
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            if values.len() != fields.len() {
+                return Err(error(
+                    entity,
+                    "DialogueTiming requires both constant millisecond values",
+                ));
+            }
+            Value::Object(
+                fields
+                    .iter()
+                    .zip(values)
+                    .map(|(field, value)| (field.name.clone(), value))
+                    .collect(),
+            )
         }
         schema::Type::Bool => match entity.evaluate() {
             Some(Eval::UnsignedInteger(v)) => json!(v != 0),
@@ -810,6 +1121,7 @@ fn class(entity: Actor<'_>) -> Result<schema::Class, String> {
     let mut properties = Vec::new();
     let mut functions = Vec::new();
     let mut default_components = Vec::new();
+    let mut default_overrides = BTreeMap::new();
     for child in children {
         if !annotations(child, "EPOK_CLASS:").is_empty() {
             return Err(error(
@@ -818,10 +1130,14 @@ fn class(entity: Actor<'_>) -> Result<schema::Class, String> {
             ));
         }
         if child.get_kind() == K::Constructor && !child.is_defaulted() {
-            return Err(error(
-                child,
-                "Reflected classes currently require defaulted/implicit constructors and declarative field defaults; custom constructor effects cannot be inspected",
-            ));
+            let defaults = constructor_defaults(child, entity)?;
+            if !default_overrides.is_empty() {
+                return Err(error(
+                    child,
+                    "Only one native default constructor may declare property defaults",
+                ));
+            }
+            default_overrides = defaults;
         }
         if !annotations(child, "EPOK_COMPONENT:").is_empty() {
             if child.get_kind() != K::FieldDecl {
@@ -911,6 +1227,7 @@ fn class(entity: Actor<'_>) -> Result<schema::Class, String> {
         placement: options.placement,
         component: options.component,
         default_components,
+        default_overrides,
         explicit_abstract: options.explicit_abstract,
         timeline_component,
         provider: schema::native_provider(),
@@ -1301,6 +1618,13 @@ mod tests {
         assert!(class_options(&tokens("Domain=UI, Domain=World3D")).is_err());
         assert!(class_options(&tokens("SceneManaged, Placeable")).is_err());
         assert!(class_options(&tokens("SceneManaged, Spawnable")).is_err());
+        assert!(class_options(&tokens("PlacedOnly, Spawnable")).is_err());
+        assert!(
+            class_options(&tokens("Placeable, PlacedOnly"))
+                .unwrap()
+                .placement
+                .placed_only
+        );
     }
 
     #[test]

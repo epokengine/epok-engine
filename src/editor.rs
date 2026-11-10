@@ -244,6 +244,8 @@ pub struct Editor {
     /// The open Dungeon Style editor.
     pub dungeon_style: Option<crate::dungeon_style_editor::Window>,
     pub data_table: Option<crate::data_table_editor::Window>,
+    pub dialogue: Option<crate::dialogue_editor::Window>,
+    pub class_designer: Option<crate::class_designer::Window>,
     pub dungeon_recipe: Option<crate::dungeon_recipe_editor::Window>,
     pub dungeon_room: Option<crate::dungeon_room_editor::Window>,
     pub dungeon_seeds: Option<crate::dungeon_seeds::Window>,
@@ -863,6 +865,8 @@ impl Editor {
             dungeon: Default::default(),
             dungeon_style: None,
             data_table: None,
+            dialogue: None,
+            class_designer: None,
             dungeon_recipe: None,
             dungeon_room: None,
             dungeon_seeds: None,
@@ -1609,22 +1613,14 @@ impl Editor {
             return;
         }
         let mut candidate = self.scene.clone();
-        let mut copies = std::collections::BTreeMap::new();
-        for root in self.scene.actor_branch_roots(ids) {
-            // A branch is copied in document order and appended in that order.
-            let originals = candidate.actor_branch(root);
-            let first = candidate.actors.len();
-            if let Err(error) = candidate.duplicate_actor_branch(root) {
+        let copies = match candidate.duplicate_actor_branches(ids) {
+            Ok(copies) => copies,
+            Err(error) => {
                 self.last_error = Some(error.clone());
                 self.log(error);
                 return;
             }
-            copies.extend(
-                originals
-                    .into_iter()
-                    .zip(candidate.actors[first..].iter().map(|actor| actor.id)),
-            );
-        }
+        };
         let selection: Vec<_> = ids
             .iter()
             .filter_map(|id| copies.get(id).copied())
@@ -1767,46 +1763,9 @@ impl Editor {
         let Some(actor) = self.scene.actors.iter().find(|a| a.id == actor) else {
             return Vec::new();
         };
-        let Some(owner) = actor.class.resolve(&model) else {
-            return Vec::new();
-        };
-        let mut classes: Vec<_> = model
-            .iter()
-            .filter(|class| {
-                class.component.is_some() && model.validate_component(&owner.id, &class.id).is_ok()
-            })
-            .filter(|class| {
-                let mut candidate = actor.clone();
-                candidate
-                    .components
-                    .push(crate::actor_document::ComponentInstance::new(
-                        uuid::Uuid::new_v4(),
-                        crate::actor_document::ClassReference::new(&class.cpp_name, &class.id),
-                        "ComponentPreview",
-                    ));
-                crate::mcp_tools::validate_actor_components(&model, &candidate).is_ok()
-            })
-            .map(|class| {
-                let owners = &class.component.as_ref().expect("a component").owners;
-                // "Shared" is a component no single domain claims: it is offered
-                // to this actor because of what it does, not where it lives.
-                let group = if owners.len() == 1 {
-                    "Domain"
-                } else {
-                    "Shared"
-                };
-                (
-                    group,
-                    class.cpp_name.clone(),
-                    crate::actor_document::short_class_name(&class.cpp_name).to_owned(),
-                )
-            })
-            .collect();
-        // Shared before Domain, then alphabetical inside each group.
-        let rank = |group: &str| usize::from(group == "Domain");
-        classes.sort_by(|a, b| (rank(a.0), &a.2).cmp(&(rank(b.0), &b.2)));
-        classes
+        crate::actor_components::addable_classes(&model, actor)
     }
+
     /// Adds one component of `class` to `actor` with a fresh identity, a name
     /// unique inside that actor, `inherited = false` and `root = false`.
     pub fn add_actor_component(&mut self, actor: uuid::Uuid, class: &str) {
@@ -1820,76 +1779,82 @@ impl Editor {
         let Some(index) = self.scene.actor_index(actor) else {
             return;
         };
-        let Some(resolved) = model.class(class) else {
-            self.last_error = Some(format!("`{class}` is not a reflected class."));
-            return;
-        };
-        let owner_class = self.scene.actors[index].class.clone();
-        let Some(owner) = owner_class.resolve(&model) else {
-            self.last_error = Some(format!(
-                "`{}` is not a reflected class; its components cannot be edited.",
-                owner_class.name
-            ));
-            return;
-        };
-        if let Err(diagnostic) = model.validate_component(&owner.id, &resolved.id) {
-            self.last_error = Some(diagnostic.message.clone());
-            self.log(diagnostic.message);
-            return;
-        }
         let mut candidate = self.scene.clone();
-        let target = &mut candidate.actors[index];
-        let name = crate::actor_document::unique_component_name(
-            target,
-            crate::actor_document::short_class_name(&resolved.cpp_name),
-        );
-        let mut component = crate::actor_document::ComponentInstance::new(
-            uuid::Uuid::new_v4(),
-            crate::actor_document::ClassReference::new(&resolved.cpp_name, &resolved.id),
-            &name,
-        );
-        // These adapters carry an authored document even before an asset is chosen.
-        // Seed it so the Inspector projection retains the newly added component.
-        match resolved.id.as_str() {
-            crate::actor_components::PALETTE => {
-                let animator = crate::palette::Animator {
-                    texture: target
-                        .material
-                        .texture
-                        .or(target.sprite.as_ref().and_then(|sprite| sprite.texture))
-                        .or(target.image.as_ref().and_then(|image| image.texture)),
-                    ..Default::default()
-                };
-                component
-                    .properties
-                    .insert("palette_animator".into(), serde_json::json!(animator));
+        match crate::actor_components::add(&mut candidate.actors[index], &model, class) {
+            Ok(id) => {
+                let name = candidate.actors[index]
+                    .components
+                    .iter()
+                    .find(|c| c.id == id)
+                    .unwrap()
+                    .name
+                    .clone();
+                self.commit_actor_edit(candidate, format!("Added {name}."));
             }
-            crate::actor_components::TIMELINE => {
-                component.properties.insert(
-                    "timeline".into(),
-                    serde_json::json!(crate::timeline_scene::Component::default()),
-                );
+            Err(error) => {
+                self.last_error = Some(error.clone());
+                self.log(error);
             }
-            crate::actor_components::EFFECT => {
-                component.properties.insert(
-                    "particle_effect".into(),
-                    serde_json::json!(crate::particle_effect_scene::Component::default()),
-                );
-            }
-            _ => {}
         }
-        target.components.push(component);
-        // Whole-actor rules (requires/excludes, cardinality, one root) are the
-        // model's, not this method's: ask it before the document changes.
-        if let Err(error) =
-            crate::mcp_tools::validate_actor_components(&model, &candidate.actors[index])
-        {
-            self.last_error = Some(error.clone());
-            self.log(error);
+    }
+
+    /// Reflected scene properties share the class/placement override contract.
+    /// Reset refreshes the linked class before publishing one undoable change.
+    pub(crate) fn edit_actor_property(
+        &mut self,
+        actor: uuid::Uuid,
+        owner: uuid::Uuid,
+        action: crate::gui::PropertyAction,
+    ) {
+        if !self.actor_editable() {
             return;
         }
-        self.commit_actor_edit(candidate, format!("Added {name} ({}).", resolved.cpp_name));
+        let Some(index) = self.scene.actor_index(actor) else {
+            return;
+        };
+        let mut candidate = self.scene.clone();
+        let edited = &mut candidate.actors[index];
+        let reset = match &action {
+            crate::gui::PropertyAction::Reset(key) => Some(key.clone()),
+            _ => None,
+        };
+        let (properties, flags) = if actor == owner {
+            (&mut edited.properties, &mut edited.overrides)
+        } else {
+            let Some(component) = edited.components.iter_mut().find(|c| c.id == owner) else {
+                return;
+            };
+            (&mut component.properties, &mut component.overrides)
+        };
+        crate::gui::apply_property_action(action, properties, flags);
+        if let Some(key) = reset {
+            if let Some(instance) = &mut edited.blueprint_instance {
+                crate::blueprint_templates::reset_property_members(
+                    &mut instance.overrides,
+                    actor,
+                    owner,
+                    &key,
+                );
+                let result = crate::blueprint_asset::load_all(&self.root).and_then(|files| {
+                    crate::class_composition::refresh_instances(
+                        &self.root,
+                        &mut candidate,
+                        &files,
+                        &self.class_registry,
+                    )
+                });
+                if let Err(error) = result {
+                    self.last_error = Some(error.clone());
+                    self.log(error);
+                    return;
+                }
+            }
+        } else {
+            crate::blueprint_templates::record_overrides(&self.scene.actors[index], edited);
+        }
+        self.commit_actor_edit(candidate, "Updated property.".into());
     }
+
     /// Removes one component. The root and class-default (`inherited`) components
     /// are refused: the UI disables both, and this is the second line of defence.
     pub fn remove_actor_component(&mut self, actor: uuid::Uuid, component: uuid::Uuid) {
@@ -2183,6 +2148,14 @@ impl Editor {
                 .data_table
                 .as_ref()
                 .is_some_and(crate::data_table_editor::Window::dirty)
+            || self
+                .dialogue
+                .as_ref()
+                .is_some_and(crate::dialogue_editor::Window::dirty)
+            || self
+                .class_designer
+                .as_ref()
+                .is_some_and(crate::class_designer::Window::dirty)
     }
     pub fn save_all(&mut self) -> bool {
         if self.critical_busy() {
@@ -2213,6 +2186,23 @@ impl Editor {
                 return false;
             }
             self.refresh_scripts();
+        }
+        if let Err(error) = crate::class_designer::save_all(self) {
+            self.log(format!("UI class save failed: {error}"));
+            return false;
+        }
+        if self
+            .dialogue
+            .as_ref()
+            .is_some_and(crate::dialogue_editor::Window::dirty)
+        {
+            // Callback identities must reflect the source/Blueprint documents
+            // just saved, before the conversation compiler validates them.
+            self.refresh_scripts();
+        }
+        if let Err(error) = crate::dialogue_editor::save_all(self) {
+            self.log(format!("Dialogue save failed: {error}"));
+            return false;
         }
         !self.dirty || self.save()
     }
@@ -2249,14 +2239,15 @@ impl Editor {
                 {
                     let previous = self.scene.clone();
                     let result = crate::blueprint_asset::load_all(&self.root).and_then(|files| {
-                        crate::blueprint_templates::refresh_instances(
+                        crate::class_composition::refresh_instances(
+                            &self.root,
                             &mut self.scene,
                             &files,
                             &self.class_registry,
                         )
                     });
                     if let Err(error) = result {
-                        self.log(format!("Blueprint instances preserved: {error}"));
+                        self.log(format!("Class instances preserved: {error}"));
                     }
                     if self.scene != previous {
                         self.changed();
@@ -3932,19 +3923,99 @@ pub fn place_class(
     model: &crate::object_model::Model,
     class: &str,
 ) -> Result<usize, String> {
-    use crate::{actor_document as doc, object_model as om, reflection_schema::Domain};
+    if model
+        .class(class)
+        .is_some_and(|c| crate::game_helper_catalog::group(c).is_some())
+    {
+        preview_class(scene, root, registry, model, class)?;
+    }
+    if model
+        .class(class)
+        .is_some_and(|c| c.id == crate::dialogue_layout::PRESENTER)
+    {
+        let mut candidate = scene.clone();
+        let index = place_class_impl(&mut candidate, root, registry, model, class)?;
+        crate::game_helpers::compose_dialogue_presenter(
+            &mut candidate,
+            root,
+            registry,
+            model,
+            index,
+        )?;
+        *scene = candidate;
+        return Ok(index);
+    }
+    place_class_impl(scene, root, registry, model, class)
+}
+
+/// The same class resolver used by placement, evaluated on a private document.
+/// No resource installation, scene changes or undo steps occur during preview.
+pub(crate) fn preview_class(
+    scene: &Scene,
+    root: &std::path::Path,
+    registry: &crate::blueprint::Registry,
+    model: &crate::object_model::Model,
+    class: &str,
+) -> Result<Scene, String> {
+    let mut candidate = scene.clone();
+    let index = place_class_impl(&mut candidate, root, registry, model, class)?;
+    if model
+        .class(class)
+        .is_some_and(|c| c.id == crate::dialogue_layout::PRESENTER)
+    {
+        crate::game_helpers::preview_dialogue_presenter(
+            &mut candidate,
+            root,
+            registry,
+            model,
+            index,
+        )?;
+    }
+    let capacity = crate::scene_bank::LEVEL_ACTOR_CAPACITY;
+    if candidate.actors.len() > capacity {
+        return Err(format!(
+            "This composition needs {} actors; the level capacity is {capacity} ({} already placed).",
+            candidate.actors.len() - scene.actors.len(),
+            scene.actors.len()
+        ));
+    }
+    candidate.validate_with_model(Some(model))?;
+    Ok(candidate)
+}
+fn place_class_impl(
+    scene: &mut crate::scene::Scene,
+    root: &std::path::Path,
+    registry: &crate::blueprint::Registry,
+    model: &crate::object_model::Model,
+    class: &str,
+) -> Result<usize, String> {
     let Some(resolved) = model.class(class) else {
         return Err(format!("`{class}` is not a reflected class."));
     };
-    if registry
-        .classes
-        .get(&resolved.id)
-        .is_some_and(|c| c.provider.id == "blueprint")
-    {
+    // SDK classes cannot have project-owned composition or inherit from a
+    // project class. Keep their common drag-and-drop path free of asset scans.
+    let declaration = &registry.classes[&resolved.id].source.file;
+    let declaration = if declaration.is_absolute() {
+        declaration.clone()
+    } else {
+        root.join(declaration)
+    };
+    // Clang and project navigation may spell the same Windows path with or
+    // without an extended prefix. Compare normalized paths before skipping IO.
+    let declaration = declaration.canonicalize().unwrap_or(declaration);
+    let assets = root.join("assets");
+    let assets = assets.canonicalize().unwrap_or(assets);
+    if resolved.provider.id == "blueprint" || declaration.starts_with(assets) {
         let result = (|| -> Result<Option<usize>, String> {
             let files = crate::blueprint_asset::load_all(root)?;
-            let template =
-                crate::blueprint_templates::resolve_assets(&files, registry, &resolved.id)?;
+            let compositions = crate::class_composition::load(root)?;
+            compositions.validate(root, registry)?;
+            let template = crate::blueprint_templates::resolve_class(
+                &files,
+                registry,
+                &resolved.id,
+                &compositions.templates(),
+            )?;
             if template.actors.is_empty() {
                 return Ok(None);
             }
@@ -3976,71 +4047,7 @@ pub fn place_class(
         name = format!("{base}.{suffix:03}");
         suffix += 1;
     }
-    let mut actor = doc::ActorInstance::new(
-        uuid::Uuid::new_v4(),
-        doc::ClassReference::new(&resolved.cpp_name, &resolved.id),
-        &name,
-    );
-    for default in &resolved.default_components {
-        let Some(component) = model.class(&default.class) else {
-            continue;
-        };
-        let label = default.name.clone().unwrap_or_else(|| {
-            component
-                .cpp_name
-                .rsplit("::")
-                .next()
-                .unwrap_or(&component.cpp_name)
-                .to_owned()
-        });
-        let mut instance = doc::ComponentInstance::new(
-            uuid::Uuid::new_v4(),
-            doc::ClassReference::new(&component.cpp_name, &component.id),
-            &label,
-        );
-        instance.root = default.root;
-        instance.inherited = true;
-        instance.default_id = Some(default.id.clone());
-        actor.components.push(instance);
-    }
-    for (index, default) in resolved.default_components.iter().enumerate() {
-        if let Some(parent) = &default.attach_to {
-            let parent = resolved
-                .default_components
-                .iter()
-                .position(|c| &c.field == parent)
-                .and_then(|i| actor.components.get(i))
-                .map(|c| c.id);
-            if let Some(component) = actor.components.get_mut(index) {
-                component.attach_parent = parent;
-            }
-        }
-    }
-    if actor.root().is_none()
-        && let Some(root) = match resolved.domain {
-            Domain::World3D => Some(om::SCENE_COMPONENT3D_ID),
-            Domain::World2D => Some(om::SCENE_COMPONENT2D_ID),
-            Domain::UI => Some(om::RECT_TRANSFORM_COMPONENT_ID),
-            Domain::None => None,
-        }
-        .and_then(|id| model.class(id))
-    {
-        let label = root
-            .cpp_name
-            .rsplit("::")
-            .next()
-            .unwrap_or(&root.cpp_name)
-            .trim_end_matches("Component")
-            .to_owned();
-        let mut instance = doc::ComponentInstance::new(
-            uuid::Uuid::new_v4(),
-            doc::ClassReference::new(&root.cpp_name, &root.id),
-            &label,
-        );
-        instance.root = true;
-        actor.components.insert(0, instance);
-    }
-    actor.refresh_components();
+    let actor = crate::class_composition::actor(model, &resolved.id, &name)?;
     scene.actors.push(actor);
     Ok(scene.actors.len() - 1)
 }
@@ -4325,6 +4332,7 @@ mod tests {
             component: None,
             default_components: vec![],
             explicit_abstract: false,
+            default_overrides: Default::default(),
             id: id.into(),
             provider: schema::native_provider(),
             backend: schema::native_backend(),
@@ -4359,6 +4367,7 @@ mod tests {
             placeable: true,
             spawnable: true,
             scene_managed: false,
+            placed_only: false,
         };
         let mut registry = crate::blueprint::Registry::new();
         for class in [actor, script, actor3d] {

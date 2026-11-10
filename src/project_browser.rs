@@ -56,6 +56,7 @@ pub struct State {
     anchor: Option<String>,
     scroll_to: Option<String>,
     pub(crate) drag: Vec<String>,
+    helpers: bool,
     collection: Option<String>,
     tree_search: String,
     favorites_search: String,
@@ -123,6 +124,7 @@ impl State {
         }
     }
     fn navigate(&mut self, e: &mut Editor, path: String) {
+        self.helpers = false;
         self.collection = None;
         if e.assets.folder == path && !self.history.is_empty() {
             return;
@@ -136,6 +138,7 @@ impl State {
         e.project_search.clear();
     }
     fn travel(&mut self, e: &mut Editor, forward: bool) {
+        self.helpers = false;
         let next = if forward {
             self.history_index.checked_add(1)
         } else {
@@ -224,6 +227,8 @@ fn kind<'a>(e: &'a Editor, entry: &Entry) -> &'a str {
             assets::Kind::Font => "Font",
             assets::Kind::TileSet => "TileSet",
             assets::Kind::StringTable => "String Table",
+            assets::Kind::Dialogue => "Dialogue",
+            assets::Kind::DialogueStyle => "Dialogue Style",
             assets::Kind::DataTable => "Data Table",
             assets::Kind::DungeonStyle => "Dungeon Style",
             assets::Kind::DungeonRecipe => "Dungeon Recipe",
@@ -234,6 +239,8 @@ fn kind<'a>(e: &'a Editor, entry: &Entry) -> &'a str {
     }
     if entry.path.ends_with(".epokbp") {
         "Blueprint"
+    } else if entry.path.ends_with(".epokclass") {
+        "UI Class"
     } else if entry.path.ends_with(".lua") {
         "Lua Class"
     } else if entry.path.ends_with(".epokmap") {
@@ -279,6 +286,7 @@ fn display_name(entry: &Entry) -> &str {
             ".timeline.json",
             ".epokasset",
             ".epokbp",
+            ".epokclass",
             ".epokmap",
         ] {
             if let Some(name) = entry.name.strip_suffix(suffix) {
@@ -503,6 +511,10 @@ pub fn window(ui: &Ui, e: &mut Editor, asset_font: imgui::FontId) {
         ui.child_window("content-main")
             .size([0., avail[1].max(20.)])
             .build(|| {
+                if s.helpers {
+                    crate::game_helper_catalog::draw(ui, e);
+                    return;
+                }
                 search_bar(ui, e, &mut s);
                 let items = visible(&s, e);
                 let height = (ui.content_region_avail()[1] - 27.).max(20.);
@@ -797,6 +809,22 @@ fn asset_creation_menu(ui: &Ui, e: &mut Editor, s: &mut State) {
             e.action("new-lua");
         }
     });
+    submenu(ui, "Blueprint", "Dialogue Widgets", || {
+        for presentation in crate::dialogue_asset::Presentation::ALL {
+            submenu(ui, "Blueprint", presentation.label(), || {
+                for flavor in crate::workspace::GameplayFlavor::ALL {
+                    if asset_menu_item(ui, "Blueprint", flavor.title()) {
+                        if let Err(error) =
+                            crate::dialogue_widget::create_in_editor(e, flavor, presentation)
+                        {
+                            s.error = Some(error);
+                        }
+                        s.refresh(e);
+                    }
+                }
+            });
+        }
+    });
     submenu(ui, "Audio", "Audio", || {
         if asset_menu_item(ui, "SoundBank", "SoundBank...") {
             e.assets.begin_new_bank();
@@ -863,6 +891,18 @@ fn asset_creation_menu(ui: &Ui, e: &mut Editor, s: &mut State) {
         }
     });
     submenu(ui, "Font", "Data & Localization", || {
+        if asset_menu_item(ui, "Data Table", "Dialogue") {
+            if let Err(error) = crate::dialogue_editor::create(e) {
+                s.error = Some(error);
+            }
+            s.refresh(e);
+        }
+        if asset_menu_item(ui, "Data Table", "Dialogue Timing") {
+            if let Err(error) = crate::dialogue_style_inspector::create(e) {
+                s.error = Some(error);
+            }
+            s.refresh(e);
+        }
         if asset_menu_item(ui, "Data Table", "Data Table") {
             if let Err(error) = crate::data_table_editor::create(e) {
                 s.error = Some(error);
@@ -896,6 +936,17 @@ fn timeline_adapters_menu_item(ui: &Ui, e: &mut Editor, s: &mut State) {
 fn sidebar(ui: &Ui, e: &mut Editor, s: &mut State) {
     let _pad = ui.push_style_var(V::FramePadding([4., 0.]));
     let _space = ui.push_style_var(V::ItemSpacing([2., 1.]));
+    if ui
+        .selectable_config("Game Helpers")
+        .selected(s.helpers)
+        .build()
+    {
+        s.helpers = true;
+        e.project_search.clear();
+    }
+    #[cfg(test)]
+    track(ui, "Game Helpers");
+    ui.separator();
     let (favorites_open, search) = section(ui, "Favorites", false, false);
     if search {
         s.show_favorites_search = !s.show_favorites_search;
@@ -996,6 +1047,7 @@ fn sidebar(ui: &Ui, e: &mut Editor, s: &mut State) {
                 .build()
             {
                 s.collection = Some(name.clone());
+                s.helpers = false;
                 s.selected.clear();
             }
             if let Some(target) = ui.drag_drop_target()
@@ -1661,6 +1713,10 @@ fn open(e: &mut Editor, s: &mut State, entry: &Entry) {
             assets::Kind::TileSet => crate::tileset_editor::open(e, record.meta.id),
             assets::Kind::StringTable => crate::localization_editor::open(e),
             assets::Kind::DataTable => crate::data_table_editor::open(e, record.meta.id),
+            assets::Kind::Dialogue => crate::dialogue_editor::open(e, record.meta.id),
+            assets::Kind::DialogueStyle => {
+                e.selected_asset = Some(path.clone());
+            }
             assets::Kind::DungeonStyle => crate::dungeon_style_editor::open(e, record.meta.id),
             assets::Kind::DungeonRecipe => crate::dungeon_recipe_editor::open(e, record.meta.id),
             assets::Kind::DungeonRoom => crate::dungeon_room_editor::open(e, record.meta.id),
@@ -1677,8 +1733,14 @@ fn open(e: &mut Editor, s: &mut State, entry: &Entry) {
             _ => crate::skeletal_ui::open(e, record),
         }
     } else {
-        let result = if entry.path.ends_with(".epokbp") {
-            e.blueprint_editor.open(&path)
+        let result = if entry.path.ends_with(".epokclass") {
+            crate::assets::read_bounded(&path)
+                .and_then(|bytes| crate::class_composition::Document::parse(&bytes))
+                .map(|doc| crate::class_designer::open(e, &doc.class))
+        } else if entry.path.ends_with(".epokbp") {
+            crate::blueprint_asset::load(&path)
+                .and_then(|doc| crate::class_designer::before_behavior(e, &doc.id))
+                .and_then(|()| e.blueprint_editor.open(&path))
         } else if entry.path.ends_with(".timeline.json")
             || entry.path.ends_with(".particle-effect.json")
         {
@@ -1788,6 +1850,38 @@ fn context_menu(ui: &Ui, e: &mut Editor, s: &mut State, path: Option<&str>) {
                 open(e, s, entry);
             } else if path == "assets" {
                 s.navigate(e, path.into());
+            }
+        }
+        if !folder {
+            let source = e.root.join(path);
+            let widgets = e
+                .object_model()
+                .map(|model| {
+                    e.class_registry
+                        .classes
+                        .values()
+                        .filter(|class| {
+                            model.class(&class.id).is_some_and(|c| {
+                                c.domain == crate::reflection_schema::Domain::UI
+                                    && c.family == crate::reflection_schema::ClassFamily::Actor
+                            }) && crate::class_designer::source(&e.root, class)
+                                .is_some_and(|p| p == source)
+                        })
+                        .map(|c| (c.id.clone(), c.cpp_name.clone()))
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+            if widgets.len() == 1 && menu_item(ui, "\u{f044}", "Edit UI Class", "", true) {
+                crate::class_designer::open(e, &widgets[0].0);
+            }
+            if widgets.len() > 1 {
+                submenu(ui, "Blueprint", "Edit UI Class", || {
+                    for (id, name) in &widgets {
+                        if ui.menu_item(name) {
+                            crate::class_designer::open(e, id);
+                        }
+                    }
+                });
             }
         }
         let favorite = s.prefs.favorites.contains(path);
@@ -2365,6 +2459,7 @@ fn copy_paths(root: &Path, copies: &[(String, String)]) -> Result<(), String> {
     let mut files = Vec::new();
     let mut dirs = BTreeSet::new();
     fn prepare(
+        root: &Path,
         source: &Path,
         destination: &Path,
         files: &mut Vec<(PathBuf, Vec<u8>)>,
@@ -2386,6 +2481,7 @@ fn copy_paths(root: &Path, copies: &[(String, String)]) -> Result<(), String> {
             for entry in fs::read_dir(source).map_err(|e| e.to_string())? {
                 let entry = entry.map_err(|e| e.to_string())?;
                 prepare(
+                    root,
                     &entry.path(),
                     &destination.join(entry.file_name()),
                     files,
@@ -2400,10 +2496,15 @@ fn copy_paths(root: &Path, copies: &[(String, String)]) -> Result<(), String> {
             let bytes = match ext {
                 "epokasset" => {
                     let mut package = assets::Package::load(source)?;
-                    if !matches!(package.meta.kind, assets::Kind::AudioClip | assets::Kind::MusicSequence | assets::Kind::SoundBank | assets::Kind::Texture | assets::Kind::EditableMesh | assets::Kind::DungeonStyle | assets::Kind::DungeonRecipe | assets::Kind::PocketStationApp) { return Err("Reimport the FBX to create an independent copy of a composite model.".into()); }
+                    if !matches!(package.meta.kind, assets::Kind::AudioClip | assets::Kind::MusicSequence | assets::Kind::SoundBank | assets::Kind::Texture | assets::Kind::EditableMesh | assets::Kind::DungeonStyle | assets::Kind::DungeonRecipe | assets::Kind::PocketStationApp | assets::Kind::Dialogue | assets::Kind::DialogueStyle | assets::Kind::StringTable) { return Err("Reimport the FBX to create an independent copy of a composite model.".into()); }
+                    if package.meta.kind==assets::Kind::Dialogue {
+                        package.source=crate::document::to_vec(&crate::dialogue_asset::DialogueAsset::parse(&package.source)?.duplicate())?;
+                        package.meta.source_hash=assets::hash(&package.source);
+                    }
+                    if matches!(package.meta.kind,assets::Kind::Dialogue|assets::Kind::DialogueStyle|assets::Kind::StringTable){package.meta.source=assets::path_string(root,destination);}
                     package.meta.id = uuid::Uuid::new_v4(); package.bytes()?
                 }
-                "epokbp" | "lua" | "cpp" | "hpp" | "h" | "hh" | "cc" => return Err("Use Add > C++ Class / Blueprint Class / Lua Class to create an independent class; class identities cannot be copied as files.".into()),
+                "epokbp" | "epokclass" | "lua" | "cpp" | "hpp" | "h" | "hh" | "cc" => return Err("Use Add > C++ Class / Blueprint Class / Lua Class to create an independent class; class identities cannot be copied as files.".into()),
                 // A map carries persistent identities: entity, actor and component
                 // UUIDs and, when it has one, the class identity of its own
                 // Blueprint. A byte copy would give two maps the same class, so a
@@ -2451,7 +2552,7 @@ fn copy_paths(root: &Path, copies: &[(String, String)]) -> Result<(), String> {
         {
             return Err("Select the parent folder or its contents, not both.".into());
         }
-        prepare(&source, &destination, &mut files, &mut dirs)?;
+        prepare(root, &source, &destination, &mut files, &mut dirs)?;
     }
     let mut created_files = Vec::new();
     let mut created_dirs = Vec::new();
@@ -3731,6 +3832,81 @@ mod tests {
         fs::write(f.0.join("assets/A/Class.hpp"), b"class Original {};").unwrap();
         assert!(copy_paths(&f.0, &[("assets/A".into(), "assets/B/Rejected".into())]).is_err());
         assert!(!f.0.join("assets/B/Rejected").exists());
+    }
+    #[test]
+    fn dialogue_content_copy_remaps_internal_ids_and_preserves_external_assets() {
+        use crate::dialogue_asset as da;
+        let f = Fixture::new();
+        let strings = crate::localization::create(
+            &f.0,
+            "assets/A/strings.epokasset",
+            &crate::localization::StringTable {
+                pageable: true,
+                entries: vec![crate::localization::Entry {
+                    key: "hello".into(),
+                    values: vec!["Hello".into()],
+                }],
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let mut document = da::DialogueAsset::default();
+        let end = uuid::Uuid::new_v4();
+        let option = uuid::Uuid::new_v4();
+        document.nodes[0].kind = da::NodeKind::Choice {
+            speaker: None,
+            prompt: None,
+            options: vec![da::ChoiceOption {
+                id: option,
+                text: da::TextKey {
+                    table: strings,
+                    key: "hello".into(),
+                },
+                next: end,
+                condition: None,
+            }],
+        };
+        document.nodes.push(da::Node {
+            id: end,
+            kind: da::NodeKind::End,
+        });
+        let original = da::create(&f.0, "assets/A/conversation.epokasset", &document).unwrap();
+        let style = da::DialogueStyle::default();
+        da::create_style(&f.0, "assets/A/style.epokasset", &style).unwrap();
+        let original_bytes = fs::read(f.0.join("assets/A/conversation.epokasset")).unwrap();
+        copy_paths(&f.0, &[("assets/A".into(), "assets/B/DialogueCopy".into())]).unwrap();
+        let package =
+            assets::Package::load(&f.0.join("assets/B/DialogueCopy/conversation.epokasset"))
+                .unwrap();
+        let copy = da::DialogueAsset::parse(&package.source).unwrap();
+        assert_ne!(package.meta.id, original);
+        assert_eq!(
+            package.meta.source,
+            "assets/B/DialogueCopy/conversation.epokasset"
+        );
+        assert_eq!(package.meta.source_hash, assets::hash(&package.source));
+        assert!(copy.reachable().is_disjoint(&document.reachable()));
+        assert_eq!(copy.texts(), document.texts());
+        let index = assets::scan(&f.0, &mut Default::default());
+        copy.validate_resources(&index).unwrap();
+        let da::NodeKind::Choice { options, .. } = &copy.nodes[0].kind else {
+            panic!()
+        };
+        assert_ne!(options[0].id, option);
+        assert_eq!(options[0].text.table, strings);
+        let table =
+            assets::Package::load(&f.0.join("assets/B/DialogueCopy/strings.epokasset")).unwrap();
+        assert_ne!(table.meta.id, strings);
+        let copied_style =
+            assets::Package::load(&f.0.join("assets/B/DialogueCopy/style.epokasset")).unwrap();
+        assert_eq!(
+            da::DialogueStyle::parse(&copied_style.source).unwrap(),
+            style
+        );
+        assert_eq!(
+            fs::read(f.0.join("assets/A/conversation.epokasset")).unwrap(),
+            original_bytes
+        );
     }
     #[test]
     fn trash_retains_files_and_restore_rejects_collisions() {

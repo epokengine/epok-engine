@@ -144,7 +144,7 @@ system `PATH`; the local compiler build can take several minutes.
 3. Press **Play** to compile and run the game.
 4. Use **Pause**, **Step** and **Stop** to inspect it. Save scene changes with **Ctrl+S**.
 
-Choose **Dungeon Complete** for the finished Reactor Station action game with combat, a boss, inventory, trading, MIDI music and PocketStation mining. Choose **Dungeon** for the procedural starter, **Third Person** for an animated player and orbit camera in an editable arena, or **Platformer 2D** for a side-scroller. Starter templates offer C++, Blueprint or Lua gameplay; Dungeon Complete preserves its C++ game and Pocket Lua miner. Every project can use the three authoring systems together.
+Choose **Dungeon Complete** for the Reactor Station action game with combat, a boss, inventory, trading, MIDI music and PocketStation mining. Choose **Dungeon** for the procedural starter, **Third Person** for an animated player and orbit camera in an editable arena, or **Platformer 2D** for a side-scroller. **Basic** provides an empty world and an editable, inert GameRoot Actor; **Sample** provides the small Spinner behavior. All six templates offer C++, Blueprint or Lua AOT authoring, including editable game policies and ordinary widget classes in Dungeon Complete. Edit Lua source directly; its generated C++ is a build artifact. See [starter classes and roles](docs/starter-templates.md). Every project can use the three authoring systems together.
 
 See [Getting started](docs/getting-started.md) for configuration and troubleshooting.
 

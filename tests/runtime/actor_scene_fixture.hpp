@@ -2,6 +2,15 @@
 #include "epok.hpp"
 #include <array>
 #include <cassert>
+#ifndef EPOK_TEST_ACTOR_SLOTS
+#define EPOK_TEST_ACTOR_SLOTS 4
+#endif
+#ifndef EPOK_TEST_ACTOR_POOL
+#define EPOK_TEST_ACTOR_POOL 8
+#endif
+#ifndef EPOK_TEST_REGISTRY_SLOTS
+#define EPOK_TEST_REGISTRY_SLOTS 32
+#endif
 namespace epok {
 #ifndef EPOK_TEST_AUDIO_IMPLEMENTED
 inline void AudioSource::play() {}
@@ -11,20 +20,28 @@ inline bool AudioSource::is_playing() const {return false;}
 inline const ClassDescriptor object_classes[]={
  {Object::static_class_id,0,ObjectFamily::Object,ObjectDomain::None,0,ObjectClassAbstract},
  {Actor::static_class_id,Object::static_class_id,ObjectFamily::Actor,ObjectDomain::None,0,ObjectClassAbstract},
- {Actor3D::static_class_id,Actor::static_class_id,ObjectFamily::Actor,ObjectDomain::World3D,0,6,&object_construct<Actor3D>,&object_destruct,sizeof(Actor3D),alignof(Actor3D),&ObjectPool<Actor3D,8>::acquire,&ObjectPool<Actor3D,8>::release},
+ {Actor3D::static_class_id,Actor::static_class_id,ObjectFamily::Actor,ObjectDomain::World3D,0,6,&object_construct<Actor3D>,&object_destruct,sizeof(Actor3D),alignof(Actor3D),&ObjectPool<Actor3D,EPOK_TEST_ACTOR_POOL>::acquire,&ObjectPool<Actor3D,EPOK_TEST_ACTOR_POOL>::release},
  {ActorComponent::static_class_id,Object::static_class_id,ObjectFamily::Component,ObjectDomain::None,7,ObjectClassAbstract},
  {SceneComponent3D::static_class_id,ActorComponent::static_class_id,ObjectFamily::Component,ObjectDomain::World3D,1,ObjectClassRoot},
  {Level::static_class_id,Object::static_class_id,ObjectFamily::Level,ObjectDomain::None,0,ObjectClassAbstract},
  {UIActor::static_class_id,Actor::static_class_id,ObjectFamily::Actor,ObjectDomain::UI,0,6,&object_construct<UIActor>,&object_destruct,sizeof(UIActor),alignof(UIActor),&ObjectPool<UIActor,2>::acquire,&ObjectPool<UIActor,2>::release},
  {UIComponent::static_class_id,ActorComponent::static_class_id,ObjectFamily::Component,ObjectDomain::UI,4,ObjectClassAbstract},
  {RectTransformComponent::static_class_id,UIComponent::static_class_id,ObjectFamily::Component,ObjectDomain::UI,4,ObjectClassRoot},
+ {SpatialQueryContextComponent::static_class_id,ActorComponent::static_class_id,ObjectFamily::Component,ObjectDomain::World3D,1,0,&object_construct<SpatialQueryContextComponent>,&object_destruct,sizeof(SpatialQueryContextComponent),alignof(SpatialQueryContextComponent),&ObjectPool<SpatialQueryContextComponent,2>::acquire,&ObjectPool<SpatialQueryContextComponent,2>::release},
+#ifdef EPOK_TEST_EXTRA_CLASSES
+ EPOK_TEST_EXTRA_CLASSES
+#endif
 };
 inline const size_t object_class_count=sizeof(object_classes)/sizeof(object_classes[0]);
-inline std::array<ActorData,4> entities;
-inline ObjectRegistryStorage<32> test_registry;
+inline std::array<ActorData,EPOK_TEST_ACTOR_SLOTS> entities;
+inline ObjectRegistryStorage<EPOK_TEST_REGISTRY_SLOTS> test_registry;
 inline Level test_level;
-inline ObjectId test_actors[4];
+inline ObjectId test_actors[EPOK_TEST_ACTOR_SLOTS];
 inline ObjectId test_owner(size_t index) {return test_actors[index];}
+inline int entity_index(const ActorData* value) {
+ for(size_t i=0;i<entities.size();++i)if(value==&entities[i])return int(i);
+ return -1;
+}
 inline DataHandle handle(const ActorData* value) {
  for(size_t i=0;i<entities.size();++i)if(value==&entities[i]&&value->alive)return {uint16_t(i),value->generation};
  return {};

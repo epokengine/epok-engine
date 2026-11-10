@@ -343,6 +343,7 @@ fn observe_build_sources(root: &Path) -> Result<(), String> {
     crate::timeline_compile::observe_sources(root)?;
     measured("timeline sources");
     crate::blueprint_dependencies::observe_current(root)?;
+    crate::class_composition::observe_current(root)?;
     measured("Blueprint sources and reflection");
     crate::scene_dependencies::observe_saved(root)?;
     measured("saved scene dependencies");

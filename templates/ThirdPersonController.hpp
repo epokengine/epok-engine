@@ -1,4 +1,5 @@
 #pragma once
+// Pre-extraction comparison fixture. New projects use ThirdPersonInput.hpp.
 #include "epok.hpp"
 #include "CharacterMotion.hpp"
 

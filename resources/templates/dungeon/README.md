@@ -33,6 +33,12 @@ Dungeon Generator guide in the Epok documentation for every setting.
 
 <!--GAMEPLAY-->
 
+The starter reserves 64 sprite/VFX triangles in **Project Settings > Rendering**.
+Its authored world uses meshes and skeletal animation, with no billboard sprites
+or sprite effects. This leaves RAM for the Lua VM execution modes. Increase the
+editable sprite budget when adding those features and check the linked memory
+report and runtime dropped-primitive counters.
+
 The gameplay flavor chosen when the project was created only decided which starter
 implementation was written. Nothing is locked: C++ classes, Blueprints and Lua scripts
 can be added to this project at any time and used together in the same scene.

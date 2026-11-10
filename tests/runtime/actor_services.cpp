@@ -12,6 +12,7 @@
 #include "../../runtime/epok.hpp"
 
 namespace epok {
+int entity_index(const ActorData*){return -1;}
 // This isolated object-model fixture does not include lifecycle.hpp, which owns
 // the cooked ActorData table and the production DataHandle resolver.
 ActorData* DataHandle::get() const { return nullptr; }
@@ -74,18 +75,18 @@ const ClassDescriptor object_classes[] = {
     {Actor3D::static_class_id, Actor::static_class_id, ObjectFamily::Actor, ObjectDomain::World3D, 0, uint8_t(ObjectClassPlaceable | ObjectClassSpawnable), nullptr, nullptr, sizeof(Actor3D), alignof(Actor3D), nullptr, nullptr},
     {UIActor::static_class_id, Actor::static_class_id, ObjectFamily::Actor, ObjectDomain::UI, 0, uint8_t(ObjectClassPlaceable | ObjectClassSpawnable), nullptr, nullptr, sizeof(UIActor), alignof(UIActor), nullptr, nullptr},
     {ActorComponent::static_class_id, Object::static_class_id, ObjectFamily::Component, ObjectDomain::None, 0, ObjectClassAbstract, nullptr, nullptr, sizeof(ActorComponent), alignof(ActorComponent), nullptr, nullptr},
-    {SceneComponent3D::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::World3D, object_domain_bit(ObjectDomain::World3D), ObjectClassRoot, &object_construct<SceneComponent3D>, &object_destruct, sizeof(SceneComponent3D), alignof(SceneComponent3D), &ObjectPool<SceneComponent3D, 4>::acquire, &ObjectPool<SceneComponent3D, 4>::release},
+    {SceneComponent3D::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::World3D, object_domain_bit(ObjectDomain::World3D), ObjectClassRoot, &object_construct<SceneComponent3D>, &object_destruct, sizeof(SceneComponent3D), alignof(SceneComponent3D), &SharedObjectPool<SceneComponent3D, 4>::acquire, &SharedObjectPool<SceneComponent3D, 4>::release},
     {UIComponent::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::UI, object_domain_bit(ObjectDomain::UI), ObjectClassAbstract, nullptr, nullptr, sizeof(UIComponent), alignof(UIComponent), nullptr, nullptr},
-    {RectTransformComponent::static_class_id, UIComponent::static_class_id, ObjectFamily::Component, ObjectDomain::UI, object_domain_bit(ObjectDomain::UI), ObjectClassRoot, &object_construct<RectTransformComponent>, &object_destruct, sizeof(RectTransformComponent), alignof(RectTransformComponent), &ObjectPool<RectTransformComponent, 4>::acquire, &ObjectPool<RectTransformComponent, 4>::release},
+    {RectTransformComponent::static_class_id, UIComponent::static_class_id, ObjectFamily::Component, ObjectDomain::UI, object_domain_bit(ObjectDomain::UI), ObjectClassRoot, &object_construct<RectTransformComponent>, &object_destruct, sizeof(RectTransformComponent), alignof(RectTransformComponent), &SharedObjectPool<RectTransformComponent, 4>::acquire, &SharedObjectPool<RectTransformComponent, 4>::release},
     {AudioComponent::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::None,
      uint8_t(object_domain_bit(ObjectDomain::World3D) | object_domain_bit(ObjectDomain::World2D) | object_domain_bit(ObjectDomain::UI)),
-     ObjectClassMultiple, &object_construct<AudioComponent>, &object_destruct, sizeof(AudioComponent), alignof(AudioComponent), &ObjectPool<AudioComponent, 4>::acquire, &ObjectPool<AudioComponent, 4>::release},
+     ObjectClassMultiple, &object_construct<AudioComponent>, &object_destruct, sizeof(AudioComponent), alignof(AudioComponent), &SharedObjectPool<AudioComponent, 4>::acquire, &SharedObjectPool<AudioComponent, 4>::release},
     {TriggerWatcher::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::None,
      uint8_t(object_domain_bit(ObjectDomain::World3D) | object_domain_bit(ObjectDomain::World2D) | object_domain_bit(ObjectDomain::UI)),
-     ObjectClassMultiple, &object_construct<TriggerWatcher>, &object_destruct, sizeof(TriggerWatcher), alignof(TriggerWatcher), &ObjectPool<TriggerWatcher, 2>::acquire, &ObjectPool<TriggerWatcher, 2>::release},
+     ObjectClassMultiple, &object_construct<TriggerWatcher>, &object_destruct, sizeof(TriggerWatcher), alignof(TriggerWatcher), &SharedObjectPool<TriggerWatcher, 2>::acquire, &SharedObjectPool<TriggerWatcher, 2>::release},
     {Level::static_class_id, Object::static_class_id, ObjectFamily::Level, ObjectDomain::None, 0, ObjectClassAbstract, nullptr, nullptr, sizeof(Level), alignof(Level), nullptr, nullptr},
-    {AudioActor::static_class_id, Actor3D::static_class_id, ObjectFamily::Actor, ObjectDomain::World3D, 0, uint8_t(ObjectClassPlaceable | ObjectClassSpawnable), &object_construct<AudioActor>, &object_destruct, sizeof(AudioActor), alignof(AudioActor), &ObjectPool<AudioActor, 4>::acquire, &ObjectPool<AudioActor, 4>::release},
-    {AudioPanel::static_class_id, UIActor::static_class_id, ObjectFamily::Actor, ObjectDomain::UI, 0, uint8_t(ObjectClassPlaceable | ObjectClassSpawnable), &object_construct<AudioPanel>, &object_destruct, sizeof(AudioPanel), alignof(AudioPanel), &ObjectPool<AudioPanel, 2>::acquire, &ObjectPool<AudioPanel, 2>::release},
+    {AudioActor::static_class_id, Actor3D::static_class_id, ObjectFamily::Actor, ObjectDomain::World3D, 0, uint8_t(ObjectClassPlaceable | ObjectClassSpawnable), &object_construct<AudioActor>, &object_destruct, sizeof(AudioActor), alignof(AudioActor), &SharedObjectPool<AudioActor, 4>::acquire, &SharedObjectPool<AudioActor, 4>::release},
+    {AudioPanel::static_class_id, UIActor::static_class_id, ObjectFamily::Actor, ObjectDomain::UI, 0, uint8_t(ObjectClassPlaceable | ObjectClassSpawnable), &object_construct<AudioPanel>, &object_destruct, sizeof(AudioPanel), alignof(AudioPanel), &SharedObjectPool<AudioPanel, 2>::acquire, &SharedObjectPool<AudioPanel, 2>::release},
 };
 const size_t object_class_count = sizeof(object_classes) / sizeof(object_classes[0]);
 }  // namespace epok
@@ -113,8 +114,8 @@ void reset() {
     registry_storage.stats = ObjectStats{};
     assert(game_level.bind(registry_storage));
     audio_probe_reset();
-    assert((ObjectPool<AudioComponent, 4>::live() == 0));
-    assert((ObjectPool<AudioActor, 4>::live() == 0));
+    assert((SharedObjectPool<AudioComponent, 4>::live() == 0));
+    assert((SharedObjectPool<AudioActor, 4>::live() == 0));
 }
 ObjectId spawn(uint64_t class_id, const char* name, ObjectId parent = {}) {
     return game_level.spawn_actor(class_of(class_id), name, parent);
@@ -262,22 +263,22 @@ void owned_audio_quarantine_blocks_reuse() {
     stub_music_active = &audio->local;
     assert(!audio->releasable());
     const ObjectId component = audio->id();
-    const size_t pooled = ObjectPool<AudioComponent, 4>::live();
+    const size_t pooled = SharedObjectPool<AudioComponent, 4>::live();
     assert(pooled == 1);
 
     assert(game_level.destroy_actor(id));
     // The handle is dead immediately either way.
     assert(!registry_storage.get(component));
     // ... but the storage is still the consumer's, so it did not return to the pool.
-    assert((ObjectPool<AudioComponent, 4>::live() == 1));
+    assert((SharedObjectPool<AudioComponent, 4>::live() == 1));
     assert(registry_storage.stats.quarantined == 1);
     registry_storage.collect_quarantined();
-    assert((ObjectPool<AudioComponent, 4>::live() == 1));
+    assert((SharedObjectPool<AudioComponent, 4>::live() == 1));
 
     // The consumer releases it; the next collection returns the storage.
     stub_music_active = nullptr;
     registry_storage.collect_quarantined();
-    assert((ObjectPool<AudioComponent, 4>::live() == 0));
+    assert((SharedObjectPool<AudioComponent, 4>::live() == 0));
     assert(registry_storage.stats.quarantined == 0);
 
     // With no hook installed nothing is ever quarantined.
@@ -290,7 +291,7 @@ void owned_audio_quarantine_blocks_reuse() {
     voice->bind_local();
     assert(voice->releasable());
     assert(game_level.destroy_actor(plain));
-    assert((ObjectPool<AudioComponent, 4>::live() == 0));
+    assert((SharedObjectPool<AudioComponent, 4>::live() == 0));
     audio_source_retained = &stub_music_retains;
 }
 
@@ -372,6 +373,8 @@ void component_trigger_delivery() {
 }  // namespace
 
 int main() {
+    static object_storage::Arena<4000> storage_arena;
+    object_storage::Binding storage_binding(storage_arena);
 #ifdef _MSC_VER
     _set_error_mode(_OUT_TO_STDERR);
     _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);

@@ -47,33 +47,62 @@ Unsigned ordering is explicit (`__epok_ult` / `__epok_ule`) because a `UInt32`
 travels as its bit pattern inside a signed 32-bit `lua_Number`. Signed ordering
 uses Lua's own `<`, which already matches C++ for `Int32`, `Fixed` and `Enum`.
 
+## Value scratch storage
+
+Compound value snapshots use a separate bounded scratch pool. The packager emits
+`scripts/generated/lua/lua_value_config.hpp` from typed bodies and the actual
+generated field/method bridge. Each entry holds the widest required value, with
+a three-word minimum for vector helpers and the existing 32-word language limit.
+Unused native methods do not increase this width. Parameters, local snapshots,
+nested member bases and return values retain their complete layout.
+
+The pool still supports sixteen nested frames and sixty-four temporary values
+per frame. A program using three-word entries reserves 16,384 bytes, compared
+with 135,168 bytes at the full 32-word width. The SDK fallback remains 32 words;
+a generated header rejects a manual override smaller than its required width.
+This storage is additional to the allocator arena below.
+
+The Platformer VM-source route initially left only 29,568 main RAM bytes free.
+Compact entries save 118,784 bytes and leave 148,352 bytes with identical route
+results. Scalar/vector and full-width cases pass both VM modes; animation callback
+traces and all three Platformer exports also pass. Scoped evidence:
+`artifacts/gameplay-helpers/p5/platformer-validation.json`.
+
 ## Arena budget
 
 The runtime has no heap, so the VM's whole world — state, chunks, strings, call
-frames — lives in one static buffer. **The size is per mode, chosen by the
-editor, not by the project:**
+frames — lives in one static buffer. The editor plans its size from the
+normalized program, within these mode ceilings:
 
-| Mode | `EPOK_LUA_ARENA_BYTES` | Why |
+| Mode | Planned `EPOK_LUA_ARENA_BYTES` | Why |
 | --- | --- | --- |
 | Native C++ | *(none — no arena is linked)* | There is no VM. |
-| Lua VM — bytecode | **98 304** (96 KiB) | `luaU_undump` allocates the chunk's structures and little else. |
-| Lua VM — source | **131 072** (128 KiB) | Parsing on target allocates transiently during initialization, far above steady state. |
+| Lua VM — bytecode | **32–96 KiB**, in 4 KiB steps | Loading allocates retained prototypes, tables, strings and stack storage. |
+| Lua VM — source | **32–128 KiB**, in 4 KiB steps | Parsing also needs transient workspace during initialization. |
 
-`src/settings.rs` (`LuaExecution::arena_bytes`) picks the value and writes it
-into the generated `lua-config.hh` in the build directory, wrapped in
-`#ifndef EPOK_LUA_ARENA_BYTES`, which `runtime/lua_runtime.hpp` includes first.
-The header's own `#ifndef` fallback (96 KiB) is reached only when no generated
-config exists, i.e. in the standalone harnesses.
+`src/lua_vm.rs` writes the program's plan into
+`scripts/generated/lua/lua_value_config.hpp`. The estimate reserves 16 KiB for
+state and kernel data, four times the normalized source size, 512 bytes per
+class, and stack space for 16 nested frames using the largest method's local
+and parameter count plus 32 scratch slots. It rounds up to 4 KiB and clamps
+to the mode's range. This is a planning estimate; measured allocator peaks and
+exhaustion checks remain authoritative. It preserves the existing call-depth,
+argument and value limits.
+
+The generated `lua-config.hh` includes that plan before its guarded per-mode
+fallback. Standalone harnesses without generated configuration retain the
+runtime header's 96 KiB fallback. Explicit `EPOK_LUA_ARENA_BYTES` definitions
+take precedence over both.
 
 Because the generated define is guarded, a project can raise the budget for one
 build without touching the editor by appending
 `CPPFLAGS += -DEPOK_LUA_ARENA_BYTES=262144` to the export's or build
 directory's `sources.mk` (the editor regenerates `sources.mk`, so in an editor
-build the durable route is `LuaExecution::arena_bytes`). Exhaustion aborts with
+build the plan is regenerated from the program). Exhaustion aborts with
 `Lua arena exhausted: ... Raise EPOK_LUA_ARENA_BYTES.`; it never degrades
 silently.
 
-Sizing this is measured, not guessed — peak live bytes on the three-class
+The earlier fixed-ceiling baseline measured peak live bytes on the three-class
 conformance fixture (`tests/integration/lua_conformance/`: `Guard.lua`,
 `Patrol.lua`, `Sentinel.lua`, read out of guest RAM by `verify_lua_modes.py`):
 
@@ -102,9 +131,14 @@ total. It is never silent and never degrades: a build that cannot fit its
 scripts says so on the first frame that needs the memory.
 
 Related fixed budgets, all overridable or asserted at startup:
-`EPOK_LUA_MAX_CLASSES` (64 binding entries), 64 method slots per class (the
-`bound_mask` is a `uint64_t`), 8 arguments per call, and a call depth of 16 —
+`EPOK_LUA_MAX_CLASSES` (64 binding entries), 128 method slots per class, 8
+arguments per call, and a call depth of 16 —
 Lua may call back into C++ which re-enters Lua, and that nesting is bounded.
+Method presence and once-only error reports use four 32-bit words per class.
+The explicit 64-to-128 method extension adds 1,024 static bytes across the 64
+class entries; it supports the complete authored protocol without dropping
+helpers. It changes neither the VM arenas nor the 64 live wire values, 32-word
+wire width or 64 KiB runtime reserve. Actual program fit remains a separate gate.
 
 ## Bytecode ABI, and how it is verified
 

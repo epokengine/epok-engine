@@ -251,6 +251,11 @@ pub struct Scene {
     pub fog: crate::effects::Fog,
     #[serde(default)]
     pub hud_budget: crate::hud::Budget,
+    /// Actor slots this scene keeps free for runtime spawns. Unset keeps the
+    /// engine's general reserve; authoring it also sizes object storage for the
+    /// scene's live peak instead of every class's admission bound.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub spawn_reserve: Option<usize>,
     #[serde(skip)]
     pub textures: BTreeMap<uuid::Uuid, std::sync::Arc<crate::texture::Data>>,
     /// Cooked authored fonts, resolved from the asset index exactly as
@@ -304,6 +309,8 @@ struct SceneDocument {
     fog: crate::effects::Fog,
     #[serde(default)]
     hud_budget: crate::hud::Budget,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    spawn_reserve: Option<usize>,
     #[serde(default)]
     environment: crate::lighting::Settings,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -328,6 +335,7 @@ impl From<Scene> for SceneDocument {
             actors: scene.actors,
             fog: scene.fog,
             hud_budget: scene.hud_budget,
+            spawn_reserve: scene.spawn_reserve,
             environment: scene.environment,
             bake: scene.bake,
             navigation: scene.navigation,
@@ -346,6 +354,7 @@ impl From<SceneDocument> for Scene {
             actors: doc.actors,
             fog: doc.fog,
             hud_budget: doc.hud_budget,
+            spawn_reserve: doc.spawn_reserve,
             environment: doc.environment,
             bake: doc.bake,
             navigation: doc.navigation,
@@ -416,6 +425,7 @@ impl Default for Scene {
         second.position = [2., 0.5, 1.];
         Self {
             hud_budget: Default::default(),
+            spawn_reserve: None,
             fog: Default::default(),
             environment: Default::default(),
             bake: None,
@@ -719,6 +729,7 @@ impl Scene {
         if branch.is_empty() {
             return branch;
         }
+        crate::hud::stabilize_focus(&mut self.actors);
         let removed: BTreeSet<_> = branch.iter().copied().collect();
         let components: BTreeSet<_> = self
             .actors
@@ -728,6 +739,7 @@ impl Scene {
             .collect();
         self.actors.retain(|actor| !removed.contains(&actor.id));
         for actor in &mut self.actors {
+            crate::hud::clear_focus_targets(actor, &removed);
             if actor.logical_parent.is_some_and(|p| removed.contains(&p)) {
                 actor.logical_parent = None;
             }
@@ -744,7 +756,22 @@ impl Scene {
     /// appended in document order. The copied root keeps the original's logical
     /// parent; references that leave the branch keep their target.
     pub fn duplicate_actor_branch(&mut self, id: uuid::Uuid) -> Result<uuid::Uuid, String> {
-        let branch = self.actor_branch(id);
+        let map = self.duplicate_actor_branches(&[id])?;
+        Ok(map[&id])
+    }
+
+    /// Copy the union once so references between separately selected branches
+    /// resolve to their copies, just like references within a single branch.
+    pub fn duplicate_actor_branches(
+        &mut self,
+        ids: &[uuid::Uuid],
+    ) -> Result<crate::actor_document::IdentityMap, String> {
+        crate::hud::stabilize_focus(&mut self.actors);
+        let branch = self
+            .actor_branch_roots(ids)
+            .into_iter()
+            .flat_map(|id| self.actor_branch(id))
+            .collect::<std::collections::BTreeSet<_>>();
         if branch.is_empty() {
             return Err("No actor selected".into());
         }
@@ -758,17 +785,21 @@ impl Scene {
         for actor in &mut copies {
             crate::actor_document::remap_actor(actor, &map);
         }
-        let root = *map.get(&id).expect("the branch contains its own root");
         for mut actor in copies {
             actor.name = self.unique_actor_name(&actor.name);
             self.actors.push(actor);
         }
         self.refresh_actor_hierarchy();
-        Ok(root)
+        Ok(map)
     }
     /// Structural validation only. Rules that need the reflected class model
     /// live in [`Self::validate_with_model`]; every existing caller keeps the
     /// offline behaviour it had before the actor model existed.
+    /// Actor slots reserved for runtime spawns when a scene authors none.
+    pub const SPAWN_RESERVE: usize = 32;
+    pub fn spawn_slots(&self) -> usize {
+        self.spawn_reserve.unwrap_or(Self::SPAWN_RESERVE)
+    }
     pub fn validate(&self) -> Result<(), String> {
         self.validate_with_model(None)
     }
@@ -779,6 +810,16 @@ impl Scene {
         &self,
         model: Option<&crate::object_model::Model>,
     ) -> Result<(), String> {
+        if self
+            .spawn_reserve
+            .is_some_and(|slots| slots > Self::SPAWN_RESERVE)
+        {
+            return Err(format!(
+                "{}: spawn reserve must be 0..{}",
+                self.name,
+                Self::SPAWN_RESERVE
+            ));
+        }
         if let Some(track) = &self.visibility_track {
             track.validate(self)?;
         }
@@ -792,8 +833,33 @@ impl Scene {
                 crate::actor_document::SCENE_VERSION
             ));
         }
-        if self.version != crate::actor_document::SCENE_VERSION {
+        if self.version < crate::actor_document::FIRST_ACTOR_SCENE_VERSION {
             return Err("This map uses the retired Entity/Behaviour format; recreate the project with the Actor templates.".into());
+        }
+        if self.version < 7
+            && self.actors.iter().any(|actor| {
+                actor.blueprint_instance.as_ref().is_some_and(|instance| {
+                    instance
+                        .overrides
+                        .values()
+                        .any(crate::blueprint_templates::is_literal_null)
+                })
+            })
+        {
+            return Err("Literal None placement overrides require scene version 7; authored data is preserved.".into());
+        }
+        if self.version < 8
+            && self.actors.iter().any(|actor| {
+                crate::hud::has_focus_links(actor)
+                    || actor.blueprint_instance.as_ref().is_some_and(|state| {
+                        crate::blueprint_templates::focus_member_edits(&state.overrides)
+                    })
+            })
+        {
+            return Err(
+                "Persistent focus bindings require scene version 8; authored data is preserved."
+                    .into(),
+            );
         }
         if self.actors.len() > 512 {
             return Err("Editor limit: 512 objects per scene".into());
@@ -931,7 +997,7 @@ impl Scene {
         Ok(scene)
     }
     pub fn load_unresolved(path: &Path) -> Result<Self, String> {
-        let cached = crate::source_cache::load(path, "scene-v1", Self::parse_unresolved)?;
+        let cached = crate::source_cache::load(path, "scene-v3", Self::parse_unresolved)?;
         let scene = (*cached).clone();
         // Validation remains authoritative, including after a disk-cache hit.
         scene.validate()?;
@@ -939,10 +1005,9 @@ impl Scene {
     }
     pub(crate) fn parse_unresolved(bytes: &[u8]) -> Result<Self, String> {
         let document: serde_json::Value = crate::document::from_slice(bytes)?;
-        if document["version"]
-            .as_u64()
-            .is_none_or(|version| version < u64::from(crate::actor_document::SCENE_VERSION))
-        {
+        if document["version"].as_u64().is_none_or(|version| {
+            version < u64::from(crate::actor_document::FIRST_ACTOR_SCENE_VERSION)
+        }) {
             return Err("This map uses the retired Entity/Behaviour format; recreate the project with the Actor templates.".into());
         }
         let mut scene: Self = serde_json::from_value(document).map_err(|e| e.to_string())?;
@@ -958,6 +1023,8 @@ impl Scene {
                 .and_then(|id| indices.get(&id).copied());
         }
         scene.validate()?;
+        scene.version = crate::actor_document::SCENE_VERSION;
+        crate::hud::stabilize_focus(&mut scene.actors);
         // Deterministic in-memory migration keeps references stable across repeated reads
         // and complete-folder relocation. Only Save publishes the assigned identities.
         scene.upgrade_entity_ids();
@@ -966,7 +1033,10 @@ impl Scene {
     pub fn save(&self, path: &Path) -> Result<(), String> {
         self.validate()?;
         let mut document = self.clone();
+        document.version = crate::actor_document::SCENE_VERSION;
+        crate::hud::stabilize_focus(&mut document.actors);
         document.upgrade_entity_ids();
+        document.validate()?;
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent).map_err(|e| e.to_string())?;
         }
@@ -1165,7 +1235,7 @@ mod tests {
         let root = crate::workspace::tests::temp("retired-scene");
         fs::create_dir_all(&root).unwrap();
         let path = root.join("Old.epokmap");
-        for version in 1..crate::actor_document::SCENE_VERSION {
+        for version in 1..crate::actor_document::FIRST_ACTOR_SCENE_VERSION {
             let bytes =
                 serde_json::to_vec(&serde_json::json!({"version":version,"entities":[]})).unwrap();
             fs::write(&path, &bytes).unwrap();
@@ -1201,6 +1271,60 @@ mod tests {
         assert!(error.contains("newer editor"), "{error}");
         scene.version = 0;
         assert!(scene.validate().unwrap_err().contains("recreate"));
+    }
+
+    #[test]
+    fn actor_scene_six_upgrades_in_memory_and_literal_none_requires_seven() {
+        let root = crate::workspace::tests::temp("nullable-scene-format");
+        fs::create_dir_all(&root).unwrap();
+        let path = root.join("Actors.epokmap");
+        let mut scene = Scene {
+            version: 6,
+            ..Scene::default()
+        };
+        scene.actors[0].blueprint_instance = Some(crate::blueprint_templates::Instance {
+            class: uuid::Uuid::new_v4().to_string(),
+            template_entity: uuid::Uuid::new_v4(),
+            component_ids: Default::default(),
+            instance: scene.actors[0].id,
+            overrides: [("/properties/old_deletion".into(), serde_json::Value::Null)].into(),
+            parent: None,
+        });
+        let bytes = crate::document::to_vec(&scene).unwrap();
+        fs::write(&path, &bytes).unwrap();
+        let loaded = Scene::load_unresolved(&path).unwrap();
+        assert_eq!(loaded.version, crate::actor_document::SCENE_VERSION);
+        assert_eq!(fs::read(&path).unwrap(), bytes);
+        assert!(
+            loaded.actors[0]
+                .blueprint_instance
+                .as_ref()
+                .unwrap()
+                .overrides["/properties/old_deletion"]
+                .is_null()
+        );
+        loaded.save(&path).unwrap();
+        let saved = fs::read(&path).unwrap();
+        Scene::load_unresolved(&path).unwrap().save(&path).unwrap();
+        assert_eq!(fs::read(&path).unwrap(), saved);
+        scene.actors[0]
+            .blueprint_instance
+            .as_mut()
+            .unwrap()
+            .overrides
+            .insert(
+                "/properties/target".into(),
+                crate::blueprint_templates::literal_null(),
+            );
+        let mislabeled = crate::document::to_vec(&scene).unwrap();
+        fs::write(&path, &mislabeled).unwrap();
+        assert!(
+            Scene::load_unresolved(&path)
+                .unwrap_err()
+                .contains("version 7")
+        );
+        assert_eq!(fs::read(&path).unwrap(), mislabeled);
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[test]

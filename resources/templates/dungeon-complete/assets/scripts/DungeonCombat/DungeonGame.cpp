@@ -1,9 +1,9 @@
 #include "DungeonGame.hpp"
 #include "DungeonPlayerController.hpp"
 #include "DungeonHudAssets.hpp"
-#include "CharacterMotion.hpp"
 #include "DungeonProfiling.hpp"
 #include "retained.hpp"
+EPOK_SPEED_BEGIN
 #if defined(__mips__)
 DungeonProfile dungeon_profile{};
 DungeonProfile dungeon_completed_profile{};
@@ -12,8 +12,6 @@ DungeonPeakProfile dungeon_peak_profile{};
 DungeonPeakProfile dungeon_explore_peak_profile{};
 #endif
 using namespace epok;
-DungeonGame* DungeonGame::current=nullptr;
-DungeonEconomy DungeonGame::economy{};
 CombatTelemetry combat_telemetry{};
 DungeonTelemetry dungeon_telemetry{};
 DungeonFpsTelemetry dungeon_fps_telemetry{};
@@ -29,38 +27,49 @@ Fixed clamp01(Fixed v){return v<Fixed(0.0)?Fixed(0.0):(v>Fixed(1.0)?Fixed(1.0):v
 int64_t distance2(const Fixed* a,const Fixed* b){const int64_t x=(a[0]-b[0]).raw(),z=(a[2]-b[2]).raw();return x*x+z*z;}
 bool near(const Fixed* a,const Fixed* b,Fixed r){return distance2(a,b)<=int64_t(r.raw())*r.raw();}
 Fixed center_height(const ActorData& a){return a.collider.center[1]*a.transform.scale[1];}
-void direction(const Fixed* from,const Fixed* to,Fixed* out){
-    int64_t n=0;for(int k=0;k<3;++k){out[k]=to[k]-from[k];n+=int64_t(out[k].raw())*out[k].raw();}
-    // Decisions and projectiles are limited to a local 22-metre neighbourhood.
-    const Fixed length(int32_t(character_motion::root(uint32_t(n>>4)))*4,Fixed::RAW);
-    if(length.raw())for(int k=0;k<3;++k)out[k]/=length;
-}
 void tint(ActorData* d,int r,int g,int b){if(d){d->material.color[0]=uint8_t(r);d->material.color[1]=uint8_t(g);d->material.color[2]=uint8_t(b);}}
-void number(Text& text,const char* prefix,unsigned value){
-    char result[48];unsigned n=0;while(*prefix&&n<30)result[n++]=*prefix++;
-    char digits[10];unsigned count=0;do{digits[count++]=char('0'+value%10);value/=10;}while(value&&count<10);
-    while(count)result[n++]=digits[--count];result[n]=0;text.set_text(result);
-}
-DataHandle named(const char* name){auto* d=find_actor_data(name);return d?handle(d):DataHandle{};}
+DataHandle bound(ObjectId id){auto* data=gameplay_actor_data(id);return data?handle(data):DataHandle{};}
 }
 
+bool DungeonGame::is_target(const ActorData* value)const{
+    const auto* refs=encounter_bindings_data();if(!refs||!value||!value->owner)return false;
+    const ObjectId id=value->owner->id();
+    return id==refs->guard0||id==refs->guard1||id==refs->guard2||id==refs->boss;
+}
+
+DungeonRunFlowBase* DungeonGame::flow_rules()const{
+    return run_flow_binding_.resolve(run_flow);
+}
+bool DungeonGame::controls_enabled()const{
+    auto* rules=flow_rules();
+    auto* vitals=vital_rules();
+    return initialized&&rules&&vitals&&vitals->valid&&rules->status.valid&&rules->status.playing&&rules->status.alive;
+}
 void DungeonGame::begin_play(){
-    current=this;initialized=false;health=100;state=Explore;
-    flow.begin();SceneLibrary::set_screen_fade(255);
+    begun_=true;initialized=false;state=Explore;restart_count_=0;active_enemies_=0;
+    if(auto* rules=vital_rules())rules->start();
+    if(auto* rules=flow_rules())rules->start();SceneLibrary::set_screen_fade(255);
     // The loader has bound every actor before begin_play. Establish the entry
     // view immediately, before the first 60 Hz tick initializes game services.
-    const char* hidden[]={"Central amber light","Key Bay amber light","Med Bay amber light","Reactor amber light",
-        "Door 1 Left","Door 1 Right","Door 2 Left","Door 2 Right","Door 3 Left","Door 3 Right",
-        "Access Key","Health Pack 0","Health Pack 1","Health Pack 2"};
-    for(const auto* name:hidden)if(auto* d=find_actor_data(name))d->mesh=false;
-    if(auto* d=find_actor_data("Target Reactor Guardian"))set_active(d,false);
+    auto* world=world_bindings_data();auto* encounter=encounter_bindings_data();
+    if(world){
+        const ObjectId hidden[]={world->room1,world->room2,world->room3,world->room4,
+            world->door1_left,world->door1_right,world->door2_left,world->door2_right,world->door3_left,world->door3_right};
+        for(auto id:hidden)if(auto* data=gameplay_actor_data(id))data->mesh=false;
+    }
+    if(encounter){
+        const ObjectId hidden[]={encounter->key,encounter->pack0,encounter->pack1,encounter->pack2};
+        for(auto id:hidden)if(auto* data=gameplay_actor_data(id))data->mesh=false;
+        if(auto* data=gameplay_actor_data(encounter->boss))set_active(data,false);
+    }
 }
 void DungeonGame::on_frame(uint32_t microseconds){
+    economy.begin_frame();
     if(!microseconds)return;
     update_damage_feedback(microseconds);
 #ifdef __mips__
     dungeon_completed_profile=dungeon_profile;
-    const bool combat=state==BossFight||combat_telemetry.active;
+    const bool combat=state==BossFight||active_enemies_;
     if(initialized&&!economy.blocking()&&microseconds>(combat?dungeon_fps_telemetry.combat_max:dungeon_fps_telemetry.explore_max)){
         const auto& p=performance_stats;auto* v=combat?dungeon_peak_profile.values:dungeon_explore_peak_profile.values;
         const uint32_t phases[]={p.frame,microseconds,p.simulation_scanlines,p.collision_scanlines,p.render_scanlines,
@@ -80,102 +89,111 @@ void DungeonGame::on_frame(uint32_t microseconds){
     auto& fps=dungeon_fps_telemetry;++fps.frames;if(microseconds>25000)++fps.slow;
     if(microseconds>fps.max_us)fps.max_us=microseconds;
     auto& maximum=!initialized?fps.startup_max:economy.blocking()?fps.interface_max:
-        (state==BossFight||combat_telemetry.active)?fps.combat_max:fps.explore_max;
+        (state==BossFight||active_enemies_)?fps.combat_max:fps.explore_max;
     if(microseconds>maximum)maximum=microseconds;
 }
-void DungeonGame::end_play(EndPlayReason){if(current==this){clear_damage_feedback();if(auto* d=music.get())d->audio.stop();current=nullptr;set_world3d_visible(true);SceneLibrary::set_screen_fade(0);}}
+void DungeonGame::end_play(EndPlayReason){begun_=false;clear_damage_feedback();if(auto* d=audio_source(music))d->stop();set_world3d_visible(true);SceneLibrary::set_screen_fade(0);}
 void DungeonGame::start_presentation(){
-    flow.begin();SceneLibrary::set_screen_fade(255);
-    if(auto* d=music.get()){d->audio.stop();d->audio.volume=music_volume;d->audio.play();++dungeon_flow_telemetry.starts;}
+    if(auto* rules=flow_rules())rules->start();state=Explore;SceneLibrary::set_screen_fade(255);
+    if(auto* d=audio_source(music)){d->stop();d->volume=music_volume;d->play();++dungeon_flow_telemetry.starts;}
     publish_presentation();
 }
 void DungeonGame::publish_presentation(){
-    auto& t=dungeon_flow_telemetry;t.phase=flow.phase;t.elapsed=flow.elapsed;t.fade=flow.fade();t.inputs_locked=!controls_enabled();
-    if(auto* d=music.get()){t.music_volume=d->audio.volume.raw();t.music_playing=d->audio.is_playing();}
+    auto& t=dungeon_flow_telemetry;auto* rules=flow_rules();
+    if(rules){const auto& status=rules->status;state=RunState(status.state);t.phase=status.phase;t.elapsed=uint32_t(status.elapsed.raw());t.fade=status.fade;}
+    t.inputs_locked=!controls_enabled();
+    if(auto* d=audio_source(music)){t.music_volume=d->volume.raw();t.music_playing=d->is_playing();}
     else{t.music_volume=0;t.music_playing=0;}
 }
 bool DungeonGame::update_presentation(Fixed dt){
-    if(flow.playing())return false;
-    bool playing=false;if(auto* d=music.get())playing=d->audio.is_playing();
-    if(flow.step(uint32_t(dt.raw()),playing)){
+    auto* rules=flow_rules();if(!rules)return true;
+    if(rules->status.playing)return false;
+    if(rules->restart_requested(GameplayInputLibrary::button_pressed(Button::Start))){reset_run();return true;}
+    bool playing=false;if(auto* d=audio_source(music))playing=d->is_playing();
+    rules->advance(dt,playing);
+    if(rules->status.restart){
         // Reset the resident level in place: all encounters, projectiles,
         // pickups, doors, player and camera return to their authored start.
         // Inventory and its asynchronous card service remain alive.
         ++dungeon_flow_telemetry.restarts;reset_run();return true;
     }
-    SceneLibrary::set_screen_fade(flow.fade());
-    if(auto* d=music.get()){
-        d->audio.volume=music_volume*Fixed(flow.music_gain(),Fixed::RAW);
-        if(flow.phase==DungeonFlow::RestartHold&&playing)d->audio.stop();
+    SceneLibrary::set_screen_fade(rules->status.fade);
+    if(auto* d=audio_source(music)){
+        d->volume=music_volume*rules->status.music_gain;
+        if(rules->status.stop_music&&playing)d->stop();
     }
-    publish_presentation();return !flow.playing();
+    publish_presentation();return !rules->status.playing;
 }
 void DungeonGame::sound(DungeonSound event){
     DungeonMeasure measure(7);
     const unsigned i=unsigned(event);
     if(!initialized||i>=unsigned(DungeonSound::Count))return;
     const auto& cue=dungeon_audio::cues[i];
-    auto* d=sounds[cue.channel].get();
+    auto* d=audio_source(sounds[cue.channel]);
     if(sound_clips[i]<0||!d){++dungeon_audio_telemetry.missing;return;}
-    d->audio.stop();d->audio.clip=sound_clips[i];
-    d->audio.volume=Fixed(cue.volume,Fixed::RAW);d->audio.pitch=1.0;d->audio.play();
+    d->stop();d->clip=sound_clips[i];
+    d->volume=Fixed(cue.volume,Fixed::RAW);d->pitch=1.0;d->play();
     ++dungeon_audio_telemetry.events[i];
 }
 void DungeonGame::initialize(){
-    auto* owner=get_owner();auto* body=owner?owner->data():nullptr;if(!body)return;
+    auto* body=epok::gameplay_actor_data(player_actor);if(!body)return;
     player=handle(body);for(int k=0;k<3;++k)spawn[k]=body->transform.position[k];
-    const char* guards[]={"Target Guard 0","Target Guard 1","Target Guard 2"};
+    auto* actors=encounter_bindings_data();auto* world=world_bindings_data();
+    auto* fx_bindings=effect_bindings_data();auto* audio_route=audio_bindings_data();
+    if(!actors||!world||!fx_bindings||!audio_route)return;
+    const ObjectId guards[]={actors->guard0,actors->guard1,actors->guard2};
     const Fixed encounter_positions[6][3]={{-4.0,0.0,21.0},{5.0,0.0,29.0},{-27.0,0.0,20.0},{-23.0,0.0,29.0},{27.0,0.0,26.0},{0.0,0.0,40.0}};
-    for(int i=0;i<3;++i)enemies[i].data=named(guards[i]);
+    for(int i=0;i<3;++i)enemies[i].data=bound(guards[i]);
     for(int i=0;i<6;++i)for(int k=0;k<3;++k)encounters[i].home[k]=encounter_positions[i][k];
-    boss=named("Target Reactor Guardian");if(auto* d=boss.get())for(int k=0;k<3;++k)boss_home[k]=d->transform.position[k];
-    keycard=named("Access Key");if(auto* d=keycard.get())for(int k=0;k<3;++k)key_home[k]=d->transform.position[k];
-    const char* packs[]={"Health Pack 0","Health Pack 1","Health Pack 2"};
-    for(int i=0;i<3;++i){health_packs[i].data=named(packs[i]);if(auto* d=health_packs[i].data.get())for(int k=0;k<3;++k)health_packs[i].home[k]=d->transform.position[k];}
-    const char* left[]={"Door 0 Left","Door 1 Left","Door 2 Left","Door 3 Left"};
-    const char* right[]={"Door 0 Right","Door 1 Right","Door 2 Right","Door 3 Right"};
-    for(int i=0;i<4;++i){auto& door=doors[i];door.left=named(left[i]);door.right=named(right[i]);door.axis=(i==1||i==2)?2:0;door.locked=i==3;
+    boss=bound(actors->boss);if(auto* d=boss.get())for(int k=0;k<3;++k)boss_home[k]=d->transform.position[k];
+    keycard=bound(actors->key);if(auto* d=keycard.get())for(int k=0;k<3;++k)key_home[k]=d->transform.position[k];
+    const ObjectId packs[]={actors->pack0,actors->pack1,actors->pack2};
+    for(int i=0;i<3;++i){health_packs[i].data=bound(packs[i]);if(auto* d=health_packs[i].data.get())for(int k=0;k<3;++k)health_packs[i].home[k]=d->transform.position[k];}
+    const ObjectId left[]={world->door0_left,world->door1_left,world->door2_left,world->door3_left};
+    const ObjectId right[]={world->door0_right,world->door1_right,world->door2_right,world->door3_right};
+    for(int i=0;i<4;++i){auto& door=doors[i];door.left=bound(left[i]);door.right=bound(right[i]);door.axis=(i==1||i==2)?2:0;door.locked=i==3;
         auto* a=door.left.get();auto* b=door.right.get();if(a&&b){door.detail[0]=a->geometry;door.detail[1]=b->geometry;for(int k=0;k<3;++k)door.center[k]=(a->transform.position[k]+b->transform.position[k])/Fixed(2.0);}}
-    const char* fx[]={"Combat FX 0","Combat FX 1","Combat FX 2","Combat FX 3","Combat FX 4","Combat FX 5","Combat FX 6","Combat FX 7","Combat FX 8","Combat FX 9","Combat FX 10","Combat FX 11"};
-    for(int i=0;i<12;++i)if(auto* d=find_actor_data(fx[i])){d->sprite.enabled=false;if(i<8)shots[i].data=handle(d);else effects[i-8].data=handle(d);}
-    const char* audio[]={"Player Weapon Sound","World Impact Sound","Robot Impact Sound","Player Damage Sound","Enemy Weapon Sound","Robot Destruction Sound","PocketStation Terminal"};
-    for(unsigned i=0;i<7;++i)sounds[i]=named(audio[i]);
-    music=named("Reactor Station");if(auto* d=music.get())music_volume=d->audio.volume;
+    const ObjectId fx[]={fx_bindings->effect0,fx_bindings->effect1,fx_bindings->effect2,fx_bindings->effect3,fx_bindings->effect4,fx_bindings->effect5,fx_bindings->effect6,fx_bindings->effect7,fx_bindings->effect8,fx_bindings->effect9,fx_bindings->effect10,fx_bindings->effect11};
+    for(int i=0;i<12;++i)if(auto* d=gameplay_actor_data(fx[i])){d->sprite.enabled=false;if(i>=8)effects[i-8].data=handle(d);}
+    const ObjectId audio[]={audio_route->player_shot_source,audio_route->world_hit_source,audio_route->robot_hit_source,audio_route->player_damage_source,audio_route->enemy_shot_source,audio_route->robot_destroyed_source,audio_route->ui_source};
+    for(unsigned i=0;i<7;++i)sounds[i]=audio[i];
+    music=audio_route->music_source;if(auto* d=audio_source(music))music_volume=d->volume;
     for(unsigned i=0;i<unsigned(DungeonSound::Count);++i){
         const auto clip=epok::assets::find(sound_effects,dungeon_audio::cues[i].key,epok::assets::Kind::AudioClip);
         sound_clips[i]=epok::assets::audio_clip(clip);
     }
-    const char* rooms[]={"Entry amber light","Central amber light","Key Bay amber light","Med Bay amber light","Reactor amber light"};
-    for(int i=0;i<5;++i)room_geometry[i]=named(rooms[i]);
-    health_bar=named("Energy Bar");health_label=named("Energy Label");key_label=named("Key Status");objective=named("Objective");
-    boss_bar=named("Boss Bar");boss_label=named("Boss Label");message=named("Game Message");message_panel=named("Message Panel");reticle=named("Aim Reticle");
-    damage_border=named("Combat HUD");
-    initialized=true;reset_run();economy.initialize();
+    const ObjectId rooms[]={world->room0,world->room1,world->room2,world->room3,world->room4};
+    for(int i=0;i<5;++i)room_geometry[i]=bound(rooms[i]);
+    initialized=true;reset_run();economy.initialize(economy_policy);update_hud();
     for(const auto& room:room_geometry)prewarm_geometry(room.get());
     for(const auto& enemy:enemies)prewarm_geometry(enemy.data.get());
     prewarm_geometry(boss.get());
 }
 void DungeonGame::unload(Enemy& e){
     ++spatial_revision;
-    if(auto* d=e.data.get()){d->collider.enabled=false;set_active(d,false);if(initialized)queries.changed(*d);}
-    e.encounter=-1;e.dead_time=0.0;e.windup=0.0;e.flash=0.0;e.can_see=false;e.sight_timer=0.0;
+    if(auto* d=e.data.get()){d->collider.enabled=false;set_active(d,false);if(initialized)spatial_queries().changed(*d);}
+    e.encounter=-1;e.rules.dead_time=0.0;e.rules.windup=0.0;e.rules.flash=0.0;e.rules.can_see=false;e.rules.sight_timer=0.0;
 }
 void DungeonGame::reset_run(){
     if(!initialized)return;
     clear_damage_feedback();
     ++spatial_revision;++structural_revision;
-    queries=SpatialQueryBatch{};
-    const unsigned runs=dungeon_telemetry.restarts+1;dungeon_telemetry={};dungeon_telemetry.restarts=runs;combat_telemetry={};
-    health=100;boss_health=280;kills=0;has_key=false;state=Explore;aiming=false;boss_hud_visible=false;
-    elapsed=0.0;ai_elapsed=0.0;invulnerable=0.0;boss_timer=1.8;boss_windup=0.0;boss_flash=0.0;
-    for(auto& e:encounters){e.health=60;e.defeated=false;}
+    auto* registry=epok::active_object_registry;
+    auto* context=registry?registry->resolve<SpatialQueryContextComponent>(collision_queries):nullptr;
+    if(context)context->reset_queries();else spatial_queries()=SpatialQueryBatch{};
+    ++restart_count_;dungeon_telemetry={};dungeon_telemetry.restarts=restart_count_;combat_telemetry={};active_enemies_=0;
+    if(auto* rules=vital_rules())rules->start();
+    auto* encounters_policy=encounter_rules();
+    boss_health=encounters_policy?encounters_policy->starting_health(true):HealthState{};kills=0;has_key=false;state=Explore;aiming=false;boss_hud_visible=false;
+    elapsed=0.0;ai_elapsed=0.0;boss_rules=encounters_policy?encounters_policy->boss_start():DungeonBossState{};
+    for(auto& e:encounters){e.health=encounters_policy?encounters_policy->starting_health(false):HealthState{};e.defeated=false;}
     for(auto& e:enemies)unload(e);
-    if(auto* d=boss.get()){for(int k=0;k<3;++k)d->transform.position[k]=boss_home[k];d->collider.enabled=false;set_active(d,false);tint(d,255,255,255);}
+    if(auto* d=boss.get()){for(int k=0;k<3;++k)d->transform.position[k]=boss_home[k];d->collider.enabled=false;set_active(d,false);if(encounters_policy){const auto color=encounters_policy->world_enemy_color(true,0.0,0.0,false);tint(d,int(color.red),int(color.green),int(color.blue));}}
     if(auto* d=keycard.get()){for(int k=0;k<3;++k)d->transform.position[k]=key_home[k];set_active(d,true);}
     for(auto& p:health_packs){p.taken=false;if(auto* d=p.data.get()){for(int k=0;k<3;++k)d->transform.position[k]=p.home[k];set_active(d,true);}}
-    for(auto& s:shots){s.life=0.0;if(auto* d=s.data.get())d->sprite.enabled=false;}
+    if(auto* pool=projectiles())pool->reset();
     for(auto& f:effects){f.playing=false;if(auto* d=f.data.get())d->sprite.enabled=false;}
-    for(auto& door:doors){door.progress=0.0;door.tint_state=255;for(unsigned side=0;side<2;++side)if(auto* d=(side?door.right:door.left).get()){
+    for(auto& door:doors){door.progress=0.0;door.tint_state=255;door.resting=false;for(unsigned side=0;side<2;++side)if(auto* d=(side?door.right:door.left).get()){
         for(int k=0;k<3;++k)d->transform.position[k]=door.center[k];d->transform.position[door.axis]+=(side?Fixed(.75):Fixed(-.75));d->collider.enabled=true;}}
     if(auto* d=player.get()){for(int k=0;k<3;++k)d->transform.position[k]=spawn[k];d->transform.rotation[1]=0.0;}
     auto* a=get_owner();auto* level=a&&active_object_registry?active_object_registry->resolve<Level>(a->level_id()):nullptr;
@@ -208,274 +226,258 @@ bool DungeonGame::line_of_sight(const ActorData& from,const ActorData& to,const 
     return !(queries?queries->raycast(eye,delta,1,&from):raycast(eye,delta,1,&from));
 }
 void DungeonGame::damage_player(int amount){
-    if(!controls_enabled()||amount<=0||invulnerable.raw()>0)return;
-    health-=amount;if(health<0)health=0;invulnerable=.7;hud_dirty=true;++dungeon_telemetry.damage;sound(DungeonSound::PlayerDamage);
-    damage_flash_us=damage_flash_duration_us;update_damage_feedback(0);
-    InputLibrary::rumble(160,true,120,0);
-    if(!health){state=Defeat;aiming=false;flow.die();publish_presentation();for(auto& s:shots){s.life=0.0;if(auto* d=s.data.get())d->sprite.enabled=false;}}
+    auto* rules=vital_rules();auto* world=encounter_rules();if(!rules||!world)return;
+    const auto change=rules->damage(amount,controls_enabled());if(!change.applied)return;
+    hud_dirty=true;++dungeon_telemetry.damage;sound(DungeonSound::PlayerDamage);
+    update_damage_feedback(0,true);
+    if(auto* combat=combat_rules()){const auto rumble=combat->damage_rumble();InputLibrary::rumble(rumble.large,rumble.small,rumble.duration_ms,0);}
+    const auto death=world->world_player_death(change.depleted);
+    if(death.defeat)if(auto* flow=flow_rules())flow->die();
+    if(death.clear_aim)aiming=false;if(change.depleted)publish_presentation();
+    if(death.reset_projectiles)if(auto* pool=projectiles())pool->reset();
 }
-void DungeonGame::update_damage_feedback(uint32_t microseconds){
-    // Presentation follows rendered time, including death holds and menus.
-    // Keep a visible frame at least one pixel wide until it is disabled: zero
-    // borders intentionally mean a filled Image, not an empty one.
-    damage_flash_us=microseconds>=damage_flash_us?0:damage_flash_us-microseconds;
-    if(auto* d=damage_border.get()){
-        d->image.enabled=damage_flash_us!=0;
-        if(d->image.enabled){
-            const uint16_t width=uint16_t((6*damage_flash_us+damage_flash_duration_us-1)/damage_flash_duration_us);
-            for(auto& edge:d->image.borders)edge=width;
-            d->image.color[0]=uint8_t(96+128*damage_flash_us/damage_flash_duration_us);
-            d->image.color[1]=16;d->image.color[2]=20;
-        }
-    }
+void DungeonGame::update_damage_feedback(uint32_t microseconds,bool restart){
+    auto* rules=combat_rules();if(!rules)return;
+    const auto feedback=rules->damage_feedback(damage_flash_us,microseconds,restart);damage_flash_us=feedback.remaining_us;
+    economy.publish_damage({feedback.enabled,feedback.border_pixels,feedback.red,feedback.green,feedback.blue});
 }
 void DungeonGame::clear_damage_feedback(){
     damage_flash_us=0;
-    if(auto* d=damage_border.get())d->image.enabled=false;
+    economy.publish_damage({false,0,0,0,0});
     InputLibrary::stop_rumble(0);
 }
 void DungeonGame::effect(const Fixed* point,uint16_t kind){
+    auto* rules=combat_rules();if(!rules)return;const auto visual=rules->effect_step(kind,0,false);if(!visual.playing)return;
     for(auto& f:effects)if(!f.playing)if(auto* d=f.data.get()){
-        f.playing=true;f.age=0;f.kind=kind;for(int k=0;k<3;++k)d->transform.position[k]=point[k];
-        d->sprite.size[0]=d->sprite.size[1]=kind?Fixed(.48):Fixed(.28);d->sprite.enabled=true;
-        const unsigned frame=kind?6:4;d->sprite.region[0]=(frame%8)*32;d->sprite.region[1]=(frame/8)*32;return;
+        f.playing=true;f.age=uint16_t(visual.age);f.kind=kind;for(int k=0;k<3;++k)d->transform.position[k]=point[k];
+        d->sprite.size[0]=d->sprite.size[1]=visual.size;d->sprite.enabled=true;
+        d->sprite.region[0]=(visual.frame%8)*32;d->sprite.region[1]=(visual.frame/8)*32;return;
     }
 }
-bool DungeonGame::damage_enemy(ActorData* target,int amount){
-    if(!target||!player_alive())return false;
-    ++spatial_revision;
-    amount+=int(economy.damage_bonus());
-    if(target==boss.get()&&state==BossFight&&boss_health>0){
-        boss_health-=amount;if(boss_health<0)boss_health=0;boss_flash=.16;hud_dirty=true;++combat_telemetry.hits;
-        sound(boss_health?DungeonSound::RobotHit:DungeonSound::BossDestroyed);
-        if(!boss_health){target->collider.enabled=false;spatial_queries().changed(*target);target->animator.play(2,false);state=Victory;
-            for(auto& s:shots){s.life=0.0;if(auto* d=s.data.get())d->sprite.enabled=false;}
-            effect(target->transform.position,1);}
-        return true;
+bool DungeonGame::damage_enemy(ActorData* target,uint32_t base){
+    if(!target||!player_alive())return false;auto* rules=encounter_rules();if(!rules)return false;
+    ++spatial_revision;const int amount=int32_t(rules->world_damage_total(base,economy.damage_bonus()));
+    if(target==boss.get()&&rules->world_damage_eligible(true,player_alive(),state==BossFight,boss_health.current,false,0.0,false)){
+        const auto change=HealthLibrary::damage(boss_health,amount);boss_health=change.state;boss_rules=rules->boss_hit(boss_rules);++combat_telemetry.hits;
+        const auto result=rules->world_hit_result(true,change.depleted,boss_health.current);
+        if(result.hud_dirty)hud_dirty=true;sound(DungeonSound(result.sound));
+        kills=int(rules->world_reward_count(uint32_t(kills),result.reward));
+        if(result.disable_collider){target->collider.enabled=false;spatial_queries().changed(*target);}
+        if(result.death_clip){const auto animation=rules->world_death_animation();if(animation.play)target->animator.play(animation.clip,animation.loop);}
+        if(result.victory)if(auto* flow=flow_rules()){flow->win();state=RunState(flow->status.state);}
+        if(result.reset_projectiles)if(auto* pool=projectiles())pool->reset();
+        if(result.explosion)effect(target->transform.position,1);return true;
     }
-    for(auto& e:enemies)if(e.data.get()==target&&e.encounter>=0&&e.dead_time.raw()<=0){
-        auto& spawn=encounters[e.encounter];if(spawn.defeated)return false;
-        spawn.health-=amount;e.flash=.14;++combat_telemetry.hits;
-        sound(spawn.health>0?DungeonSound::RobotHit:DungeonSound::RobotDestroyed);
-        if(spawn.health<=0){spawn.health=0;spawn.defeated=true;++kills;e.dead_time=.85;target->collider.enabled=false;spatial_queries().changed(*target);target->animator.play(2,false);hud_dirty=true;}
-        return true;
+    for(auto& enemy:enemies)if(enemy.data.get()==target&&enemy.encounter>=0){
+        auto& spawn=encounters[enemy.encounter];
+        if(!rules->world_damage_eligible(false,player_alive(),state==BossFight,spawn.health.current,true,enemy.rules.dead_time,spawn.defeated))continue;
+        const auto change=HealthLibrary::damage(spawn.health,amount);spawn.health=change.state;enemy.rules=rules->guard_hit(enemy.rules,change.depleted);++combat_telemetry.hits;
+        const auto result=rules->world_hit_result(false,change.depleted,spawn.health.current);sound(DungeonSound(result.sound));
+        if(result.defeated)spawn.defeated=true;kills=int(rules->world_reward_count(uint32_t(kills),result.reward));
+        if(result.disable_collider){target->collider.enabled=false;spatial_queries().changed(*target);}
+        if(result.death_clip){const auto animation=rules->world_death_animation();if(animation.play)target->animator.play(animation.clip,animation.loop);}
+        if(result.hud_dirty)hud_dirty=true;
+        if(result.victory)if(auto* flow=flow_rules()){flow->win();state=RunState(flow->status.state);}
+        if(result.reset_projectiles)if(auto* pool=projectiles())pool->reset();
+        if(result.explosion)effect(target->transform.position,1);return true;
     }
     return false;
 }
 bool DungeonGame::fire(const Fixed* origin,const Fixed* dir){
     if(!initialized||!player_alive())return false;
-    for(unsigned i=0;i<4;++i){auto& s=shots[i];if(s.life.raw()>0)continue;auto* d=s.data.get();if(!d)continue;
-        s.life=1.7;s.age=0;for(int k=0;k<3;++k){d->transform.position[k]=origin[k];s.velocity[k]=dir[k]*Fixed(22.0);combat_telemetry.muzzle[k]=origin[k].raw();}
-        d->sprite.size[0]=d->sprite.size[1]=.18;d->sprite.color[0]=d->sprite.color[1]=d->sprite.color[2]=255;
-        d->sprite.region[0]=d->sprite.region[1]=0;d->sprite.enabled=true;effect(origin,0);++combat_telemetry.shots;sound(DungeonSound::PlayerShot);return true;
-    }
-    return false;
+    auto* pool=projectiles();auto* rules=combat_rules();if(!pool||!rules)return false;
+    const auto launched=pool->launch(0,4,rules->projectile(gameplay_vector(origin),gameplay_vector(dir)));
+    auto* actor=active_object_registry->resolve<Actor3D>(launched.actor);auto* d=actor?actor->data():nullptr;
+    if(launched.result!=ProjectileResult::Applied||!d)return false;
+    for(int k=0;k<3;++k)combat_telemetry.muzzle[k]=origin[k].raw();
+    const auto visual=rules->shot_visual();d->sprite.size[0]=d->sprite.size[1]=visual.size;
+    d->sprite.color[0]=uint8_t(visual.red);d->sprite.color[1]=uint8_t(visual.green);d->sprite.color[2]=uint8_t(visual.blue);
+    effect(origin,0);++combat_telemetry.shots;sound(DungeonSound::PlayerShot);return true;
 }
 void DungeonGame::enemy_fire(ActorData& from,bool fan){
-    auto* body=player.get();if(!body)return;
+    auto* body=player.get();auto* pool=projectiles();auto* rules=encounter_rules();if(!body||!pool||!rules)return;
     Fixed origin[3]={from.transform.position[0],from.transform.position[1]+center_height(from),from.transform.position[2]};
-    Fixed destination[3]={body->transform.position[0],body->transform.position[1]+Fixed(.95),body->transform.position[2]},dir[3];direction(origin,destination,dir);
+    Fixed dir[3];const auto aimed=rules->world_aim_direction(MathLibrary::subtract(rules->shot_target(gameplay_vector(body->transform.position)),gameplay_vector(origin)));
+    if(!aimed.valid)return;gameplay_vector(aimed.value,dir);
     bool fired=false;
-    for(int pellet=fan?-1:0;pellet<=(fan?1:0);++pellet){
-        for(unsigned i=4;i<8;++i){auto& s=shots[i];if(s.life.raw()>0)continue;auto* d=s.data.get();if(!d)continue;
-            s.life=2.5;s.age=0;const Fixed angle(pellet*12*4096,Fixed::RAW),c=cos_degrees(angle),sn=sin_degrees(angle);
-            const Fixed vx=dir[0]*c+dir[2]*sn,vz=dir[2]*c-dir[0]*sn;
-            for(int k=0;k<3;++k)d->transform.position[k]=origin[k];
-            const Fixed speed=fan?Fixed(8.0):Fixed(7.0);
-            s.velocity[0]=vx*speed;s.velocity[1]=dir[1]*speed;s.velocity[2]=vz*speed;
-            d->sprite.size[0]=d->sprite.size[1]=fan?Fixed(.32):Fixed(.24);
-            d->sprite.color[0]=255;d->sprite.color[1]=100;d->sprite.color[2]=50;
-            d->sprite.region[0]=d->sprite.region[1]=0;d->sprite.enabled=true;++dungeon_telemetry.enemy_shots;effect(origin,0);fired=true;break;
-        }
+    const auto count=rules->pellet_count(fan);
+    for(uint32_t ordinal=0;ordinal<count;++ordinal){
+        const auto pellet=rules->pellet_index(ordinal,fan);
+        const auto launched=pool->launch(4,4,rules->projectile(gameplay_vector(origin),gameplay_vector(dir),pellet,fan));
+        auto* actor=active_object_registry->resolve<Actor3D>(launched.actor);auto* d=actor?actor->data():nullptr;
+        if(launched.result!=ProjectileResult::Applied||!d)continue;
+        d->sprite.size[0]=d->sprite.size[1]=rules->shot_size(fan);
+        const auto color=rules->world_shot_color();d->sprite.color[0]=uint8_t(color.red);d->sprite.color[1]=uint8_t(color.green);d->sprite.color[2]=uint8_t(color.blue);
+        ++dungeon_telemetry.enemy_shots;effect(origin,0);fired=true;
     }
     if(fired)sound(DungeonSound::EnemyShot);
 }
 void DungeonGame::update_enemies(Fixed dt,SpatialQueryBatch& queries){
     DungeonMeasure measure(6);
-    auto* body=player.get();if(!body)return;
-    // Maintain only nearby encounters. Defeated encounters never respawn.
+    auto* body=player.get();auto* rules=encounter_rules();if(!body||!rules)return;
+    // Keep three resident visual actors and six persistent encounter records.
     for(auto& e:enemies)if(e.encounter>=0){auto* d=e.data.get();if(!d)continue;
-        if(e.dead_time.raw()>0){e.dead_time-=dt;if(e.dead_time.raw()<=0)unload(e);continue;}
-        if(state==BossFight||!near(body->transform.position,encounters[e.encounter].home,Fixed(22.0)))unload(e);
+        if(e.rules.dead_time.raw()>0){
+            const auto step=rules->guard_schedule(e.rules,dt);e.rules=step.state;
+            if(step.action==6)unload(e);continue;
+        }
+        if(rules->should_unload(e.rules,state==BossFight,near(body->transform.position,encounters[e.encounter].home,rules->movement.retention_radius)))unload(e);
     }
-    if(state==Explore)for(int n=0;n<6;++n){if(encounters[n].defeated||!near(body->transform.position,encounters[n].home,Fixed(14.0)))continue;
+    for(int n=0;n<6;++n){
+        if(!rules->should_activate(encounters[n].defeated,state==Explore,near(body->transform.position,encounters[n].home,rules->movement.activation_radius)))continue;
         bool assigned=false;for(auto& e:enemies)if(e.encounter==n)assigned=true;if(assigned)continue;
         for(auto& e:enemies)if(e.encounter<0)if(auto* d=e.data.get()){
-            e.encounter=n;e.timer=1.1;e.windup=0.0;e.flash=0.0;e.patrol=false;e.can_see=false;
-            // Stagger the first update as a delay, rather than charging an
-            // unelapsed tick and running physics on this activation tick.
-            e.sight_timer=Fixed((n%3+1)*137,Fixed::RAW);e.ai_time=Fixed((n&1)?-68:0,Fixed::RAW);
+            e.encounter=n;e.rules=rules->guard_start(uint32_t(n));
             for(int k=0;k<3;++k)d->transform.position[k]=encounters[n].home[k];d->collider.enabled=true;set_active(d,true);queries.changed(*d);d->animator.play(0,true);++combat_telemetry.spawned;break;
         }
     }
     unsigned active=0;
-    for(auto& e:enemies){auto* d=e.data.get();if(e.encounter<0||!d)continue;++active;if(e.dead_time.raw()>0)continue;
-        // Every guard still advances at 30 Hz; alternate phases spread their
-        // physics/visibility work over the 60 Hz simulation ticks.
-        e.ai_time+=dt;if(e.ai_time<Fixed(1.0/30.0))continue;
-        const Fixed enemy_dt=e.ai_time;e.ai_time=0.0;
-        const Fixed dt=enemy_dt;
-        e.timer-=dt;if(e.flash.raw()>0)e.flash-=dt;
-        e.sight_timer-=dt;
-        const bool close=near(d->transform.position,body->transform.position,Fixed(11.0));
-        if(!close)e.can_see=false;
-        else if(e.sight_timer.raw()<=0){e.can_see=line_of_sight(*d,*body,&queries);e.sight_timer=.1;}
-        const bool visible=close&&e.can_see;
-        if(visible){
-            const Fixed dx=body->transform.position[0]-d->transform.position[0],dz=body->transform.position[2]-d->transform.position[2];
-            d->transform.rotation[1]=Fixed(character_motion::heading(dx.raw(),dz.raw()),Fixed::RAW);
-            queries.changed(*d);
-            if(e.windup.raw()>0){e.windup-=dt;if(e.windup.raw()<=0){enemy_fire(*d,false);e.timer=2.1;}}
-            else if(e.timer.raw()<=0){e.windup=.5;d->animator.play(0,true);}
-            else if(!near(d->transform.position,body->transform.position,Fixed(5.0))){
-                Fixed to[3]={body->transform.position[0],d->transform.position[1],body->transform.position[2]},dir[3];direction(d->transform.position,to,dir);
-                const Fixed delta[3]={dir[0]*Fixed(1.05)*dt,Fixed(-.05),dir[2]*Fixed(1.05)*dt};queries.move_and_slide(*d,delta);
-                if(d->animator.clip!=1)d->animator.play(1,true);
-            }else if(d->animator.clip!=0)d->animator.play(0,true);
-        }else{
-            e.windup=0.0;Fixed to[3];for(int k=0;k<3;++k)to[k]=encounters[e.encounter].home[k];to[0]+=e.patrol?Fixed(1.25):Fixed(-1.25);
-            if(near(d->transform.position,to,Fixed(.2)))e.patrol=!e.patrol;
-            Fixed dir[3];direction(d->transform.position,to,dir);const Fixed delta[3]={dir[0]*Fixed(.6)*dt,Fixed(-.05),dir[2]*Fixed(.6)*dt};queries.move_and_slide(*d,delta);
-            d->transform.rotation[1]=Fixed(character_motion::heading(dir[0].raw(),dir[2].raw()),Fixed::RAW);if(d->animator.clip!=1)d->animator.play(1,true);
-            queries.sync(*d);
-        }
-        if(e.flash.raw()>0)tint(d,255,110,110);else if(e.windup.raw()>0)tint(d,255,180,85);else tint(d,100,210,255);
+    for(auto& e:enemies){auto* d=e.data.get();if(e.encounter<0||!d)continue;++active;if(e.rules.dead_time.raw()>0)continue;
+        const auto scheduled=rules->guard_schedule(e.rules,dt);e.rules=scheduled.state;if(scheduled.action!=7)continue;
+        const Fixed step_dt=scheduled.dt;
+        const bool close=near(d->transform.position,body->transform.position,rules->movement.sight_radius);
+        const bool observed=close&&e.rules.sight_timer.raw()<=0?line_of_sight(*d,*body,&queries):e.rules.can_see;
+        Fixed patrol_goal[3];gameplay_vector(rules->world_patrol_goal(gameplay_vector(encounters[e.encounter].home),e.rules.patrol),patrol_goal);
+        const auto decision=rules->guard_decide(e.rules,step_dt,close,observed,
+            near(d->transform.position,body->transform.position,rules->movement.guard_range),
+            near(d->transform.position,patrol_goal,rules->movement.patrol_arrival));e.rules=decision.state;
+        const auto motion=rules->world_enemy_motion(false,decision.action,e.rules.patrol,close,e.rules.can_see,
+            gameplay_vector(d->transform.position),gameplay_vector(body->transform.position),gameplay_vector(encounters[e.encounter].home),step_dt,0.0);
+        if(motion.turn){d->transform.rotation[1]=motion.yaw;queries.changed(*d);}
+        if(decision.action==5)enemy_fire(*d,false);
+        if(motion.move){Fixed delta[3];gameplay_vector(motion.delta,delta);queries.move_and_slide(*d,delta);}
+        if(motion.patrol_turn)d->transform.rotation[1]=motion.patrol_yaw;
+        const auto animation=rules->world_enemy_animation(false,decision.action,d->animator.clip);
+        if(animation.play)d->animator.play(animation.clip,animation.loop);
+        if(motion.patrol_turn)queries.sync(*d);
+        if(epok::time.drawn_step){const auto color=rules->world_enemy_color(false,e.rules.flash,e.rules.windup,false);tint(d,int(color.red),int(color.green),int(color.blue));}
     }
-    combat_telemetry.active=active;
-    // Distant guards cannot change the support of a stationary player. Moving
-    // input still queries physics normally; nearby colliders invalidate rest.
-    for(const auto& e:enemies)if(e.encounter>=0)if(auto* d=e.data.get();d&&
-        near(d->transform.position,body->transform.position,Fixed(4.0))){++spatial_revision;break;}
+    active_enemies_=active;combat_telemetry.active=active_enemies_;
+    for(const auto& e:enemies)if(e.encounter>=0)if(auto* d=e.data.get();d&&near(d->transform.position,body->transform.position,Fixed(4.0))){++spatial_revision;break;}
 }
 void DungeonGame::update_boss(Fixed dt,SpatialQueryBatch& queries){
-    auto* d=boss.get();auto* p=player.get();if(!d||!p||state!=BossFight)return;
+    auto* d=boss.get();auto* p=player.get();auto* rules=encounter_rules();if(!d||!p||!rules||state!=BossFight)return;
     ++spatial_revision;
-    const bool phase_two=boss_health<=140;boss_timer-=dt;if(boss_flash.raw()>0)boss_flash-=dt;
-    const Fixed dx=p->transform.position[0]-d->transform.position[0],dz=p->transform.position[2]-d->transform.position[2];
-    d->transform.rotation[1]=Fixed(character_motion::heading(dx.raw(),dz.raw()),Fixed::RAW);
-    queries.changed(*d);
-    if(boss_windup.raw()>0){boss_windup-=dt;if(boss_windup.raw()<=0){enemy_fire(*d,phase_two);boss_timer=phase_two?Fixed(1.35):Fixed(1.9);}}
-    else if(boss_timer.raw()<=0&&line_of_sight(*d,*p,&queries)){boss_windup=phase_two?Fixed(.5):Fixed(.7);d->animator.play(0,true);sound(DungeonSound::BossCharge);}
-    else if(!near(d->transform.position,p->transform.position,Fixed(7.0))){
-        Fixed to[3]={p->transform.position[0],d->transform.position[1],p->transform.position[2]},dir[3];direction(d->transform.position,to,dir);
-        const Fixed speed=phase_two?Fixed(1.3):Fixed(.85),delta[3]={dir[0]*speed*dt,Fixed(-.05),dir[2]*speed*dt};queries.move_and_slide(*d,delta);
-        if(d->animator.clip!=1)d->animator.play(1,true);
-    }else if(d->animator.clip!=0)d->animator.play(0,true);
-    if(boss_flash.raw()>0)tint(d,255,90,90);else if(boss_windup.raw()>0)tint(d,255,150,55);else tint(d,255,phase_two?190:255,phase_two?150:255);
+    const bool needs_sight=rules->boss_needs_sight(boss_rules,dt);
+    const bool observed=needs_sight&&line_of_sight(*d,*p,&queries);
+    const auto decision=rules->boss_advance(boss_rules,boss_health.current,dt,observed,near(d->transform.position,p->transform.position,rules->boss_timing.boss_range));boss_rules=decision.state;
+    const auto motion=rules->world_enemy_motion(true,decision.action,false,true,true,gameplay_vector(d->transform.position),
+        gameplay_vector(p->transform.position),{},dt,decision.speed);
+    if(motion.turn){d->transform.rotation[1]=motion.yaw;queries.changed(*d);}
+    if(decision.action==5)enemy_fire(*d,decision.fan);
+    if(motion.move){Fixed delta[3];gameplay_vector(motion.delta,delta);queries.move_and_slide(*d,delta);}
+    const auto animation=rules->world_enemy_animation(true,decision.action,d->animator.clip);
+    if(animation.play)d->animator.play(animation.clip,animation.loop);if(animation.charge_cue)sound(DungeonSound::BossCharge);
+    if(epok::time.drawn_step){const auto color=rules->world_enemy_color(true,boss_rules.flash,boss_rules.windup,decision.fan);tint(d,int(color.red),int(color.green),int(color.blue));}
 }
 void DungeonGame::update_shots(Fixed dt,const SpatialQueryBatch* shared){
     DungeonMeasure measure(3);
-    SpatialQueryBatch own_queries;const auto& world_queries=shared?*shared:own_queries;
-    for(unsigned team=0;team<2;++team){
-        RaycastQuery queries[4];SpatialHit hits[4];unsigned indices[4],count=0;
-        for(unsigned i=team*4;i<team*4+4;++i){auto& s=shots[i];auto* d=s.data.get();if(!d||s.life.raw()<=0)continue;
-            auto& q=queries[count];indices[count++]=i;for(int k=0;k<3;++k){q.origin[k]=d->transform.position[k];q.displacement[k]=s.velocity[k]*dt;}}
-        if(count)world_queries.raycast_batch(queries,hits,count,team?5:3,team?nullptr:player.get());
-        for(unsigned n=0;n<count;++n){auto& s=shots[indices[n]];auto* d=s.data.get();if(!d)continue;const auto& hit=hits[n];
-            if(hit){auto* target=hit_entity(hit).get();if(team){if(target==player.get())damage_player(state==BossFight?16:12);}
-                else if(target&&(target->collider.layer&2))damage_enemy(target,20);else{++combat_telemetry.walls;sound(DungeonSound::WorldHit);}
-                effect(hit.point,1);s.life=0.0;
-            }else{for(int k=0;k<3;++k)d->transform.position[k]+=queries[n].displacement[k];s.life-=dt;}
-            d->sprite.region[0]=((s.age++/2)%4)*32;if(s.life.raw()<=0)d->sprite.enabled=false;
+    auto* pool=projectiles();auto* combat=combat_rules();if(!combat)return;
+    for(unsigned team=0;pool&&team<2;++team){
+        if(!pool->active_in(team*4,4))continue;
+        const auto trace=combat->trace_settings(team!=0);
+        const ProjectileTraceFilter filter{trace.mask,trace.ignore_player?gameplay_actor_id(player):ObjectId{},false};
+        const auto batch=shared?pool->step_shared(team*4,4,dt,filter,*shared):ProjectileStep4{};
+        ProjectileStep unshared[4];
+        const ProjectileStep* results[4]={&batch.first,&batch.second,&batch.third,&batch.fourth};
+        if(!shared){const auto ticket=pool->step(team*4,4,dt,filter);for(unsigned i=0;i<4;++i){unshared[i]=pool->result(ticket,i);results[i]=&unshared[i];}}
+        for(const auto* result:results)if(result->state==ProjectileStepState::Hit){
+            const auto& step=*result;
+            auto* target=gameplay_actor_data(step.target);
+            const auto impact=combat->impact(team!=0,target!=nullptr,target==player.get(),target?target->collider.layer:0);
+            if(impact==2){if(auto* rules=encounter_rules()){
+                const auto damage=rules->shot_damage(state==BossFight);damage_player(int32_t(damage>INT32_MAX?INT32_MAX:damage));
+            }}
+            else if(impact==1){
+                if(auto* rules=combat_rules())damage_enemy(target,rules->tuning.damage);
+            }
+            else if(impact==0){++combat_telemetry.walls;sound(DungeonSound::WorldHit);}
+            Fixed point[3];gameplay_vector(step.point,point);effect(point,1);
         }
     }
-    for(auto& f:effects)if(f.playing){auto* d=f.data.get();if(!d){f.playing=false;continue;}++f.age;
-        const unsigned frame=f.kind?6+f.age/2:(f.age<4?4:5),end=f.kind?10:6;
-        if(f.age>=end){d->sprite.enabled=false;f.playing=false;}else{d->sprite.region[0]=(frame%8)*32;d->sprite.region[1]=(frame/8)*32;}}
+    // Effects are drawn once per frame, so a catch-up step need not advance them.
+    if(epok::time.drawn_step)for(auto& f:effects)if(f.playing){auto* d=f.data.get();if(!d){f.playing=false;continue;}
+        const auto visual=combat->effect_step(f.kind,f.age,true);f.age=uint16_t(visual.age);f.playing=visual.playing;
+        if(!visual.playing)d->sprite.enabled=false;
+        else{d->sprite.size[0]=d->sprite.size[1]=visual.size;d->sprite.region[0]=(visual.frame%8)*32;d->sprite.region[1]=(visual.frame/8)*32;}}
 }
 void DungeonGame::update_doors(Fixed dt){
-    DungeonMeasure measure(4);
-    auto* p=player.get();if(!p)return;
-    for(unsigned i=0;i<4;++i){auto& door=doors[i];bool open=(!door.locked||has_key||state==Victory)&&near(p->transform.position,door.center,Fixed(5.0));
-        if(i==3&&state==BossFight)open=false;
-        // Never close through the player. The locked gate cannot be opened by
-        // this safety rule until it has legitimately started opening.
-        if(!open&&door.progress.raw()>0&&near(p->transform.position,door.center,Fixed(2.0)))open=true;
-        const Fixed before=door.progress;door.progress=clamp01(door.progress+(open?dt:-dt)*Fixed(1.4));
-        if(before!=door.progress){++spatial_revision;++structural_revision;}
-        if(before<Fixed(1.0)&&door.progress==Fixed(1.0))++dungeon_telemetry.doors_opened;
-        const uint8_t tint_state=uint8_t(i==3&&!has_key);
-        if(before==door.progress&&door.tint_state==tint_state)continue;
-        door.tint_state=tint_state;
-        const Fixed easing=door.progress*door.progress*(Fixed(3.0)-Fixed(2.0)*door.progress);
-        for(unsigned side=0;side<2;++side)if(auto* d=(side?door.right:door.left).get()){
-            d->transform.position[door.axis]=door.center[door.axis]+(side?Fixed(1.0):Fixed(-1.0))*(Fixed(.75)+easing*Fixed(1.7));
-            if(before!=door.progress)spatial_queries().changed(*d);
-            if(i==3&&!has_key)tint(d,255,130,110);else tint(d,255,255,255);
+    DungeonMeasure measure(4);auto* player_data=player.get();auto* rules=encounter_rules();if(!player_data||!rules)return;
+    const Fixed open_radius=rules->world_door_radius(false),safety_radius=rules->world_door_radius(true);
+    for(unsigned index=0;index<4;++index){auto& door=doors[index];
+        const bool near_open=near(player_data->transform.position,door.center,open_radius);
+        const bool near_safety=near(player_data->transform.position,door.center,safety_radius);
+        // The rule is pure, so a resting door with the same inputs keeps its result.
+        if(door.resting&&door.seen_open==near_open&&door.seen_safety==near_safety&&door.seen_key==has_key
+            &&door.seen_state==uint8_t(state)&&door.seen_dt==dt)continue;
+        const Fixed progress=door.progress;
+        const auto step=rules->world_door_step(index,door.locked,has_key,uint32_t(state),progress,near_open,near_safety,dt);
+        door.resting=!step.moved&&!step.opened&&step.progress==progress;door.seen_open=near_open;door.seen_safety=near_safety;
+        door.seen_key=has_key;door.seen_state=uint8_t(state);door.seen_dt=dt;
+        door.progress=step.progress;if(step.moved){++spatial_revision;++structural_revision;}if(step.opened)++dungeon_telemetry.doors_opened;
+        door.tint_state=uint8_t(step.locked_tint);
+        for(unsigned side=0;side<2;++side)if(auto* data=(side?door.right:door.left).get()){
+            data->transform.position[door.axis]=door.center[door.axis]+(side?step.offset:-step.offset);
+            if(step.moved)spatial_queries().changed(*data);tint(data,int(step.color.red),int(step.color.green),int(step.color.blue));
         }
     }
 }
 void DungeonGame::update_pickups(Fixed dt){
-    auto* p=player.get();if(!p)return;const Fixed bob=sin_degrees(elapsed*Fixed(120.0))*Fixed(.12);
-    if(!has_key)if(auto* d=keycard.get()){
-        d->mesh=p->transform.position[0]<Fixed(-8.0);
-        if(d->mesh)d->transform.position[1]=key_home[1]+bob;
-        if(near(p->transform.position,key_home,Fixed(1.0))&&p->transform.position[1]<Fixed(2.2)){
-            has_key=true;set_active(d,false);hud_dirty=true;sound(DungeonSound::Pickup);effect(d->transform.position,0);
+    auto* body=player.get();auto* rules=encounter_rules();if(!body||!rules)return;const Fixed radius=rules->world_pickup_radius();
+    // Pickup reach is checked every step. The bob and draw flags are presentation.
+    const bool present=epok::time.drawn_step;const Fixed bob=present?rules->world_pickup_bob(elapsed):Fixed(0.0);
+    if(!has_key)if(auto* data=keycard.get()){
+        if(present){data->mesh=rules->world_pickup_visible(0,gameplay_vector(body->transform.position));if(data->mesh)data->transform.position[1]=key_home[1]+bob;}
+        if(rules->world_pickup_eligible(true,near(body->transform.position,key_home,radius),body->transform.position[1])){
+            has_key=true;set_active(data,false);hud_dirty=true;sound(DungeonSound::Pickup);effect(data->transform.position,0);
         }
     }
-    for(unsigned n=0;n<3;++n){auto& pack=health_packs[n];if(!pack.taken)if(auto* d=pack.data.get()){
-        d->mesh=n==0?p->transform.position[0]>Fixed(8.0):(n==1?p->transform.position[0]<Fixed(-8.0):(p->transform.position[2]>Fixed(32.0)&&p->transform.position[2]<Fixed(55.0)));
-        if(d->mesh)d->transform.position[1]=pack.home[1]+bob;
-        // Full health leaves the pack in the world for a later return.
-        if(health<100&&near(p->transform.position,pack.home,Fixed(1.0))&&p->transform.position[1]<Fixed(2.2)){
-            health+=35;if(health>100)health=100;pack.taken=true;set_active(d,false);++dungeon_telemetry.heals;hud_dirty=true;sound(DungeonSound::Heal);
+    bool can_heal=can_heal_player();
+    for(unsigned index=0;index<3;++index){auto& pack=health_packs[index];if(!pack.taken)if(auto* data=pack.data.get()){
+        if(present){data->mesh=rules->world_pickup_visible(index+1,gameplay_vector(body->transform.position));if(data->mesh)data->transform.position[1]=pack.home[1]+bob;}
+        if(rules->world_pickup_eligible(can_heal,near(body->transform.position,pack.home,radius),body->transform.position[1])){
+            auto* vitals=vital_rules();if(!vitals||!vitals->heal(int32_t(rules->world_pickup_heal())).applied)continue;
+            pack.taken=true;set_active(data,false);++dungeon_telemetry.heals;hud_dirty=true;sound(DungeonSound::Heal);can_heal=can_heal_player();
         }
     }}
 }
 void DungeonGame::update_hud(){
-    // Reveal the next objective with the key pickup, preparing the boss overlay
-    // before room/door work can coincide with its initial text/layout build.
-    // Building that text/layout together with two simulation steps and the
-    // first boss pose caused the room-entry frame to exceed the 25 ms budget.
-    const bool boss_hud=state==BossFight||(state==Explore&&has_key);
-    if(boss_hud!=boss_hud_visible){boss_hud_visible=boss_hud;hud_dirty=true;}
     DungeonMeasure measure(8);
-    if(auto* d=reticle.get())d->text.enabled=aiming&&player_alive();
-    if(!hud_dirty)return;hud_dirty=false;
-    if(auto* d=health_bar.get()){
-        const Fixed fraction=Fixed(health*4096,Fixed::RAW)/Fixed(100);
-        d->progress.value=fraction;d->progress.enabled=false;
-        // Crop the source cells as the destination shrinks: cell spacing stays
-        // constant, rather than squeezing the complete artwork into less space.
-        d->rect.size[0]=Fixed(dungeon_hud::fill_width)*fraction;
-        d->image.region[2]=uint16_t((dungeon_hud::source_width*health+99)/100);
-        d->image.enabled=health>0;
-        const uint8_t normal[]={148,255,102},warning[]={255,205,75},critical[]={255,85,65};
-        const auto* color=health<=25?critical:(health<=60?warning:normal);
-        for(int k=0;k<3;++k)d->image.color[k]=color[k];
-    }
-    if(auto* d=health_label.get())number(d->text,"ENERGY ",unsigned(health));
-    if(auto* d=key_label.get())d->text.set_text(has_key?"KEY: YES":"KEY: --");
-    if(auto* d=objective.get())d->text.set_text(state==Victory?"MISSION COMPLETE":(state==Defeat?"MISSION FAILED":(boss_hud?"DEFEAT THE REACTOR GUARDIAN":(has_key?"UNLOCK THE REACTOR":"FIND THE ACCESS KEY"))));
-    if(auto* d=boss_bar.get()){d->progress.enabled=boss_hud;d->progress.value=Fixed(boss_health*4096,Fixed::RAW)/Fixed(280);}
-    if(auto* d=boss_label.get())d->text.enabled=boss_hud;
-    const bool ended=state==Victory||state==Defeat;
-    if(auto* d=message_panel.get())d->image.enabled=ended;
-    if(auto* d=message.get()){d->text.enabled=ended;d->text.set_text(state==Victory?"REACTOR SECURED\n\nENTER: PLAY AGAIN":"OUT OF ENERGY");}
+    const auto energy=health_state();const auto* flow=flow_rules();
+    const DungeonHUDSnapshot value{energy.current,energy.maximum,boss_health.current,boss_health.maximum,
+        uint32_t(state),flow?flow->status.phase:0,has_key,aiming,player_alive(),false};
+    // The widget compares too, but only after a registry lookup and a virtual call.
+    const auto& last=published_hud;
+    if(!hud_dirty&&published_view==economy.presenting()&&last.health==value.health&&last.maximum==value.maximum
+        &&last.boss_health==value.boss_health&&last.boss_maximum==value.boss_maximum&&last.state==value.state
+        &&last.phase==value.phase&&last.has_key==value.has_key&&last.aiming==value.aiming&&last.alive==value.alive)return;
+    published_hud=value;published_view=economy.presenting();
+    economy.publish_hud(value);hud_dirty=false;
 }
 void DungeonGame::tick(Fixed dt){
     DungeonMeasure measure(5);
     if(!initialized)initialize();if(!initialized||dt.raw()<=0)return;
     if(update_presentation(dt)){
-        aiming=false;update_hud();dungeon_telemetry.state=state;dungeon_telemetry.health=health;return;
+        aiming=false;update_hud();dungeon_telemetry.state=state;dungeon_telemetry.health=health_value();return;
     }
-    if(economy.blocking()){aiming=false;dungeon_telemetry.health=health;return;}
-    ++combat_telemetry.ticks;++dungeon_telemetry.ticks;elapsed+=dt;update_visibility();
-    if(invulnerable.raw()>0){invulnerable-=dt;if(invulnerable.raw()<0)invulnerable=0.0;}
+    if(economy.blocking()){aiming=false;dungeon_telemetry.health=health_value();return;}
+    ++combat_telemetry.ticks;++dungeon_telemetry.ticks;elapsed+=dt;
+    if(epok::time.drawn_step)update_visibility();
+    if(auto* rules=vital_rules())rules->advance(dt);
     if(player_alive()){
         update_pickups(dt);
-        if(state==Explore&&has_key)if(auto* p=player.get();p&&p->transform.position[2]>Fixed(53.0)){
-            state=BossFight;hud_dirty=true;if(auto* d=boss.get()){d->collider.enabled=true;set_active(d,true);spatial_queries().changed(*d);d->animator.play(0,true);}
+        if(auto* p=player.get())if(auto* rules=flow_rules();rules&&rules->try_enter_boss(has_key,p->transform.position[2])){
+            state=RunState(rules->status.state);hud_dirty=true;if(auto* d=boss.get()){d->collider.enabled=true;set_active(d,true);spatial_queries().changed(*d);d->animator.play(0,true);}
         }
         auto& queries=spatial_queries();if(auto* p=player.get())queries.changed(*p);update_doors(dt);update_enemies(dt,queries);ai_elapsed+=dt;
-        if(ai_elapsed>=Fixed(1.0/30.0)){const Fixed step=ai_elapsed;ai_elapsed=0.0;update_boss(step,queries);}
+        if(encounter_rules()&&encounter_rules()->world_boss_due(ai_elapsed)){const Fixed step=ai_elapsed;ai_elapsed=0.0;update_boss(step,queries);}
         update_shots(dt,&queries);
     }else{
         update_doors(dt);
         update_shots(dt);
-        if(state==Victory)if(auto* d=boss.get();d&&!d->animator.playing)set_active(d,false);
-        if(input.pressed(Button::Start))reset_run();
+        if(auto* data=boss.get())if(auto* rules=encounter_rules();rules&&rules->world_hide_boss(uint32_t(state),data->animator.playing))set_active(data,false);
     }
-    update_hud();dungeon_telemetry.state=state;dungeon_telemetry.health=health;dungeon_telemetry.key=has_key;dungeon_telemetry.kills=kills;dungeon_telemetry.boss_health=boss_health;
+    if(auto* rules=flow_rules();rules&&rules->restart_requested(GameplayInputLibrary::button_pressed(Button::Start)))reset_run();
+    if(epok::time.drawn_step||hud_dirty)update_hud();dungeon_telemetry.state=state;dungeon_telemetry.health=health_value();dungeon_telemetry.key=has_key;dungeon_telemetry.kills=kills;dungeon_telemetry.boss_health=boss_health.current;
 }
+EPOK_SPEED_END

@@ -1,0 +1,5874 @@
+{
+  "version": 8,
+  "id": "df3f7e3e-b99c-5530-9d86-a44f87e67c5f",
+  "name": "DungeonRunFlow",
+  "parent": "a0aa09c9-b6d3-5ae4-b6ab-dc99050463f4",
+  "family": "component",
+  "defaults": {},
+  "variables": [],
+  "functions": [
+    {
+      "id": "e5b9054a-8767-5fdf-85c8-3f56661cdb8b",
+      "name": "timing_valid",
+      "parameters": [],
+      "returns": {
+        "kind": "bool"
+      },
+      "entry": "4cd7d2c1-aa17-5831-b415-212032ca7988",
+      "nodes": [
+        {
+          "id": "8251af64-8e99-5c4e-be7c-d58c25310841",
+          "kind": {
+            "kind": "get_variable",
+            "member": "202d836c-2271-52a2-8db0-8d36f4da6c3d"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "f83d9910-2071-5666-adc3-41ad1efeeebe",
+          "kind": {
+            "kind": "binary",
+            "op": "greater_equal"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "8251af64-8e99-5c4e-be7c-d58c25310841",
+              "pin": "value.music_lead"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "fixed"
+              },
+              "value": 0.0
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "5da5e3fb-1442-5e54-8096-51ce42309386",
+          "kind": {
+            "kind": "binary",
+            "op": "less_equal"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "8251af64-8e99-5c4e-be7c-d58c25310841",
+              "pin": "value.music_lead"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "fixed"
+              },
+              "value": 60.0
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "a73fb0a9-e0c4-5eff-868a-e3527f6a5105",
+          "kind": {
+            "kind": "binary",
+            "op": "greater_equal"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "8251af64-8e99-5c4e-be7c-d58c25310841",
+              "pin": "value.fade_in"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "fixed"
+              },
+              "value": 0.0
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "7db1e4ea-2703-5f6e-bd62-2df556c3cfbb",
+          "kind": {
+            "kind": "binary",
+            "op": "less_equal"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "8251af64-8e99-5c4e-be7c-d58c25310841",
+              "pin": "value.fade_in"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "fixed"
+              },
+              "value": 60.0
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "747bc2f4-5f7b-5386-ac80-fe94feb54dcc",
+          "kind": {
+            "kind": "binary",
+            "op": "greater_equal"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "8251af64-8e99-5c4e-be7c-d58c25310841",
+              "pin": "value.control_delay"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "fixed"
+              },
+              "value": 0.0
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "2ab47a18-f99a-5912-935b-738e0b1a0686",
+          "kind": {
+            "kind": "binary",
+            "op": "less_equal"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "8251af64-8e99-5c4e-be7c-d58c25310841",
+              "pin": "value.control_delay"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "fixed"
+              },
+              "value": 60.0
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "07ea0206-88c1-5712-ac89-c2943cc90f45",
+          "kind": {
+            "kind": "binary",
+            "op": "greater_equal"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "8251af64-8e99-5c4e-be7c-d58c25310841",
+              "pin": "value.death_hold"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "fixed"
+              },
+              "value": 0.0
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "5bf8ad7d-8698-5d4d-9f93-237541904556",
+          "kind": {
+            "kind": "binary",
+            "op": "less_equal"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "8251af64-8e99-5c4e-be7c-d58c25310841",
+              "pin": "value.death_hold"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "fixed"
+              },
+              "value": 60.0
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "378e1250-667c-52f2-82da-7fc13053dc68",
+          "kind": {
+            "kind": "binary",
+            "op": "greater_equal"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "8251af64-8e99-5c4e-be7c-d58c25310841",
+              "pin": "value.fade_out"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "fixed"
+              },
+              "value": 0.0
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "2c404009-cba6-5ad2-b0f1-ced064116365",
+          "kind": {
+            "kind": "binary",
+            "op": "less_equal"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "8251af64-8e99-5c4e-be7c-d58c25310841",
+              "pin": "value.fade_out"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "fixed"
+              },
+              "value": 60.0
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "f051c98b-d566-5c95-b7cf-9cc9ee5def3c",
+          "kind": {
+            "kind": "binary",
+            "op": "greater_equal"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "8251af64-8e99-5c4e-be7c-d58c25310841",
+              "pin": "value.restart_hold"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "fixed"
+              },
+              "value": 0.0
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "de215792-67cd-50a1-b1c4-aa296a3c2b47",
+          "kind": {
+            "kind": "binary",
+            "op": "less_equal"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "8251af64-8e99-5c4e-be7c-d58c25310841",
+              "pin": "value.restart_hold"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "fixed"
+              },
+              "value": 60.0
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "28b4b288-a71f-5340-bcae-d14810ff25d6",
+          "kind": {
+            "kind": "get_variable",
+            "member": "8e8627cd-3e49-5557-94b6-3f60be28de73"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "fe992e53-e1eb-5b55-ac58-2acad99ce6d8",
+          "kind": {
+            "kind": "binary",
+            "op": "greater_equal"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "28b4b288-a71f-5340-bcae-d14810ff25d6",
+              "pin": "value"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "fixed"
+              },
+              "value": -4096.0
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "b0204509-2375-5c67-a085-e72e623c95d8",
+          "kind": {
+            "kind": "binary",
+            "op": "less_equal"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "28b4b288-a71f-5340-bcae-d14810ff25d6",
+              "pin": "value"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "fixed"
+              },
+              "value": 4096.0
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "566a52b1-8182-5fed-8396-c0ef1b67fbdf",
+          "kind": {
+            "kind": "binary",
+            "op": "and"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "f83d9910-2071-5666-adc3-41ad1efeeebe",
+              "pin": "value"
+            },
+            "b": {
+              "kind": "link",
+              "node": "5da5e3fb-1442-5e54-8096-51ce42309386",
+              "pin": "value"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "a644bfa3-258d-5224-9c1d-943c1e6e3a7c",
+          "kind": {
+            "kind": "binary",
+            "op": "and"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "566a52b1-8182-5fed-8396-c0ef1b67fbdf",
+              "pin": "value"
+            },
+            "b": {
+              "kind": "link",
+              "node": "a73fb0a9-e0c4-5eff-868a-e3527f6a5105",
+              "pin": "value"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "eb2877cf-141f-5bba-8224-b6d9b9e7bb66",
+          "kind": {
+            "kind": "binary",
+            "op": "and"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "a644bfa3-258d-5224-9c1d-943c1e6e3a7c",
+              "pin": "value"
+            },
+            "b": {
+              "kind": "link",
+              "node": "7db1e4ea-2703-5f6e-bd62-2df556c3cfbb",
+              "pin": "value"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "3525946e-3a74-533e-a0be-c8ae8f1fa0ad",
+          "kind": {
+            "kind": "binary",
+            "op": "and"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "eb2877cf-141f-5bba-8224-b6d9b9e7bb66",
+              "pin": "value"
+            },
+            "b": {
+              "kind": "link",
+              "node": "747bc2f4-5f7b-5386-ac80-fe94feb54dcc",
+              "pin": "value"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "b4be5270-413a-5714-870d-77f06877ccd1",
+          "kind": {
+            "kind": "binary",
+            "op": "and"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "3525946e-3a74-533e-a0be-c8ae8f1fa0ad",
+              "pin": "value"
+            },
+            "b": {
+              "kind": "link",
+              "node": "2ab47a18-f99a-5912-935b-738e0b1a0686",
+              "pin": "value"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "0cb22c4a-3fed-5e72-8702-8879c2af4ea9",
+          "kind": {
+            "kind": "binary",
+            "op": "and"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "b4be5270-413a-5714-870d-77f06877ccd1",
+              "pin": "value"
+            },
+            "b": {
+              "kind": "link",
+              "node": "07ea0206-88c1-5712-ac89-c2943cc90f45",
+              "pin": "value"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "418675c1-f923-5385-9d40-60ab5945d5f6",
+          "kind": {
+            "kind": "binary",
+            "op": "and"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "0cb22c4a-3fed-5e72-8702-8879c2af4ea9",
+              "pin": "value"
+            },
+            "b": {
+              "kind": "link",
+              "node": "5bf8ad7d-8698-5d4d-9f93-237541904556",
+              "pin": "value"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "5d39c5a5-c7ea-5554-a744-3f3b84356622",
+          "kind": {
+            "kind": "binary",
+            "op": "and"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "418675c1-f923-5385-9d40-60ab5945d5f6",
+              "pin": "value"
+            },
+            "b": {
+              "kind": "link",
+              "node": "378e1250-667c-52f2-82da-7fc13053dc68",
+              "pin": "value"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "a3327b4c-d8fa-5665-a33a-8884751519be",
+          "kind": {
+            "kind": "binary",
+            "op": "and"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "5d39c5a5-c7ea-5554-a744-3f3b84356622",
+              "pin": "value"
+            },
+            "b": {
+              "kind": "link",
+              "node": "2c404009-cba6-5ad2-b0f1-ced064116365",
+              "pin": "value"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "f6665a6f-8d52-500f-ae82-f13d9e9c4fc4",
+          "kind": {
+            "kind": "binary",
+            "op": "and"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "a3327b4c-d8fa-5665-a33a-8884751519be",
+              "pin": "value"
+            },
+            "b": {
+              "kind": "link",
+              "node": "f051c98b-d566-5c95-b7cf-9cc9ee5def3c",
+              "pin": "value"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "6da26d99-3970-50de-8b75-38070a7670e6",
+          "kind": {
+            "kind": "binary",
+            "op": "and"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "f6665a6f-8d52-500f-ae82-f13d9e9c4fc4",
+              "pin": "value"
+            },
+            "b": {
+              "kind": "link",
+              "node": "de215792-67cd-50a1-b1c4-aa296a3c2b47",
+              "pin": "value"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "54e00cd9-444c-56ed-9933-cd93800b510e",
+          "kind": {
+            "kind": "binary",
+            "op": "and"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "6da26d99-3970-50de-8b75-38070a7670e6",
+              "pin": "value"
+            },
+            "b": {
+              "kind": "link",
+              "node": "fe992e53-e1eb-5b55-ac58-2acad99ce6d8",
+              "pin": "value"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "43d6e5c1-f1fc-5026-81aa-e3770277759b",
+          "kind": {
+            "kind": "binary",
+            "op": "and"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "54e00cd9-444c-56ed-9933-cd93800b510e",
+              "pin": "value"
+            },
+            "b": {
+              "kind": "link",
+              "node": "b0204509-2375-5c67-a085-e72e623c95d8",
+              "pin": "value"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "62e586cc-d2da-5f62-9c63-a17501b9d493",
+          "kind": {
+            "kind": "return"
+          },
+          "inputs": {
+            "value": {
+              "kind": "link",
+              "node": "43d6e5c1-f1fc-5026-81aa-e3770277759b",
+              "pin": "value"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "4cd7d2c1-aa17-5831-b415-212032ca7988",
+          "kind": {
+            "kind": "entry"
+          },
+          "inputs": {},
+          "outputs": {
+            "next": [
+              "62e586cc-d2da-5f62-9c63-a17501b9d493"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "06342bd6-5681-5652-be22-bac6697eeb4d",
+      "name": "phase_duration",
+      "parameters": [],
+      "returns": {
+        "kind": "fixed"
+      },
+      "entry": "075c7c06-2419-594f-b4de-de0f12b964ae",
+      "nodes": [
+        {
+          "id": "53190a19-58af-57e7-8298-eb4549788fbe",
+          "kind": {
+            "kind": "get_variable",
+            "member": "68467e3b-f7f7-5a05-a54c-102cd208a22d"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "09867eab-ec42-5169-9741-cbf7c49866e7",
+          "kind": {
+            "kind": "binary",
+            "op": "equal"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "53190a19-58af-57e7-8298-eb4549788fbe",
+              "pin": "value.phase"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 2
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "68f2aa58-f4a4-592d-818a-ed9cdd020354",
+          "kind": {
+            "kind": "get_variable",
+            "member": "202d836c-2271-52a2-8db0-8d36f4da6c3d"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "2d094683-606b-51a1-bf5c-15163212937b",
+          "kind": {
+            "kind": "return"
+          },
+          "inputs": {
+            "value": {
+              "kind": "link",
+              "node": "68f2aa58-f4a4-592d-818a-ed9cdd020354",
+              "pin": "value.fade_in"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "bac2ef6f-ffe6-5437-b7b5-1f422cca9a7e",
+          "kind": {
+            "kind": "binary",
+            "op": "equal"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "53190a19-58af-57e7-8298-eb4549788fbe",
+              "pin": "value.phase"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 3
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "5c4b3973-efb8-51b6-ad34-8d1668b4ddfd",
+          "kind": {
+            "kind": "return"
+          },
+          "inputs": {
+            "value": {
+              "kind": "link",
+              "node": "68f2aa58-f4a4-592d-818a-ed9cdd020354",
+              "pin": "value.control_delay"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "f7b1b05d-0a2e-5417-b5eb-17e1c19fadde",
+          "kind": {
+            "kind": "binary",
+            "op": "equal"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "53190a19-58af-57e7-8298-eb4549788fbe",
+              "pin": "value.phase"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 5
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "75a1b084-7fe4-5b45-b2fb-3d6088970c86",
+          "kind": {
+            "kind": "return"
+          },
+          "inputs": {
+            "value": {
+              "kind": "link",
+              "node": "68f2aa58-f4a4-592d-818a-ed9cdd020354",
+              "pin": "value.death_hold"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "bfc8de57-5fcd-50b0-92fd-1b49173f5248",
+          "kind": {
+            "kind": "binary",
+            "op": "equal"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "53190a19-58af-57e7-8298-eb4549788fbe",
+              "pin": "value.phase"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 6
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "46334311-6ac0-5d1f-9e06-553a72eac3d6",
+          "kind": {
+            "kind": "return"
+          },
+          "inputs": {
+            "value": {
+              "kind": "link",
+              "node": "68f2aa58-f4a4-592d-818a-ed9cdd020354",
+              "pin": "value.fade_out"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "11492d40-c463-5cad-a256-6c04ca0bf45b",
+          "kind": {
+            "kind": "binary",
+            "op": "equal"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "53190a19-58af-57e7-8298-eb4549788fbe",
+              "pin": "value.phase"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 7
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "fb088791-008e-5dd1-a85a-54386a50c942",
+          "kind": {
+            "kind": "return"
+          },
+          "inputs": {
+            "value": {
+              "kind": "link",
+              "node": "68f2aa58-f4a4-592d-818a-ed9cdd020354",
+              "pin": "value.restart_hold"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "3940c2f8-f9a8-52c4-86ea-1c427e724f42",
+          "kind": {
+            "kind": "return"
+          },
+          "inputs": {
+            "value": {
+              "kind": "link",
+              "node": "68f2aa58-f4a4-592d-818a-ed9cdd020354",
+              "pin": "value.music_lead"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "98b979e5-f1d9-51c2-bb22-0bcecc1aaf90",
+          "kind": {
+            "kind": "branch"
+          },
+          "inputs": {
+            "condition": {
+              "kind": "link",
+              "node": "11492d40-c463-5cad-a256-6c04ca0bf45b",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "true": [
+              "fb088791-008e-5dd1-a85a-54386a50c942"
+            ],
+            "false": [
+              "3940c2f8-f9a8-52c4-86ea-1c427e724f42"
+            ]
+          }
+        },
+        {
+          "id": "bf478a09-b2dc-5edd-8a0e-5d5547b0f241",
+          "kind": {
+            "kind": "branch"
+          },
+          "inputs": {
+            "condition": {
+              "kind": "link",
+              "node": "bfc8de57-5fcd-50b0-92fd-1b49173f5248",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "true": [
+              "46334311-6ac0-5d1f-9e06-553a72eac3d6"
+            ],
+            "false": [
+              "98b979e5-f1d9-51c2-bb22-0bcecc1aaf90"
+            ]
+          }
+        },
+        {
+          "id": "6690af8d-be53-5b17-8b41-e8bbbb3e65d5",
+          "kind": {
+            "kind": "branch"
+          },
+          "inputs": {
+            "condition": {
+              "kind": "link",
+              "node": "f7b1b05d-0a2e-5417-b5eb-17e1c19fadde",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "true": [
+              "75a1b084-7fe4-5b45-b2fb-3d6088970c86"
+            ],
+            "false": [
+              "bf478a09-b2dc-5edd-8a0e-5d5547b0f241"
+            ]
+          }
+        },
+        {
+          "id": "7271775c-abfc-5827-9eee-fdd7ee4f3720",
+          "kind": {
+            "kind": "branch"
+          },
+          "inputs": {
+            "condition": {
+              "kind": "link",
+              "node": "bac2ef6f-ffe6-5437-b7b5-1f422cca9a7e",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "true": [
+              "5c4b3973-efb8-51b6-ad34-8d1668b4ddfd"
+            ],
+            "false": [
+              "6690af8d-be53-5b17-8b41-e8bbbb3e65d5"
+            ]
+          }
+        },
+        {
+          "id": "de2f5892-071f-54a1-945b-acab526809e2",
+          "kind": {
+            "kind": "branch"
+          },
+          "inputs": {
+            "condition": {
+              "kind": "link",
+              "node": "09867eab-ec42-5169-9741-cbf7c49866e7",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "true": [
+              "2d094683-606b-51a1-bf5c-15163212937b"
+            ],
+            "false": [
+              "7271775c-abfc-5827-9eee-fdd7ee4f3720"
+            ]
+          }
+        },
+        {
+          "id": "075c7c06-2419-594f-b4de-de0f12b964ae",
+          "kind": {
+            "kind": "entry"
+          },
+          "inputs": {},
+          "outputs": {
+            "next": [
+              "de2f5892-071f-54a1-945b-acab526809e2"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "70dfc757-4e31-5594-8fa5-9d30986e9221",
+      "name": "fade_progress",
+      "parameters": [
+        {
+          "name": "duration",
+          "value_type": {
+            "kind": "fixed"
+          },
+          "direction": "value"
+        },
+        {
+          "name": "elapsed",
+          "value_type": {
+            "kind": "fixed"
+          },
+          "direction": "value"
+        }
+      ],
+      "returns": {
+        "kind": "uint32"
+      },
+      "entry": "ea5e84d7-b918-5f41-911a-69cf100ac896",
+      "nodes": [
+        {
+          "id": "f638d60d-2516-563f-b549-0fb3acb6cff9",
+          "kind": {
+            "kind": "binary",
+            "op": "less_equal"
+          },
+          "inputs": {
+            "a": {
+              "kind": "parameter",
+              "name": "duration"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "fixed"
+              },
+              "value": 0.0
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "76e34051-c7f7-5391-a1c9-9e9732e71099",
+          "kind": {
+            "kind": "return"
+          },
+          "inputs": {
+            "value": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 255
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "729e5cf6-685e-5a1d-a56e-29019dba9526",
+          "kind": {
+            "kind": "binary",
+            "op": "greater"
+          },
+          "inputs": {
+            "a": {
+              "kind": "parameter",
+              "name": "elapsed"
+            },
+            "b": {
+              "kind": "parameter",
+              "name": "duration"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "d637c405-8af2-5afa-b14d-015e6624295c",
+          "kind": {
+            "kind": "return"
+          },
+          "inputs": {
+            "value": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 255
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "a9f90d2a-1eeb-5d8e-ae3e-802e1220e4ed",
+          "kind": {
+            "kind": "binary",
+            "op": "multiply"
+          },
+          "inputs": {
+            "a": {
+              "kind": "parameter",
+              "name": "elapsed"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "fixed"
+              },
+              "value": 255.0
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "9297e820-3070-57b6-854e-8fb9821e740e",
+          "kind": {
+            "kind": "binary",
+            "op": "divide"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "a9f90d2a-1eeb-5d8e-ae3e-802e1220e4ed",
+              "pin": "value"
+            },
+            "b": {
+              "kind": "parameter",
+              "name": "duration"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "dc64d3d0-8b4f-5df0-a625-bb164355e60f",
+          "kind": {
+            "kind": "operation",
+            "operation": "29249825-c121-54e6-a908-8cc041db8971"
+          },
+          "inputs": {
+            "29249825-c121-54e6-a908-8cc041db8971:parameter:0": {
+              "kind": "link",
+              "node": "9297e820-3070-57b6-854e-8fb9821e740e",
+              "pin": "value"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "c66b8c4b-0279-53ed-a829-dd9bd8bf8e38",
+          "kind": {
+            "kind": "return"
+          },
+          "inputs": {
+            "value": {
+              "kind": "link",
+              "node": "dc64d3d0-8b4f-5df0-a625-bb164355e60f",
+              "pin": "value"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "d99ba925-7e5d-5603-b3f2-a04d18e32d5f",
+          "kind": {
+            "kind": "branch"
+          },
+          "inputs": {
+            "condition": {
+              "kind": "link",
+              "node": "729e5cf6-685e-5a1d-a56e-29019dba9526",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "true": [
+              "d637c405-8af2-5afa-b14d-015e6624295c"
+            ],
+            "false": [
+              "c66b8c4b-0279-53ed-a829-dd9bd8bf8e38"
+            ]
+          }
+        },
+        {
+          "id": "8640eff7-1b1d-5e2e-86c5-c6f5774e7b9f",
+          "kind": {
+            "kind": "branch"
+          },
+          "inputs": {
+            "condition": {
+              "kind": "link",
+              "node": "f638d60d-2516-563f-b549-0fb3acb6cff9",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "true": [
+              "76e34051-c7f7-5391-a1c9-9e9732e71099"
+            ],
+            "false": [
+              "d99ba925-7e5d-5603-b3f2-a04d18e32d5f"
+            ]
+          }
+        },
+        {
+          "id": "ea5e84d7-b918-5f41-911a-69cf100ac896",
+          "kind": {
+            "kind": "entry"
+          },
+          "inputs": {},
+          "outputs": {
+            "next": [
+              "8640eff7-1b1d-5e2e-86c5-c6f5774e7b9f"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "37c08062-1852-5106-8e28-d48266f725fe",
+      "name": "opacity",
+      "parameters": [],
+      "returns": {
+        "kind": "uint32"
+      },
+      "entry": "a39559b1-7fc1-588b-b576-8ee0e2552325",
+      "nodes": [
+        {
+          "id": "58ce3355-535b-5843-9634-1ae2395d6f08",
+          "kind": {
+            "kind": "get_variable",
+            "member": "68467e3b-f7f7-5a05-a54c-102cd208a22d"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "93bac3fb-000d-5719-aced-edfcd9216012",
+          "kind": {
+            "kind": "binary",
+            "op": "equal"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "58ce3355-535b-5843-9634-1ae2395d6f08",
+              "pin": "value.phase"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 0
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "1f5f17a8-1c56-529e-82d2-8b68d5565e98",
+          "kind": {
+            "kind": "binary",
+            "op": "equal"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "58ce3355-535b-5843-9634-1ae2395d6f08",
+              "pin": "value.phase"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 1
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "6225313d-e8e3-5054-9f39-7440b9e946f0",
+          "kind": {
+            "kind": "binary",
+            "op": "equal"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "58ce3355-535b-5843-9634-1ae2395d6f08",
+              "pin": "value.phase"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 7
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "ea846fc8-9aa0-5d0f-8a55-555eaa922531",
+          "kind": {
+            "kind": "binary",
+            "op": "or"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "93bac3fb-000d-5719-aced-edfcd9216012",
+              "pin": "value"
+            },
+            "b": {
+              "kind": "link",
+              "node": "1f5f17a8-1c56-529e-82d2-8b68d5565e98",
+              "pin": "value"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "5386d5a2-4c57-5cc5-a8a7-cf67e24b2717",
+          "kind": {
+            "kind": "binary",
+            "op": "or"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "ea846fc8-9aa0-5d0f-8a55-555eaa922531",
+              "pin": "value"
+            },
+            "b": {
+              "kind": "link",
+              "node": "6225313d-e8e3-5054-9f39-7440b9e946f0",
+              "pin": "value"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "81cddb7b-b498-5a41-a34e-7359abb1ab22",
+          "kind": {
+            "kind": "get_variable",
+            "member": "202d836c-2271-52a2-8db0-8d36f4da6c3d"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "022dbf9a-7a77-556f-a225-6cadc02969ec",
+          "kind": {
+            "kind": "call",
+            "function": "70dfc757-4e31-5594-8fa5-9d30986e9221"
+          },
+          "inputs": {
+            "duration": {
+              "kind": "link",
+              "node": "81cddb7b-b498-5a41-a34e-7359abb1ab22",
+              "pin": "value.fade_in"
+            },
+            "elapsed": {
+              "kind": "link",
+              "node": "58ce3355-535b-5843-9634-1ae2395d6f08",
+              "pin": "value.elapsed"
+            }
+          },
+          "outputs": {
+            "next": [
+              "f3a06bb5-bcf6-5b7a-8cc4-976b1ad80236"
+            ]
+          }
+        },
+        {
+          "id": "d94a6ea8-632a-587d-ab26-eb919095d9d2",
+          "kind": {
+            "kind": "call",
+            "function": "70dfc757-4e31-5594-8fa5-9d30986e9221"
+          },
+          "inputs": {
+            "duration": {
+              "kind": "link",
+              "node": "81cddb7b-b498-5a41-a34e-7359abb1ab22",
+              "pin": "value.fade_out"
+            },
+            "elapsed": {
+              "kind": "link",
+              "node": "58ce3355-535b-5843-9634-1ae2395d6f08",
+              "pin": "value.elapsed"
+            }
+          },
+          "outputs": {
+            "next": [
+              "1a838317-7659-586b-b0dc-6d93bd7fac10"
+            ]
+          }
+        },
+        {
+          "id": "da425b82-285f-52d0-99ec-10242629467d",
+          "kind": {
+            "kind": "return"
+          },
+          "inputs": {
+            "value": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 255
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "05c7eb0e-9b44-51bc-be82-6c31819c22c9",
+          "kind": {
+            "kind": "binary",
+            "op": "equal"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "58ce3355-535b-5843-9634-1ae2395d6f08",
+              "pin": "value.phase"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 2
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "4d3c03b2-7f6d-5b3b-a534-69db56c45639",
+          "kind": {
+            "kind": "binary",
+            "op": "subtract"
+          },
+          "inputs": {
+            "a": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 255
+            },
+            "b": {
+              "kind": "link",
+              "node": "022dbf9a-7a77-556f-a225-6cadc02969ec",
+              "pin": "value"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "f3a06bb5-bcf6-5b7a-8cc4-976b1ad80236",
+          "kind": {
+            "kind": "return"
+          },
+          "inputs": {
+            "value": {
+              "kind": "link",
+              "node": "4d3c03b2-7f6d-5b3b-a534-69db56c45639",
+              "pin": "value"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "08b43c8b-4ba7-51bf-80f0-2b6137a14b6d",
+          "kind": {
+            "kind": "binary",
+            "op": "equal"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "58ce3355-535b-5843-9634-1ae2395d6f08",
+              "pin": "value.phase"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 6
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "1a838317-7659-586b-b0dc-6d93bd7fac10",
+          "kind": {
+            "kind": "return"
+          },
+          "inputs": {
+            "value": {
+              "kind": "link",
+              "node": "d94a6ea8-632a-587d-ab26-eb919095d9d2",
+              "pin": "value"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "ea61db48-a791-5cf2-b34e-8eb06aa39ba8",
+          "kind": {
+            "kind": "return"
+          },
+          "inputs": {
+            "value": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 0
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "59e9341f-8ed3-50cf-b2f3-21ff9856fd35",
+          "kind": {
+            "kind": "branch"
+          },
+          "inputs": {
+            "condition": {
+              "kind": "link",
+              "node": "08b43c8b-4ba7-51bf-80f0-2b6137a14b6d",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "true": [
+              "d94a6ea8-632a-587d-ab26-eb919095d9d2"
+            ],
+            "false": [
+              "ea61db48-a791-5cf2-b34e-8eb06aa39ba8"
+            ]
+          }
+        },
+        {
+          "id": "18bf6f27-d433-52e0-bf9e-f790583275b1",
+          "kind": {
+            "kind": "branch"
+          },
+          "inputs": {
+            "condition": {
+              "kind": "link",
+              "node": "05c7eb0e-9b44-51bc-be82-6c31819c22c9",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "true": [
+              "022dbf9a-7a77-556f-a225-6cadc02969ec"
+            ],
+            "false": [
+              "59e9341f-8ed3-50cf-b2f3-21ff9856fd35"
+            ]
+          }
+        },
+        {
+          "id": "89b93220-6777-513b-a01f-9077d45cde9e",
+          "kind": {
+            "kind": "branch"
+          },
+          "inputs": {
+            "condition": {
+              "kind": "link",
+              "node": "5386d5a2-4c57-5cc5-a8a7-cf67e24b2717",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "true": [
+              "da425b82-285f-52d0-99ec-10242629467d"
+            ],
+            "false": [
+              "18bf6f27-d433-52e0-bf9e-f790583275b1"
+            ]
+          }
+        },
+        {
+          "id": "a39559b1-7fc1-588b-b576-8ee0e2552325",
+          "kind": {
+            "kind": "entry"
+          },
+          "inputs": {},
+          "outputs": {
+            "next": [
+              "89b93220-6777-513b-a01f-9077d45cde9e"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "84099013-27c3-5788-8d2a-d8a5d18eb176",
+      "name": "gain",
+      "parameters": [],
+      "returns": {
+        "kind": "fixed"
+      },
+      "entry": "ca626033-ca8b-559a-acbf-5d73f0427f27",
+      "nodes": [
+        {
+          "id": "17e639f8-1516-51d1-8134-ac5167281c7a",
+          "kind": {
+            "kind": "get_variable",
+            "member": "202d836c-2271-52a2-8db0-8d36f4da6c3d"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "c09526f9-2475-5d99-970f-e63bb5d20fcf",
+          "kind": {
+            "kind": "get_variable",
+            "member": "68467e3b-f7f7-5a05-a54c-102cd208a22d"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "2880307a-cf49-5dd3-b181-65df5205ebef",
+          "kind": {
+            "kind": "binary",
+            "op": "equal"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "c09526f9-2475-5d99-970f-e63bb5d20fcf",
+              "pin": "value.phase"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 7
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "ed08c590-0d6f-5a9d-aa9c-5143ac8512c7",
+          "kind": {
+            "kind": "return"
+          },
+          "inputs": {
+            "value": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "fixed"
+              },
+              "value": 0.0
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "4c751525-8066-516e-85f3-f1c26904a6af",
+          "kind": {
+            "kind": "binary",
+            "op": "equal"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "c09526f9-2475-5d99-970f-e63bb5d20fcf",
+              "pin": "value.phase"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 6
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "ece5fee1-9895-549b-9c4e-51ce4b012371",
+          "kind": {
+            "kind": "binary",
+            "op": "less_equal"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "17e639f8-1516-51d1-8134-ac5167281c7a",
+              "pin": "value.fade_out"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "fixed"
+              },
+              "value": 0.0
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "1f94933c-37a9-53b2-97e1-000943e01c4f",
+          "kind": {
+            "kind": "return"
+          },
+          "inputs": {
+            "value": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "fixed"
+              },
+              "value": 0.0
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "826960fa-ea64-5407-b63f-6beb856df2fa",
+          "kind": {
+            "kind": "binary",
+            "op": "greater"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "c09526f9-2475-5d99-970f-e63bb5d20fcf",
+              "pin": "value.elapsed"
+            },
+            "b": {
+              "kind": "link",
+              "node": "17e639f8-1516-51d1-8134-ac5167281c7a",
+              "pin": "value.fade_out"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "7c384d62-9ccf-5ad6-b2fc-929163cbcacf",
+          "kind": {
+            "kind": "return"
+          },
+          "inputs": {
+            "value": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "fixed"
+              },
+              "value": 0.0
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "4a232f0c-38ff-5b70-96fb-c35df9064006",
+          "kind": {
+            "kind": "binary",
+            "op": "divide"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "c09526f9-2475-5d99-970f-e63bb5d20fcf",
+              "pin": "value.elapsed"
+            },
+            "b": {
+              "kind": "link",
+              "node": "17e639f8-1516-51d1-8134-ac5167281c7a",
+              "pin": "value.fade_out"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "bbefa8f3-ab6a-51c1-93c7-9eb6f2f5e731",
+          "kind": {
+            "kind": "binary",
+            "op": "subtract"
+          },
+          "inputs": {
+            "a": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "fixed"
+              },
+              "value": 1.0
+            },
+            "b": {
+              "kind": "link",
+              "node": "4a232f0c-38ff-5b70-96fb-c35df9064006",
+              "pin": "value"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "9a2de4a9-1fc7-5bae-aa4f-aa48f73c6f6e",
+          "kind": {
+            "kind": "return"
+          },
+          "inputs": {
+            "value": {
+              "kind": "link",
+              "node": "bbefa8f3-ab6a-51c1-93c7-9eb6f2f5e731",
+              "pin": "value"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "a44921a0-7754-5ec0-b572-61a0a1f92158",
+          "kind": {
+            "kind": "return"
+          },
+          "inputs": {
+            "value": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "fixed"
+              },
+              "value": 1.0
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "9e4ba0b8-f5c4-59c8-a596-f78f88f37d99",
+          "kind": {
+            "kind": "branch"
+          },
+          "inputs": {
+            "condition": {
+              "kind": "link",
+              "node": "4c751525-8066-516e-85f3-f1c26904a6af",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "true": [
+              "51eb48b2-13c5-5bb6-9d46-dba333297cd0"
+            ],
+            "false": [
+              "a44921a0-7754-5ec0-b572-61a0a1f92158"
+            ]
+          }
+        },
+        {
+          "id": "fe4cab4c-d0b6-5a86-a689-7a8dd009fe9d",
+          "kind": {
+            "kind": "branch"
+          },
+          "inputs": {
+            "condition": {
+              "kind": "link",
+              "node": "826960fa-ea64-5407-b63f-6beb856df2fa",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "true": [
+              "7c384d62-9ccf-5ad6-b2fc-929163cbcacf"
+            ],
+            "false": [
+              "9a2de4a9-1fc7-5bae-aa4f-aa48f73c6f6e"
+            ]
+          }
+        },
+        {
+          "id": "51eb48b2-13c5-5bb6-9d46-dba333297cd0",
+          "kind": {
+            "kind": "branch"
+          },
+          "inputs": {
+            "condition": {
+              "kind": "link",
+              "node": "ece5fee1-9895-549b-9c4e-51ce4b012371",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "true": [
+              "1f94933c-37a9-53b2-97e1-000943e01c4f"
+            ],
+            "false": [
+              "fe4cab4c-d0b6-5a86-a689-7a8dd009fe9d"
+            ]
+          }
+        },
+        {
+          "id": "b68e4e96-eb6d-5684-bd3e-a806858a00dd",
+          "kind": {
+            "kind": "branch"
+          },
+          "inputs": {
+            "condition": {
+              "kind": "link",
+              "node": "2880307a-cf49-5dd3-b181-65df5205ebef",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "true": [
+              "ed08c590-0d6f-5a9d-aa9c-5143ac8512c7"
+            ],
+            "false": [
+              "9e4ba0b8-f5c4-59c8-a596-f78f88f37d99"
+            ]
+          }
+        },
+        {
+          "id": "ca626033-ca8b-559a-acbf-5d73f0427f27",
+          "kind": {
+            "kind": "entry"
+          },
+          "inputs": {},
+          "outputs": {
+            "next": [
+              "b68e4e96-eb6d-5684-bd3e-a806858a00dd"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "18eb71c6-82fb-5e0b-be43-49d08c58355c",
+      "name": "refresh",
+      "parameters": [],
+      "returns": {
+        "kind": "void"
+      },
+      "entry": "eec351ac-cb61-56a6-859e-28f0fad6b57d",
+      "nodes": [
+        {
+          "id": "3a48a940-2cc2-5be6-ac4d-108482da61f5",
+          "kind": {
+            "kind": "call",
+            "function": "e5b9054a-8767-5fdf-85c8-3f56661cdb8b"
+          },
+          "inputs": {},
+          "outputs": {
+            "next": [
+              "7edf4fcd-2854-5007-91a9-383d3378b657"
+            ]
+          }
+        },
+        {
+          "id": "7edf4fcd-2854-5007-91a9-383d3378b657",
+          "kind": {
+            "kind": "call",
+            "function": "37c08062-1852-5106-8e28-d48266f725fe"
+          },
+          "inputs": {},
+          "outputs": {
+            "next": [
+              "5f848ba7-54f6-5bd4-b7a3-09c275287696"
+            ]
+          }
+        },
+        {
+          "id": "5f848ba7-54f6-5bd4-b7a3-09c275287696",
+          "kind": {
+            "kind": "call",
+            "function": "84099013-27c3-5788-8d2a-d8a5d18eb176"
+          },
+          "inputs": {},
+          "outputs": {
+            "next": [
+              "265321c4-51c1-5321-b5e4-c1cbd8dc9318"
+            ]
+          }
+        },
+        {
+          "id": "9096e01b-585d-5ace-8814-b63bab46b1f0",
+          "kind": {
+            "kind": "get_variable",
+            "member": "68467e3b-f7f7-5a05-a54c-102cd208a22d"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "ac7926f5-50d2-58b6-8989-c4be1f3d1862",
+          "kind": {
+            "kind": "binary",
+            "op": "less_equal"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "9096e01b-585d-5ace-8814-b63bab46b1f0",
+              "pin": "value.phase"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 7
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "b859920b-67b8-5ee1-9850-6a3ce8f87f81",
+          "kind": {
+            "kind": "binary",
+            "op": "less_equal"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "9096e01b-585d-5ace-8814-b63bab46b1f0",
+              "pin": "value.state"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 3
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "46e6b3ec-fedb-5baf-bc72-2519c07dd275",
+          "kind": {
+            "kind": "binary",
+            "op": "greater_equal"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "9096e01b-585d-5ace-8814-b63bab46b1f0",
+              "pin": "value.elapsed"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "fixed"
+              },
+              "value": 0.0
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "5c3d8126-2c72-5526-bc04-e1c57b0386ce",
+          "kind": {
+            "kind": "binary",
+            "op": "less_equal"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "9096e01b-585d-5ace-8814-b63bab46b1f0",
+              "pin": "value.elapsed"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "fixed"
+              },
+              "value": 61.0
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "6017d278-c79e-5115-9e70-d66a537392ed",
+          "kind": {
+            "kind": "binary",
+            "op": "and"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "3a48a940-2cc2-5be6-ac4d-108482da61f5",
+              "pin": "value"
+            },
+            "b": {
+              "kind": "link",
+              "node": "ac7926f5-50d2-58b6-8989-c4be1f3d1862",
+              "pin": "value"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "c46bb133-5144-5b2b-a10f-08eb9045de52",
+          "kind": {
+            "kind": "binary",
+            "op": "and"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "6017d278-c79e-5115-9e70-d66a537392ed",
+              "pin": "value"
+            },
+            "b": {
+              "kind": "link",
+              "node": "b859920b-67b8-5ee1-9850-6a3ce8f87f81",
+              "pin": "value"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "fd7f3042-bc78-5312-a480-d938c6acbc7d",
+          "kind": {
+            "kind": "binary",
+            "op": "and"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "c46bb133-5144-5b2b-a10f-08eb9045de52",
+              "pin": "value"
+            },
+            "b": {
+              "kind": "link",
+              "node": "46e6b3ec-fedb-5baf-bc72-2519c07dd275",
+              "pin": "value"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "a1a20ac9-45ea-5277-9b38-9a8e6154136a",
+          "kind": {
+            "kind": "binary",
+            "op": "and"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "fd7f3042-bc78-5312-a480-d938c6acbc7d",
+              "pin": "value"
+            },
+            "b": {
+              "kind": "link",
+              "node": "5c3d8126-2c72-5526-bc04-e1c57b0386ce",
+              "pin": "value"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "a1c73f2b-59dd-5b76-b1c6-77c5071a2dd0",
+          "kind": {
+            "kind": "binary",
+            "op": "equal"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "9096e01b-585d-5ace-8814-b63bab46b1f0",
+              "pin": "value.phase"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 4
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "7366883c-aee5-5e1d-afea-dcc4cecf73c0",
+          "kind": {
+            "kind": "binary",
+            "op": "less"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "9096e01b-585d-5ace-8814-b63bab46b1f0",
+              "pin": "value.state"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 2
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "cb88a673-c83e-5dfe-88aa-a24ba22b03fd",
+          "kind": {
+            "kind": "binary",
+            "op": "equal"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "9096e01b-585d-5ace-8814-b63bab46b1f0",
+              "pin": "value.phase"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 7
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "265321c4-51c1-5321-b5e4-c1cbd8dc9318",
+          "kind": {
+            "kind": "call",
+            "function": "e3729b65-3558-5d55-aadb-b427a1e577b1"
+          },
+          "inputs": {
+            "value": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "record",
+                "cpp_name": "DungeonRunSnapshot",
+                "fields": [
+                  {
+                    "name": "state",
+                    "value_type": {
+                      "kind": "uint32"
+                    }
+                  },
+                  {
+                    "name": "phase",
+                    "value_type": {
+                      "kind": "uint32"
+                    }
+                  },
+                  {
+                    "name": "elapsed",
+                    "value_type": {
+                      "kind": "fixed"
+                    }
+                  },
+                  {
+                    "name": "fade",
+                    "value_type": {
+                      "kind": "uint32"
+                    }
+                  },
+                  {
+                    "name": "music_gain",
+                    "value_type": {
+                      "kind": "fixed"
+                    }
+                  },
+                  {
+                    "name": "playing",
+                    "value_type": {
+                      "kind": "bool"
+                    }
+                  },
+                  {
+                    "name": "alive",
+                    "value_type": {
+                      "kind": "bool"
+                    }
+                  },
+                  {
+                    "name": "restart",
+                    "value_type": {
+                      "kind": "bool"
+                    }
+                  },
+                  {
+                    "name": "stop_music",
+                    "value_type": {
+                      "kind": "bool"
+                    }
+                  },
+                  {
+                    "name": "valid",
+                    "value_type": {
+                      "kind": "bool"
+                    }
+                  }
+                ]
+              },
+              "value": {
+                "state": 0,
+                "phase": 0,
+                "elapsed": 0.0,
+                "fade": 255,
+                "music_gain": 1.0,
+                "playing": false,
+                "alive": true,
+                "restart": false,
+                "stop_music": false,
+                "valid": true
+              }
+            },
+            "value.state": {
+              "kind": "link",
+              "node": "9096e01b-585d-5ace-8814-b63bab46b1f0",
+              "pin": "value.state"
+            },
+            "value.phase": {
+              "kind": "link",
+              "node": "9096e01b-585d-5ace-8814-b63bab46b1f0",
+              "pin": "value.phase"
+            },
+            "value.elapsed": {
+              "kind": "link",
+              "node": "9096e01b-585d-5ace-8814-b63bab46b1f0",
+              "pin": "value.elapsed"
+            },
+            "value.fade": {
+              "kind": "link",
+              "node": "7edf4fcd-2854-5007-91a9-383d3378b657",
+              "pin": "value"
+            },
+            "value.music_gain": {
+              "kind": "link",
+              "node": "5f848ba7-54f6-5bd4-b7a3-09c275287696",
+              "pin": "value"
+            },
+            "value.playing": {
+              "kind": "link",
+              "node": "a1c73f2b-59dd-5b76-b1c6-77c5071a2dd0",
+              "pin": "value"
+            },
+            "value.alive": {
+              "kind": "link",
+              "node": "7366883c-aee5-5e1d-afea-dcc4cecf73c0",
+              "pin": "value"
+            },
+            "value.restart": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "bool"
+              },
+              "value": false
+            },
+            "value.stop_music": {
+              "kind": "link",
+              "node": "cb88a673-c83e-5dfe-88aa-a24ba22b03fd",
+              "pin": "value"
+            },
+            "value.valid": {
+              "kind": "link",
+              "node": "a1a20ac9-45ea-5277-9b38-9a8e6154136a",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "next": [
+              "37796059-a7cc-5414-902a-387e955c68dc"
+            ]
+          }
+        },
+        {
+          "id": "37796059-a7cc-5414-902a-387e955c68dc",
+          "kind": {
+            "kind": "return"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "eec351ac-cb61-56a6-859e-28f0fad6b57d",
+          "kind": {
+            "kind": "entry"
+          },
+          "inputs": {},
+          "outputs": {
+            "next": [
+              "3a48a940-2cc2-5be6-ac4d-108482da61f5"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "f1528c6e-4fc2-548f-ab12-4c08c9c3a8af",
+      "name": "start",
+      "parameters": [],
+      "returns": {
+        "kind": "void"
+      },
+      "entry": "302d0107-6b79-51d3-80a9-0be69cc91aa5",
+      "nodes": [
+        {
+          "id": "3530a2b7-6fd0-5f47-9229-4758143936e7",
+          "kind": {
+            "kind": "get_variable",
+            "member": "68467e3b-f7f7-5a05-a54c-102cd208a22d"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "9cd53d5d-2aae-54b6-8156-34a1cead790f",
+          "kind": {
+            "kind": "call",
+            "function": "e3729b65-3558-5d55-aadb-b427a1e577b1"
+          },
+          "inputs": {
+            "value": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "record",
+                "cpp_name": "DungeonRunSnapshot",
+                "fields": [
+                  {
+                    "name": "state",
+                    "value_type": {
+                      "kind": "uint32"
+                    }
+                  },
+                  {
+                    "name": "phase",
+                    "value_type": {
+                      "kind": "uint32"
+                    }
+                  },
+                  {
+                    "name": "elapsed",
+                    "value_type": {
+                      "kind": "fixed"
+                    }
+                  },
+                  {
+                    "name": "fade",
+                    "value_type": {
+                      "kind": "uint32"
+                    }
+                  },
+                  {
+                    "name": "music_gain",
+                    "value_type": {
+                      "kind": "fixed"
+                    }
+                  },
+                  {
+                    "name": "playing",
+                    "value_type": {
+                      "kind": "bool"
+                    }
+                  },
+                  {
+                    "name": "alive",
+                    "value_type": {
+                      "kind": "bool"
+                    }
+                  },
+                  {
+                    "name": "restart",
+                    "value_type": {
+                      "kind": "bool"
+                    }
+                  },
+                  {
+                    "name": "stop_music",
+                    "value_type": {
+                      "kind": "bool"
+                    }
+                  },
+                  {
+                    "name": "valid",
+                    "value_type": {
+                      "kind": "bool"
+                    }
+                  }
+                ]
+              },
+              "value": {
+                "state": 0,
+                "phase": 0,
+                "elapsed": 0.0,
+                "fade": 255,
+                "music_gain": 1.0,
+                "playing": false,
+                "alive": true,
+                "restart": false,
+                "stop_music": false,
+                "valid": true
+              }
+            },
+            "value.state": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 0
+            },
+            "value.phase": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 0
+            },
+            "value.elapsed": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "fixed"
+              },
+              "value": 0.0
+            },
+            "value.fade": {
+              "kind": "link",
+              "node": "3530a2b7-6fd0-5f47-9229-4758143936e7",
+              "pin": "value.fade"
+            },
+            "value.music_gain": {
+              "kind": "link",
+              "node": "3530a2b7-6fd0-5f47-9229-4758143936e7",
+              "pin": "value.music_gain"
+            },
+            "value.playing": {
+              "kind": "link",
+              "node": "3530a2b7-6fd0-5f47-9229-4758143936e7",
+              "pin": "value.playing"
+            },
+            "value.alive": {
+              "kind": "link",
+              "node": "3530a2b7-6fd0-5f47-9229-4758143936e7",
+              "pin": "value.alive"
+            },
+            "value.restart": {
+              "kind": "link",
+              "node": "3530a2b7-6fd0-5f47-9229-4758143936e7",
+              "pin": "value.restart"
+            },
+            "value.stop_music": {
+              "kind": "link",
+              "node": "3530a2b7-6fd0-5f47-9229-4758143936e7",
+              "pin": "value.stop_music"
+            },
+            "value.valid": {
+              "kind": "link",
+              "node": "3530a2b7-6fd0-5f47-9229-4758143936e7",
+              "pin": "value.valid"
+            }
+          },
+          "outputs": {
+            "next": [
+              "3c561421-dd25-5140-8616-8dc80427b13b"
+            ]
+          }
+        },
+        {
+          "id": "3c561421-dd25-5140-8616-8dc80427b13b",
+          "kind": {
+            "kind": "call",
+            "function": "18eb71c6-82fb-5e0b-be43-49d08c58355c"
+          },
+          "inputs": {},
+          "outputs": {
+            "next": [
+              "9336c602-34c0-57d1-b0b3-228d52c0dbf1"
+            ]
+          }
+        },
+        {
+          "id": "9336c602-34c0-57d1-b0b3-228d52c0dbf1",
+          "kind": {
+            "kind": "return"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "302d0107-6b79-51d3-80a9-0be69cc91aa5",
+          "kind": {
+            "kind": "entry"
+          },
+          "inputs": {},
+          "outputs": {
+            "next": [
+              "9cd53d5d-2aae-54b6-8156-34a1cead790f"
+            ]
+          }
+        }
+      ],
+      "override_id": "9b6a7d68-efe4-56ef-880b-867786725a48"
+    },
+    {
+      "id": "d276fc5a-ba1a-54dc-85aa-596adac88a27",
+      "name": "die",
+      "parameters": [],
+      "returns": {
+        "kind": "void"
+      },
+      "entry": "550209d6-a5e2-55ec-b981-533049aef081",
+      "nodes": [
+        {
+          "id": "298a1241-732f-5c3f-9088-2502b376ef58",
+          "kind": {
+            "kind": "get_variable",
+            "member": "68467e3b-f7f7-5a05-a54c-102cd208a22d"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "b4978300-fbd1-5212-92be-d9138ddfe9d5",
+          "kind": {
+            "kind": "binary",
+            "op": "greater_equal"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "298a1241-732f-5c3f-9088-2502b376ef58",
+              "pin": "value.state"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 2
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "9715a98e-9781-5834-8ff5-a1bc31d32568",
+          "kind": {
+            "kind": "return"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "c701d7d0-b74d-57d1-a736-9791d07aa7dc",
+          "kind": {
+            "kind": "call",
+            "function": "e3729b65-3558-5d55-aadb-b427a1e577b1"
+          },
+          "inputs": {
+            "value": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "record",
+                "cpp_name": "DungeonRunSnapshot",
+                "fields": [
+                  {
+                    "name": "state",
+                    "value_type": {
+                      "kind": "uint32"
+                    }
+                  },
+                  {
+                    "name": "phase",
+                    "value_type": {
+                      "kind": "uint32"
+                    }
+                  },
+                  {
+                    "name": "elapsed",
+                    "value_type": {
+                      "kind": "fixed"
+                    }
+                  },
+                  {
+                    "name": "fade",
+                    "value_type": {
+                      "kind": "uint32"
+                    }
+                  },
+                  {
+                    "name": "music_gain",
+                    "value_type": {
+                      "kind": "fixed"
+                    }
+                  },
+                  {
+                    "name": "playing",
+                    "value_type": {
+                      "kind": "bool"
+                    }
+                  },
+                  {
+                    "name": "alive",
+                    "value_type": {
+                      "kind": "bool"
+                    }
+                  },
+                  {
+                    "name": "restart",
+                    "value_type": {
+                      "kind": "bool"
+                    }
+                  },
+                  {
+                    "name": "stop_music",
+                    "value_type": {
+                      "kind": "bool"
+                    }
+                  },
+                  {
+                    "name": "valid",
+                    "value_type": {
+                      "kind": "bool"
+                    }
+                  }
+                ]
+              },
+              "value": {
+                "state": 0,
+                "phase": 0,
+                "elapsed": 0.0,
+                "fade": 255,
+                "music_gain": 1.0,
+                "playing": false,
+                "alive": true,
+                "restart": false,
+                "stop_music": false,
+                "valid": true
+              }
+            },
+            "value.state": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 3
+            },
+            "value.phase": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 5
+            },
+            "value.elapsed": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "fixed"
+              },
+              "value": 0.0
+            },
+            "value.fade": {
+              "kind": "link",
+              "node": "298a1241-732f-5c3f-9088-2502b376ef58",
+              "pin": "value.fade"
+            },
+            "value.music_gain": {
+              "kind": "link",
+              "node": "298a1241-732f-5c3f-9088-2502b376ef58",
+              "pin": "value.music_gain"
+            },
+            "value.playing": {
+              "kind": "link",
+              "node": "298a1241-732f-5c3f-9088-2502b376ef58",
+              "pin": "value.playing"
+            },
+            "value.alive": {
+              "kind": "link",
+              "node": "298a1241-732f-5c3f-9088-2502b376ef58",
+              "pin": "value.alive"
+            },
+            "value.restart": {
+              "kind": "link",
+              "node": "298a1241-732f-5c3f-9088-2502b376ef58",
+              "pin": "value.restart"
+            },
+            "value.stop_music": {
+              "kind": "link",
+              "node": "298a1241-732f-5c3f-9088-2502b376ef58",
+              "pin": "value.stop_music"
+            },
+            "value.valid": {
+              "kind": "link",
+              "node": "298a1241-732f-5c3f-9088-2502b376ef58",
+              "pin": "value.valid"
+            }
+          },
+          "outputs": {
+            "next": [
+              "bc9c7883-3d86-55b3-bd79-cc1c1951e8a2"
+            ]
+          }
+        },
+        {
+          "id": "bc9c7883-3d86-55b3-bd79-cc1c1951e8a2",
+          "kind": {
+            "kind": "call",
+            "function": "18eb71c6-82fb-5e0b-be43-49d08c58355c"
+          },
+          "inputs": {},
+          "outputs": {
+            "next": [
+              "b73923b0-6eb3-5a9f-bb74-af6528ddce9e"
+            ]
+          }
+        },
+        {
+          "id": "b73923b0-6eb3-5a9f-bb74-af6528ddce9e",
+          "kind": {
+            "kind": "return"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "0c0101ab-8efe-5cb4-8394-c9518534420f",
+          "kind": {
+            "kind": "branch"
+          },
+          "inputs": {
+            "condition": {
+              "kind": "link",
+              "node": "b4978300-fbd1-5212-92be-d9138ddfe9d5",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "true": [
+              "9715a98e-9781-5834-8ff5-a1bc31d32568"
+            ],
+            "false": [
+              "c701d7d0-b74d-57d1-a736-9791d07aa7dc"
+            ]
+          }
+        },
+        {
+          "id": "550209d6-a5e2-55ec-b981-533049aef081",
+          "kind": {
+            "kind": "entry"
+          },
+          "inputs": {},
+          "outputs": {
+            "next": [
+              "0c0101ab-8efe-5cb4-8394-c9518534420f"
+            ]
+          }
+        }
+      ],
+      "override_id": "6229c53c-6439-543a-8fe4-4f665d4ec86c"
+    },
+    {
+      "id": "f1a1e704-e34e-5f9e-9219-30e660923ee2",
+      "name": "win",
+      "parameters": [],
+      "returns": {
+        "kind": "void"
+      },
+      "entry": "64f2b2c9-ff6b-5de5-91ac-b26561733889",
+      "nodes": [
+        {
+          "id": "d0964e8b-eedc-5af0-b5f3-869027865dd4",
+          "kind": {
+            "kind": "get_variable",
+            "member": "68467e3b-f7f7-5a05-a54c-102cd208a22d"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "60c426a5-a52d-5f57-a8bd-55cfcd008180",
+          "kind": {
+            "kind": "binary",
+            "op": "not_equal"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "d0964e8b-eedc-5af0-b5f3-869027865dd4",
+              "pin": "value.state"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 1
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "93135bac-cf31-5227-ae1c-3f22961e8edd",
+          "kind": {
+            "kind": "return"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "05a76548-0cb0-5a04-86e3-513888b1ad5d",
+          "kind": {
+            "kind": "call",
+            "function": "e3729b65-3558-5d55-aadb-b427a1e577b1"
+          },
+          "inputs": {
+            "value": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "record",
+                "cpp_name": "DungeonRunSnapshot",
+                "fields": [
+                  {
+                    "name": "state",
+                    "value_type": {
+                      "kind": "uint32"
+                    }
+                  },
+                  {
+                    "name": "phase",
+                    "value_type": {
+                      "kind": "uint32"
+                    }
+                  },
+                  {
+                    "name": "elapsed",
+                    "value_type": {
+                      "kind": "fixed"
+                    }
+                  },
+                  {
+                    "name": "fade",
+                    "value_type": {
+                      "kind": "uint32"
+                    }
+                  },
+                  {
+                    "name": "music_gain",
+                    "value_type": {
+                      "kind": "fixed"
+                    }
+                  },
+                  {
+                    "name": "playing",
+                    "value_type": {
+                      "kind": "bool"
+                    }
+                  },
+                  {
+                    "name": "alive",
+                    "value_type": {
+                      "kind": "bool"
+                    }
+                  },
+                  {
+                    "name": "restart",
+                    "value_type": {
+                      "kind": "bool"
+                    }
+                  },
+                  {
+                    "name": "stop_music",
+                    "value_type": {
+                      "kind": "bool"
+                    }
+                  },
+                  {
+                    "name": "valid",
+                    "value_type": {
+                      "kind": "bool"
+                    }
+                  }
+                ]
+              },
+              "value": {
+                "state": 0,
+                "phase": 0,
+                "elapsed": 0.0,
+                "fade": 255,
+                "music_gain": 1.0,
+                "playing": false,
+                "alive": true,
+                "restart": false,
+                "stop_music": false,
+                "valid": true
+              }
+            },
+            "value.state": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 2
+            },
+            "value.phase": {
+              "kind": "link",
+              "node": "d0964e8b-eedc-5af0-b5f3-869027865dd4",
+              "pin": "value.phase"
+            },
+            "value.elapsed": {
+              "kind": "link",
+              "node": "d0964e8b-eedc-5af0-b5f3-869027865dd4",
+              "pin": "value.elapsed"
+            },
+            "value.fade": {
+              "kind": "link",
+              "node": "d0964e8b-eedc-5af0-b5f3-869027865dd4",
+              "pin": "value.fade"
+            },
+            "value.music_gain": {
+              "kind": "link",
+              "node": "d0964e8b-eedc-5af0-b5f3-869027865dd4",
+              "pin": "value.music_gain"
+            },
+            "value.playing": {
+              "kind": "link",
+              "node": "d0964e8b-eedc-5af0-b5f3-869027865dd4",
+              "pin": "value.playing"
+            },
+            "value.alive": {
+              "kind": "link",
+              "node": "d0964e8b-eedc-5af0-b5f3-869027865dd4",
+              "pin": "value.alive"
+            },
+            "value.restart": {
+              "kind": "link",
+              "node": "d0964e8b-eedc-5af0-b5f3-869027865dd4",
+              "pin": "value.restart"
+            },
+            "value.stop_music": {
+              "kind": "link",
+              "node": "d0964e8b-eedc-5af0-b5f3-869027865dd4",
+              "pin": "value.stop_music"
+            },
+            "value.valid": {
+              "kind": "link",
+              "node": "d0964e8b-eedc-5af0-b5f3-869027865dd4",
+              "pin": "value.valid"
+            }
+          },
+          "outputs": {
+            "next": [
+              "d3ffe603-fec2-5cd4-92ee-35e75380799e"
+            ]
+          }
+        },
+        {
+          "id": "d3ffe603-fec2-5cd4-92ee-35e75380799e",
+          "kind": {
+            "kind": "call",
+            "function": "18eb71c6-82fb-5e0b-be43-49d08c58355c"
+          },
+          "inputs": {},
+          "outputs": {
+            "next": [
+              "b647be1a-7ee4-5cf3-824e-7bea7b15b01b"
+            ]
+          }
+        },
+        {
+          "id": "b647be1a-7ee4-5cf3-824e-7bea7b15b01b",
+          "kind": {
+            "kind": "return"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "92a8f424-6564-55c4-9f21-0a757127203c",
+          "kind": {
+            "kind": "branch"
+          },
+          "inputs": {
+            "condition": {
+              "kind": "link",
+              "node": "60c426a5-a52d-5f57-a8bd-55cfcd008180",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "true": [
+              "93135bac-cf31-5227-ae1c-3f22961e8edd"
+            ],
+            "false": [
+              "05a76548-0cb0-5a04-86e3-513888b1ad5d"
+            ]
+          }
+        },
+        {
+          "id": "64f2b2c9-ff6b-5de5-91ac-b26561733889",
+          "kind": {
+            "kind": "entry"
+          },
+          "inputs": {},
+          "outputs": {
+            "next": [
+              "92a8f424-6564-55c4-9f21-0a757127203c"
+            ]
+          }
+        }
+      ],
+      "override_id": "28a88de5-ef38-5c50-9a66-24305ddc75e0"
+    },
+    {
+      "id": "353a0f42-69b2-5475-b7e5-10c1ebbb846d",
+      "name": "try_enter_boss",
+      "parameters": [
+        {
+          "name": "has_key",
+          "value_type": {
+            "kind": "bool"
+          },
+          "direction": "value"
+        },
+        {
+          "name": "player_z",
+          "value_type": {
+            "kind": "fixed"
+          },
+          "direction": "value"
+        }
+      ],
+      "returns": {
+        "kind": "bool"
+      },
+      "entry": "662d8521-d57e-5803-bfd4-d3ec8aaf01f3",
+      "nodes": [
+        {
+          "id": "699c16d0-a532-57f1-9bba-e2c1ea7b98e9",
+          "kind": {
+            "kind": "get_variable",
+            "member": "68467e3b-f7f7-5a05-a54c-102cd208a22d"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "083f8210-fbf6-5e49-bfbe-b2d9c381e384",
+          "kind": {
+            "kind": "binary",
+            "op": "not_equal"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "699c16d0-a532-57f1-9bba-e2c1ea7b98e9",
+              "pin": "value.state"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 0
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "4bff7d67-5743-588b-abe8-f4256689938b",
+          "kind": {
+            "kind": "not"
+          },
+          "inputs": {
+            "value": {
+              "kind": "parameter",
+              "name": "has_key"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "608d9b4e-b93a-52c4-b236-f9b6dbccc869",
+          "kind": {
+            "kind": "get_variable",
+            "member": "8e8627cd-3e49-5557-94b6-3f60be28de73"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "c8424a3e-ff0b-50f3-9280-4c19985e0ede",
+          "kind": {
+            "kind": "binary",
+            "op": "less_equal"
+          },
+          "inputs": {
+            "a": {
+              "kind": "parameter",
+              "name": "player_z"
+            },
+            "b": {
+              "kind": "link",
+              "node": "608d9b4e-b93a-52c4-b236-f9b6dbccc869",
+              "pin": "value"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "e0b015d0-1513-58af-b1ab-d0553454b9f4",
+          "kind": {
+            "kind": "binary",
+            "op": "or"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "083f8210-fbf6-5e49-bfbe-b2d9c381e384",
+              "pin": "value"
+            },
+            "b": {
+              "kind": "link",
+              "node": "4bff7d67-5743-588b-abe8-f4256689938b",
+              "pin": "value"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "2fe47d6b-2e8f-5a07-a05d-d1acf48c9a70",
+          "kind": {
+            "kind": "binary",
+            "op": "or"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "e0b015d0-1513-58af-b1ab-d0553454b9f4",
+              "pin": "value"
+            },
+            "b": {
+              "kind": "link",
+              "node": "c8424a3e-ff0b-50f3-9280-4c19985e0ede",
+              "pin": "value"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "8c6a9a0c-5b8c-5d27-857a-d8489154153f",
+          "kind": {
+            "kind": "return"
+          },
+          "inputs": {
+            "value": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "bool"
+              },
+              "value": false
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "f1d0efdd-c0ac-5b1d-aa9a-152c05724982",
+          "kind": {
+            "kind": "call",
+            "function": "e3729b65-3558-5d55-aadb-b427a1e577b1"
+          },
+          "inputs": {
+            "value": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "record",
+                "cpp_name": "DungeonRunSnapshot",
+                "fields": [
+                  {
+                    "name": "state",
+                    "value_type": {
+                      "kind": "uint32"
+                    }
+                  },
+                  {
+                    "name": "phase",
+                    "value_type": {
+                      "kind": "uint32"
+                    }
+                  },
+                  {
+                    "name": "elapsed",
+                    "value_type": {
+                      "kind": "fixed"
+                    }
+                  },
+                  {
+                    "name": "fade",
+                    "value_type": {
+                      "kind": "uint32"
+                    }
+                  },
+                  {
+                    "name": "music_gain",
+                    "value_type": {
+                      "kind": "fixed"
+                    }
+                  },
+                  {
+                    "name": "playing",
+                    "value_type": {
+                      "kind": "bool"
+                    }
+                  },
+                  {
+                    "name": "alive",
+                    "value_type": {
+                      "kind": "bool"
+                    }
+                  },
+                  {
+                    "name": "restart",
+                    "value_type": {
+                      "kind": "bool"
+                    }
+                  },
+                  {
+                    "name": "stop_music",
+                    "value_type": {
+                      "kind": "bool"
+                    }
+                  },
+                  {
+                    "name": "valid",
+                    "value_type": {
+                      "kind": "bool"
+                    }
+                  }
+                ]
+              },
+              "value": {
+                "state": 0,
+                "phase": 0,
+                "elapsed": 0.0,
+                "fade": 255,
+                "music_gain": 1.0,
+                "playing": false,
+                "alive": true,
+                "restart": false,
+                "stop_music": false,
+                "valid": true
+              }
+            },
+            "value.state": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 1
+            },
+            "value.phase": {
+              "kind": "link",
+              "node": "699c16d0-a532-57f1-9bba-e2c1ea7b98e9",
+              "pin": "value.phase"
+            },
+            "value.elapsed": {
+              "kind": "link",
+              "node": "699c16d0-a532-57f1-9bba-e2c1ea7b98e9",
+              "pin": "value.elapsed"
+            },
+            "value.fade": {
+              "kind": "link",
+              "node": "699c16d0-a532-57f1-9bba-e2c1ea7b98e9",
+              "pin": "value.fade"
+            },
+            "value.music_gain": {
+              "kind": "link",
+              "node": "699c16d0-a532-57f1-9bba-e2c1ea7b98e9",
+              "pin": "value.music_gain"
+            },
+            "value.playing": {
+              "kind": "link",
+              "node": "699c16d0-a532-57f1-9bba-e2c1ea7b98e9",
+              "pin": "value.playing"
+            },
+            "value.alive": {
+              "kind": "link",
+              "node": "699c16d0-a532-57f1-9bba-e2c1ea7b98e9",
+              "pin": "value.alive"
+            },
+            "value.restart": {
+              "kind": "link",
+              "node": "699c16d0-a532-57f1-9bba-e2c1ea7b98e9",
+              "pin": "value.restart"
+            },
+            "value.stop_music": {
+              "kind": "link",
+              "node": "699c16d0-a532-57f1-9bba-e2c1ea7b98e9",
+              "pin": "value.stop_music"
+            },
+            "value.valid": {
+              "kind": "link",
+              "node": "699c16d0-a532-57f1-9bba-e2c1ea7b98e9",
+              "pin": "value.valid"
+            }
+          },
+          "outputs": {
+            "next": [
+              "85792d77-faad-51f2-bf3e-856388a3dbe2"
+            ]
+          }
+        },
+        {
+          "id": "85792d77-faad-51f2-bf3e-856388a3dbe2",
+          "kind": {
+            "kind": "call",
+            "function": "18eb71c6-82fb-5e0b-be43-49d08c58355c"
+          },
+          "inputs": {},
+          "outputs": {
+            "next": [
+              "dca15609-2245-5428-bf85-8234516196b8"
+            ]
+          }
+        },
+        {
+          "id": "dca15609-2245-5428-bf85-8234516196b8",
+          "kind": {
+            "kind": "return"
+          },
+          "inputs": {
+            "value": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "bool"
+              },
+              "value": true
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "ac665592-c788-530a-9b15-66ebae47c0c1",
+          "kind": {
+            "kind": "branch"
+          },
+          "inputs": {
+            "condition": {
+              "kind": "link",
+              "node": "2fe47d6b-2e8f-5a07-a05d-d1acf48c9a70",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "true": [
+              "8c6a9a0c-5b8c-5d27-857a-d8489154153f"
+            ],
+            "false": [
+              "f1d0efdd-c0ac-5b1d-aa9a-152c05724982"
+            ]
+          }
+        },
+        {
+          "id": "662d8521-d57e-5803-bfd4-d3ec8aaf01f3",
+          "kind": {
+            "kind": "entry"
+          },
+          "inputs": {},
+          "outputs": {
+            "next": [
+              "ac665592-c788-530a-9b15-66ebae47c0c1"
+            ]
+          }
+        }
+      ],
+      "override_id": "213c8b98-c8f2-500d-b590-dadac0609dd2"
+    },
+    {
+      "id": "633b8947-2a1a-5018-8c3b-e291d9bbf355",
+      "name": "restart_requested",
+      "parameters": [
+        {
+          "name": "pressed",
+          "value_type": {
+            "kind": "bool"
+          },
+          "direction": "value"
+        }
+      ],
+      "returns": {
+        "kind": "bool"
+      },
+      "entry": "d6acbed0-768c-54a6-a3d8-28b1b01535bf",
+      "nodes": [
+        {
+          "id": "398a9a5f-5dd9-51c8-964e-96fefc3e012f",
+          "kind": {
+            "kind": "get_variable",
+            "member": "68467e3b-f7f7-5a05-a54c-102cd208a22d"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "5c5dce9e-2377-511e-9309-e7986f8ed2ce",
+          "kind": {
+            "kind": "binary",
+            "op": "greater_equal"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "398a9a5f-5dd9-51c8-964e-96fefc3e012f",
+              "pin": "value.state"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 2
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "5cc30601-53df-5560-9f01-ea017f96ca9e",
+          "kind": {
+            "kind": "binary",
+            "op": "and"
+          },
+          "inputs": {
+            "a": {
+              "kind": "parameter",
+              "name": "pressed"
+            },
+            "b": {
+              "kind": "link",
+              "node": "398a9a5f-5dd9-51c8-964e-96fefc3e012f",
+              "pin": "value.playing"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "2ab562bc-5cc3-516f-b4cc-f35d864e571c",
+          "kind": {
+            "kind": "binary",
+            "op": "and"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "5cc30601-53df-5560-9f01-ea017f96ca9e",
+              "pin": "value"
+            },
+            "b": {
+              "kind": "link",
+              "node": "5c5dce9e-2377-511e-9309-e7986f8ed2ce",
+              "pin": "value"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "52d26874-a886-5f02-88b7-b2115b87a55d",
+          "kind": {
+            "kind": "return"
+          },
+          "inputs": {
+            "value": {
+              "kind": "link",
+              "node": "2ab562bc-5cc3-516f-b4cc-f35d864e571c",
+              "pin": "value"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "d6acbed0-768c-54a6-a3d8-28b1b01535bf",
+          "kind": {
+            "kind": "entry"
+          },
+          "inputs": {},
+          "outputs": {
+            "next": [
+              "52d26874-a886-5f02-88b7-b2115b87a55d"
+            ]
+          }
+        }
+      ],
+      "override_id": "0f57f68c-d789-528f-8b81-c691149a1dbb"
+    },
+    {
+      "id": "d1e992a2-09bf-5d84-a691-0899dacd9f6a",
+      "name": "advance",
+      "parameters": [
+        {
+          "name": "dt",
+          "value_type": {
+            "kind": "fixed"
+          },
+          "direction": "value"
+        },
+        {
+          "name": "music_playing",
+          "value_type": {
+            "kind": "bool"
+          },
+          "direction": "value"
+        }
+      ],
+      "returns": {
+        "kind": "void"
+      },
+      "entry": "cbe07cf5-559b-5cb6-b91b-789016971c14",
+      "nodes": [
+        {
+          "id": "3361d505-7d00-5145-a282-346daa1e83c0",
+          "kind": {
+            "kind": "binary",
+            "op": "less_equal"
+          },
+          "inputs": {
+            "a": {
+              "kind": "parameter",
+              "name": "dt"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "fixed"
+              },
+              "value": 0.0
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "0e8ceec3-4ff1-51bc-b8c5-5f0eda8295ea",
+          "kind": {
+            "kind": "binary",
+            "op": "greater"
+          },
+          "inputs": {
+            "a": {
+              "kind": "parameter",
+              "name": "dt"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "fixed"
+              },
+              "value": 1.0
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "6105dd70-5be9-5306-9b75-5288f87dc8d2",
+          "kind": {
+            "kind": "binary",
+            "op": "or"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "3361d505-7d00-5145-a282-346daa1e83c0",
+              "pin": "value"
+            },
+            "b": {
+              "kind": "link",
+              "node": "0e8ceec3-4ff1-51bc-b8c5-5f0eda8295ea",
+              "pin": "value"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "08cbb178-d2f9-5e18-98dc-9d095e52b4bd",
+          "kind": {
+            "kind": "call",
+            "function": "06342bd6-5681-5652-be22-bac6697eeb4d"
+          },
+          "inputs": {},
+          "outputs": {
+            "next": [
+              "dcfe9f3a-9587-5c5a-a18e-d9b6742fcd45"
+            ]
+          }
+        },
+        {
+          "id": "3b0c43a0-fdd3-5939-9ce3-90318373c987",
+          "kind": {
+            "kind": "return"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "26b60758-cb7d-52e8-94b8-c939c4f0a809",
+          "kind": {
+            "kind": "call",
+            "function": "18eb71c6-82fb-5e0b-be43-49d08c58355c"
+          },
+          "inputs": {},
+          "outputs": {
+            "next": [
+              "cf124920-d455-53f3-9eda-ce3fccbcbd03"
+            ]
+          }
+        },
+        {
+          "id": "2ff72112-ce33-50a9-a187-14511147bcd1",
+          "kind": {
+            "kind": "get_variable",
+            "member": "68467e3b-f7f7-5a05-a54c-102cd208a22d"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "48607f6c-f1b8-5986-a5f6-b8da05279676",
+          "kind": {
+            "kind": "not"
+          },
+          "inputs": {
+            "value": {
+              "kind": "link",
+              "node": "2ff72112-ce33-50a9-a187-14511147bcd1",
+              "pin": "value.valid"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "5fbf6990-471c-5ae3-a0d4-f4472f0079b4",
+          "kind": {
+            "kind": "return"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "bad08e4b-3e37-5f4e-8081-80043f490ef9",
+          "kind": {
+            "kind": "binary",
+            "op": "equal"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "2ff72112-ce33-50a9-a187-14511147bcd1",
+              "pin": "value.phase"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 0
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "607cd34b-74d6-5f63-8c4b-8df709f084f0",
+          "kind": {
+            "kind": "call",
+            "function": "e3729b65-3558-5d55-aadb-b427a1e577b1"
+          },
+          "inputs": {
+            "value": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "record",
+                "cpp_name": "DungeonRunSnapshot",
+                "fields": [
+                  {
+                    "name": "state",
+                    "value_type": {
+                      "kind": "uint32"
+                    }
+                  },
+                  {
+                    "name": "phase",
+                    "value_type": {
+                      "kind": "uint32"
+                    }
+                  },
+                  {
+                    "name": "elapsed",
+                    "value_type": {
+                      "kind": "fixed"
+                    }
+                  },
+                  {
+                    "name": "fade",
+                    "value_type": {
+                      "kind": "uint32"
+                    }
+                  },
+                  {
+                    "name": "music_gain",
+                    "value_type": {
+                      "kind": "fixed"
+                    }
+                  },
+                  {
+                    "name": "playing",
+                    "value_type": {
+                      "kind": "bool"
+                    }
+                  },
+                  {
+                    "name": "alive",
+                    "value_type": {
+                      "kind": "bool"
+                    }
+                  },
+                  {
+                    "name": "restart",
+                    "value_type": {
+                      "kind": "bool"
+                    }
+                  },
+                  {
+                    "name": "stop_music",
+                    "value_type": {
+                      "kind": "bool"
+                    }
+                  },
+                  {
+                    "name": "valid",
+                    "value_type": {
+                      "kind": "bool"
+                    }
+                  }
+                ]
+              },
+              "value": {
+                "state": 0,
+                "phase": 0,
+                "elapsed": 0.0,
+                "fade": 255,
+                "music_gain": 1.0,
+                "playing": false,
+                "alive": true,
+                "restart": false,
+                "stop_music": false,
+                "valid": true
+              }
+            },
+            "value.state": {
+              "kind": "link",
+              "node": "2ff72112-ce33-50a9-a187-14511147bcd1",
+              "pin": "value.state"
+            },
+            "value.phase": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 1
+            },
+            "value.elapsed": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "fixed"
+              },
+              "value": 0.0
+            },
+            "value.fade": {
+              "kind": "link",
+              "node": "2ff72112-ce33-50a9-a187-14511147bcd1",
+              "pin": "value.fade"
+            },
+            "value.music_gain": {
+              "kind": "link",
+              "node": "2ff72112-ce33-50a9-a187-14511147bcd1",
+              "pin": "value.music_gain"
+            },
+            "value.playing": {
+              "kind": "link",
+              "node": "2ff72112-ce33-50a9-a187-14511147bcd1",
+              "pin": "value.playing"
+            },
+            "value.alive": {
+              "kind": "link",
+              "node": "2ff72112-ce33-50a9-a187-14511147bcd1",
+              "pin": "value.alive"
+            },
+            "value.restart": {
+              "kind": "link",
+              "node": "2ff72112-ce33-50a9-a187-14511147bcd1",
+              "pin": "value.restart"
+            },
+            "value.stop_music": {
+              "kind": "link",
+              "node": "2ff72112-ce33-50a9-a187-14511147bcd1",
+              "pin": "value.stop_music"
+            },
+            "value.valid": {
+              "kind": "link",
+              "node": "2ff72112-ce33-50a9-a187-14511147bcd1",
+              "pin": "value.valid"
+            }
+          },
+          "outputs": {
+            "next": [
+              "a9dec458-fa92-5f1b-832b-7bb56a889ab0"
+            ]
+          }
+        },
+        {
+          "id": "a9dec458-fa92-5f1b-832b-7bb56a889ab0",
+          "kind": {
+            "kind": "call",
+            "function": "18eb71c6-82fb-5e0b-be43-49d08c58355c"
+          },
+          "inputs": {},
+          "outputs": {
+            "next": [
+              "2277ec48-31bf-5164-b95f-975063a223d1"
+            ]
+          }
+        },
+        {
+          "id": "2277ec48-31bf-5164-b95f-975063a223d1",
+          "kind": {
+            "kind": "return"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "e8dbec16-d23e-57b1-b89b-550b9515b284",
+          "kind": {
+            "kind": "binary",
+            "op": "equal"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "2ff72112-ce33-50a9-a187-14511147bcd1",
+              "pin": "value.phase"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 4
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "8cb1c2a7-0574-54b1-a621-a3b2d1b71a26",
+          "kind": {
+            "kind": "return"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "d51e8c92-2e1c-5954-abcc-d48528b2a96a",
+          "kind": {
+            "kind": "binary",
+            "op": "add"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "2ff72112-ce33-50a9-a187-14511147bcd1",
+              "pin": "value.elapsed"
+            },
+            "b": {
+              "kind": "parameter",
+              "name": "dt"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "dcfe9f3a-9587-5c5a-a18e-d9b6742fcd45",
+          "kind": {
+            "kind": "call",
+            "function": "e3729b65-3558-5d55-aadb-b427a1e577b1"
+          },
+          "inputs": {
+            "value": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "record",
+                "cpp_name": "DungeonRunSnapshot",
+                "fields": [
+                  {
+                    "name": "state",
+                    "value_type": {
+                      "kind": "uint32"
+                    }
+                  },
+                  {
+                    "name": "phase",
+                    "value_type": {
+                      "kind": "uint32"
+                    }
+                  },
+                  {
+                    "name": "elapsed",
+                    "value_type": {
+                      "kind": "fixed"
+                    }
+                  },
+                  {
+                    "name": "fade",
+                    "value_type": {
+                      "kind": "uint32"
+                    }
+                  },
+                  {
+                    "name": "music_gain",
+                    "value_type": {
+                      "kind": "fixed"
+                    }
+                  },
+                  {
+                    "name": "playing",
+                    "value_type": {
+                      "kind": "bool"
+                    }
+                  },
+                  {
+                    "name": "alive",
+                    "value_type": {
+                      "kind": "bool"
+                    }
+                  },
+                  {
+                    "name": "restart",
+                    "value_type": {
+                      "kind": "bool"
+                    }
+                  },
+                  {
+                    "name": "stop_music",
+                    "value_type": {
+                      "kind": "bool"
+                    }
+                  },
+                  {
+                    "name": "valid",
+                    "value_type": {
+                      "kind": "bool"
+                    }
+                  }
+                ]
+              },
+              "value": {
+                "state": 0,
+                "phase": 0,
+                "elapsed": 0.0,
+                "fade": 255,
+                "music_gain": 1.0,
+                "playing": false,
+                "alive": true,
+                "restart": false,
+                "stop_music": false,
+                "valid": true
+              }
+            },
+            "value.state": {
+              "kind": "link",
+              "node": "2ff72112-ce33-50a9-a187-14511147bcd1",
+              "pin": "value.state"
+            },
+            "value.phase": {
+              "kind": "link",
+              "node": "2ff72112-ce33-50a9-a187-14511147bcd1",
+              "pin": "value.phase"
+            },
+            "value.elapsed": {
+              "kind": "link",
+              "node": "d51e8c92-2e1c-5954-abcc-d48528b2a96a",
+              "pin": "value"
+            },
+            "value.fade": {
+              "kind": "link",
+              "node": "2ff72112-ce33-50a9-a187-14511147bcd1",
+              "pin": "value.fade"
+            },
+            "value.music_gain": {
+              "kind": "link",
+              "node": "2ff72112-ce33-50a9-a187-14511147bcd1",
+              "pin": "value.music_gain"
+            },
+            "value.playing": {
+              "kind": "link",
+              "node": "2ff72112-ce33-50a9-a187-14511147bcd1",
+              "pin": "value.playing"
+            },
+            "value.alive": {
+              "kind": "link",
+              "node": "2ff72112-ce33-50a9-a187-14511147bcd1",
+              "pin": "value.alive"
+            },
+            "value.restart": {
+              "kind": "link",
+              "node": "2ff72112-ce33-50a9-a187-14511147bcd1",
+              "pin": "value.restart"
+            },
+            "value.stop_music": {
+              "kind": "link",
+              "node": "2ff72112-ce33-50a9-a187-14511147bcd1",
+              "pin": "value.stop_music"
+            },
+            "value.valid": {
+              "kind": "link",
+              "node": "2ff72112-ce33-50a9-a187-14511147bcd1",
+              "pin": "value.valid"
+            }
+          },
+          "outputs": {
+            "next": [
+              "6422cd49-7b73-51a7-bbec-63b4ca8b73b5"
+            ]
+          }
+        },
+        {
+          "id": "fb37430a-b96c-5f0c-be62-03c6e69470af",
+          "kind": {
+            "kind": "binary",
+            "op": "less"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "2ff72112-ce33-50a9-a187-14511147bcd1",
+              "pin": "value.elapsed"
+            },
+            "b": {
+              "kind": "link",
+              "node": "08cbb178-d2f9-5e18-98dc-9d095e52b4bd",
+              "pin": "value"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "24b5fe6d-837f-5692-ad6a-cc2bf9449fb0",
+          "kind": {
+            "kind": "call",
+            "function": "18eb71c6-82fb-5e0b-be43-49d08c58355c"
+          },
+          "inputs": {},
+          "outputs": {
+            "next": [
+              "308550f2-7bf8-5e63-9660-eb9d3ad8b97d"
+            ]
+          }
+        },
+        {
+          "id": "308550f2-7bf8-5e63-9660-eb9d3ad8b97d",
+          "kind": {
+            "kind": "return"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "5bc15241-5cc7-52c2-be18-bcbe65b5e142",
+          "kind": {
+            "kind": "binary",
+            "op": "subtract"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "2ff72112-ce33-50a9-a187-14511147bcd1",
+              "pin": "value.elapsed"
+            },
+            "b": {
+              "kind": "link",
+              "node": "08cbb178-d2f9-5e18-98dc-9d095e52b4bd",
+              "pin": "value"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "5e4f7eae-0bcf-55f9-a832-5d46e2ab039f",
+          "kind": {
+            "kind": "call",
+            "function": "e3729b65-3558-5d55-aadb-b427a1e577b1"
+          },
+          "inputs": {
+            "value": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "record",
+                "cpp_name": "DungeonRunSnapshot",
+                "fields": [
+                  {
+                    "name": "state",
+                    "value_type": {
+                      "kind": "uint32"
+                    }
+                  },
+                  {
+                    "name": "phase",
+                    "value_type": {
+                      "kind": "uint32"
+                    }
+                  },
+                  {
+                    "name": "elapsed",
+                    "value_type": {
+                      "kind": "fixed"
+                    }
+                  },
+                  {
+                    "name": "fade",
+                    "value_type": {
+                      "kind": "uint32"
+                    }
+                  },
+                  {
+                    "name": "music_gain",
+                    "value_type": {
+                      "kind": "fixed"
+                    }
+                  },
+                  {
+                    "name": "playing",
+                    "value_type": {
+                      "kind": "bool"
+                    }
+                  },
+                  {
+                    "name": "alive",
+                    "value_type": {
+                      "kind": "bool"
+                    }
+                  },
+                  {
+                    "name": "restart",
+                    "value_type": {
+                      "kind": "bool"
+                    }
+                  },
+                  {
+                    "name": "stop_music",
+                    "value_type": {
+                      "kind": "bool"
+                    }
+                  },
+                  {
+                    "name": "valid",
+                    "value_type": {
+                      "kind": "bool"
+                    }
+                  }
+                ]
+              },
+              "value": {
+                "state": 0,
+                "phase": 0,
+                "elapsed": 0.0,
+                "fade": 255,
+                "music_gain": 1.0,
+                "playing": false,
+                "alive": true,
+                "restart": false,
+                "stop_music": false,
+                "valid": true
+              }
+            },
+            "value.state": {
+              "kind": "link",
+              "node": "2ff72112-ce33-50a9-a187-14511147bcd1",
+              "pin": "value.state"
+            },
+            "value.phase": {
+              "kind": "link",
+              "node": "2ff72112-ce33-50a9-a187-14511147bcd1",
+              "pin": "value.phase"
+            },
+            "value.elapsed": {
+              "kind": "link",
+              "node": "5bc15241-5cc7-52c2-be18-bcbe65b5e142",
+              "pin": "value"
+            },
+            "value.fade": {
+              "kind": "link",
+              "node": "2ff72112-ce33-50a9-a187-14511147bcd1",
+              "pin": "value.fade"
+            },
+            "value.music_gain": {
+              "kind": "link",
+              "node": "2ff72112-ce33-50a9-a187-14511147bcd1",
+              "pin": "value.music_gain"
+            },
+            "value.playing": {
+              "kind": "link",
+              "node": "2ff72112-ce33-50a9-a187-14511147bcd1",
+              "pin": "value.playing"
+            },
+            "value.alive": {
+              "kind": "link",
+              "node": "2ff72112-ce33-50a9-a187-14511147bcd1",
+              "pin": "value.alive"
+            },
+            "value.restart": {
+              "kind": "link",
+              "node": "2ff72112-ce33-50a9-a187-14511147bcd1",
+              "pin": "value.restart"
+            },
+            "value.stop_music": {
+              "kind": "link",
+              "node": "2ff72112-ce33-50a9-a187-14511147bcd1",
+              "pin": "value.stop_music"
+            },
+            "value.valid": {
+              "kind": "link",
+              "node": "2ff72112-ce33-50a9-a187-14511147bcd1",
+              "pin": "value.valid"
+            }
+          },
+          "outputs": {
+            "next": [
+              "8fb111a8-9ac6-5692-ae9f-ea11553d6460"
+            ]
+          }
+        },
+        {
+          "id": "211efb56-5ebf-531d-a086-d3cd07079179",
+          "kind": {
+            "kind": "binary",
+            "op": "equal"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "2ff72112-ce33-50a9-a187-14511147bcd1",
+              "pin": "value.phase"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 7
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "356b7eed-8dbf-5c04-9cd3-156883f96b24",
+          "kind": {
+            "kind": "call",
+            "function": "18eb71c6-82fb-5e0b-be43-49d08c58355c"
+          },
+          "inputs": {},
+          "outputs": {
+            "next": [
+              "1c832769-c65c-503a-930e-b7ae6a998a31"
+            ]
+          }
+        },
+        {
+          "id": "1c832769-c65c-503a-930e-b7ae6a998a31",
+          "kind": {
+            "kind": "call",
+            "function": "e3729b65-3558-5d55-aadb-b427a1e577b1"
+          },
+          "inputs": {
+            "value": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "record",
+                "cpp_name": "DungeonRunSnapshot",
+                "fields": [
+                  {
+                    "name": "state",
+                    "value_type": {
+                      "kind": "uint32"
+                    }
+                  },
+                  {
+                    "name": "phase",
+                    "value_type": {
+                      "kind": "uint32"
+                    }
+                  },
+                  {
+                    "name": "elapsed",
+                    "value_type": {
+                      "kind": "fixed"
+                    }
+                  },
+                  {
+                    "name": "fade",
+                    "value_type": {
+                      "kind": "uint32"
+                    }
+                  },
+                  {
+                    "name": "music_gain",
+                    "value_type": {
+                      "kind": "fixed"
+                    }
+                  },
+                  {
+                    "name": "playing",
+                    "value_type": {
+                      "kind": "bool"
+                    }
+                  },
+                  {
+                    "name": "alive",
+                    "value_type": {
+                      "kind": "bool"
+                    }
+                  },
+                  {
+                    "name": "restart",
+                    "value_type": {
+                      "kind": "bool"
+                    }
+                  },
+                  {
+                    "name": "stop_music",
+                    "value_type": {
+                      "kind": "bool"
+                    }
+                  },
+                  {
+                    "name": "valid",
+                    "value_type": {
+                      "kind": "bool"
+                    }
+                  }
+                ]
+              },
+              "value": {
+                "state": 0,
+                "phase": 0,
+                "elapsed": 0.0,
+                "fade": 255,
+                "music_gain": 1.0,
+                "playing": false,
+                "alive": true,
+                "restart": false,
+                "stop_music": false,
+                "valid": true
+              }
+            },
+            "value.state": {
+              "kind": "link",
+              "node": "2ff72112-ce33-50a9-a187-14511147bcd1",
+              "pin": "value.state"
+            },
+            "value.phase": {
+              "kind": "link",
+              "node": "2ff72112-ce33-50a9-a187-14511147bcd1",
+              "pin": "value.phase"
+            },
+            "value.elapsed": {
+              "kind": "link",
+              "node": "2ff72112-ce33-50a9-a187-14511147bcd1",
+              "pin": "value.elapsed"
+            },
+            "value.fade": {
+              "kind": "link",
+              "node": "2ff72112-ce33-50a9-a187-14511147bcd1",
+              "pin": "value.fade"
+            },
+            "value.music_gain": {
+              "kind": "link",
+              "node": "2ff72112-ce33-50a9-a187-14511147bcd1",
+              "pin": "value.music_gain"
+            },
+            "value.playing": {
+              "kind": "link",
+              "node": "2ff72112-ce33-50a9-a187-14511147bcd1",
+              "pin": "value.playing"
+            },
+            "value.alive": {
+              "kind": "link",
+              "node": "2ff72112-ce33-50a9-a187-14511147bcd1",
+              "pin": "value.alive"
+            },
+            "value.restart": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "bool"
+              },
+              "value": true
+            },
+            "value.stop_music": {
+              "kind": "link",
+              "node": "2ff72112-ce33-50a9-a187-14511147bcd1",
+              "pin": "value.stop_music"
+            },
+            "value.valid": {
+              "kind": "link",
+              "node": "2ff72112-ce33-50a9-a187-14511147bcd1",
+              "pin": "value.valid"
+            }
+          },
+          "outputs": {
+            "next": [
+              "2f51f5dd-de22-5663-b136-355092bde499"
+            ]
+          }
+        },
+        {
+          "id": "2f51f5dd-de22-5663-b136-355092bde499",
+          "kind": {
+            "kind": "return"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "068c3e9d-29cb-5c3d-bf80-6c195490f68a",
+          "kind": {
+            "kind": "binary",
+            "op": "add"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "2ff72112-ce33-50a9-a187-14511147bcd1",
+              "pin": "value.phase"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 1
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "81587f56-0348-5cb3-84bf-07bc0e7c6692",
+          "kind": {
+            "kind": "call",
+            "function": "e3729b65-3558-5d55-aadb-b427a1e577b1"
+          },
+          "inputs": {
+            "value": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "record",
+                "cpp_name": "DungeonRunSnapshot",
+                "fields": [
+                  {
+                    "name": "state",
+                    "value_type": {
+                      "kind": "uint32"
+                    }
+                  },
+                  {
+                    "name": "phase",
+                    "value_type": {
+                      "kind": "uint32"
+                    }
+                  },
+                  {
+                    "name": "elapsed",
+                    "value_type": {
+                      "kind": "fixed"
+                    }
+                  },
+                  {
+                    "name": "fade",
+                    "value_type": {
+                      "kind": "uint32"
+                    }
+                  },
+                  {
+                    "name": "music_gain",
+                    "value_type": {
+                      "kind": "fixed"
+                    }
+                  },
+                  {
+                    "name": "playing",
+                    "value_type": {
+                      "kind": "bool"
+                    }
+                  },
+                  {
+                    "name": "alive",
+                    "value_type": {
+                      "kind": "bool"
+                    }
+                  },
+                  {
+                    "name": "restart",
+                    "value_type": {
+                      "kind": "bool"
+                    }
+                  },
+                  {
+                    "name": "stop_music",
+                    "value_type": {
+                      "kind": "bool"
+                    }
+                  },
+                  {
+                    "name": "valid",
+                    "value_type": {
+                      "kind": "bool"
+                    }
+                  }
+                ]
+              },
+              "value": {
+                "state": 0,
+                "phase": 0,
+                "elapsed": 0.0,
+                "fade": 255,
+                "music_gain": 1.0,
+                "playing": false,
+                "alive": true,
+                "restart": false,
+                "stop_music": false,
+                "valid": true
+              }
+            },
+            "value.state": {
+              "kind": "link",
+              "node": "2ff72112-ce33-50a9-a187-14511147bcd1",
+              "pin": "value.state"
+            },
+            "value.phase": {
+              "kind": "link",
+              "node": "068c3e9d-29cb-5c3d-bf80-6c195490f68a",
+              "pin": "value"
+            },
+            "value.elapsed": {
+              "kind": "link",
+              "node": "2ff72112-ce33-50a9-a187-14511147bcd1",
+              "pin": "value.elapsed"
+            },
+            "value.fade": {
+              "kind": "link",
+              "node": "2ff72112-ce33-50a9-a187-14511147bcd1",
+              "pin": "value.fade"
+            },
+            "value.music_gain": {
+              "kind": "link",
+              "node": "2ff72112-ce33-50a9-a187-14511147bcd1",
+              "pin": "value.music_gain"
+            },
+            "value.playing": {
+              "kind": "link",
+              "node": "2ff72112-ce33-50a9-a187-14511147bcd1",
+              "pin": "value.playing"
+            },
+            "value.alive": {
+              "kind": "link",
+              "node": "2ff72112-ce33-50a9-a187-14511147bcd1",
+              "pin": "value.alive"
+            },
+            "value.restart": {
+              "kind": "link",
+              "node": "2ff72112-ce33-50a9-a187-14511147bcd1",
+              "pin": "value.restart"
+            },
+            "value.stop_music": {
+              "kind": "link",
+              "node": "2ff72112-ce33-50a9-a187-14511147bcd1",
+              "pin": "value.stop_music"
+            },
+            "value.valid": {
+              "kind": "link",
+              "node": "2ff72112-ce33-50a9-a187-14511147bcd1",
+              "pin": "value.valid"
+            }
+          },
+          "outputs": {
+            "next": [
+              "9704d319-0d2c-55d2-b74b-3a4d6e707318"
+            ]
+          }
+        },
+        {
+          "id": "cb670958-5183-5646-a5db-603af19bf12a",
+          "kind": {
+            "kind": "binary",
+            "op": "equal"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "2ff72112-ce33-50a9-a187-14511147bcd1",
+              "pin": "value.phase"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 4
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "efe75d62-f3c6-5b7c-bb10-8ead6624e433",
+          "kind": {
+            "kind": "call",
+            "function": "e3729b65-3558-5d55-aadb-b427a1e577b1"
+          },
+          "inputs": {
+            "value": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "record",
+                "cpp_name": "DungeonRunSnapshot",
+                "fields": [
+                  {
+                    "name": "state",
+                    "value_type": {
+                      "kind": "uint32"
+                    }
+                  },
+                  {
+                    "name": "phase",
+                    "value_type": {
+                      "kind": "uint32"
+                    }
+                  },
+                  {
+                    "name": "elapsed",
+                    "value_type": {
+                      "kind": "fixed"
+                    }
+                  },
+                  {
+                    "name": "fade",
+                    "value_type": {
+                      "kind": "uint32"
+                    }
+                  },
+                  {
+                    "name": "music_gain",
+                    "value_type": {
+                      "kind": "fixed"
+                    }
+                  },
+                  {
+                    "name": "playing",
+                    "value_type": {
+                      "kind": "bool"
+                    }
+                  },
+                  {
+                    "name": "alive",
+                    "value_type": {
+                      "kind": "bool"
+                    }
+                  },
+                  {
+                    "name": "restart",
+                    "value_type": {
+                      "kind": "bool"
+                    }
+                  },
+                  {
+                    "name": "stop_music",
+                    "value_type": {
+                      "kind": "bool"
+                    }
+                  },
+                  {
+                    "name": "valid",
+                    "value_type": {
+                      "kind": "bool"
+                    }
+                  }
+                ]
+              },
+              "value": {
+                "state": 0,
+                "phase": 0,
+                "elapsed": 0.0,
+                "fade": 255,
+                "music_gain": 1.0,
+                "playing": false,
+                "alive": true,
+                "restart": false,
+                "stop_music": false,
+                "valid": true
+              }
+            },
+            "value.state": {
+              "kind": "link",
+              "node": "2ff72112-ce33-50a9-a187-14511147bcd1",
+              "pin": "value.state"
+            },
+            "value.phase": {
+              "kind": "link",
+              "node": "2ff72112-ce33-50a9-a187-14511147bcd1",
+              "pin": "value.phase"
+            },
+            "value.elapsed": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "fixed"
+              },
+              "value": 0.0
+            },
+            "value.fade": {
+              "kind": "link",
+              "node": "2ff72112-ce33-50a9-a187-14511147bcd1",
+              "pin": "value.fade"
+            },
+            "value.music_gain": {
+              "kind": "link",
+              "node": "2ff72112-ce33-50a9-a187-14511147bcd1",
+              "pin": "value.music_gain"
+            },
+            "value.playing": {
+              "kind": "link",
+              "node": "2ff72112-ce33-50a9-a187-14511147bcd1",
+              "pin": "value.playing"
+            },
+            "value.alive": {
+              "kind": "link",
+              "node": "2ff72112-ce33-50a9-a187-14511147bcd1",
+              "pin": "value.alive"
+            },
+            "value.restart": {
+              "kind": "link",
+              "node": "2ff72112-ce33-50a9-a187-14511147bcd1",
+              "pin": "value.restart"
+            },
+            "value.stop_music": {
+              "kind": "link",
+              "node": "2ff72112-ce33-50a9-a187-14511147bcd1",
+              "pin": "value.stop_music"
+            },
+            "value.valid": {
+              "kind": "link",
+              "node": "2ff72112-ce33-50a9-a187-14511147bcd1",
+              "pin": "value.valid"
+            }
+          },
+          "outputs": {
+            "next": [
+              "5995bca2-3f06-5099-b1f5-775aae741225"
+            ]
+          }
+        },
+        {
+          "id": "5995bca2-3f06-5099-b1f5-775aae741225",
+          "kind": {
+            "kind": "call",
+            "function": "18eb71c6-82fb-5e0b-be43-49d08c58355c"
+          },
+          "inputs": {},
+          "outputs": {
+            "next": [
+              "c4d05994-6421-5fa6-9283-87bc0348b20b"
+            ]
+          }
+        },
+        {
+          "id": "c4d05994-6421-5fa6-9283-87bc0348b20b",
+          "kind": {
+            "kind": "return"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "9704d319-0d2c-55d2-b74b-3a4d6e707318",
+          "kind": {
+            "kind": "branch"
+          },
+          "inputs": {
+            "condition": {
+              "kind": "link",
+              "node": "cb670958-5183-5646-a5db-603af19bf12a",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "true": [
+              "efe75d62-f3c6-5b7c-bb10-8ead6624e433"
+            ],
+            "false": [
+              "5995bca2-3f06-5099-b1f5-775aae741225"
+            ]
+          }
+        },
+        {
+          "id": "8fb111a8-9ac6-5692-ae9f-ea11553d6460",
+          "kind": {
+            "kind": "branch"
+          },
+          "inputs": {
+            "condition": {
+              "kind": "link",
+              "node": "211efb56-5ebf-531d-a086-d3cd07079179",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "true": [
+              "356b7eed-8dbf-5c04-9cd3-156883f96b24"
+            ],
+            "false": [
+              "81587f56-0348-5cb3-84bf-07bc0e7c6692"
+            ]
+          }
+        },
+        {
+          "id": "6422cd49-7b73-51a7-bbec-63b4ca8b73b5",
+          "kind": {
+            "kind": "branch"
+          },
+          "inputs": {
+            "condition": {
+              "kind": "link",
+              "node": "fb37430a-b96c-5f0c-be62-03c6e69470af",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "true": [
+              "24b5fe6d-837f-5692-ad6a-cc2bf9449fb0"
+            ],
+            "false": [
+              "5e4f7eae-0bcf-55f9-a832-5d46e2ab039f"
+            ]
+          }
+        },
+        {
+          "id": "532089d0-eafd-519b-9103-e95703a9183b",
+          "kind": {
+            "kind": "branch"
+          },
+          "inputs": {
+            "condition": {
+              "kind": "link",
+              "node": "e8dbec16-d23e-57b1-b89b-550b9515b284",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "true": [
+              "8cb1c2a7-0574-54b1-a621-a3b2d1b71a26"
+            ],
+            "false": [
+              "08cbb178-d2f9-5e18-98dc-9d095e52b4bd"
+            ]
+          }
+        },
+        {
+          "id": "73ea9bf3-62f1-5335-8307-0f9da1ab7098",
+          "kind": {
+            "kind": "branch"
+          },
+          "inputs": {
+            "condition": {
+              "kind": "link",
+              "node": "bad08e4b-3e37-5f4e-8081-80043f490ef9",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "true": [
+              "5ffa761b-dd7c-57c4-b0a2-362d136b2c3d"
+            ],
+            "false": [
+              "532089d0-eafd-519b-9103-e95703a9183b"
+            ]
+          }
+        },
+        {
+          "id": "5ffa761b-dd7c-57c4-b0a2-362d136b2c3d",
+          "kind": {
+            "kind": "branch"
+          },
+          "inputs": {
+            "condition": {
+              "kind": "parameter",
+              "name": "music_playing"
+            }
+          },
+          "outputs": {
+            "true": [
+              "607cd34b-74d6-5f63-8c4b-8df709f084f0"
+            ],
+            "false": [
+              "a9dec458-fa92-5f1b-832b-7bb56a889ab0"
+            ]
+          }
+        },
+        {
+          "id": "cf124920-d455-53f3-9eda-ce3fccbcbd03",
+          "kind": {
+            "kind": "branch"
+          },
+          "inputs": {
+            "condition": {
+              "kind": "link",
+              "node": "48607f6c-f1b8-5986-a5f6-b8da05279676",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "true": [
+              "5fbf6990-471c-5ae3-a0d4-f4472f0079b4"
+            ],
+            "false": [
+              "73ea9bf3-62f1-5335-8307-0f9da1ab7098"
+            ]
+          }
+        },
+        {
+          "id": "ce0a8afb-6380-5840-bf58-b6e49a42dbce",
+          "kind": {
+            "kind": "branch"
+          },
+          "inputs": {
+            "condition": {
+              "kind": "link",
+              "node": "6105dd70-5be9-5306-9b75-5288f87dc8d2",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "true": [
+              "3b0c43a0-fdd3-5939-9ce3-90318373c987"
+            ],
+            "false": [
+              "26b60758-cb7d-52e8-94b8-c939c4f0a809"
+            ]
+          }
+        },
+        {
+          "id": "cbe07cf5-559b-5cb6-b91b-789016971c14",
+          "kind": {
+            "kind": "entry"
+          },
+          "inputs": {},
+          "outputs": {
+            "next": [
+              "ce0a8afb-6380-5840-bf58-b6e49a42dbce"
+            ]
+          }
+        }
+      ],
+      "override_id": "b362cddc-ce9d-5a05-8e1c-748f10a9a701"
+    }
+  ],
+  "layout": {
+    "positions": {
+      "8251af64-8e99-5c4e-be7c-d58c25310841": [
+        0.0,
+        0.0
+      ],
+      "f83d9910-2071-5666-adc3-41ad1efeeebe": [
+        290.0,
+        0.0
+      ],
+      "5da5e3fb-1442-5e54-8096-51ce42309386": [
+        580.0,
+        0.0
+      ],
+      "a73fb0a9-e0c4-5eff-868a-e3527f6a5105": [
+        870.0,
+        0.0
+      ],
+      "7db1e4ea-2703-5f6e-bd62-2df556c3cfbb": [
+        1160.0,
+        0.0
+      ],
+      "747bc2f4-5f7b-5386-ac80-fe94feb54dcc": [
+        1450.0,
+        0.0
+      ],
+      "2ab47a18-f99a-5912-935b-738e0b1a0686": [
+        0.0,
+        180.0
+      ],
+      "07ea0206-88c1-5712-ac89-c2943cc90f45": [
+        290.0,
+        180.0
+      ],
+      "5bf8ad7d-8698-5d4d-9f93-237541904556": [
+        580.0,
+        180.0
+      ],
+      "378e1250-667c-52f2-82da-7fc13053dc68": [
+        870.0,
+        180.0
+      ],
+      "2c404009-cba6-5ad2-b0f1-ced064116365": [
+        1160.0,
+        180.0
+      ],
+      "f051c98b-d566-5c95-b7cf-9cc9ee5def3c": [
+        1450.0,
+        180.0
+      ],
+      "de215792-67cd-50a1-b1c4-aa296a3c2b47": [
+        0.0,
+        360.0
+      ],
+      "28b4b288-a71f-5340-bcae-d14810ff25d6": [
+        290.0,
+        360.0
+      ],
+      "fe992e53-e1eb-5b55-ac58-2acad99ce6d8": [
+        580.0,
+        360.0
+      ],
+      "b0204509-2375-5c67-a085-e72e623c95d8": [
+        870.0,
+        360.0
+      ],
+      "566a52b1-8182-5fed-8396-c0ef1b67fbdf": [
+        1160.0,
+        360.0
+      ],
+      "a644bfa3-258d-5224-9c1d-943c1e6e3a7c": [
+        1450.0,
+        360.0
+      ],
+      "eb2877cf-141f-5bba-8224-b6d9b9e7bb66": [
+        0.0,
+        540.0
+      ],
+      "3525946e-3a74-533e-a0be-c8ae8f1fa0ad": [
+        290.0,
+        540.0
+      ],
+      "b4be5270-413a-5714-870d-77f06877ccd1": [
+        580.0,
+        540.0
+      ],
+      "0cb22c4a-3fed-5e72-8702-8879c2af4ea9": [
+        870.0,
+        540.0
+      ],
+      "418675c1-f923-5385-9d40-60ab5945d5f6": [
+        1160.0,
+        540.0
+      ],
+      "5d39c5a5-c7ea-5554-a744-3f3b84356622": [
+        1450.0,
+        540.0
+      ],
+      "a3327b4c-d8fa-5665-a33a-8884751519be": [
+        0.0,
+        720.0
+      ],
+      "f6665a6f-8d52-500f-ae82-f13d9e9c4fc4": [
+        290.0,
+        720.0
+      ],
+      "6da26d99-3970-50de-8b75-38070a7670e6": [
+        580.0,
+        720.0
+      ],
+      "54e00cd9-444c-56ed-9933-cd93800b510e": [
+        870.0,
+        720.0
+      ],
+      "43d6e5c1-f1fc-5026-81aa-e3770277759b": [
+        1160.0,
+        720.0
+      ],
+      "62e586cc-d2da-5f62-9c63-a17501b9d493": [
+        1450.0,
+        720.0
+      ],
+      "4cd7d2c1-aa17-5831-b415-212032ca7988": [
+        0.0,
+        900.0
+      ],
+      "53190a19-58af-57e7-8298-eb4549788fbe": [
+        0.0,
+        0.0
+      ],
+      "09867eab-ec42-5169-9741-cbf7c49866e7": [
+        290.0,
+        0.0
+      ],
+      "68f2aa58-f4a4-592d-818a-ed9cdd020354": [
+        580.0,
+        0.0
+      ],
+      "2d094683-606b-51a1-bf5c-15163212937b": [
+        870.0,
+        0.0
+      ],
+      "bac2ef6f-ffe6-5437-b7b5-1f422cca9a7e": [
+        1160.0,
+        0.0
+      ],
+      "5c4b3973-efb8-51b6-ad34-8d1668b4ddfd": [
+        1450.0,
+        0.0
+      ],
+      "f7b1b05d-0a2e-5417-b5eb-17e1c19fadde": [
+        0.0,
+        180.0
+      ],
+      "75a1b084-7fe4-5b45-b2fb-3d6088970c86": [
+        290.0,
+        180.0
+      ],
+      "bfc8de57-5fcd-50b0-92fd-1b49173f5248": [
+        580.0,
+        180.0
+      ],
+      "46334311-6ac0-5d1f-9e06-553a72eac3d6": [
+        870.0,
+        180.0
+      ],
+      "11492d40-c463-5cad-a256-6c04ca0bf45b": [
+        1160.0,
+        180.0
+      ],
+      "fb088791-008e-5dd1-a85a-54386a50c942": [
+        1450.0,
+        180.0
+      ],
+      "3940c2f8-f9a8-52c4-86ea-1c427e724f42": [
+        0.0,
+        360.0
+      ],
+      "98b979e5-f1d9-51c2-bb22-0bcecc1aaf90": [
+        290.0,
+        360.0
+      ],
+      "bf478a09-b2dc-5edd-8a0e-5d5547b0f241": [
+        580.0,
+        360.0
+      ],
+      "6690af8d-be53-5b17-8b41-e8bbbb3e65d5": [
+        870.0,
+        360.0
+      ],
+      "7271775c-abfc-5827-9eee-fdd7ee4f3720": [
+        1160.0,
+        360.0
+      ],
+      "de2f5892-071f-54a1-945b-acab526809e2": [
+        1450.0,
+        360.0
+      ],
+      "075c7c06-2419-594f-b4de-de0f12b964ae": [
+        0.0,
+        540.0
+      ],
+      "f638d60d-2516-563f-b549-0fb3acb6cff9": [
+        0.0,
+        0.0
+      ],
+      "76e34051-c7f7-5391-a1c9-9e9732e71099": [
+        290.0,
+        0.0
+      ],
+      "729e5cf6-685e-5a1d-a56e-29019dba9526": [
+        580.0,
+        0.0
+      ],
+      "d637c405-8af2-5afa-b14d-015e6624295c": [
+        870.0,
+        0.0
+      ],
+      "a9f90d2a-1eeb-5d8e-ae3e-802e1220e4ed": [
+        1160.0,
+        0.0
+      ],
+      "9297e820-3070-57b6-854e-8fb9821e740e": [
+        1450.0,
+        0.0
+      ],
+      "dc64d3d0-8b4f-5df0-a625-bb164355e60f": [
+        0.0,
+        180.0
+      ],
+      "c66b8c4b-0279-53ed-a829-dd9bd8bf8e38": [
+        290.0,
+        180.0
+      ],
+      "d99ba925-7e5d-5603-b3f2-a04d18e32d5f": [
+        580.0,
+        180.0
+      ],
+      "8640eff7-1b1d-5e2e-86c5-c6f5774e7b9f": [
+        870.0,
+        180.0
+      ],
+      "ea5e84d7-b918-5f41-911a-69cf100ac896": [
+        1160.0,
+        180.0
+      ],
+      "58ce3355-535b-5843-9634-1ae2395d6f08": [
+        0.0,
+        0.0
+      ],
+      "93bac3fb-000d-5719-aced-edfcd9216012": [
+        290.0,
+        0.0
+      ],
+      "1f5f17a8-1c56-529e-82d2-8b68d5565e98": [
+        580.0,
+        0.0
+      ],
+      "6225313d-e8e3-5054-9f39-7440b9e946f0": [
+        870.0,
+        0.0
+      ],
+      "ea846fc8-9aa0-5d0f-8a55-555eaa922531": [
+        1160.0,
+        0.0
+      ],
+      "5386d5a2-4c57-5cc5-a8a7-cf67e24b2717": [
+        1450.0,
+        0.0
+      ],
+      "81cddb7b-b498-5a41-a34e-7359abb1ab22": [
+        0.0,
+        180.0
+      ],
+      "022dbf9a-7a77-556f-a225-6cadc02969ec": [
+        290.0,
+        180.0
+      ],
+      "d94a6ea8-632a-587d-ab26-eb919095d9d2": [
+        580.0,
+        180.0
+      ],
+      "da425b82-285f-52d0-99ec-10242629467d": [
+        870.0,
+        180.0
+      ],
+      "05c7eb0e-9b44-51bc-be82-6c31819c22c9": [
+        1160.0,
+        180.0
+      ],
+      "4d3c03b2-7f6d-5b3b-a534-69db56c45639": [
+        1450.0,
+        180.0
+      ],
+      "f3a06bb5-bcf6-5b7a-8cc4-976b1ad80236": [
+        0.0,
+        360.0
+      ],
+      "08b43c8b-4ba7-51bf-80f0-2b6137a14b6d": [
+        290.0,
+        360.0
+      ],
+      "1a838317-7659-586b-b0dc-6d93bd7fac10": [
+        580.0,
+        360.0
+      ],
+      "ea61db48-a791-5cf2-b34e-8eb06aa39ba8": [
+        870.0,
+        360.0
+      ],
+      "59e9341f-8ed3-50cf-b2f3-21ff9856fd35": [
+        1160.0,
+        360.0
+      ],
+      "18bf6f27-d433-52e0-bf9e-f790583275b1": [
+        1450.0,
+        360.0
+      ],
+      "89b93220-6777-513b-a01f-9077d45cde9e": [
+        0.0,
+        540.0
+      ],
+      "a39559b1-7fc1-588b-b576-8ee0e2552325": [
+        290.0,
+        540.0
+      ],
+      "17e639f8-1516-51d1-8134-ac5167281c7a": [
+        0.0,
+        0.0
+      ],
+      "c09526f9-2475-5d99-970f-e63bb5d20fcf": [
+        290.0,
+        0.0
+      ],
+      "2880307a-cf49-5dd3-b181-65df5205ebef": [
+        580.0,
+        0.0
+      ],
+      "ed08c590-0d6f-5a9d-aa9c-5143ac8512c7": [
+        870.0,
+        0.0
+      ],
+      "4c751525-8066-516e-85f3-f1c26904a6af": [
+        1160.0,
+        0.0
+      ],
+      "ece5fee1-9895-549b-9c4e-51ce4b012371": [
+        1450.0,
+        0.0
+      ],
+      "1f94933c-37a9-53b2-97e1-000943e01c4f": [
+        0.0,
+        180.0
+      ],
+      "826960fa-ea64-5407-b63f-6beb856df2fa": [
+        290.0,
+        180.0
+      ],
+      "7c384d62-9ccf-5ad6-b2fc-929163cbcacf": [
+        580.0,
+        180.0
+      ],
+      "4a232f0c-38ff-5b70-96fb-c35df9064006": [
+        870.0,
+        180.0
+      ],
+      "bbefa8f3-ab6a-51c1-93c7-9eb6f2f5e731": [
+        1160.0,
+        180.0
+      ],
+      "9a2de4a9-1fc7-5bae-aa4f-aa48f73c6f6e": [
+        1450.0,
+        180.0
+      ],
+      "a44921a0-7754-5ec0-b572-61a0a1f92158": [
+        0.0,
+        360.0
+      ],
+      "9e4ba0b8-f5c4-59c8-a596-f78f88f37d99": [
+        290.0,
+        360.0
+      ],
+      "fe4cab4c-d0b6-5a86-a689-7a8dd009fe9d": [
+        580.0,
+        360.0
+      ],
+      "51eb48b2-13c5-5bb6-9d46-dba333297cd0": [
+        870.0,
+        360.0
+      ],
+      "b68e4e96-eb6d-5684-bd3e-a806858a00dd": [
+        1160.0,
+        360.0
+      ],
+      "ca626033-ca8b-559a-acbf-5d73f0427f27": [
+        1450.0,
+        360.0
+      ],
+      "3a48a940-2cc2-5be6-ac4d-108482da61f5": [
+        0.0,
+        0.0
+      ],
+      "7edf4fcd-2854-5007-91a9-383d3378b657": [
+        290.0,
+        0.0
+      ],
+      "5f848ba7-54f6-5bd4-b7a3-09c275287696": [
+        580.0,
+        0.0
+      ],
+      "9096e01b-585d-5ace-8814-b63bab46b1f0": [
+        870.0,
+        0.0
+      ],
+      "ac7926f5-50d2-58b6-8989-c4be1f3d1862": [
+        1160.0,
+        0.0
+      ],
+      "b859920b-67b8-5ee1-9850-6a3ce8f87f81": [
+        1450.0,
+        0.0
+      ],
+      "46e6b3ec-fedb-5baf-bc72-2519c07dd275": [
+        0.0,
+        180.0
+      ],
+      "5c3d8126-2c72-5526-bc04-e1c57b0386ce": [
+        290.0,
+        180.0
+      ],
+      "6017d278-c79e-5115-9e70-d66a537392ed": [
+        580.0,
+        180.0
+      ],
+      "c46bb133-5144-5b2b-a10f-08eb9045de52": [
+        870.0,
+        180.0
+      ],
+      "fd7f3042-bc78-5312-a480-d938c6acbc7d": [
+        1160.0,
+        180.0
+      ],
+      "a1a20ac9-45ea-5277-9b38-9a8e6154136a": [
+        1450.0,
+        180.0
+      ],
+      "a1c73f2b-59dd-5b76-b1c6-77c5071a2dd0": [
+        0.0,
+        360.0
+      ],
+      "7366883c-aee5-5e1d-afea-dcc4cecf73c0": [
+        290.0,
+        360.0
+      ],
+      "cb88a673-c83e-5dfe-88aa-a24ba22b03fd": [
+        580.0,
+        360.0
+      ],
+      "265321c4-51c1-5321-b5e4-c1cbd8dc9318": [
+        870.0,
+        360.0
+      ],
+      "37796059-a7cc-5414-902a-387e955c68dc": [
+        1160.0,
+        360.0
+      ],
+      "eec351ac-cb61-56a6-859e-28f0fad6b57d": [
+        1450.0,
+        360.0
+      ],
+      "3530a2b7-6fd0-5f47-9229-4758143936e7": [
+        0.0,
+        0.0
+      ],
+      "9cd53d5d-2aae-54b6-8156-34a1cead790f": [
+        290.0,
+        0.0
+      ],
+      "3c561421-dd25-5140-8616-8dc80427b13b": [
+        580.0,
+        0.0
+      ],
+      "9336c602-34c0-57d1-b0b3-228d52c0dbf1": [
+        870.0,
+        0.0
+      ],
+      "302d0107-6b79-51d3-80a9-0be69cc91aa5": [
+        1160.0,
+        0.0
+      ],
+      "298a1241-732f-5c3f-9088-2502b376ef58": [
+        0.0,
+        0.0
+      ],
+      "b4978300-fbd1-5212-92be-d9138ddfe9d5": [
+        290.0,
+        0.0
+      ],
+      "9715a98e-9781-5834-8ff5-a1bc31d32568": [
+        580.0,
+        0.0
+      ],
+      "c701d7d0-b74d-57d1-a736-9791d07aa7dc": [
+        870.0,
+        0.0
+      ],
+      "bc9c7883-3d86-55b3-bd79-cc1c1951e8a2": [
+        1160.0,
+        0.0
+      ],
+      "b73923b0-6eb3-5a9f-bb74-af6528ddce9e": [
+        1450.0,
+        0.0
+      ],
+      "0c0101ab-8efe-5cb4-8394-c9518534420f": [
+        0.0,
+        180.0
+      ],
+      "550209d6-a5e2-55ec-b981-533049aef081": [
+        290.0,
+        180.0
+      ],
+      "d0964e8b-eedc-5af0-b5f3-869027865dd4": [
+        0.0,
+        0.0
+      ],
+      "60c426a5-a52d-5f57-a8bd-55cfcd008180": [
+        290.0,
+        0.0
+      ],
+      "93135bac-cf31-5227-ae1c-3f22961e8edd": [
+        580.0,
+        0.0
+      ],
+      "05a76548-0cb0-5a04-86e3-513888b1ad5d": [
+        870.0,
+        0.0
+      ],
+      "d3ffe603-fec2-5cd4-92ee-35e75380799e": [
+        1160.0,
+        0.0
+      ],
+      "b647be1a-7ee4-5cf3-824e-7bea7b15b01b": [
+        1450.0,
+        0.0
+      ],
+      "92a8f424-6564-55c4-9f21-0a757127203c": [
+        0.0,
+        180.0
+      ],
+      "64f2b2c9-ff6b-5de5-91ac-b26561733889": [
+        290.0,
+        180.0
+      ],
+      "699c16d0-a532-57f1-9bba-e2c1ea7b98e9": [
+        0.0,
+        0.0
+      ],
+      "083f8210-fbf6-5e49-bfbe-b2d9c381e384": [
+        290.0,
+        0.0
+      ],
+      "4bff7d67-5743-588b-abe8-f4256689938b": [
+        580.0,
+        0.0
+      ],
+      "608d9b4e-b93a-52c4-b236-f9b6dbccc869": [
+        870.0,
+        0.0
+      ],
+      "c8424a3e-ff0b-50f3-9280-4c19985e0ede": [
+        1160.0,
+        0.0
+      ],
+      "e0b015d0-1513-58af-b1ab-d0553454b9f4": [
+        1450.0,
+        0.0
+      ],
+      "2fe47d6b-2e8f-5a07-a05d-d1acf48c9a70": [
+        0.0,
+        180.0
+      ],
+      "8c6a9a0c-5b8c-5d27-857a-d8489154153f": [
+        290.0,
+        180.0
+      ],
+      "f1d0efdd-c0ac-5b1d-aa9a-152c05724982": [
+        580.0,
+        180.0
+      ],
+      "85792d77-faad-51f2-bf3e-856388a3dbe2": [
+        870.0,
+        180.0
+      ],
+      "dca15609-2245-5428-bf85-8234516196b8": [
+        1160.0,
+        180.0
+      ],
+      "ac665592-c788-530a-9b15-66ebae47c0c1": [
+        1450.0,
+        180.0
+      ],
+      "662d8521-d57e-5803-bfd4-d3ec8aaf01f3": [
+        0.0,
+        360.0
+      ],
+      "398a9a5f-5dd9-51c8-964e-96fefc3e012f": [
+        0.0,
+        0.0
+      ],
+      "5c5dce9e-2377-511e-9309-e7986f8ed2ce": [
+        290.0,
+        0.0
+      ],
+      "5cc30601-53df-5560-9f01-ea017f96ca9e": [
+        580.0,
+        0.0
+      ],
+      "2ab562bc-5cc3-516f-b4cc-f35d864e571c": [
+        870.0,
+        0.0
+      ],
+      "52d26874-a886-5f02-88b7-b2115b87a55d": [
+        1160.0,
+        0.0
+      ],
+      "d6acbed0-768c-54a6-a3d8-28b1b01535bf": [
+        1450.0,
+        0.0
+      ],
+      "3361d505-7d00-5145-a282-346daa1e83c0": [
+        0.0,
+        0.0
+      ],
+      "0e8ceec3-4ff1-51bc-b8c5-5f0eda8295ea": [
+        290.0,
+        0.0
+      ],
+      "6105dd70-5be9-5306-9b75-5288f87dc8d2": [
+        580.0,
+        0.0
+      ],
+      "08cbb178-d2f9-5e18-98dc-9d095e52b4bd": [
+        870.0,
+        0.0
+      ],
+      "3b0c43a0-fdd3-5939-9ce3-90318373c987": [
+        1160.0,
+        0.0
+      ],
+      "26b60758-cb7d-52e8-94b8-c939c4f0a809": [
+        1450.0,
+        0.0
+      ],
+      "2ff72112-ce33-50a9-a187-14511147bcd1": [
+        0.0,
+        180.0
+      ],
+      "48607f6c-f1b8-5986-a5f6-b8da05279676": [
+        290.0,
+        180.0
+      ],
+      "5fbf6990-471c-5ae3-a0d4-f4472f0079b4": [
+        580.0,
+        180.0
+      ],
+      "bad08e4b-3e37-5f4e-8081-80043f490ef9": [
+        870.0,
+        180.0
+      ],
+      "607cd34b-74d6-5f63-8c4b-8df709f084f0": [
+        1160.0,
+        180.0
+      ],
+      "a9dec458-fa92-5f1b-832b-7bb56a889ab0": [
+        1450.0,
+        180.0
+      ],
+      "2277ec48-31bf-5164-b95f-975063a223d1": [
+        0.0,
+        360.0
+      ],
+      "e8dbec16-d23e-57b1-b89b-550b9515b284": [
+        290.0,
+        360.0
+      ],
+      "8cb1c2a7-0574-54b1-a621-a3b2d1b71a26": [
+        580.0,
+        360.0
+      ],
+      "d51e8c92-2e1c-5954-abcc-d48528b2a96a": [
+        870.0,
+        360.0
+      ],
+      "dcfe9f3a-9587-5c5a-a18e-d9b6742fcd45": [
+        1160.0,
+        360.0
+      ],
+      "fb37430a-b96c-5f0c-be62-03c6e69470af": [
+        1450.0,
+        360.0
+      ],
+      "24b5fe6d-837f-5692-ad6a-cc2bf9449fb0": [
+        0.0,
+        540.0
+      ],
+      "308550f2-7bf8-5e63-9660-eb9d3ad8b97d": [
+        290.0,
+        540.0
+      ],
+      "5bc15241-5cc7-52c2-be18-bcbe65b5e142": [
+        580.0,
+        540.0
+      ],
+      "5e4f7eae-0bcf-55f9-a832-5d46e2ab039f": [
+        870.0,
+        540.0
+      ],
+      "211efb56-5ebf-531d-a086-d3cd07079179": [
+        1160.0,
+        540.0
+      ],
+      "356b7eed-8dbf-5c04-9cd3-156883f96b24": [
+        1450.0,
+        540.0
+      ],
+      "1c832769-c65c-503a-930e-b7ae6a998a31": [
+        0.0,
+        720.0
+      ],
+      "2f51f5dd-de22-5663-b136-355092bde499": [
+        290.0,
+        720.0
+      ],
+      "068c3e9d-29cb-5c3d-bf80-6c195490f68a": [
+        580.0,
+        720.0
+      ],
+      "81587f56-0348-5cb3-84bf-07bc0e7c6692": [
+        870.0,
+        720.0
+      ],
+      "cb670958-5183-5646-a5db-603af19bf12a": [
+        1160.0,
+        720.0
+      ],
+      "efe75d62-f3c6-5b7c-bb10-8ead6624e433": [
+        1450.0,
+        720.0
+      ],
+      "5995bca2-3f06-5099-b1f5-775aae741225": [
+        0.0,
+        900.0
+      ],
+      "c4d05994-6421-5fa6-9283-87bc0348b20b": [
+        290.0,
+        900.0
+      ],
+      "9704d319-0d2c-55d2-b74b-3a4d6e707318": [
+        580.0,
+        900.0
+      ],
+      "8fb111a8-9ac6-5692-ae9f-ea11553d6460": [
+        870.0,
+        900.0
+      ],
+      "6422cd49-7b73-51a7-bbec-63b4ca8b73b5": [
+        1160.0,
+        900.0
+      ],
+      "532089d0-eafd-519b-9103-e95703a9183b": [
+        1450.0,
+        900.0
+      ],
+      "73ea9bf3-62f1-5335-8307-0f9da1ab7098": [
+        0.0,
+        1080.0
+      ],
+      "5ffa761b-dd7c-57c4-b0a2-362d136b2c3d": [
+        290.0,
+        1080.0
+      ],
+      "cf124920-d455-53f3-9eda-ce3fccbcbd03": [
+        580.0,
+        1080.0
+      ],
+      "ce0a8afb-6380-5840-bf58-b6e49a42dbce": [
+        870.0,
+        1080.0
+      ],
+      "cbe07cf5-559b-5cb6-b91b-789016971c14": [
+        1160.0,
+        1080.0
+      ]
+    },
+    "comments": {
+      "acd5ef5b-3f71-5652-b70b-5a7bc97a030e": "timing valid",
+      "0dc23dda-169a-5c80-923f-4ded42b53840": "phase duration",
+      "b827b0d6-62ed-5131-9b2f-b8eab7cd3722": "fade progress",
+      "1393a5cb-fc59-5e57-9b5b-8723fd833f21": "opacity",
+      "28a12f65-d277-5850-8b58-7a0c63b9e482": "gain",
+      "201ee3e1-81bc-559a-bc7e-b2bd3137a8a1": "refresh",
+      "31ef9c3c-0ea9-5883-ad7c-19235517b6ac": "start",
+      "d8e066a3-024e-5320-877b-e72c2507b24a": "die",
+      "17cb4898-29b9-5eba-ad6f-d22ee52dca8f": "win",
+      "03fbed02-c976-591c-ac3e-dd83db9f86ef": "try enter boss",
+      "98e8f92b-1714-57ab-a3dd-ac55b93d7763": "restart requested",
+      "723247de-99fa-5b2d-9b04-e05100109af3": "advance"
+    },
+    "split_pins": [
+      "05a76548-0cb0-5a04-86e3-513888b1ad5d:in:value",
+      "17e639f8-1516-51d1-8134-ac5167281c7a:out:value",
+      "1c832769-c65c-503a-930e-b7ae6a998a31:in:value",
+      "265321c4-51c1-5321-b5e4-c1cbd8dc9318:in:value",
+      "298a1241-732f-5c3f-9088-2502b376ef58:out:value",
+      "2ff72112-ce33-50a9-a187-14511147bcd1:out:value",
+      "3530a2b7-6fd0-5f47-9229-4758143936e7:out:value",
+      "398a9a5f-5dd9-51c8-964e-96fefc3e012f:out:value",
+      "53190a19-58af-57e7-8298-eb4549788fbe:out:value",
+      "58ce3355-535b-5843-9634-1ae2395d6f08:out:value",
+      "5e4f7eae-0bcf-55f9-a832-5d46e2ab039f:in:value",
+      "607cd34b-74d6-5f63-8c4b-8df709f084f0:in:value",
+      "68f2aa58-f4a4-592d-818a-ed9cdd020354:out:value",
+      "699c16d0-a532-57f1-9bba-e2c1ea7b98e9:out:value",
+      "81587f56-0348-5cb3-84bf-07bc0e7c6692:in:value",
+      "81cddb7b-b498-5a41-a34e-7359abb1ab22:out:value",
+      "8251af64-8e99-5c4e-be7c-d58c25310841:out:value",
+      "9096e01b-585d-5ace-8814-b63bab46b1f0:out:value",
+      "9cd53d5d-2aae-54b6-8156-34a1cead790f:in:value",
+      "c09526f9-2475-5d99-970f-e63bb5d20fcf:out:value",
+      "c701d7d0-b74d-57d1-a736-9791d07aa7dc:in:value",
+      "d0964e8b-eedc-5af0-b5f3-869027865dd4:out:value",
+      "dcfe9f3a-9587-5c5a-a18e-d9b6742fcd45:in:value",
+      "efe75d62-f3c6-5b7c-bb10-8ead6624e433:in:value",
+      "f1d0efdd-c0ac-5b1d-aa9a-152c05724982:in:value"
+    ]
+  },
+  "template": {
+    "actors": []
+  }
+}

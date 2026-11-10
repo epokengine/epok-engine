@@ -12,6 +12,10 @@ struct Text {
     // built-in atlas or the authored font this element names.
     char value[512]={};
     bool wrap=true;
+#if defined(EPOK_TEXT_REVEAL) || defined(EPOK_REFLECTION) || defined(EPOK_DIALOGUE)
+    // Uses existing alignment padding. Layout always measures the complete text.
+    uint16_t visible_glyphs=0xffffu;
+#endif
     // -1 is the built-in 8x16 atlas; anything else indexes the cooked fonts.
     int font=-1;
     TextAlign align=TextAlign::Left;

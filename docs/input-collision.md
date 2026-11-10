@@ -14,6 +14,9 @@ C++ scene banks. A collider can be attached, enabled, disabled or removed throug
 
 ## Controller and simulation
 
+For logical actions, shared-button consumption and temporary menu/player control,
+see [Gameplay actions and control capture](gameplay-controls.md).
+
 `epok::input` reads pads through Epok's SIO0 controller driver, sharing PsyQo's
 Memory Card bus arbiter. Port arguments are
 zero-based and default to the first port. `held`, `pressed`, and `released` take
@@ -133,6 +136,12 @@ checks. Its two scenes let you change maps during a long pulse. The example
 uses reflected Lua operations and can select Native C++, VM Bytecode or VM Source
 without changing the script.
 
+For native serial diagnostics, set `EPOK_PAD_TRACE=1` before building to print
+bounded controller configuration transitions. The trace requires a serial-debug
+build that uses rumble; normal builds omit these messages. Changing this setting
+invalidates the existing native build certificate. Controller input and motor
+negotiation run independently of trace output.
+
 ## Queries and triggers
 
 All query coordinates and displacements are in world space. Queries refresh
@@ -168,6 +177,76 @@ implement impulses, rigid bodies, capsule geometry, slopes or mesh triangles.
 Initial penetration is resolved for at most eight passes; callers can inspect
 `unresolved_overlap` when geometry cannot be resolved. No collider means movement
 returns that flag without moving the entity.
+
+## Interaction helpers
+
+In the Content Browser, select **Game Helpers** to browse the existing helper
+classes for the current 3D, 2D or UI view. Drag an Actor into its matching scene
+view or a component onto the selected Actor's Inspector. Double-click performs
+the same placement or attachment. The Actor picker also has a Game Helpers
+filter, and Add Component groups compatible helpers together. These operations
+use the normal class model, component validation and scene undo/redo.
+
+Add `InteractorComponent` to the player and `InteractableComponent` to an object or NPC in either spatial domain. The interactor finds nearby targets, retains the best eight and chooses by priority, distance and a stable cooked order. The cook derives that order from the component UUID; renaming or rearranging actors does not change a tie. `range_3d` uses world units and `range_2d` uses pixels. Confirmation checks availability again.
+
+Automatic interaction consumes the routed Interact frame edge (Cross by default) before simulation. A press used for interaction cannot also become a later routed Jump press. Set `auto_input=false` to call `interact()` explicitly, or `proximity=false` to require sensor registration. `overflow_count()` reports candidates or registrations that exceed the bounded storage; sixteen registrations retain overlapping sensor identities independently.
+
+`TriggerBox3D` and `TriggerArea2D` appear in the actor picker. Assign their Sensor's typed `target` to the object's Interactable component. Optionally assign `accepted_initiator` to one actor; actors without an Interactor are ignored. Use a separate sensor actor when the target must keep a solid collider. Each explicit sensor costs one actor with its root and sensor components. `set_monitoring(false)` immediately removes its registrations. `binding_status()` distinguishes a missing target, invalid lifetime and mismatched domain or level. Nonpositive dimensions disable the sensor.
+
+`InteractionPrompt` is a UIActor with Text and Presenter components. Place one shared prompt for a player's input port, assign Presenter.interactor and configure its Rect Transform and Text font. An Interactable's `prompt_key` uses the same String Table row index as `TextComponent::set_text_key`; `-1` hides the prompt. Builds include the project table even when no authored Text references a key. They validate configured indices, translated glyphs and the longest selectable prompt against the HUD budget. Language changes update the active prompt. Conversation assets use symbolic localization keys.
+
+Derive an Interactable to implement behavior. The native `can_interact(ObjectId) const` event is a synchronous Boolean query; Blueprint and Lua pure overrides reject writes, consuming input and effectful calls. Use `interaction_started(initiator, port)` for mutations. The default request completes synchronously. Call `hold_open()` during the start event to keep it busy, then `complete(result)` once the operation finishes. Disabling or destroying the target/initiator cancels a held request and releases its busy state.
+
+```cpp
+class EPOK_CLASS(Blueprintable) Examine : public epok::InteractableComponent {
+public:
+    bool can_interact(epok::ObjectId initiator) const override {
+        return epok::InteractableComponent::can_interact(initiator);
+    }
+    void interaction_started(epok::ObjectId initiator, uint32_t port) override {
+        epok::InteractableComponent::interaction_started(initiator, port);
+        // Apply this project's examination result here.
+    }
+};
+```
+
+Blueprint classes derive from the same native parent and override these events; Call Parent preserves the inherited behavior. The equivalent Lua extension is:
+
+```lua
+---@class Examine : epok.InteractableComponent
+local Examine = epok.InteractableComponent:extend()
+---@override
+function Examine:can_interact(initiator)
+    return Examine.super.can_interact(self, initiator)
+end
+---@override
+function Examine:interaction_started(initiator, port)
+    Examine.super.interaction_started(self, initiator, port)
+end
+return Examine
+```
+
+The interaction foundation is validated with host lifecycle tests, real 2D/3D trigger physics, a localized Native Play prompt, all five PSX provider surfaces and a byte-identical standalone export rebuild.
+
+## Dialogue helpers
+
+Add `DialogueInteractionComponent` to the object or NPC in place of the base
+Interactable. Assign its conversation asset and a placed dialogue widget. The
+widget is an ordinary `UIActor` class derived from `DialoguePresenter`, with its
+own controls and C++, Blueprint or Lua behavior. Edit its hierarchy, geometry,
+fonts, images and colors in the common UI class designer. The four editable
+starters and their actual component costs are described in
+[Dialogue widget classes](dialogue-widgets.md). An optional timing asset supplies
+reveal/advance timing and sounds; appearance belongs to the widget's controls.
+A missing required control cancels presentation and releases capture.
+
+For conversations with participants, add `DialogueRoleBindingsComponent` and assign it to the interaction's `bindings` reference. Its eight role/target pairs map the conversation's compact participant IDs to live actors or components. Each instance supplies its own map. Conditions use a reflected pure `bool(ObjectId initiator)` event; actions use `void(ObjectId initiator, uint32_t port)`. Cooking validates class/member identities and signatures, and starting validates the live receivers.
+
+`DialogueSessionLibrary::start(source, initiator, port)` returns a `DialogueStartResult` with a handle and result. `snapshot(handle)` reports phase, result, current node, reveal/page/choice state and typed object references. `advance`, `move_selection` and `cancel` require that generation's handle; an old handle cannot affect a replacement session. `owner_session(source)` returns the source's active handle. Completed state remains readable with the original handle until another session starts or the level resets. Blueprint exposes these operations in Dialogue; Lua Gameplay v2 uses `epok.dialogue.start`, `snapshot`, `valid`, `advance`, `move_selection`, `choice_id`, `owner_session` and `cancel`.
+
+Derived interaction classes can override `dialogue_started`, `dialogue_node_entered` and `dialogue_finished` and call the parent. The start event precedes node entry, including conversations that end immediately. A derived widget can override pure `can_present(source)`, `present(snapshot)`, `dialogue_opened(snapshot)` and `dialogue_closed(snapshot)`. Calling parent `present` updates bound content, visibility and focus while preserving authored geometry, fonts, colors and panel material. The base displays localized paginated text, four choices per page, optional speaker names/portraits and configured UI sounds. Source/presenter loss, scene reset and cancellation release modal controls. Reveal uses unscaled frame time, including paused game time.
+
+Dialogue text uses symbolic String Table keys. Pageable tables support long translations; each rendered page remains within the text payload limit. The widget's actual control areas and font metrics determine wrapping and page breaks. Choice labels must fit and produce a cook diagnostic rather than truncation. Builds follow strings, portraits, fonts, panels and sounds from every node and validate the reusable composition against configured HUD budgets before Play. Conversation content has its own graph editor; presentation uses the common UI class designer and explicit Play exercises the class's real behavior.
 
 ## Verification
 

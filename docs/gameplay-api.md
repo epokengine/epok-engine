@@ -24,6 +24,9 @@ Available groups cover input, time, math, World 2D conversion, collision, scene
 state/projection, resources, sequence/effect playback, Memory Card and UI focus.
 The exact project surface is shown by Lua completion and Blueprint search.
 
+The Combat category includes [bounded health values](health.md). Damage and
+healing return explicit changes; project rules own eligibility and consequences.
+
 `scene.request_with_transition(index, options)` accepts a bounded transition
 record: fade durations are clamped to 65,535 ms and loading color channels to
 8-bit values. `scene.transition_snapshot()` exposes phase, opacity and audio
@@ -78,6 +81,19 @@ components share, and each component is exactly what a scalar tween over that
 component would report.
 
 ## Typed receivers and records
+
+Project configuration aggregates can opt into reflected property defaults with
+`EPOK_VALUE(Configuration, Id="...")`. Use public plain fields containing Fixed,
+Bool, Int32, UInt32 or nested records of those values, and provide every property
+field in a constant initializer list. The ordinary Inspector, Blueprint split
+pins and Lua value access use the same record shape. Constructors, calls and
+runtime handles are not persistent defaults; unmarked runtime records retain
+their existing restrictions. `MathLibrary::truncate_unsigned` converts positive
+Fixed units to UInt32 by truncating the fraction and maps negative values to zero.
+`MathLibrary::floor` rounds Fixed values toward negative infinity. For hash and
+bit arithmetic, `bit_xor` and `wrapping_multiply` operate on all 32 unsigned bits;
+the latter returns multiplication modulo 2^32. Ordinary Blueprint/Lua UInt32
+arithmetic keeps its saturating behavior. Lua exposes these through `epok.math`.
 
 Blueprint operations on an actor/component have a typed `Target` pin. Lua Gameplay
 profile 2 accepts `value:method(...)` when `value` is a statically typed actor or

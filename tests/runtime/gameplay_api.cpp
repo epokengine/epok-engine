@@ -656,6 +656,17 @@ int main() {
     auto sum=epok::MathLibrary::add({1.0,2.0,3.0},{4.0,5.0,6.0});
     assert(sum.x.raw()==5*4096&&sum.y.raw()==7*4096&&sum.z.raw()==9*4096);
     assert(epok::MathLibrary::clamp(4.0,1.0,3.0).raw()==3*4096);
+    assert(epok::MathLibrary::bit_xor(0x80000000u,0xffffffffu)==0x7fffffffu);
+    assert(epok::MathLibrary::bit_xor(0xa5a5a5a5u,0x5a5a5a5au)==0xffffffffu);
+    assert(epok::MathLibrary::wrapping_multiply(0xffffffffu,2)==0xfffffffeu);
+    assert(epok::MathLibrary::wrapping_multiply(0x80000000u,2)==0);
+    uint32_t fnv=2166136261u;for(const auto byte:{'h','e','l','l','o'})fnv=epok::MathLibrary::wrapping_multiply(epok::MathLibrary::bit_xor(fnv,uint8_t(byte)),16777619u);
+    assert(fnv==0x4f9f2cabu);
+    for(int32_t raw:{INT32_MIN,INT32_MIN+1,-8193,-8192,-4097,-4096,-1,0,1,4095,4096,4097,INT32_MAX}){
+        const auto rounded=epok::MathLibrary::floor(epok::Fixed(raw,epok::Fixed::RAW));
+        assert(rounded.raw()%4096==0&&int64_t(raw)-rounded.raw()>=0&&int64_t(raw)-rounded.raw()<4096);
+        assert(epok::MathLibrary::floor(rounded)==rounded);
+    }
 
     epok::MemoryCardLibrary::clear_staged_payload();
     assert(epok::MemoryCardLibrary::set_staged_word(0,0x78563412u));

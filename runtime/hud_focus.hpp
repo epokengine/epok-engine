@@ -53,8 +53,13 @@ inline uint32_t hud_focus_edges(){
     static const Button buttons[6]={Button::Up,Button::Right,Button::Down,Button::Left,Button::Cross,Button::Circle};
     uint32_t mask=0;
     for(unsigned port=0;port<4;++port)
-        for(const auto button:buttons)
+        for(const auto button:buttons) {
+#ifdef EPOK_GAMEPLAY_CONTROL
+            if(GameplayInputLibrary::button_frame_pressed(button,port))mask|=1u<<unsigned(button);
+#else
             if(input.frame_pressed(button,port))mask|=1u<<unsigned(button);
+#endif
+        }
     return mask;
 }
 }

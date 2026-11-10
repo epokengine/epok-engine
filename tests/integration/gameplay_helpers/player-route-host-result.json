@@ -1,0 +1,12 @@
+{
+  "passed": true,
+  "tests_run": 9,
+  "failures": 0,
+  "errors": 0,
+  "scope": "Host contracts and actual LuaJIT input replay with PCSX mocks, plus actual six-project source binding reads; NOT current target runtime acceptance",
+  "sources": {
+    "player_routes.py": "6e40fc205e6692626eacf288d571dbb3d93322f5a38715b9f6777b3666c1b2fc",
+    "player_observe.lua": "ff8b10cf845232b871546221a32ea1585b4cb1ac4fa6cc60e2d41ca1b576fcc2",
+    "test_player_routes.py": "54cc6355b92f8daab88802e8a79d21c29242f97226a413fa4982514d3c9857ba"
+  }
+}

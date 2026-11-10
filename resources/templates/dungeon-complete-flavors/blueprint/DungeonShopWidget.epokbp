@@ -1,0 +1,4646 @@
+{
+  "version": 8,
+  "id": "733195d2-87b9-5164-b675-53372b0a569c",
+  "name": "DungeonShopWidget",
+  "parent": "cd4bf230-fb5d-5200-b004-1fa3c3132bfb",
+  "family": "actor",
+  "defaults": {},
+  "variables": [],
+  "functions": [
+    {
+      "id": "118993c5-7878-598f-b412-bfa46e6892dc",
+      "name": "menu_kind",
+      "parameters": [],
+      "returns": {
+        "kind": "uint32"
+      },
+      "entry": "14d9e8c8-0190-52eb-8010-ac217b912f83",
+      "nodes": [
+        {
+          "id": "1427cd86-f35b-5831-b751-ff5c65ce4d2b",
+          "kind": {
+            "kind": "return"
+          },
+          "inputs": {
+            "value": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 2
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "14d9e8c8-0190-52eb-8010-ac217b912f83",
+          "kind": {
+            "kind": "entry"
+          },
+          "inputs": {},
+          "outputs": {
+            "next": [
+              "1427cd86-f35b-5831-b751-ff5c65ce4d2b"
+            ]
+          }
+        }
+      ],
+      "override_id": "afae03f4-7579-5338-84a9-651fb0116d8b"
+    },
+    {
+      "id": "fc898505-efb6-5abe-8997-c830bbd180eb",
+      "name": "input",
+      "parameters": [
+        {
+          "name": "buttons",
+          "value_type": {
+            "kind": "record",
+            "cpp_name": "DungeonEconomyButtons",
+            "fields": [
+              {
+                "name": "up",
+                "value_type": {
+                  "kind": "bool"
+                }
+              },
+              {
+                "name": "down",
+                "value_type": {
+                  "kind": "bool"
+                }
+              },
+              {
+                "name": "left",
+                "value_type": {
+                  "kind": "bool"
+                }
+              },
+              {
+                "name": "right",
+                "value_type": {
+                  "kind": "bool"
+                }
+              },
+              {
+                "name": "confirm",
+                "value_type": {
+                  "kind": "bool"
+                }
+              },
+              {
+                "name": "cancel",
+                "value_type": {
+                  "kind": "bool"
+                }
+              }
+            ]
+          },
+          "direction": "value"
+        }
+      ],
+      "returns": {
+        "kind": "record",
+        "cpp_name": "DungeonEconomyIntent",
+        "fields": [
+          {
+            "name": "command",
+            "value_type": {
+              "kind": "uint32"
+            }
+          },
+          {
+            "name": "selected",
+            "value_type": {
+              "kind": "uint32"
+            }
+          },
+          {
+            "name": "port",
+            "value_type": {
+              "kind": "uint32"
+            }
+          }
+        ]
+      },
+      "entry": "54cd4d7b-cfc6-5936-b908-3fcaa80c1dcc",
+      "nodes": [
+        {
+          "id": "51a5da87-044d-5e80-9cb7-5d0a722f32d1",
+          "kind": {
+            "kind": "get_variable",
+            "member": "07bacf16-dcd3-50b7-9484-5eb49a58a831"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "6674f517-bb9a-5f47-a842-7d13a65b68ab",
+          "kind": {
+            "kind": "call",
+            "function": "0f388f79-60a3-5006-a8eb-c320a56d584a"
+          },
+          "inputs": {
+            "command": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 0
+            },
+            "selected": {
+              "kind": "link",
+              "node": "51a5da87-044d-5e80-9cb7-5d0a722f32d1",
+              "pin": "value.selected"
+            },
+            "port": {
+              "kind": "link",
+              "node": "51a5da87-044d-5e80-9cb7-5d0a722f32d1",
+              "pin": "value.port"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "32b55bb7-23b0-56bb-b797-5a7ce614417d",
+          "kind": {
+            "kind": "return"
+          },
+          "inputs": {
+            "value": {
+              "kind": "link",
+              "node": "6674f517-bb9a-5f47-a842-7d13a65b68ab",
+              "pin": "value"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "e2d13232-0a1d-5ec6-936e-de2e2b1b80df",
+          "kind": {
+            "kind": "call",
+            "function": "0f388f79-60a3-5006-a8eb-c320a56d584a"
+          },
+          "inputs": {
+            "command": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 2
+            },
+            "selected": {
+              "kind": "link",
+              "node": "51a5da87-044d-5e80-9cb7-5d0a722f32d1",
+              "pin": "value.selected"
+            },
+            "port": {
+              "kind": "link",
+              "node": "51a5da87-044d-5e80-9cb7-5d0a722f32d1",
+              "pin": "value.port"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "889bf76d-41c9-5085-90ea-ba54606985e2",
+          "kind": {
+            "kind": "return"
+          },
+          "inputs": {
+            "value": {
+              "kind": "link",
+              "node": "e2d13232-0a1d-5ec6-936e-de2e2b1b80df",
+              "pin": "value"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "c97a5780-5f4d-5528-a30e-b858b3c8369f",
+          "kind": {
+            "kind": "binary",
+            "op": "add"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "51a5da87-044d-5e80-9cb7-5d0a722f32d1",
+              "pin": "value.selected"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 5
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "ada05c35-e346-50c5-a0c0-8ec57cbbeec4",
+          "kind": {
+            "kind": "binary",
+            "op": "subtract"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "c97a5780-5f4d-5528-a30e-b858b3c8369f",
+              "pin": "value"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 1
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "34335516-da8b-54cf-b67c-a1897fde1557",
+          "kind": {
+            "kind": "binary",
+            "op": "add"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "51a5da87-044d-5e80-9cb7-5d0a722f32d1",
+              "pin": "value.selected"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 5
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "ffa0359a-454d-5d98-aa2c-30254b4c5eb7",
+          "kind": {
+            "kind": "binary",
+            "op": "subtract"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "34335516-da8b-54cf-b67c-a1897fde1557",
+              "pin": "value"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 1
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "d2466db4-e63c-5e6a-b775-830c8513a2f7",
+          "kind": {
+            "kind": "binary",
+            "op": "divide"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "ffa0359a-454d-5d98-aa2c-30254b4c5eb7",
+              "pin": "value"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 5
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "156cb0ed-58f9-57a9-b268-91363fa036c0",
+          "kind": {
+            "kind": "binary",
+            "op": "multiply"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "d2466db4-e63c-5e6a-b775-830c8513a2f7",
+              "pin": "value"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 5
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "04aaa9c9-8cbb-5404-b531-404b8e6c3dc8",
+          "kind": {
+            "kind": "binary",
+            "op": "subtract"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "ada05c35-e346-50c5-a0c0-8ec57cbbeec4",
+              "pin": "value"
+            },
+            "b": {
+              "kind": "link",
+              "node": "156cb0ed-58f9-57a9-b268-91363fa036c0",
+              "pin": "value"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "efbf410f-6d6c-5f36-ab08-f5ba3a9e5503",
+          "kind": {
+            "kind": "call",
+            "function": "d8d7801c-d790-5f22-89e7-ce82e52d367e"
+          },
+          "inputs": {
+            "value": {
+              "kind": "link",
+              "node": "04aaa9c9-8cbb-5404-b531-404b8e6c3dc8",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "next": [
+              "ee7b01e1-ac02-59e6-a039-7130abc825ee"
+            ]
+          }
+        },
+        {
+          "id": "78c903d0-e608-5478-a936-ce8d77b0438e",
+          "kind": {
+            "kind": "binary",
+            "op": "add"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "51a5da87-044d-5e80-9cb7-5d0a722f32d1",
+              "pin": "value.selected"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 1
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "4620631a-9fe3-53e8-9313-093f8821c54c",
+          "kind": {
+            "kind": "binary",
+            "op": "add"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "51a5da87-044d-5e80-9cb7-5d0a722f32d1",
+              "pin": "value.selected"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 1
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "5cdc6872-71e5-554d-8be2-462d566984a6",
+          "kind": {
+            "kind": "binary",
+            "op": "divide"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "4620631a-9fe3-53e8-9313-093f8821c54c",
+              "pin": "value"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 5
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "c0eb96f2-2732-5ad2-9085-870219d5d95a",
+          "kind": {
+            "kind": "binary",
+            "op": "multiply"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "5cdc6872-71e5-554d-8be2-462d566984a6",
+              "pin": "value"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 5
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "4fba4f0a-2ad4-5d91-b6d9-d4202d0611f3",
+          "kind": {
+            "kind": "binary",
+            "op": "subtract"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "78c903d0-e608-5478-a936-ce8d77b0438e",
+              "pin": "value"
+            },
+            "b": {
+              "kind": "link",
+              "node": "c0eb96f2-2732-5ad2-9085-870219d5d95a",
+              "pin": "value"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "4f0856a6-e2aa-59fb-874d-17519ff15737",
+          "kind": {
+            "kind": "call",
+            "function": "d8d7801c-d790-5f22-89e7-ce82e52d367e"
+          },
+          "inputs": {
+            "value": {
+              "kind": "link",
+              "node": "4fba4f0a-2ad4-5d91-b6d9-d4202d0611f3",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "next": [
+              "8d99a5ae-b429-53a4-aae1-df31a9d84645"
+            ]
+          }
+        },
+        {
+          "id": "58d42194-e91f-5311-936d-7683ae76c456",
+          "kind": {
+            "kind": "call",
+            "function": "0f388f79-60a3-5006-a8eb-c320a56d584a"
+          },
+          "inputs": {
+            "command": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 1
+            },
+            "selected": {
+              "kind": "link",
+              "node": "51a5da87-044d-5e80-9cb7-5d0a722f32d1",
+              "pin": "value.selected"
+            },
+            "port": {
+              "kind": "link",
+              "node": "51a5da87-044d-5e80-9cb7-5d0a722f32d1",
+              "pin": "value.port"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "3166206e-a29b-5686-a4c5-49d692914c71",
+          "kind": {
+            "kind": "return"
+          },
+          "inputs": {
+            "value": {
+              "kind": "link",
+              "node": "58d42194-e91f-5311-936d-7683ae76c456",
+              "pin": "value"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "bb85b52c-1d87-58ca-aef4-9b7611fff353",
+          "kind": {
+            "kind": "call",
+            "function": "0f388f79-60a3-5006-a8eb-c320a56d584a"
+          },
+          "inputs": {
+            "command": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 0
+            },
+            "selected": {
+              "kind": "link",
+              "node": "51a5da87-044d-5e80-9cb7-5d0a722f32d1",
+              "pin": "value.selected"
+            },
+            "port": {
+              "kind": "link",
+              "node": "51a5da87-044d-5e80-9cb7-5d0a722f32d1",
+              "pin": "value.port"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "21e61af8-372f-5543-a786-e08e37fa388a",
+          "kind": {
+            "kind": "return"
+          },
+          "inputs": {
+            "value": {
+              "kind": "link",
+              "node": "bb85b52c-1d87-58ca-aef4-9b7611fff353",
+              "pin": "value"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "8d99a5ae-b429-53a4-aae1-df31a9d84645",
+          "kind": {
+            "kind": "branch"
+          },
+          "inputs": {
+            "condition": {
+              "kind": "link",
+              "node": "54cd4d7b-cfc6-5936-b908-3fcaa80c1dcc",
+              "pin": "buttons.confirm"
+            }
+          },
+          "outputs": {
+            "true": [
+              "3166206e-a29b-5686-a4c5-49d692914c71"
+            ],
+            "false": [
+              "21e61af8-372f-5543-a786-e08e37fa388a"
+            ]
+          }
+        },
+        {
+          "id": "ee7b01e1-ac02-59e6-a039-7130abc825ee",
+          "kind": {
+            "kind": "branch"
+          },
+          "inputs": {
+            "condition": {
+              "kind": "link",
+              "node": "54cd4d7b-cfc6-5936-b908-3fcaa80c1dcc",
+              "pin": "buttons.down"
+            }
+          },
+          "outputs": {
+            "true": [
+              "4f0856a6-e2aa-59fb-874d-17519ff15737"
+            ],
+            "false": [
+              "8d99a5ae-b429-53a4-aae1-df31a9d84645"
+            ]
+          }
+        },
+        {
+          "id": "119b96d1-6614-5f08-9357-27d3b0e6ccde",
+          "kind": {
+            "kind": "branch"
+          },
+          "inputs": {
+            "condition": {
+              "kind": "link",
+              "node": "54cd4d7b-cfc6-5936-b908-3fcaa80c1dcc",
+              "pin": "buttons.up"
+            }
+          },
+          "outputs": {
+            "true": [
+              "efbf410f-6d6c-5f36-ab08-f5ba3a9e5503"
+            ],
+            "false": [
+              "ee7b01e1-ac02-59e6-a039-7130abc825ee"
+            ]
+          }
+        },
+        {
+          "id": "a3eb40aa-391a-5444-9f2a-c3b9ac9a1d7b",
+          "kind": {
+            "kind": "branch"
+          },
+          "inputs": {
+            "condition": {
+              "kind": "link",
+              "node": "54cd4d7b-cfc6-5936-b908-3fcaa80c1dcc",
+              "pin": "buttons.cancel"
+            }
+          },
+          "outputs": {
+            "true": [
+              "889bf76d-41c9-5085-90ea-ba54606985e2"
+            ],
+            "false": [
+              "119b96d1-6614-5f08-9357-27d3b0e6ccde"
+            ]
+          }
+        },
+        {
+          "id": "96707852-1bb4-5b28-a314-7a7ecfeacf7f",
+          "kind": {
+            "kind": "branch"
+          },
+          "inputs": {
+            "condition": {
+              "kind": "link",
+              "node": "51a5da87-044d-5e80-9cb7-5d0a722f32d1",
+              "pin": "value.busy"
+            }
+          },
+          "outputs": {
+            "true": [
+              "32b55bb7-23b0-56bb-b797-5a7ce614417d"
+            ],
+            "false": [
+              "a3eb40aa-391a-5444-9f2a-c3b9ac9a1d7b"
+            ]
+          }
+        },
+        {
+          "id": "54cd4d7b-cfc6-5936-b908-3fcaa80c1dcc",
+          "kind": {
+            "kind": "entry"
+          },
+          "inputs": {},
+          "outputs": {
+            "next": [
+              "96707852-1bb4-5b28-a314-7a7ecfeacf7f"
+            ]
+          }
+        }
+      ],
+      "override_id": "b6d64911-ca78-5b42-8edc-409d1a1b9ffb"
+    },
+    {
+      "id": "8aa39fec-d0b2-52b2-b554-88d5f9070538",
+      "name": "refresh",
+      "parameters": [
+        {
+          "name": "state",
+          "value_type": {
+            "kind": "record",
+            "cpp_name": "DungeonEconomyScreen",
+            "fields": [
+              {
+                "name": "menu",
+                "value_type": {
+                  "kind": "uint32"
+                }
+              },
+              {
+                "name": "selected",
+                "value_type": {
+                  "kind": "uint32"
+                }
+              },
+              {
+                "name": "port",
+                "value_type": {
+                  "kind": "uint32"
+                }
+              },
+              {
+                "name": "card_phase",
+                "value_type": {
+                  "kind": "uint32"
+                }
+              },
+              {
+                "name": "request",
+                "value_type": {
+                  "kind": "uint32"
+                }
+              },
+              {
+                "name": "notice",
+                "value_type": {
+                  "kind": "uint32"
+                }
+              },
+              {
+                "name": "progress",
+                "value_type": {
+                  "kind": "uint32"
+                }
+              },
+              {
+                "name": "cue",
+                "value_type": {
+                  "kind": "uint32"
+                }
+              },
+              {
+                "name": "visible",
+                "value_type": {
+                  "kind": "bool"
+                }
+              },
+              {
+                "name": "busy",
+                "value_type": {
+                  "kind": "bool"
+                }
+              }
+            ]
+          },
+          "direction": "value"
+        }
+      ],
+      "returns": {
+        "kind": "void"
+      },
+      "entry": "2567988a-3c36-5a53-bcad-939accfc0fbf",
+      "nodes": [
+        {
+          "id": "a723288e-ceda-5f72-92b3-596961c9d79d",
+          "kind": {
+            "kind": "call",
+            "function": "dd802efe-9401-51ea-9891-dce2453f2035"
+          },
+          "inputs": {
+            "value": {
+              "kind": "link",
+              "node": "2567988a-3c36-5a53-bcad-939accfc0fbf",
+              "pin": "state"
+            }
+          },
+          "outputs": {
+            "next": [
+              "e3ba130e-ab31-530e-93ec-1c6dcc4f21df"
+            ]
+          }
+        },
+        {
+          "id": "417ef6fb-cf83-503b-ac5f-d3db812baff5",
+          "kind": {
+            "kind": "call",
+            "function": "f6747fe6-2212-56ee-908c-4b2146fde64c"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "fa4a1702-a8ce-5266-a746-b8e04de2fb40",
+          "kind": {
+            "kind": "not"
+          },
+          "inputs": {
+            "value": {
+              "kind": "link",
+              "node": "417ef6fb-cf83-503b-ac5f-d3db812baff5",
+              "pin": "value"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "b16998ea-b0de-532f-b9bf-6259bcac2530",
+          "kind": {
+            "kind": "return"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "430833a7-be74-5824-a379-e0f8c42d1df5",
+          "kind": {
+            "kind": "call",
+            "function": "8b6708b1-8a2d-565b-b39a-1b1044e93129"
+          },
+          "inputs": {},
+          "outputs": {
+            "next": [
+              "f4a062fe-27ad-53dd-9c4e-e1c78b63f9d5"
+            ]
+          }
+        },
+        {
+          "id": "f6bb7bf2-a9d2-52d8-8f59-3592610658a4",
+          "kind": {
+            "kind": "get_variable",
+            "member": "07bacf16-dcd3-50b7-9484-5eb49a58a831"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "f705cfac-6af5-5965-ac70-052800473dd5",
+          "kind": {
+            "kind": "binary",
+            "op": "equal"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "f6bb7bf2-a9d2-52d8-8f59-3592610658a4",
+              "pin": "value.menu"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 0
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "222e1046-c58e-5458-ab8c-dbdb2a37afb8",
+          "kind": {
+            "kind": "binary",
+            "op": "equal"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "f6bb7bf2-a9d2-52d8-8f59-3592610658a4",
+              "pin": "value.card_phase"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 1
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "75091321-28e9-5eab-82e3-0990cf2e3e8e",
+          "kind": {
+            "kind": "binary",
+            "op": "and"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "f705cfac-6af5-5965-ac70-052800473dd5",
+              "pin": "value"
+            },
+            "b": {
+              "kind": "link",
+              "node": "222e1046-c58e-5458-ab8c-dbdb2a37afb8",
+              "pin": "value"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "7979442a-94cf-56dc-9295-3881bcda98ed",
+          "kind": {
+            "kind": "call",
+            "function": "9de9ad62-c0c3-5f49-9f17-036eb3aecaaa"
+          },
+          "inputs": {
+            "key": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 4
+            }
+          },
+          "outputs": {
+            "next": [
+              "16287456-8e5c-5641-86d9-f718615802fb"
+            ]
+          }
+        },
+        {
+          "id": "17624204-bfea-57f0-b56d-389410be4b6d",
+          "kind": {
+            "kind": "call",
+            "function": "9de9ad62-c0c3-5f49-9f17-036eb3aecaaa"
+          },
+          "inputs": {
+            "key": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 2
+            }
+          },
+          "outputs": {
+            "next": [
+              "16287456-8e5c-5641-86d9-f718615802fb"
+            ]
+          }
+        },
+        {
+          "id": "079553f8-a2a9-5b36-973c-2d3de5665442",
+          "kind": {
+            "kind": "get_variable",
+            "member": "592dd3cb-8ffb-5091-acd7-38e0391f654e"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "16287456-8e5c-5641-86d9-f718615802fb",
+          "kind": {
+            "kind": "call",
+            "function": "9eb27bdb-7a1f-5c44-8fc0-0d6b1542976f"
+          },
+          "inputs": {
+            "target": {
+              "kind": "link",
+              "node": "079553f8-a2a9-5b36-973c-2d3de5665442",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "next": [
+              "14da1acb-0b9a-5fce-8f91-d6583b924058"
+            ]
+          }
+        },
+        {
+          "id": "14da1acb-0b9a-5fce-8f91-d6583b924058",
+          "kind": {
+            "kind": "call",
+            "function": "8b6708b1-8a2d-565b-b39a-1b1044e93129"
+          },
+          "inputs": {},
+          "outputs": {
+            "next": [
+              "51160f93-a374-5ec4-b701-f69273f04936"
+            ]
+          }
+        },
+        {
+          "id": "51160f93-a374-5ec4-b701-f69273f04936",
+          "kind": {
+            "kind": "call",
+            "function": "9de9ad62-c0c3-5f49-9f17-036eb3aecaaa"
+          },
+          "inputs": {
+            "key": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 5
+            }
+          },
+          "outputs": {
+            "next": [
+              "645637b5-805f-59a6-8e41-44bffa978aa6"
+            ]
+          }
+        },
+        {
+          "id": "920056fd-ce70-5bbc-96ac-f88a08bda49c",
+          "kind": {
+            "kind": "call",
+            "function": "c8ac3f8a-d4b3-5ab1-ad27-2d9043ba4e2f"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "645637b5-805f-59a6-8e41-44bffa978aa6",
+          "kind": {
+            "kind": "call",
+            "function": "94bf9012-074f-5380-980b-f9845b15c49d"
+          },
+          "inputs": {
+            "value": {
+              "kind": "link",
+              "node": "920056fd-ce70-5bbc-96ac-f88a08bda49c",
+              "pin": "value.ore"
+            }
+          },
+          "outputs": {
+            "next": [
+              "cce4cae8-798a-5e85-b0f0-eb26d4283ba8"
+            ]
+          }
+        },
+        {
+          "id": "cce4cae8-798a-5e85-b0f0-eb26d4283ba8",
+          "kind": {
+            "kind": "call",
+            "function": "9de9ad62-c0c3-5f49-9f17-036eb3aecaaa"
+          },
+          "inputs": {
+            "key": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 6
+            }
+          },
+          "outputs": {
+            "next": [
+              "e40b2587-f278-52b0-8a70-d37ac4140233"
+            ]
+          }
+        },
+        {
+          "id": "18e33b45-d3ef-5233-ad85-01ee0f7b2c93",
+          "kind": {
+            "kind": "call",
+            "function": "c8ac3f8a-d4b3-5ab1-ad27-2d9043ba4e2f"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "e40b2587-f278-52b0-8a70-d37ac4140233",
+          "kind": {
+            "kind": "call",
+            "function": "94bf9012-074f-5380-980b-f9845b15c49d"
+          },
+          "inputs": {
+            "value": {
+              "kind": "link",
+              "node": "18e33b45-d3ef-5233-ad85-01ee0f7b2c93",
+              "pin": "value.credits"
+            }
+          },
+          "outputs": {
+            "next": [
+              "6ac3658e-f9ba-5c43-9d9e-5b1082f2cd8d"
+            ]
+          }
+        },
+        {
+          "id": "a17e7d08-7624-5fc2-ad3c-a12cc1e1a72c",
+          "kind": {
+            "kind": "get_variable",
+            "member": "ae07322c-fb68-506c-a024-338c55edda4c"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "6ac3658e-f9ba-5c43-9d9e-5b1082f2cd8d",
+          "kind": {
+            "kind": "call",
+            "function": "9eb27bdb-7a1f-5c44-8fc0-0d6b1542976f"
+          },
+          "inputs": {
+            "target": {
+              "kind": "link",
+              "node": "a17e7d08-7624-5fc2-ad3c-a12cc1e1a72c",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "next": [
+              "3a605992-94ed-55ca-8f7a-15adf06439c0"
+            ]
+          }
+        },
+        {
+          "id": "3a605992-94ed-55ca-8f7a-15adf06439c0",
+          "kind": {
+            "kind": "call",
+            "function": "8b6708b1-8a2d-565b-b39a-1b1044e93129"
+          },
+          "inputs": {},
+          "outputs": {
+            "next": [
+              "35cb6205-b261-5393-b39e-009bb44fe367"
+            ]
+          }
+        },
+        {
+          "id": "cf720f6d-483c-5dac-b490-b2e586693707",
+          "kind": {
+            "kind": "binary",
+            "op": "equal"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "f6bb7bf2-a9d2-52d8-8f59-3592610658a4",
+              "pin": "value.menu"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 0
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "957786c0-1cc2-5f61-b009-96b144ba4d5e",
+          "kind": {
+            "kind": "binary",
+            "op": "equal"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "f6bb7bf2-a9d2-52d8-8f59-3592610658a4",
+              "pin": "value.card_phase"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 1
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "fc3be5e8-f184-5a7a-9e62-268b655862a4",
+          "kind": {
+            "kind": "binary",
+            "op": "and"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "cf720f6d-483c-5dac-b490-b2e586693707",
+              "pin": "value"
+            },
+            "b": {
+              "kind": "link",
+              "node": "957786c0-1cc2-5f61-b009-96b144ba4d5e",
+              "pin": "value"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "0530b4cf-7377-55c6-a2ad-711e17bf24a4",
+          "kind": {
+            "kind": "call",
+            "function": "9de9ad62-c0c3-5f49-9f17-036eb3aecaaa"
+          },
+          "inputs": {
+            "key": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 14
+            }
+          },
+          "outputs": {
+            "next": [
+              "7428efc0-ba2f-5179-8545-c210dfc4e608"
+            ]
+          }
+        },
+        {
+          "id": "eb661499-7c43-5bda-9f06-35df046da97d",
+          "kind": {
+            "kind": "call",
+            "function": "9de9ad62-c0c3-5f49-9f17-036eb3aecaaa"
+          },
+          "inputs": {
+            "key": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 16
+            }
+          },
+          "outputs": {
+            "next": [
+              "dc9f6dfc-e233-5fa2-ba0a-4b1cf378aaf4"
+            ]
+          }
+        },
+        {
+          "id": "ea0aa2f5-6ca6-526a-a4b1-ecfa95047489",
+          "kind": {
+            "kind": "call",
+            "function": "c200141c-7f9f-5938-a009-6add47fe257d"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "dc9f6dfc-e233-5fa2-ba0a-4b1cf378aaf4",
+          "kind": {
+            "kind": "call",
+            "function": "94bf9012-074f-5380-980b-f9845b15c49d"
+          },
+          "inputs": {
+            "value": {
+              "kind": "link",
+              "node": "ea0aa2f5-6ca6-526a-a4b1-ecfa95047489",
+              "pin": "value.sale_rate"
+            }
+          },
+          "outputs": {
+            "next": [
+              "20649556-ba19-57ea-aa57-b0ee67ae8d85"
+            ]
+          }
+        },
+        {
+          "id": "20649556-ba19-57ea-aa57-b0ee67ae8d85",
+          "kind": {
+            "kind": "call",
+            "function": "9de9ad62-c0c3-5f49-9f17-036eb3aecaaa"
+          },
+          "inputs": {
+            "key": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 17
+            }
+          },
+          "outputs": {
+            "next": [
+              "b724da7f-2f97-5c67-8798-e4ab33be2556"
+            ]
+          }
+        },
+        {
+          "id": "cdd86968-7e95-5563-8f92-52ad47832c81",
+          "kind": {
+            "kind": "binary",
+            "op": "equal"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "f6bb7bf2-a9d2-52d8-8f59-3592610658a4",
+              "pin": "value.selected"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 0
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "669e28b8-6dd3-524c-b4ec-5658f9a8be3d",
+          "kind": {
+            "kind": "call",
+            "function": "9de9ad62-c0c3-5f49-9f17-036eb3aecaaa"
+          },
+          "inputs": {
+            "key": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 8
+            }
+          },
+          "outputs": {
+            "next": [
+              "f141ed25-57da-5e99-a1ef-af1ffc486fab"
+            ]
+          }
+        },
+        {
+          "id": "6b999c1c-9a2d-5417-bded-0ba244020b22",
+          "kind": {
+            "kind": "call",
+            "function": "9de9ad62-c0c3-5f49-9f17-036eb3aecaaa"
+          },
+          "inputs": {
+            "key": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 9
+            }
+          },
+          "outputs": {
+            "next": [
+              "f141ed25-57da-5e99-a1ef-af1ffc486fab"
+            ]
+          }
+        },
+        {
+          "id": "f141ed25-57da-5e99-a1ef-af1ffc486fab",
+          "kind": {
+            "kind": "call",
+            "function": "2cfeaab0-b547-5084-86cb-feecd6087a4a"
+          },
+          "inputs": {
+            "index": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 0
+            }
+          },
+          "outputs": {
+            "next": [
+              "82cebc5f-d102-5f2d-a178-78100d37b5bc"
+            ]
+          }
+        },
+        {
+          "id": "82cebc5f-d102-5f2d-a178-78100d37b5bc",
+          "kind": {
+            "kind": "call",
+            "function": "9de9ad62-c0c3-5f49-9f17-036eb3aecaaa"
+          },
+          "inputs": {
+            "key": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 10
+            }
+          },
+          "outputs": {
+            "next": [
+              "4d6a8007-0412-5778-aeb2-e76e9f2530d9"
+            ]
+          }
+        },
+        {
+          "id": "14c6b1b4-6327-5449-9543-6432a8ef021c",
+          "kind": {
+            "kind": "binary",
+            "op": "equal"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "f6bb7bf2-a9d2-52d8-8f59-3592610658a4",
+              "pin": "value.selected"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 1
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "f6468dcb-1175-5179-a798-7fc52a45af40",
+          "kind": {
+            "kind": "call",
+            "function": "9de9ad62-c0c3-5f49-9f17-036eb3aecaaa"
+          },
+          "inputs": {
+            "key": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 8
+            }
+          },
+          "outputs": {
+            "next": [
+              "daca766a-adde-5bc4-b260-b813f6bad673"
+            ]
+          }
+        },
+        {
+          "id": "a9b59b88-d414-5e5a-8b4d-740bfa841ba4",
+          "kind": {
+            "kind": "call",
+            "function": "9de9ad62-c0c3-5f49-9f17-036eb3aecaaa"
+          },
+          "inputs": {
+            "key": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 9
+            }
+          },
+          "outputs": {
+            "next": [
+              "daca766a-adde-5bc4-b260-b813f6bad673"
+            ]
+          }
+        },
+        {
+          "id": "daca766a-adde-5bc4-b260-b813f6bad673",
+          "kind": {
+            "kind": "call",
+            "function": "2cfeaab0-b547-5084-86cb-feecd6087a4a"
+          },
+          "inputs": {
+            "index": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 1
+            }
+          },
+          "outputs": {
+            "next": [
+              "db5bbcc2-a9d9-5546-bbd4-6566622c3dad"
+            ]
+          }
+        },
+        {
+          "id": "db5bbcc2-a9d9-5546-bbd4-6566622c3dad",
+          "kind": {
+            "kind": "call",
+            "function": "9de9ad62-c0c3-5f49-9f17-036eb3aecaaa"
+          },
+          "inputs": {
+            "key": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 10
+            }
+          },
+          "outputs": {
+            "next": [
+              "be76db4f-355f-5b4f-ad6c-63ef340f9146"
+            ]
+          }
+        },
+        {
+          "id": "42514f84-5b6c-5e38-b794-519dad53e903",
+          "kind": {
+            "kind": "binary",
+            "op": "equal"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "f6bb7bf2-a9d2-52d8-8f59-3592610658a4",
+              "pin": "value.selected"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 2
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "80b2fbb4-e060-5327-8acd-7cafa3799056",
+          "kind": {
+            "kind": "call",
+            "function": "9de9ad62-c0c3-5f49-9f17-036eb3aecaaa"
+          },
+          "inputs": {
+            "key": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 8
+            }
+          },
+          "outputs": {
+            "next": [
+              "a78f9cb6-c09f-5a59-b4fa-e7d6ebf4ef86"
+            ]
+          }
+        },
+        {
+          "id": "47285084-ef62-5a98-805d-35f5de339704",
+          "kind": {
+            "kind": "call",
+            "function": "9de9ad62-c0c3-5f49-9f17-036eb3aecaaa"
+          },
+          "inputs": {
+            "key": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 9
+            }
+          },
+          "outputs": {
+            "next": [
+              "a78f9cb6-c09f-5a59-b4fa-e7d6ebf4ef86"
+            ]
+          }
+        },
+        {
+          "id": "a78f9cb6-c09f-5a59-b4fa-e7d6ebf4ef86",
+          "kind": {
+            "kind": "call",
+            "function": "2cfeaab0-b547-5084-86cb-feecd6087a4a"
+          },
+          "inputs": {
+            "index": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 2
+            }
+          },
+          "outputs": {
+            "next": [
+              "9bc5cb1b-0c32-5b23-a9ce-0fd7e4ac4c23"
+            ]
+          }
+        },
+        {
+          "id": "9bc5cb1b-0c32-5b23-a9ce-0fd7e4ac4c23",
+          "kind": {
+            "kind": "call",
+            "function": "9de9ad62-c0c3-5f49-9f17-036eb3aecaaa"
+          },
+          "inputs": {
+            "key": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 10
+            }
+          },
+          "outputs": {
+            "next": [
+              "3b1e180e-46d4-5782-b8ba-a882c0c12b1c"
+            ]
+          }
+        },
+        {
+          "id": "2b99aa52-07d9-57f7-b8e8-f05c4c1f7399",
+          "kind": {
+            "kind": "binary",
+            "op": "equal"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "f6bb7bf2-a9d2-52d8-8f59-3592610658a4",
+              "pin": "value.selected"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 3
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "91292e32-12d3-57ec-8ba5-ccf1f50d4805",
+          "kind": {
+            "kind": "call",
+            "function": "9de9ad62-c0c3-5f49-9f17-036eb3aecaaa"
+          },
+          "inputs": {
+            "key": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 8
+            }
+          },
+          "outputs": {
+            "next": [
+              "15af4a20-a843-5b23-af7e-05ca433e7e43"
+            ]
+          }
+        },
+        {
+          "id": "8d6bee9c-4500-594f-9e4e-130519a6d013",
+          "kind": {
+            "kind": "call",
+            "function": "9de9ad62-c0c3-5f49-9f17-036eb3aecaaa"
+          },
+          "inputs": {
+            "key": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 9
+            }
+          },
+          "outputs": {
+            "next": [
+              "15af4a20-a843-5b23-af7e-05ca433e7e43"
+            ]
+          }
+        },
+        {
+          "id": "15af4a20-a843-5b23-af7e-05ca433e7e43",
+          "kind": {
+            "kind": "call",
+            "function": "2cfeaab0-b547-5084-86cb-feecd6087a4a"
+          },
+          "inputs": {
+            "index": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 3
+            }
+          },
+          "outputs": {
+            "next": [
+              "774bf8df-80e0-5e16-83e8-84853c7154e1"
+            ]
+          }
+        },
+        {
+          "id": "774bf8df-80e0-5e16-83e8-84853c7154e1",
+          "kind": {
+            "kind": "call",
+            "function": "9de9ad62-c0c3-5f49-9f17-036eb3aecaaa"
+          },
+          "inputs": {
+            "key": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 10
+            }
+          },
+          "outputs": {
+            "next": [
+              "02dd9236-af80-5156-9b0f-82a30f7bf97d"
+            ]
+          }
+        },
+        {
+          "id": "a6beefca-6268-5d56-9413-98648001a239",
+          "kind": {
+            "kind": "binary",
+            "op": "equal"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "f6bb7bf2-a9d2-52d8-8f59-3592610658a4",
+              "pin": "value.selected"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 4
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "abadd24a-d87d-5100-a61a-7475221597e6",
+          "kind": {
+            "kind": "call",
+            "function": "9de9ad62-c0c3-5f49-9f17-036eb3aecaaa"
+          },
+          "inputs": {
+            "key": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 8
+            }
+          },
+          "outputs": {
+            "next": [
+              "8f88091a-52cc-5bb4-b5b6-81b6855f5291"
+            ]
+          }
+        },
+        {
+          "id": "dce49320-be9d-59c0-9e23-6f2e779e6dc7",
+          "kind": {
+            "kind": "call",
+            "function": "9de9ad62-c0c3-5f49-9f17-036eb3aecaaa"
+          },
+          "inputs": {
+            "key": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 9
+            }
+          },
+          "outputs": {
+            "next": [
+              "8f88091a-52cc-5bb4-b5b6-81b6855f5291"
+            ]
+          }
+        },
+        {
+          "id": "8f88091a-52cc-5bb4-b5b6-81b6855f5291",
+          "kind": {
+            "kind": "call",
+            "function": "2cfeaab0-b547-5084-86cb-feecd6087a4a"
+          },
+          "inputs": {
+            "index": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 4
+            }
+          },
+          "outputs": {
+            "next": [
+              "cc4ac84b-805b-5b7f-b7d0-3fd9557ecb78"
+            ]
+          }
+        },
+        {
+          "id": "cc4ac84b-805b-5b7f-b7d0-3fd9557ecb78",
+          "kind": {
+            "kind": "call",
+            "function": "9de9ad62-c0c3-5f49-9f17-036eb3aecaaa"
+          },
+          "inputs": {
+            "key": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 10
+            }
+          },
+          "outputs": {
+            "next": [
+              "7428efc0-ba2f-5179-8545-c210dfc4e608"
+            ]
+          }
+        },
+        {
+          "id": "5aaac521-52cb-5629-b64a-844de1328acd",
+          "kind": {
+            "kind": "get_variable",
+            "member": "c950c2bc-5b18-5e14-a7ba-d10610c4a928"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "7428efc0-ba2f-5179-8545-c210dfc4e608",
+          "kind": {
+            "kind": "call",
+            "function": "9eb27bdb-7a1f-5c44-8fc0-0d6b1542976f"
+          },
+          "inputs": {
+            "target": {
+              "kind": "link",
+              "node": "5aaac521-52cb-5629-b64a-844de1328acd",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "next": [
+              "7bbedece-38ce-5888-baf8-131fa0ae5077"
+            ]
+          }
+        },
+        {
+          "id": "7bbedece-38ce-5888-baf8-131fa0ae5077",
+          "kind": {
+            "kind": "call",
+            "function": "8b6708b1-8a2d-565b-b39a-1b1044e93129"
+          },
+          "inputs": {},
+          "outputs": {
+            "next": [
+              "ede779ac-ecff-55f8-ae84-8503a69a6a59"
+            ]
+          }
+        },
+        {
+          "id": "f9bd0de9-5547-5559-aacb-253d82b8ac64",
+          "kind": {
+            "kind": "binary",
+            "op": "equal"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "f6bb7bf2-a9d2-52d8-8f59-3592610658a4",
+              "pin": "value.notice"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 32
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "a2e6ecb8-7439-564c-96c2-c484e1953743",
+          "kind": {
+            "kind": "call",
+            "function": "9de9ad62-c0c3-5f49-9f17-036eb3aecaaa"
+          },
+          "inputs": {
+            "key": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 132
+            }
+          },
+          "outputs": {
+            "next": [
+              "bd641602-12d7-5087-a169-50c072c1c72d"
+            ]
+          }
+        },
+        {
+          "id": "bd641602-12d7-5087-a169-50c072c1c72d",
+          "kind": {
+            "kind": "call",
+            "function": "94bf9012-074f-5380-980b-f9845b15c49d"
+          },
+          "inputs": {
+            "value": {
+              "kind": "link",
+              "node": "f6bb7bf2-a9d2-52d8-8f59-3592610658a4",
+              "pin": "value.progress"
+            }
+          },
+          "outputs": {
+            "next": [
+              "eee073bb-d234-5cc7-a3ec-32573069500d"
+            ]
+          }
+        },
+        {
+          "id": "06306d5a-94d9-57a1-a26a-d90b90a341cc",
+          "kind": {
+            "kind": "binary",
+            "op": "equal"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "f6bb7bf2-a9d2-52d8-8f59-3592610658a4",
+              "pin": "value.notice"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 36
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "e4de7c66-dd2b-5e4d-8191-aa3375f8fdfe",
+          "kind": {
+            "kind": "call",
+            "function": "6406da8c-7331-5cb9-98ef-0b11293d1664"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "7b06fe43-6ada-59f6-b09e-95b0d1d0ef8e",
+          "kind": {
+            "kind": "binary",
+            "op": "add"
+          },
+          "inputs": {
+            "a": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 200
+            },
+            "b": {
+              "kind": "link",
+              "node": "e4de7c66-dd2b-5e4d-8191-aa3375f8fdfe",
+              "pin": "value.error"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "a4cb7f9c-6939-5da2-9f14-d055095da578",
+          "kind": {
+            "kind": "call",
+            "function": "9de9ad62-c0c3-5f49-9f17-036eb3aecaaa"
+          },
+          "inputs": {
+            "key": {
+              "kind": "link",
+              "node": "7b06fe43-6ada-59f6-b09e-95b0d1d0ef8e",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "next": [
+              "eee073bb-d234-5cc7-a3ec-32573069500d"
+            ]
+          }
+        },
+        {
+          "id": "101a8986-1417-53ad-b7ff-c9a61dde0bf5",
+          "kind": {
+            "kind": "binary",
+            "op": "greater_equal"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "f6bb7bf2-a9d2-52d8-8f59-3592610658a4",
+              "pin": "value.notice"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 300
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "791364cb-adda-5afd-96dc-4f6c416084b1",
+          "kind": {
+            "kind": "call",
+            "function": "9de9ad62-c0c3-5f49-9f17-036eb3aecaaa"
+          },
+          "inputs": {
+            "key": {
+              "kind": "link",
+              "node": "f6bb7bf2-a9d2-52d8-8f59-3592610658a4",
+              "pin": "value.notice"
+            }
+          },
+          "outputs": {
+            "next": [
+              "eee073bb-d234-5cc7-a3ec-32573069500d"
+            ]
+          }
+        },
+        {
+          "id": "a54c9211-a8ed-543e-8e9d-8520371bcaf5",
+          "kind": {
+            "kind": "binary",
+            "op": "add"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "f6bb7bf2-a9d2-52d8-8f59-3592610658a4",
+              "pin": "value.notice"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 100
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "1fe0681c-dc9a-5703-918a-92c2321b7bb1",
+          "kind": {
+            "kind": "call",
+            "function": "9de9ad62-c0c3-5f49-9f17-036eb3aecaaa"
+          },
+          "inputs": {
+            "key": {
+              "kind": "link",
+              "node": "a54c9211-a8ed-543e-8e9d-8520371bcaf5",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "next": [
+              "eee073bb-d234-5cc7-a3ec-32573069500d"
+            ]
+          }
+        },
+        {
+          "id": "5bfba6e6-e054-5b07-ada6-ab8653ecd0e3",
+          "kind": {
+            "kind": "get_variable",
+            "member": "fe694b08-2c6e-5b4a-b396-4fae95b84ee0"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "eee073bb-d234-5cc7-a3ec-32573069500d",
+          "kind": {
+            "kind": "call",
+            "function": "9eb27bdb-7a1f-5c44-8fc0-0d6b1542976f"
+          },
+          "inputs": {
+            "target": {
+              "kind": "link",
+              "node": "5bfba6e6-e054-5b07-ada6-ab8653ecd0e3",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "next": [
+              "c4b966f0-8bbf-5921-a7c9-3dbf19e91745"
+            ]
+          }
+        },
+        {
+          "id": "c4b966f0-8bbf-5921-a7c9-3dbf19e91745",
+          "kind": {
+            "kind": "call",
+            "function": "8b6708b1-8a2d-565b-b39a-1b1044e93129"
+          },
+          "inputs": {},
+          "outputs": {
+            "next": [
+              "4f299001-0699-5f5f-a1dd-4958506d8815"
+            ]
+          }
+        },
+        {
+          "id": "161dfea1-7a87-5548-99cb-23cd460f77fe",
+          "kind": {
+            "kind": "call",
+            "function": "9de9ad62-c0c3-5f49-9f17-036eb3aecaaa"
+          },
+          "inputs": {
+            "key": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 13
+            }
+          },
+          "outputs": {
+            "next": [
+              "1b178a8f-a3fa-5cb7-9c54-51000d449893"
+            ]
+          }
+        },
+        {
+          "id": "e7bd3033-b6ef-581e-9e3e-59fb94e05646",
+          "kind": {
+            "kind": "call",
+            "function": "9de9ad62-c0c3-5f49-9f17-036eb3aecaaa"
+          },
+          "inputs": {
+            "key": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 11
+            }
+          },
+          "outputs": {
+            "next": [
+              "1b178a8f-a3fa-5cb7-9c54-51000d449893"
+            ]
+          }
+        },
+        {
+          "id": "fc06c810-6b5d-5dbf-b53a-04c9634d8f80",
+          "kind": {
+            "kind": "get_variable",
+            "member": "e840a9b3-99c0-5f9b-9fa5-c42f8ad5a816"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "1b178a8f-a3fa-5cb7-9c54-51000d449893",
+          "kind": {
+            "kind": "call",
+            "function": "9eb27bdb-7a1f-5c44-8fc0-0d6b1542976f"
+          },
+          "inputs": {
+            "target": {
+              "kind": "link",
+              "node": "fc06c810-6b5d-5dbf-b53a-04c9634d8f80",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "next": [
+              "3814ecc1-e661-571d-b67e-ed38d7b47986"
+            ]
+          }
+        },
+        {
+          "id": "3814ecc1-e661-571d-b67e-ed38d7b47986",
+          "kind": {
+            "kind": "return"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "4f299001-0699-5f5f-a1dd-4958506d8815",
+          "kind": {
+            "kind": "branch"
+          },
+          "inputs": {
+            "condition": {
+              "kind": "link",
+              "node": "f6bb7bf2-a9d2-52d8-8f59-3592610658a4",
+              "pin": "value.busy"
+            }
+          },
+          "outputs": {
+            "true": [
+              "161dfea1-7a87-5548-99cb-23cd460f77fe"
+            ],
+            "false": [
+              "e7bd3033-b6ef-581e-9e3e-59fb94e05646"
+            ]
+          }
+        },
+        {
+          "id": "ede779ac-ecff-55f8-ae84-8503a69a6a59",
+          "kind": {
+            "kind": "branch"
+          },
+          "inputs": {
+            "condition": {
+              "kind": "link",
+              "node": "f9bd0de9-5547-5559-aacb-253d82b8ac64",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "true": [
+              "a2e6ecb8-7439-564c-96c2-c484e1953743"
+            ],
+            "false": [
+              "075c63a9-3302-5f79-a197-4a5bc78d51d0"
+            ]
+          }
+        },
+        {
+          "id": "075c63a9-3302-5f79-a197-4a5bc78d51d0",
+          "kind": {
+            "kind": "branch"
+          },
+          "inputs": {
+            "condition": {
+              "kind": "link",
+              "node": "06306d5a-94d9-57a1-a26a-d90b90a341cc",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "true": [
+              "a4cb7f9c-6939-5da2-9f14-d055095da578"
+            ],
+            "false": [
+              "bc0c9d01-2274-51ee-8c2c-6afd936af5ce"
+            ]
+          }
+        },
+        {
+          "id": "bc0c9d01-2274-51ee-8c2c-6afd936af5ce",
+          "kind": {
+            "kind": "branch"
+          },
+          "inputs": {
+            "condition": {
+              "kind": "link",
+              "node": "101a8986-1417-53ad-b7ff-c9a61dde0bf5",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "true": [
+              "791364cb-adda-5afd-96dc-4f6c416084b1"
+            ],
+            "false": [
+              "1fe0681c-dc9a-5703-918a-92c2321b7bb1"
+            ]
+          }
+        },
+        {
+          "id": "35cb6205-b261-5393-b39e-009bb44fe367",
+          "kind": {
+            "kind": "branch"
+          },
+          "inputs": {
+            "condition": {
+              "kind": "link",
+              "node": "fc3be5e8-f184-5a7a-9e62-268b655862a4",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "true": [
+              "0530b4cf-7377-55c6-a2ad-711e17bf24a4"
+            ],
+            "false": [
+              "eb661499-7c43-5bda-9f06-35df046da97d"
+            ]
+          }
+        },
+        {
+          "id": "02dd9236-af80-5156-9b0f-82a30f7bf97d",
+          "kind": {
+            "kind": "branch"
+          },
+          "inputs": {
+            "condition": {
+              "kind": "link",
+              "node": "a6beefca-6268-5d56-9413-98648001a239",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "true": [
+              "abadd24a-d87d-5100-a61a-7475221597e6"
+            ],
+            "false": [
+              "dce49320-be9d-59c0-9e23-6f2e779e6dc7"
+            ]
+          }
+        },
+        {
+          "id": "3b1e180e-46d4-5782-b8ba-a882c0c12b1c",
+          "kind": {
+            "kind": "branch"
+          },
+          "inputs": {
+            "condition": {
+              "kind": "link",
+              "node": "2b99aa52-07d9-57f7-b8e8-f05c4c1f7399",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "true": [
+              "91292e32-12d3-57ec-8ba5-ccf1f50d4805"
+            ],
+            "false": [
+              "8d6bee9c-4500-594f-9e4e-130519a6d013"
+            ]
+          }
+        },
+        {
+          "id": "be76db4f-355f-5b4f-ad6c-63ef340f9146",
+          "kind": {
+            "kind": "branch"
+          },
+          "inputs": {
+            "condition": {
+              "kind": "link",
+              "node": "42514f84-5b6c-5e38-b794-519dad53e903",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "true": [
+              "80b2fbb4-e060-5327-8acd-7cafa3799056"
+            ],
+            "false": [
+              "47285084-ef62-5a98-805d-35f5de339704"
+            ]
+          }
+        },
+        {
+          "id": "4d6a8007-0412-5778-aeb2-e76e9f2530d9",
+          "kind": {
+            "kind": "branch"
+          },
+          "inputs": {
+            "condition": {
+              "kind": "link",
+              "node": "14c6b1b4-6327-5449-9543-6432a8ef021c",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "true": [
+              "f6468dcb-1175-5179-a798-7fc52a45af40"
+            ],
+            "false": [
+              "a9b59b88-d414-5e5a-8b4d-740bfa841ba4"
+            ]
+          }
+        },
+        {
+          "id": "b724da7f-2f97-5c67-8798-e4ab33be2556",
+          "kind": {
+            "kind": "branch"
+          },
+          "inputs": {
+            "condition": {
+              "kind": "link",
+              "node": "cdd86968-7e95-5563-8f92-52ad47832c81",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "true": [
+              "669e28b8-6dd3-524c-b4ec-5658f9a8be3d"
+            ],
+            "false": [
+              "6b999c1c-9a2d-5417-bded-0ba244020b22"
+            ]
+          }
+        },
+        {
+          "id": "f4a062fe-27ad-53dd-9c4e-e1c78b63f9d5",
+          "kind": {
+            "kind": "branch"
+          },
+          "inputs": {
+            "condition": {
+              "kind": "link",
+              "node": "75091321-28e9-5eab-82e3-0990cf2e3e8e",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "true": [
+              "7979442a-94cf-56dc-9295-3881bcda98ed"
+            ],
+            "false": [
+              "17624204-bfea-57f0-b56d-389410be4b6d"
+            ]
+          }
+        },
+        {
+          "id": "e3ba130e-ab31-530e-93ec-1c6dcc4f21df",
+          "kind": {
+            "kind": "branch"
+          },
+          "inputs": {
+            "condition": {
+              "kind": "link",
+              "node": "fa4a1702-a8ce-5266-a746-b8e04de2fb40",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "true": [
+              "b16998ea-b0de-532f-b9bf-6259bcac2530"
+            ],
+            "false": [
+              "430833a7-be74-5824-a379-e0f8c42d1df5"
+            ]
+          }
+        },
+        {
+          "id": "2567988a-3c36-5a53-bcad-939accfc0fbf",
+          "kind": {
+            "kind": "entry"
+          },
+          "inputs": {},
+          "outputs": {
+            "next": [
+              "a723288e-ceda-5f72-92b3-596961c9d79d"
+            ]
+          }
+        }
+      ],
+      "override_id": "a9e154fc-dc48-5161-9000-50a0bdb6a912"
+    },
+    {
+      "id": "2cfeaab0-b547-5084-86cb-feecd6087a4a",
+      "name": "row",
+      "parameters": [
+        {
+          "name": "index",
+          "value_type": {
+            "kind": "uint32"
+          },
+          "direction": "value"
+        }
+      ],
+      "returns": {
+        "kind": "void"
+      },
+      "entry": "f482005a-f4d8-55b1-bc19-34de609b4788",
+      "nodes": [
+        {
+          "id": "413b586a-0f99-54e4-b18d-edf7ec82181d",
+          "kind": {
+            "kind": "binary",
+            "op": "equal"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "f482005a-f4d8-55b1-bc19-34de609b4788",
+              "pin": "index"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 0
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "637421fc-d839-5647-a2bb-ab6093aa3ab2",
+          "kind": {
+            "kind": "call",
+            "function": "9de9ad62-c0c3-5f49-9f17-036eb3aecaaa"
+          },
+          "inputs": {
+            "key": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 23
+            }
+          },
+          "outputs": {
+            "next": [
+              "8cc59bbb-78ba-5af5-a050-7d972a0d676d"
+            ]
+          }
+        },
+        {
+          "id": "8cc59bbb-78ba-5af5-a050-7d972a0d676d",
+          "kind": {
+            "kind": "return"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "df58cadf-758b-5a1a-ab1c-57ee07a9b68e",
+          "kind": {
+            "kind": "binary",
+            "op": "equal"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "f482005a-f4d8-55b1-bc19-34de609b4788",
+              "pin": "index"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 1
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "50fd8a9e-4e8b-5cfb-9e54-1ec051a3671f",
+          "kind": {
+            "kind": "call",
+            "function": "9de9ad62-c0c3-5f49-9f17-036eb3aecaaa"
+          },
+          "inputs": {
+            "key": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 24
+            }
+          },
+          "outputs": {
+            "next": [
+              "7d9016cc-0784-5df5-8cfa-c7a7022db893"
+            ]
+          }
+        },
+        {
+          "id": "92dda3be-57a6-5ea8-baa2-7d8e8e0ae457",
+          "kind": {
+            "kind": "call",
+            "function": "c200141c-7f9f-5938-a009-6add47fe257d"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "7d9016cc-0784-5df5-8cfa-c7a7022db893",
+          "kind": {
+            "kind": "call",
+            "function": "94bf9012-074f-5380-980b-f9845b15c49d"
+          },
+          "inputs": {
+            "value": {
+              "kind": "link",
+              "node": "92dda3be-57a6-5ea8-baa2-7d8e8e0ae457",
+              "pin": "value.medkit_heal"
+            }
+          },
+          "outputs": {
+            "next": [
+              "360e4591-79f8-5c08-8983-bd9a22a0b56a"
+            ]
+          }
+        },
+        {
+          "id": "360e4591-79f8-5c08-8983-bd9a22a0b56a",
+          "kind": {
+            "kind": "call",
+            "function": "9de9ad62-c0c3-5f49-9f17-036eb3aecaaa"
+          },
+          "inputs": {
+            "key": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 25
+            }
+          },
+          "outputs": {
+            "next": [
+              "652e3f36-7520-512c-8c0f-3e8d8c3d41a2"
+            ]
+          }
+        },
+        {
+          "id": "14c00289-caee-5608-825d-a39ddadc24ed",
+          "kind": {
+            "kind": "get_variable",
+            "member": "878408b5-1538-5ea8-a70b-06a8ee81236e"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "ec900c78-9f26-5e6e-a901-c4494fde9dfb",
+          "kind": {
+            "kind": "call",
+            "function": "c8ac3f8a-d4b3-5ab1-ad27-2d9043ba4e2f"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "ccb69b1a-f73f-59fa-919b-22cf94b4d630",
+          "kind": {
+            "kind": "call_on",
+            "class": "be00ccfe-646f-57fd-b648-c3b69651b082",
+            "function": "c71c5465-1aff-579e-9c2a-1680fc6f11a1"
+          },
+          "inputs": {
+            "__target": {
+              "kind": "link",
+              "node": "14c00289-caee-5608-825d-a39ddadc24ed",
+              "pin": "value"
+            },
+            "value": {
+              "kind": "link",
+              "node": "ec900c78-9f26-5e6e-a901-c4494fde9dfb",
+              "pin": "value"
+            },
+            "item": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 0
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "652e3f36-7520-512c-8c0f-3e8d8c3d41a2",
+          "kind": {
+            "kind": "call",
+            "function": "94bf9012-074f-5380-980b-f9845b15c49d"
+          },
+          "inputs": {
+            "value": {
+              "kind": "link",
+              "node": "ccb69b1a-f73f-59fa-919b-22cf94b4d630",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "next": [
+              "406084d2-c8fa-51e4-99b3-c5f96671bd4c"
+            ]
+          }
+        },
+        {
+          "id": "406084d2-c8fa-51e4-99b3-c5f96671bd4c",
+          "kind": {
+            "kind": "call",
+            "function": "9de9ad62-c0c3-5f49-9f17-036eb3aecaaa"
+          },
+          "inputs": {
+            "key": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 26
+            }
+          },
+          "outputs": {
+            "next": [
+              "6aeb1b5f-4034-5ceb-bf3a-c92268324296"
+            ]
+          }
+        },
+        {
+          "id": "6aeb1b5f-4034-5ceb-bf3a-c92268324296",
+          "kind": {
+            "kind": "return"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "6c2330a0-9788-517d-b4f9-565651f634e3",
+          "kind": {
+            "kind": "binary",
+            "op": "equal"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "f482005a-f4d8-55b1-bc19-34de609b4788",
+              "pin": "index"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 2
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "0be2041c-1349-5eb2-9d69-4f9019367061",
+          "kind": {
+            "kind": "call",
+            "function": "9de9ad62-c0c3-5f49-9f17-036eb3aecaaa"
+          },
+          "inputs": {
+            "key": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 27
+            }
+          },
+          "outputs": {
+            "next": [
+              "97500a7b-14e6-5179-892d-900675ccc7eb"
+            ]
+          }
+        },
+        {
+          "id": "7f95fddd-ca1d-5880-8875-9e5ab2ba6df5",
+          "kind": {
+            "kind": "call",
+            "function": "c8ac3f8a-d4b3-5ab1-ad27-2d9043ba4e2f"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "0c50fbe1-975a-540d-bb9f-f672e7082e80",
+          "kind": {
+            "kind": "call_on",
+            "class": "be00ccfe-646f-57fd-b648-c3b69651b082",
+            "function": "c71c5465-1aff-579e-9c2a-1680fc6f11a1"
+          },
+          "inputs": {
+            "__target": {
+              "kind": "link",
+              "node": "14c00289-caee-5608-825d-a39ddadc24ed",
+              "pin": "value"
+            },
+            "value": {
+              "kind": "link",
+              "node": "7f95fddd-ca1d-5880-8875-9e5ab2ba6df5",
+              "pin": "value"
+            },
+            "item": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 1
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "97500a7b-14e6-5179-892d-900675ccc7eb",
+          "kind": {
+            "kind": "call",
+            "function": "94bf9012-074f-5380-980b-f9845b15c49d"
+          },
+          "inputs": {
+            "value": {
+              "kind": "link",
+              "node": "0c50fbe1-975a-540d-bb9f-f672e7082e80",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "next": [
+              "d7536868-e107-5a5f-9a2f-742d6440a996"
+            ]
+          }
+        },
+        {
+          "id": "d7536868-e107-5a5f-9a2f-742d6440a996",
+          "kind": {
+            "kind": "call",
+            "function": "9de9ad62-c0c3-5f49-9f17-036eb3aecaaa"
+          },
+          "inputs": {
+            "key": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 26
+            }
+          },
+          "outputs": {
+            "next": [
+              "f79899e0-ea35-5cc2-a9f2-1345fb73346e"
+            ]
+          }
+        },
+        {
+          "id": "f79899e0-ea35-5cc2-a9f2-1345fb73346e",
+          "kind": {
+            "kind": "return"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "01aaea36-e754-5523-95f9-45a29859827e",
+          "kind": {
+            "kind": "binary",
+            "op": "equal"
+          },
+          "inputs": {
+            "a": {
+              "kind": "link",
+              "node": "f482005a-f4d8-55b1-bc19-34de609b4788",
+              "pin": "index"
+            },
+            "b": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 3
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "bd505401-e0f2-5075-998c-5550d9b3b532",
+          "kind": {
+            "kind": "call",
+            "function": "9de9ad62-c0c3-5f49-9f17-036eb3aecaaa"
+          },
+          "inputs": {
+            "key": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 28
+            }
+          },
+          "outputs": {
+            "next": [
+              "447080fc-3e6d-50a2-aac2-c95b81e678a2"
+            ]
+          }
+        },
+        {
+          "id": "b3e4e1d2-c7b3-5779-affd-a60c2fcc48b6",
+          "kind": {
+            "kind": "call",
+            "function": "c200141c-7f9f-5938-a009-6add47fe257d"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "447080fc-3e6d-50a2-aac2-c95b81e678a2",
+          "kind": {
+            "kind": "call",
+            "function": "94bf9012-074f-5380-980b-f9845b15c49d"
+          },
+          "inputs": {
+            "value": {
+              "kind": "link",
+              "node": "b3e4e1d2-c7b3-5779-affd-a60c2fcc48b6",
+              "pin": "value.buster_damage"
+            }
+          },
+          "outputs": {
+            "next": [
+              "c2f26d3d-0d28-5def-a9e1-b302ffb4c027"
+            ]
+          }
+        },
+        {
+          "id": "c2f26d3d-0d28-5def-a9e1-b302ffb4c027",
+          "kind": {
+            "kind": "call",
+            "function": "9de9ad62-c0c3-5f49-9f17-036eb3aecaaa"
+          },
+          "inputs": {
+            "key": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 29
+            }
+          },
+          "outputs": {
+            "next": [
+              "d71a75ce-6891-50e8-a108-34282e9ddb15"
+            ]
+          }
+        },
+        {
+          "id": "d3ab1ffd-2e85-5860-9ecb-b53edeafcfe8",
+          "kind": {
+            "kind": "call",
+            "function": "c8ac3f8a-d4b3-5ab1-ad27-2d9043ba4e2f"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "a4a4ab2a-f4ed-549f-93cc-c177a33a4a67",
+          "kind": {
+            "kind": "call_on",
+            "class": "be00ccfe-646f-57fd-b648-c3b69651b082",
+            "function": "c71c5465-1aff-579e-9c2a-1680fc6f11a1"
+          },
+          "inputs": {
+            "__target": {
+              "kind": "link",
+              "node": "14c00289-caee-5608-825d-a39ddadc24ed",
+              "pin": "value"
+            },
+            "value": {
+              "kind": "link",
+              "node": "d3ab1ffd-2e85-5860-9ecb-b53edeafcfe8",
+              "pin": "value"
+            },
+            "item": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 2
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "d71a75ce-6891-50e8-a108-34282e9ddb15",
+          "kind": {
+            "kind": "call",
+            "function": "94bf9012-074f-5380-980b-f9845b15c49d"
+          },
+          "inputs": {
+            "value": {
+              "kind": "link",
+              "node": "a4a4ab2a-f4ed-549f-93cc-c177a33a4a67",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "next": [
+              "aaf172d9-919f-5441-9242-836791a513db"
+            ]
+          }
+        },
+        {
+          "id": "aaf172d9-919f-5441-9242-836791a513db",
+          "kind": {
+            "kind": "call",
+            "function": "9de9ad62-c0c3-5f49-9f17-036eb3aecaaa"
+          },
+          "inputs": {
+            "key": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 26
+            }
+          },
+          "outputs": {
+            "next": [
+              "69920de3-cb86-5e76-a1a1-95f961146f4e"
+            ]
+          }
+        },
+        {
+          "id": "69920de3-cb86-5e76-a1a1-95f961146f4e",
+          "kind": {
+            "kind": "return"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "56534c38-4231-5fad-afc7-9ab9639afb50",
+          "kind": {
+            "kind": "call",
+            "function": "9de9ad62-c0c3-5f49-9f17-036eb3aecaaa"
+          },
+          "inputs": {
+            "key": {
+              "kind": "literal",
+              "value_type": {
+                "kind": "uint32"
+              },
+              "value": 22
+            }
+          },
+          "outputs": {
+            "next": [
+              "eb293653-5f7a-5b42-a472-28f23782c59c"
+            ]
+          }
+        },
+        {
+          "id": "eb293653-5f7a-5b42-a472-28f23782c59c",
+          "kind": {
+            "kind": "return"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "1c49f4e9-b911-57b9-a107-7dfb7509be1d",
+          "kind": {
+            "kind": "branch"
+          },
+          "inputs": {
+            "condition": {
+              "kind": "link",
+              "node": "01aaea36-e754-5523-95f9-45a29859827e",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "true": [
+              "bd505401-e0f2-5075-998c-5550d9b3b532"
+            ],
+            "false": [
+              "56534c38-4231-5fad-afc7-9ab9639afb50"
+            ]
+          }
+        },
+        {
+          "id": "e89cfc36-2f14-576f-a4c4-ac54513ffa19",
+          "kind": {
+            "kind": "branch"
+          },
+          "inputs": {
+            "condition": {
+              "kind": "link",
+              "node": "6c2330a0-9788-517d-b4f9-565651f634e3",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "true": [
+              "0be2041c-1349-5eb2-9d69-4f9019367061"
+            ],
+            "false": [
+              "1c49f4e9-b911-57b9-a107-7dfb7509be1d"
+            ]
+          }
+        },
+        {
+          "id": "1b902bed-5fd5-517a-ba36-2004febf085b",
+          "kind": {
+            "kind": "branch"
+          },
+          "inputs": {
+            "condition": {
+              "kind": "link",
+              "node": "df58cadf-758b-5a1a-ab1c-57ee07a9b68e",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "true": [
+              "50fd8a9e-4e8b-5cfb-9e54-1ec051a3671f"
+            ],
+            "false": [
+              "e89cfc36-2f14-576f-a4c4-ac54513ffa19"
+            ]
+          }
+        },
+        {
+          "id": "d98020d4-a5c0-5108-a193-7b012334869b",
+          "kind": {
+            "kind": "branch"
+          },
+          "inputs": {
+            "condition": {
+              "kind": "link",
+              "node": "413b586a-0f99-54e4-b18d-edf7ec82181d",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "true": [
+              "637421fc-d839-5647-a2bb-ab6093aa3ab2"
+            ],
+            "false": [
+              "1b902bed-5fd5-517a-ba36-2004febf085b"
+            ]
+          }
+        },
+        {
+          "id": "f482005a-f4d8-55b1-bc19-34de609b4788",
+          "kind": {
+            "kind": "entry"
+          },
+          "inputs": {},
+          "outputs": {
+            "next": [
+              "d98020d4-a5c0-5108-a193-7b012334869b"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "b3eff287-e36d-5639-86f0-b88510cb4002",
+      "name": "begin_play",
+      "override_id": "cpp:c:@N@epok@S@Actor@F@begin_play#",
+      "parameters": [],
+      "returns": {
+        "kind": "void"
+      },
+      "entry": "53bad117-a0c4-5582-a7a8-22b782d897c0",
+      "nodes": [
+        {
+          "id": "53bad117-a0c4-5582-a7a8-22b782d897c0",
+          "kind": {
+            "kind": "entry"
+          },
+          "inputs": {},
+          "outputs": {
+            "next": [
+              "0b27799c-126b-5825-bd4d-4ea0f097a6f3"
+            ]
+          }
+        },
+        {
+          "id": "46283a52-6537-575a-aba4-13f4018bbd66",
+          "kind": {
+            "kind": "call",
+            "function": "6c1ae93e-b65b-5397-97d4-c76d4025f73d"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "0b27799c-126b-5825-bd4d-4ea0f097a6f3",
+          "kind": {
+            "kind": "branch"
+          },
+          "inputs": {
+            "condition": {
+              "kind": "link",
+              "node": "46283a52-6537-575a-aba4-13f4018bbd66",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "true": [
+              "df460ef1-d487-56a9-a4c3-3563b1f08dd0"
+            ],
+            "false": [
+              "65b63fd7-f5ef-5799-9922-34e13d1d2c23"
+            ]
+          }
+        },
+        {
+          "id": "842802f1-fce7-5411-a606-dfa37bde664d",
+          "kind": {
+            "kind": "call",
+            "function": "e103261c-e598-51f0-a766-84d6f2fa627e"
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "6d75367e-333f-5096-91ef-e5ad307d6797",
+          "kind": {
+            "kind": "builtin",
+            "operation": {
+              "kind": "is_valid"
+            }
+          },
+          "inputs": {
+            "target": {
+              "kind": "link",
+              "node": "842802f1-fce7-5411-a606-dfa37bde664d",
+              "pin": "value"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "df460ef1-d487-56a9-a4c3-3563b1f08dd0",
+          "kind": {
+            "kind": "branch"
+          },
+          "inputs": {
+            "condition": {
+              "kind": "link",
+              "node": "6d75367e-333f-5096-91ef-e5ad307d6797",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "true": [
+              "1ed354b4-ce78-5f27-a2dd-3889e7e0fe2b"
+            ],
+            "false": [
+              "af01c124-72d9-56e6-9b8f-485b3c590a40"
+            ]
+          }
+        },
+        {
+          "id": "aaf0d5ee-5ed4-525a-88a8-658793cc4985",
+          "kind": {
+            "kind": "builtin",
+            "operation": {
+              "kind": "cast",
+              "class": "2d29ee04-9738-5493-beff-dc81ada513e3"
+            }
+          },
+          "inputs": {
+            "target": {
+              "kind": "link",
+              "node": "842802f1-fce7-5411-a606-dfa37bde664d",
+              "pin": "value"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "a5273f15-35be-5020-b6f3-ec0fcddc0499",
+          "kind": {
+            "kind": "builtin",
+            "operation": {
+              "kind": "is_valid"
+            }
+          },
+          "inputs": {
+            "target": {
+              "kind": "link",
+              "node": "aaf0d5ee-5ed4-525a-88a8-658793cc4985",
+              "pin": "value"
+            }
+          },
+          "outputs": {}
+        },
+        {
+          "id": "3d80404d-8065-579a-8dcb-96ae2f031a87",
+          "kind": {
+            "kind": "builtin",
+            "operation": {
+              "kind": "self_object"
+            }
+          },
+          "inputs": {},
+          "outputs": {}
+        },
+        {
+          "id": "1ed354b4-ce78-5f27-a2dd-3889e7e0fe2b",
+          "kind": {
+            "kind": "branch"
+          },
+          "inputs": {
+            "condition": {
+              "kind": "link",
+              "node": "a5273f15-35be-5020-b6f3-ec0fcddc0499",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "true": [
+              "a6107432-e197-52ed-8858-0decd23cbfc3"
+            ],
+            "false": [
+              "65b63fd7-f5ef-5799-9922-34e13d1d2c23"
+            ]
+          }
+        },
+        {
+          "id": "a6107432-e197-52ed-8858-0decd23cbfc3",
+          "kind": {
+            "kind": "call_on",
+            "class": "2d29ee04-9738-5493-beff-dc81ada513e3",
+            "function": "f5a64097-edf0-50d1-bfa0-b7e784644969"
+          },
+          "inputs": {
+            "__target": {
+              "kind": "link",
+              "node": "aaf0d5ee-5ed4-525a-88a8-658793cc4985",
+              "pin": "value"
+            },
+            "candidate": {
+              "kind": "link",
+              "node": "3d80404d-8065-579a-8dcb-96ae2f031a87",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "next": [
+              "fe848ad3-264c-5b55-a5a0-633a21717fc2"
+            ]
+          }
+        },
+        {
+          "id": "fe848ad3-264c-5b55-a5a0-633a21717fc2",
+          "kind": {
+            "kind": "branch"
+          },
+          "inputs": {
+            "condition": {
+              "kind": "link",
+              "node": "a6107432-e197-52ed-8858-0decd23cbfc3",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "true": [
+              "65b63fd7-f5ef-5799-9922-34e13d1d2c23"
+            ],
+            "false": [
+              "af01c124-72d9-56e6-9b8f-485b3c590a40"
+            ]
+          }
+        },
+        {
+          "id": "af01c124-72d9-56e6-9b8f-485b3c590a40",
+          "kind": {
+            "kind": "builtin",
+            "operation": {
+              "kind": "destroy_actor"
+            }
+          },
+          "inputs": {
+            "target": {
+              "kind": "link",
+              "node": "3d80404d-8065-579a-8dcb-96ae2f031a87",
+              "pin": "value"
+            }
+          },
+          "outputs": {
+            "next": [
+              "65b63fd7-f5ef-5799-9922-34e13d1d2c23"
+            ]
+          }
+        },
+        {
+          "id": "65b63fd7-f5ef-5799-9922-34e13d1d2c23",
+          "kind": {
+            "kind": "return"
+          },
+          "inputs": {},
+          "outputs": {}
+        }
+      ]
+    }
+  ],
+  "template": {
+    "actors": [
+      {
+        "entity": {
+          "id": "c29504c3-4c5f-5276-9633-616c84239e0a",
+          "name": "DungeonShopWidget",
+          "class": {
+            "name": "DungeonShopWidget",
+            "class_id": "733195d2-87b9-5164-b675-53372b0a569c"
+          },
+          "active": true,
+          "properties": {
+            "title": "7f3e6945-405b-559b-905a-77d92904899b",
+            "summary": "1071672f-43aa-52b6-8182-914a7934c811",
+            "body": "9c741e0f-ca91-5c46-9701-31cc8231387d",
+            "status": "22a22f6e-458d-5ff3-8bfb-b36a8c626432",
+            "footer": "f4e7267e-6bb5-5585-975f-f0b98925ad95"
+          },
+          "overrides": [
+            "title",
+            "summary",
+            "body",
+            "status",
+            "footer"
+          ],
+          "components": [
+            {
+              "id": "a9570688-cc28-59ae-862a-da68bc982521",
+              "name": "rect",
+              "class": {
+                "name": "epok::RectTransformComponent",
+                "class_id": "dc805165-6c65-48dc-8ff8-4a638a5d21df"
+              },
+              "properties": {
+                "rect": {
+                  "anchor_min": [
+                    0,
+                    1
+                  ],
+                  "anchor_max": [
+                    0,
+                    1
+                  ],
+                  "pivot": [
+                    0,
+                    1
+                  ],
+                  "position": [
+                    16,
+                    -16
+                  ],
+                  "size": [
+                    288,
+                    202
+                  ],
+                  "rotation": 0
+                }
+              },
+              "overrides": [
+                "rect"
+              ],
+              "default_id": "cpp:c:@N@epok@S@UIActor@FI@root",
+              "inherited": true,
+              "root": true
+            },
+            {
+              "id": "00c3f355-3d6d-58aa-881d-fe67ea15cccf",
+              "name": "canvas",
+              "class": {
+                "name": "epok::CanvasComponent",
+                "class_id": "f2cfb26b-af53-4a46-9d91-1debea72e01b"
+              },
+              "properties": {
+                "canvas": {
+                  "enabled": true,
+                  "focused": -1
+                }
+              },
+              "overrides": [
+                "canvas"
+              ],
+              "default_id": "cde964b9-f692-503b-8432-0d7b529d68af",
+              "inherited": true
+            },
+            {
+              "id": "12d7f6a3-3698-51b9-8d3d-3d88e5c74e7b",
+              "name": "panel",
+              "class": {
+                "name": "epok::ImageComponent",
+                "class_id": "d04c78d6-23bd-40d7-88f1-b1afc1b05b5b"
+              },
+              "properties": {
+                "image": {
+                  "enabled": true,
+                  "texture": null,
+                  "color": [
+                    0.02,
+                    0.06,
+                    0.09
+                  ],
+                  "region": [
+                    0,
+                    0,
+                    0,
+                    0
+                  ],
+                  "borders": [
+                    0,
+                    0,
+                    0,
+                    0
+                  ],
+                  "tiling": "none"
+                }
+              },
+              "overrides": [
+                "image"
+              ],
+              "default_id": "f6358d36-4e58-576f-9dcf-c39468a69b52",
+              "inherited": true
+            }
+          ]
+        },
+        "parent": null
+      },
+      {
+        "entity": {
+          "id": "2ed47722-bd16-52a4-ad2c-b50b7630710e",
+          "name": "title",
+          "class": {
+            "name": "epok::UIActor",
+            "class_id": "b09bd2fa-8b09-4c0f-a33a-c3ca08b21d8f"
+          },
+          "active": true,
+          "properties": {},
+          "overrides": [],
+          "logical_parent": "c29504c3-4c5f-5276-9633-616c84239e0a",
+          "attach": {
+            "actor": "c29504c3-4c5f-5276-9633-616c84239e0a"
+          },
+          "components": [
+            {
+              "id": "25e01e82-9971-584a-8e1e-75d43dbed726",
+              "name": "rect/title",
+              "class": {
+                "name": "epok::RectTransformComponent",
+                "class_id": "dc805165-6c65-48dc-8ff8-4a638a5d21df"
+              },
+              "properties": {
+                "rect": {
+                  "anchor_min": [
+                    0,
+                    1
+                  ],
+                  "anchor_max": [
+                    0,
+                    1
+                  ],
+                  "pivot": [
+                    0,
+                    1
+                  ],
+                  "position": [
+                    12,
+                    -12
+                  ],
+                  "size": [
+                    266,
+                    12
+                  ],
+                  "rotation": 0
+                }
+              },
+              "overrides": [
+                "rect"
+              ],
+              "default_id": "cpp:c:@N@epok@S@UIActor@FI@root",
+              "inherited": true,
+              "root": true
+            },
+            {
+              "id": "7f3e6945-405b-559b-905a-77d92904899b",
+              "name": "title",
+              "class": {
+                "name": "epok::TextComponent",
+                "class_id": "fd7f11d1-7ccf-40e8-a7ea-56d89deb3f34"
+              },
+              "properties": {
+                "text": {
+                  "enabled": true,
+                  "text": "ASTEROID EXCHANGE",
+                  "font": "48ebb451-2bda-423f-8957-2cda25eae5d3",
+                  "align": "left",
+                  "wrap": false,
+                  "color": [
+                    0.45098039215686275,
+                    1,
+                    0.8313725490196079
+                  ]
+                }
+              },
+              "overrides": [
+                "text"
+              ]
+            }
+          ]
+        },
+        "parent": "c29504c3-4c5f-5276-9633-616c84239e0a"
+      },
+      {
+        "entity": {
+          "id": "1a11d80c-00a1-53ba-bd8f-e2d064e47d47",
+          "name": "summary",
+          "class": {
+            "name": "epok::UIActor",
+            "class_id": "b09bd2fa-8b09-4c0f-a33a-c3ca08b21d8f"
+          },
+          "active": true,
+          "properties": {},
+          "overrides": [],
+          "logical_parent": "c29504c3-4c5f-5276-9633-616c84239e0a",
+          "attach": {
+            "actor": "c29504c3-4c5f-5276-9633-616c84239e0a"
+          },
+          "components": [
+            {
+              "id": "135a8581-3643-563f-96b1-84f937a24c14",
+              "name": "rect/summary",
+              "class": {
+                "name": "epok::RectTransformComponent",
+                "class_id": "dc805165-6c65-48dc-8ff8-4a638a5d21df"
+              },
+              "properties": {
+                "rect": {
+                  "anchor_min": [
+                    0,
+                    1
+                  ],
+                  "anchor_max": [
+                    0,
+                    1
+                  ],
+                  "pivot": [
+                    0,
+                    1
+                  ],
+                  "position": [
+                    12,
+                    -30
+                  ],
+                  "size": [
+                    266,
+                    12
+                  ],
+                  "rotation": 0
+                }
+              },
+              "overrides": [
+                "rect"
+              ],
+              "default_id": "cpp:c:@N@epok@S@UIActor@FI@root",
+              "inherited": true,
+              "root": true
+            },
+            {
+              "id": "1071672f-43aa-52b6-8182-914a7934c811",
+              "name": "summary",
+              "class": {
+                "name": "epok::TextComponent",
+                "class_id": "fd7f11d1-7ccf-40e8-a7ea-56d89deb3f34"
+              },
+              "properties": {
+                "text": {
+                  "enabled": true,
+                  "text": "ORE0   CREDITS0",
+                  "font": "48ebb451-2bda-423f-8957-2cda25eae5d3",
+                  "align": "left",
+                  "wrap": false,
+                  "color": [
+                    1,
+                    0.788235294117647,
+                    0.38823529411764707
+                  ]
+                }
+              },
+              "overrides": [
+                "text"
+              ]
+            }
+          ]
+        },
+        "parent": "c29504c3-4c5f-5276-9633-616c84239e0a"
+      },
+      {
+        "entity": {
+          "id": "67a6dda7-79aa-55a7-bde8-91a7b0987dca",
+          "name": "body",
+          "class": {
+            "name": "epok::UIActor",
+            "class_id": "b09bd2fa-8b09-4c0f-a33a-c3ca08b21d8f"
+          },
+          "active": true,
+          "properties": {},
+          "overrides": [],
+          "logical_parent": "c29504c3-4c5f-5276-9633-616c84239e0a",
+          "attach": {
+            "actor": "c29504c3-4c5f-5276-9633-616c84239e0a"
+          },
+          "components": [
+            {
+              "id": "cfc2231b-2031-55bd-a122-3755933771cf",
+              "name": "rect/body",
+              "class": {
+                "name": "epok::RectTransformComponent",
+                "class_id": "dc805165-6c65-48dc-8ff8-4a638a5d21df"
+              },
+              "properties": {
+                "rect": {
+                  "anchor_min": [
+                    0,
+                    1
+                  ],
+                  "anchor_max": [
+                    0,
+                    1
+                  ],
+                  "pivot": [
+                    0,
+                    1
+                  ],
+                  "position": [
+                    12,
+                    -53
+                  ],
+                  "size": [
+                    266,
+                    100
+                  ],
+                  "rotation": 0
+                }
+              },
+              "overrides": [
+                "rect"
+              ],
+              "default_id": "cpp:c:@N@epok@S@UIActor@FI@root",
+              "inherited": true,
+              "root": true
+            },
+            {
+              "id": "9c741e0f-ca91-5c46-9701-31cc8231387d",
+              "name": "body",
+              "class": {
+                "name": "epok::TextComponent",
+                "class_id": "fd7f11d1-7ccf-40e8-a7ea-56d89deb3f34"
+              },
+              "properties": {
+                "text": {
+                  "enabled": true,
+                  "text": "> Sell all asteroids\n  Medkit\n  Energy tank\n  Buster\n  Load save",
+                  "font": "48ebb451-2bda-423f-8957-2cda25eae5d3",
+                  "align": "left",
+                  "wrap": false,
+                  "color": [
+                    0.7450980392156863,
+                    0.8823529411764706,
+                    0.9215686274509803
+                  ]
+                }
+              },
+              "overrides": [
+                "text"
+              ]
+            }
+          ]
+        },
+        "parent": "c29504c3-4c5f-5276-9633-616c84239e0a"
+      },
+      {
+        "entity": {
+          "id": "c583f428-2fdf-5ff6-8804-3c8deb140aee",
+          "name": "status",
+          "class": {
+            "name": "epok::UIActor",
+            "class_id": "b09bd2fa-8b09-4c0f-a33a-c3ca08b21d8f"
+          },
+          "active": true,
+          "properties": {},
+          "overrides": [],
+          "logical_parent": "c29504c3-4c5f-5276-9633-616c84239e0a",
+          "attach": {
+            "actor": "c29504c3-4c5f-5276-9633-616c84239e0a"
+          },
+          "components": [
+            {
+              "id": "f64dbb15-335f-53cb-bbf0-a1099e11135d",
+              "name": "rect/status",
+              "class": {
+                "name": "epok::RectTransformComponent",
+                "class_id": "dc805165-6c65-48dc-8ff8-4a638a5d21df"
+              },
+              "properties": {
+                "rect": {
+                  "anchor_min": [
+                    0,
+                    1
+                  ],
+                  "anchor_max": [
+                    0,
+                    1
+                  ],
+                  "pivot": [
+                    0,
+                    1
+                  ],
+                  "position": [
+                    12,
+                    -160
+                  ],
+                  "size": [
+                    266,
+                    24
+                  ],
+                  "rotation": 0
+                }
+              },
+              "overrides": [
+                "rect"
+              ],
+              "default_id": "cpp:c:@N@epok@S@UIActor@FI@root",
+              "inherited": true,
+              "root": true
+            },
+            {
+              "id": "22a22f6e-458d-5ff3-8bfb-b36a8c626432",
+              "name": "status",
+              "class": {
+                "name": "epok::TextComponent",
+                "class_id": "fd7f11d1-7ccf-40e8-a7ea-56d89deb3f34"
+              },
+              "properties": {
+                "text": {
+                  "enabled": true,
+                  "text": "Save data uses memory card slot1.",
+                  "font": "48ebb451-2bda-423f-8957-2cda25eae5d3",
+                  "align": "left",
+                  "wrap": false,
+                  "color": [
+                    0.7450980392156863,
+                    0.8823529411764706,
+                    0.9215686274509803
+                  ]
+                }
+              },
+              "overrides": [
+                "text"
+              ]
+            }
+          ]
+        },
+        "parent": "c29504c3-4c5f-5276-9633-616c84239e0a"
+      },
+      {
+        "entity": {
+          "id": "74380462-57cd-5d37-a8e4-1530022eeebe",
+          "name": "footer",
+          "class": {
+            "name": "epok::UIActor",
+            "class_id": "b09bd2fa-8b09-4c0f-a33a-c3ca08b21d8f"
+          },
+          "active": true,
+          "properties": {},
+          "overrides": [],
+          "logical_parent": "c29504c3-4c5f-5276-9633-616c84239e0a",
+          "attach": {
+            "actor": "c29504c3-4c5f-5276-9633-616c84239e0a"
+          },
+          "components": [
+            {
+              "id": "5ec0dca5-bfb0-59ed-af4a-0b96ed1c6790",
+              "name": "rect/footer",
+              "class": {
+                "name": "epok::RectTransformComponent",
+                "class_id": "dc805165-6c65-48dc-8ff8-4a638a5d21df"
+              },
+              "properties": {
+                "rect": {
+                  "anchor_min": [
+                    0,
+                    1
+                  ],
+                  "anchor_max": [
+                    0,
+                    1
+                  ],
+                  "pivot": [
+                    0,
+                    1
+                  ],
+                  "position": [
+                    12,
+                    -187
+                  ],
+                  "size": [
+                    266,
+                    12
+                  ],
+                  "rotation": 0
+                }
+              },
+              "overrides": [
+                "rect"
+              ],
+              "default_id": "cpp:c:@N@epok@S@UIActor@FI@root",
+              "inherited": true,
+              "root": true
+            },
+            {
+              "id": "f4e7267e-6bb5-5585-975f-f0b98925ad95",
+              "name": "footer",
+              "class": {
+                "name": "epok::TextComponent",
+                "class_id": "fd7f11d1-7ccf-40e8-a7ea-56d89deb3f34"
+              },
+              "properties": {
+                "text": {
+                  "enabled": true,
+                  "text": " X: OK   O: CLOSE",
+                  "font": "48ebb451-2bda-423f-8957-2cda25eae5d3",
+                  "align": "left",
+                  "wrap": false,
+                  "color": [
+                    0.7450980392156863,
+                    0.8823529411764706,
+                    0.9215686274509803
+                  ]
+                }
+              },
+              "overrides": [
+                "text"
+              ]
+            }
+          ]
+        },
+        "parent": "c29504c3-4c5f-5276-9633-616c84239e0a"
+      }
+    ],
+    "construction": [],
+    "overrides": {},
+    "references": [
+      {
+        "owner": "c29504c3-4c5f-5276-9633-616c84239e0a",
+        "member": "592dd3cb-8ffb-5091-acd7-38e0391f654e",
+        "target": "7f3e6945-405b-559b-905a-77d92904899b"
+      },
+      {
+        "owner": "c29504c3-4c5f-5276-9633-616c84239e0a",
+        "member": "ae07322c-fb68-506c-a024-338c55edda4c",
+        "target": "1071672f-43aa-52b6-8182-914a7934c811"
+      },
+      {
+        "owner": "c29504c3-4c5f-5276-9633-616c84239e0a",
+        "member": "c950c2bc-5b18-5e14-a7ba-d10610c4a928",
+        "target": "9c741e0f-ca91-5c46-9701-31cc8231387d"
+      },
+      {
+        "owner": "c29504c3-4c5f-5276-9633-616c84239e0a",
+        "member": "fe694b08-2c6e-5b4a-b396-4fae95b84ee0",
+        "target": "22a22f6e-458d-5ff3-8bfb-b36a8c626432"
+      },
+      {
+        "owner": "c29504c3-4c5f-5276-9633-616c84239e0a",
+        "member": "e840a9b3-99c0-5f9b-9fa5-c42f8ad5a816",
+        "target": "f4e7267e-6bb5-5585-975f-f0b98925ad95"
+      }
+    ]
+  },
+  "layout": {
+    "positions": {
+      "1427cd86-f35b-5831-b751-ff5c65ce4d2b": [
+        0.0,
+        0.0
+      ],
+      "14d9e8c8-0190-52eb-8010-ac217b912f83": [
+        280.0,
+        0.0
+      ],
+      "51a5da87-044d-5e80-9cb7-5d0a722f32d1": [
+        0.0,
+        0.0
+      ],
+      "6674f517-bb9a-5f47-a842-7d13a65b68ab": [
+        280.0,
+        0.0
+      ],
+      "32b55bb7-23b0-56bb-b797-5a7ce614417d": [
+        560.0,
+        0.0
+      ],
+      "e2d13232-0a1d-5ec6-936e-de2e2b1b80df": [
+        840.0,
+        0.0
+      ],
+      "889bf76d-41c9-5085-90ea-ba54606985e2": [
+        1120.0,
+        0.0
+      ],
+      "c97a5780-5f4d-5528-a30e-b858b3c8369f": [
+        1400.0,
+        0.0
+      ],
+      "ada05c35-e346-50c5-a0c0-8ec57cbbeec4": [
+        1680.0,
+        0.0
+      ],
+      "34335516-da8b-54cf-b67c-a1897fde1557": [
+        1960.0,
+        0.0
+      ],
+      "ffa0359a-454d-5d98-aa2c-30254b4c5eb7": [
+        0.0,
+        170.0
+      ],
+      "d2466db4-e63c-5e6a-b775-830c8513a2f7": [
+        280.0,
+        170.0
+      ],
+      "156cb0ed-58f9-57a9-b268-91363fa036c0": [
+        560.0,
+        170.0
+      ],
+      "04aaa9c9-8cbb-5404-b531-404b8e6c3dc8": [
+        840.0,
+        170.0
+      ],
+      "efbf410f-6d6c-5f36-ab08-f5ba3a9e5503": [
+        1120.0,
+        170.0
+      ],
+      "78c903d0-e608-5478-a936-ce8d77b0438e": [
+        1400.0,
+        170.0
+      ],
+      "4620631a-9fe3-53e8-9313-093f8821c54c": [
+        1680.0,
+        170.0
+      ],
+      "5cdc6872-71e5-554d-8be2-462d566984a6": [
+        1960.0,
+        170.0
+      ],
+      "c0eb96f2-2732-5ad2-9085-870219d5d95a": [
+        0.0,
+        340.0
+      ],
+      "4fba4f0a-2ad4-5d91-b6d9-d4202d0611f3": [
+        280.0,
+        340.0
+      ],
+      "4f0856a6-e2aa-59fb-874d-17519ff15737": [
+        560.0,
+        340.0
+      ],
+      "58d42194-e91f-5311-936d-7683ae76c456": [
+        840.0,
+        340.0
+      ],
+      "3166206e-a29b-5686-a4c5-49d692914c71": [
+        1120.0,
+        340.0
+      ],
+      "bb85b52c-1d87-58ca-aef4-9b7611fff353": [
+        1400.0,
+        340.0
+      ],
+      "21e61af8-372f-5543-a786-e08e37fa388a": [
+        1680.0,
+        340.0
+      ],
+      "8d99a5ae-b429-53a4-aae1-df31a9d84645": [
+        1960.0,
+        340.0
+      ],
+      "ee7b01e1-ac02-59e6-a039-7130abc825ee": [
+        0.0,
+        510.0
+      ],
+      "119b96d1-6614-5f08-9357-27d3b0e6ccde": [
+        280.0,
+        510.0
+      ],
+      "a3eb40aa-391a-5444-9f2a-c3b9ac9a1d7b": [
+        560.0,
+        510.0
+      ],
+      "96707852-1bb4-5b28-a314-7a7ecfeacf7f": [
+        840.0,
+        510.0
+      ],
+      "54cd4d7b-cfc6-5936-b908-3fcaa80c1dcc": [
+        1120.0,
+        510.0
+      ],
+      "a723288e-ceda-5f72-92b3-596961c9d79d": [
+        0.0,
+        0.0
+      ],
+      "417ef6fb-cf83-503b-ac5f-d3db812baff5": [
+        280.0,
+        0.0
+      ],
+      "fa4a1702-a8ce-5266-a746-b8e04de2fb40": [
+        560.0,
+        0.0
+      ],
+      "b16998ea-b0de-532f-b9bf-6259bcac2530": [
+        840.0,
+        0.0
+      ],
+      "430833a7-be74-5824-a379-e0f8c42d1df5": [
+        1120.0,
+        0.0
+      ],
+      "f6bb7bf2-a9d2-52d8-8f59-3592610658a4": [
+        1400.0,
+        0.0
+      ],
+      "f705cfac-6af5-5965-ac70-052800473dd5": [
+        1680.0,
+        0.0
+      ],
+      "222e1046-c58e-5458-ab8c-dbdb2a37afb8": [
+        1960.0,
+        0.0
+      ],
+      "75091321-28e9-5eab-82e3-0990cf2e3e8e": [
+        0.0,
+        170.0
+      ],
+      "7979442a-94cf-56dc-9295-3881bcda98ed": [
+        280.0,
+        170.0
+      ],
+      "17624204-bfea-57f0-b56d-389410be4b6d": [
+        560.0,
+        170.0
+      ],
+      "079553f8-a2a9-5b36-973c-2d3de5665442": [
+        840.0,
+        170.0
+      ],
+      "16287456-8e5c-5641-86d9-f718615802fb": [
+        1120.0,
+        170.0
+      ],
+      "14da1acb-0b9a-5fce-8f91-d6583b924058": [
+        1400.0,
+        170.0
+      ],
+      "51160f93-a374-5ec4-b701-f69273f04936": [
+        1680.0,
+        170.0
+      ],
+      "920056fd-ce70-5bbc-96ac-f88a08bda49c": [
+        1960.0,
+        170.0
+      ],
+      "645637b5-805f-59a6-8e41-44bffa978aa6": [
+        0.0,
+        340.0
+      ],
+      "cce4cae8-798a-5e85-b0f0-eb26d4283ba8": [
+        280.0,
+        340.0
+      ],
+      "18e33b45-d3ef-5233-ad85-01ee0f7b2c93": [
+        560.0,
+        340.0
+      ],
+      "e40b2587-f278-52b0-8a70-d37ac4140233": [
+        840.0,
+        340.0
+      ],
+      "a17e7d08-7624-5fc2-ad3c-a12cc1e1a72c": [
+        1120.0,
+        340.0
+      ],
+      "6ac3658e-f9ba-5c43-9d9e-5b1082f2cd8d": [
+        1400.0,
+        340.0
+      ],
+      "3a605992-94ed-55ca-8f7a-15adf06439c0": [
+        1680.0,
+        340.0
+      ],
+      "cf720f6d-483c-5dac-b490-b2e586693707": [
+        1960.0,
+        340.0
+      ],
+      "957786c0-1cc2-5f61-b009-96b144ba4d5e": [
+        0.0,
+        510.0
+      ],
+      "fc3be5e8-f184-5a7a-9e62-268b655862a4": [
+        280.0,
+        510.0
+      ],
+      "0530b4cf-7377-55c6-a2ad-711e17bf24a4": [
+        560.0,
+        510.0
+      ],
+      "eb661499-7c43-5bda-9f06-35df046da97d": [
+        840.0,
+        510.0
+      ],
+      "ea0aa2f5-6ca6-526a-a4b1-ecfa95047489": [
+        1120.0,
+        510.0
+      ],
+      "dc9f6dfc-e233-5fa2-ba0a-4b1cf378aaf4": [
+        1400.0,
+        510.0
+      ],
+      "20649556-ba19-57ea-aa57-b0ee67ae8d85": [
+        1680.0,
+        510.0
+      ],
+      "cdd86968-7e95-5563-8f92-52ad47832c81": [
+        1960.0,
+        510.0
+      ],
+      "669e28b8-6dd3-524c-b4ec-5658f9a8be3d": [
+        0.0,
+        680.0
+      ],
+      "6b999c1c-9a2d-5417-bded-0ba244020b22": [
+        280.0,
+        680.0
+      ],
+      "f141ed25-57da-5e99-a1ef-af1ffc486fab": [
+        560.0,
+        680.0
+      ],
+      "82cebc5f-d102-5f2d-a178-78100d37b5bc": [
+        840.0,
+        680.0
+      ],
+      "14c6b1b4-6327-5449-9543-6432a8ef021c": [
+        1120.0,
+        680.0
+      ],
+      "f6468dcb-1175-5179-a798-7fc52a45af40": [
+        1400.0,
+        680.0
+      ],
+      "a9b59b88-d414-5e5a-8b4d-740bfa841ba4": [
+        1680.0,
+        680.0
+      ],
+      "daca766a-adde-5bc4-b260-b813f6bad673": [
+        1960.0,
+        680.0
+      ],
+      "db5bbcc2-a9d9-5546-bbd4-6566622c3dad": [
+        0.0,
+        850.0
+      ],
+      "42514f84-5b6c-5e38-b794-519dad53e903": [
+        280.0,
+        850.0
+      ],
+      "80b2fbb4-e060-5327-8acd-7cafa3799056": [
+        560.0,
+        850.0
+      ],
+      "47285084-ef62-5a98-805d-35f5de339704": [
+        840.0,
+        850.0
+      ],
+      "a78f9cb6-c09f-5a59-b4fa-e7d6ebf4ef86": [
+        1120.0,
+        850.0
+      ],
+      "9bc5cb1b-0c32-5b23-a9ce-0fd7e4ac4c23": [
+        1400.0,
+        850.0
+      ],
+      "2b99aa52-07d9-57f7-b8e8-f05c4c1f7399": [
+        1680.0,
+        850.0
+      ],
+      "91292e32-12d3-57ec-8ba5-ccf1f50d4805": [
+        1960.0,
+        850.0
+      ],
+      "8d6bee9c-4500-594f-9e4e-130519a6d013": [
+        0.0,
+        1020.0
+      ],
+      "15af4a20-a843-5b23-af7e-05ca433e7e43": [
+        280.0,
+        1020.0
+      ],
+      "774bf8df-80e0-5e16-83e8-84853c7154e1": [
+        560.0,
+        1020.0
+      ],
+      "a6beefca-6268-5d56-9413-98648001a239": [
+        840.0,
+        1020.0
+      ],
+      "abadd24a-d87d-5100-a61a-7475221597e6": [
+        1120.0,
+        1020.0
+      ],
+      "dce49320-be9d-59c0-9e23-6f2e779e6dc7": [
+        1400.0,
+        1020.0
+      ],
+      "8f88091a-52cc-5bb4-b5b6-81b6855f5291": [
+        1680.0,
+        1020.0
+      ],
+      "cc4ac84b-805b-5b7f-b7d0-3fd9557ecb78": [
+        1960.0,
+        1020.0
+      ],
+      "5aaac521-52cb-5629-b64a-844de1328acd": [
+        0.0,
+        1190.0
+      ],
+      "7428efc0-ba2f-5179-8545-c210dfc4e608": [
+        280.0,
+        1190.0
+      ],
+      "7bbedece-38ce-5888-baf8-131fa0ae5077": [
+        560.0,
+        1190.0
+      ],
+      "f9bd0de9-5547-5559-aacb-253d82b8ac64": [
+        840.0,
+        1190.0
+      ],
+      "a2e6ecb8-7439-564c-96c2-c484e1953743": [
+        1120.0,
+        1190.0
+      ],
+      "bd641602-12d7-5087-a169-50c072c1c72d": [
+        1400.0,
+        1190.0
+      ],
+      "06306d5a-94d9-57a1-a26a-d90b90a341cc": [
+        1680.0,
+        1190.0
+      ],
+      "e4de7c66-dd2b-5e4d-8191-aa3375f8fdfe": [
+        1960.0,
+        1190.0
+      ],
+      "7b06fe43-6ada-59f6-b09e-95b0d1d0ef8e": [
+        0.0,
+        1360.0
+      ],
+      "a4cb7f9c-6939-5da2-9f14-d055095da578": [
+        280.0,
+        1360.0
+      ],
+      "101a8986-1417-53ad-b7ff-c9a61dde0bf5": [
+        560.0,
+        1360.0
+      ],
+      "791364cb-adda-5afd-96dc-4f6c416084b1": [
+        840.0,
+        1360.0
+      ],
+      "a54c9211-a8ed-543e-8e9d-8520371bcaf5": [
+        1120.0,
+        1360.0
+      ],
+      "1fe0681c-dc9a-5703-918a-92c2321b7bb1": [
+        1400.0,
+        1360.0
+      ],
+      "5bfba6e6-e054-5b07-ada6-ab8653ecd0e3": [
+        1680.0,
+        1360.0
+      ],
+      "eee073bb-d234-5cc7-a3ec-32573069500d": [
+        1960.0,
+        1360.0
+      ],
+      "c4b966f0-8bbf-5921-a7c9-3dbf19e91745": [
+        0.0,
+        1530.0
+      ],
+      "161dfea1-7a87-5548-99cb-23cd460f77fe": [
+        280.0,
+        1530.0
+      ],
+      "e7bd3033-b6ef-581e-9e3e-59fb94e05646": [
+        560.0,
+        1530.0
+      ],
+      "fc06c810-6b5d-5dbf-b53a-04c9634d8f80": [
+        840.0,
+        1530.0
+      ],
+      "1b178a8f-a3fa-5cb7-9c54-51000d449893": [
+        1120.0,
+        1530.0
+      ],
+      "3814ecc1-e661-571d-b67e-ed38d7b47986": [
+        1400.0,
+        1530.0
+      ],
+      "4f299001-0699-5f5f-a1dd-4958506d8815": [
+        1680.0,
+        1530.0
+      ],
+      "ede779ac-ecff-55f8-ae84-8503a69a6a59": [
+        1960.0,
+        1530.0
+      ],
+      "075c63a9-3302-5f79-a197-4a5bc78d51d0": [
+        0.0,
+        1700.0
+      ],
+      "bc0c9d01-2274-51ee-8c2c-6afd936af5ce": [
+        280.0,
+        1700.0
+      ],
+      "35cb6205-b261-5393-b39e-009bb44fe367": [
+        560.0,
+        1700.0
+      ],
+      "02dd9236-af80-5156-9b0f-82a30f7bf97d": [
+        840.0,
+        1700.0
+      ],
+      "3b1e180e-46d4-5782-b8ba-a882c0c12b1c": [
+        1120.0,
+        1700.0
+      ],
+      "be76db4f-355f-5b4f-ad6c-63ef340f9146": [
+        1400.0,
+        1700.0
+      ],
+      "4d6a8007-0412-5778-aeb2-e76e9f2530d9": [
+        1680.0,
+        1700.0
+      ],
+      "b724da7f-2f97-5c67-8798-e4ab33be2556": [
+        1960.0,
+        1700.0
+      ],
+      "f4a062fe-27ad-53dd-9c4e-e1c78b63f9d5": [
+        0.0,
+        1870.0
+      ],
+      "e3ba130e-ab31-530e-93ec-1c6dcc4f21df": [
+        280.0,
+        1870.0
+      ],
+      "2567988a-3c36-5a53-bcad-939accfc0fbf": [
+        560.0,
+        1870.0
+      ],
+      "413b586a-0f99-54e4-b18d-edf7ec82181d": [
+        0.0,
+        0.0
+      ],
+      "637421fc-d839-5647-a2bb-ab6093aa3ab2": [
+        280.0,
+        0.0
+      ],
+      "8cc59bbb-78ba-5af5-a050-7d972a0d676d": [
+        560.0,
+        0.0
+      ],
+      "df58cadf-758b-5a1a-ab1c-57ee07a9b68e": [
+        840.0,
+        0.0
+      ],
+      "50fd8a9e-4e8b-5cfb-9e54-1ec051a3671f": [
+        1120.0,
+        0.0
+      ],
+      "92dda3be-57a6-5ea8-baa2-7d8e8e0ae457": [
+        1400.0,
+        0.0
+      ],
+      "7d9016cc-0784-5df5-8cfa-c7a7022db893": [
+        1680.0,
+        0.0
+      ],
+      "360e4591-79f8-5c08-8983-bd9a22a0b56a": [
+        1960.0,
+        0.0
+      ],
+      "14c00289-caee-5608-825d-a39ddadc24ed": [
+        0.0,
+        170.0
+      ],
+      "ec900c78-9f26-5e6e-a901-c4494fde9dfb": [
+        280.0,
+        170.0
+      ],
+      "ccb69b1a-f73f-59fa-919b-22cf94b4d630": [
+        560.0,
+        170.0
+      ],
+      "652e3f36-7520-512c-8c0f-3e8d8c3d41a2": [
+        840.0,
+        170.0
+      ],
+      "406084d2-c8fa-51e4-99b3-c5f96671bd4c": [
+        1120.0,
+        170.0
+      ],
+      "6aeb1b5f-4034-5ceb-bf3a-c92268324296": [
+        1400.0,
+        170.0
+      ],
+      "6c2330a0-9788-517d-b4f9-565651f634e3": [
+        1680.0,
+        170.0
+      ],
+      "0be2041c-1349-5eb2-9d69-4f9019367061": [
+        1960.0,
+        170.0
+      ],
+      "7f95fddd-ca1d-5880-8875-9e5ab2ba6df5": [
+        0.0,
+        340.0
+      ],
+      "0c50fbe1-975a-540d-bb9f-f672e7082e80": [
+        280.0,
+        340.0
+      ],
+      "97500a7b-14e6-5179-892d-900675ccc7eb": [
+        560.0,
+        340.0
+      ],
+      "d7536868-e107-5a5f-9a2f-742d6440a996": [
+        840.0,
+        340.0
+      ],
+      "f79899e0-ea35-5cc2-a9f2-1345fb73346e": [
+        1120.0,
+        340.0
+      ],
+      "01aaea36-e754-5523-95f9-45a29859827e": [
+        1400.0,
+        340.0
+      ],
+      "bd505401-e0f2-5075-998c-5550d9b3b532": [
+        1680.0,
+        340.0
+      ],
+      "b3e4e1d2-c7b3-5779-affd-a60c2fcc48b6": [
+        1960.0,
+        340.0
+      ],
+      "447080fc-3e6d-50a2-aac2-c95b81e678a2": [
+        0.0,
+        510.0
+      ],
+      "c2f26d3d-0d28-5def-a9e1-b302ffb4c027": [
+        280.0,
+        510.0
+      ],
+      "d3ab1ffd-2e85-5860-9ecb-b53edeafcfe8": [
+        560.0,
+        510.0
+      ],
+      "a4a4ab2a-f4ed-549f-93cc-c177a33a4a67": [
+        840.0,
+        510.0
+      ],
+      "d71a75ce-6891-50e8-a108-34282e9ddb15": [
+        1120.0,
+        510.0
+      ],
+      "aaf172d9-919f-5441-9242-836791a513db": [
+        1400.0,
+        510.0
+      ],
+      "69920de3-cb86-5e76-a1a1-95f961146f4e": [
+        1680.0,
+        510.0
+      ],
+      "56534c38-4231-5fad-afc7-9ab9639afb50": [
+        1960.0,
+        510.0
+      ],
+      "eb293653-5f7a-5b42-a472-28f23782c59c": [
+        0.0,
+        680.0
+      ],
+      "1c49f4e9-b911-57b9-a107-7dfb7509be1d": [
+        280.0,
+        680.0
+      ],
+      "e89cfc36-2f14-576f-a4c4-ac54513ffa19": [
+        560.0,
+        680.0
+      ],
+      "1b902bed-5fd5-517a-ba36-2004febf085b": [
+        840.0,
+        680.0
+      ],
+      "d98020d4-a5c0-5108-a193-7b012334869b": [
+        1120.0,
+        680.0
+      ],
+      "f482005a-f4d8-55b1-bc19-34de609b4788": [
+        1400.0,
+        680.0
+      ]
+    },
+    "comments": {},
+    "split_pins": [
+      "18e33b45-d3ef-5233-ad85-01ee0f7b2c93:out:value",
+      "51a5da87-044d-5e80-9cb7-5d0a722f32d1:out:value",
+      "54cd4d7b-cfc6-5936-b908-3fcaa80c1dcc:out:buttons",
+      "920056fd-ce70-5bbc-96ac-f88a08bda49c:out:value",
+      "92dda3be-57a6-5ea8-baa2-7d8e8e0ae457:out:value",
+      "b3e4e1d2-c7b3-5779-affd-a60c2fcc48b6:out:value",
+      "e4de7c66-dd2b-5e4d-8191-aa3375f8fdfe:out:value",
+      "ea0aa2f5-6ca6-526a-a4b1-ecfa95047489:out:value",
+      "f6bb7bf2-a9d2-52d8-8f59-3592610658a4:out:value"
+    ]
+  }
+}

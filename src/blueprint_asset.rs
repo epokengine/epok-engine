@@ -9,7 +9,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-pub const VERSION: u32 = 5;
+pub const VERSION: u32 = 8;
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct BlueprintAsset {
     pub version: u32,
@@ -424,6 +424,13 @@ pub fn load(path: &Path) -> Result<BlueprintAsset, String> {
     let mut asset: BlueprintAsset =
         crate::document::from_slice(&fs::read(path).map_err(|e| e.to_string())?)
             .map_err(|e| format!("{}: {e}", path.display()))?;
+    if (asset.version == 7
+        || ((asset.version == 6 || (asset.version == 5 && asset.template.instances.is_empty()))
+            && !crate::blueprint_templates::uses_literal_null(&asset.template)))
+        && !crate::blueprint_templates::uses_focus_links(&asset.template)
+    {
+        asset.version = VERSION;
+    }
     if asset.version != VERSION {
         return Err(format!(
             "{}: unsupported Blueprint version {}; original data preserved",
@@ -431,10 +438,8 @@ pub fn load(path: &Path) -> Result<BlueprintAsset, String> {
             asset.version
         ));
     }
-    // v1 has no explicit timeline exposure; defaults remain unexposed.
-    // v3 adds typed playback nodes; existing v1/v2 graphs keep their semantics.
-    // v4 adds the optional family hint and typed object reference pins; a v3 asset loads
-    // with `family: None` and hashes exactly as it did before.
+    // v6 adds nested class compositions. A v5 document has the same existing
+    // graph/control semantics and no nested-instance declarations.
     // This migration is in memory. Only a deliberate save writes the new version.
     asset.version = VERSION;
     Ok(asset)
@@ -623,11 +628,72 @@ mod tests {
         assert_eq!(a.extra, b.extra);
     }
     #[test]
+    fn previous_composition_version_loads_without_writing_and_rejects_new_features_under_old_version()
+     {
+        let root = crate::workspace::tests::temp("blueprint-nested-version");
+        std::fs::create_dir_all(&root).unwrap();
+        let path = root.join("Widget.epokbp");
+        let mut old = BlueprintAsset::new("Widget".into(), uuid::Uuid::new_v4().to_string());
+        old.version = 5;
+        let bytes = crate::document::to_vec(&old).unwrap();
+        std::fs::write(&path, &bytes).unwrap();
+        assert_eq!(load(&path).unwrap().version, VERSION);
+        assert_eq!(std::fs::read(&path).unwrap(), bytes);
+        old.template.instances.insert(uuid::Uuid::new_v4());
+        std::fs::write(&path, crate::document::to_vec(&old).unwrap()).unwrap();
+        assert!(
+            load(&path)
+                .unwrap_err()
+                .contains("unsupported Blueprint version")
+        );
+        old.version = 6;
+        std::fs::write(&path, crate::document::to_vec(&old).unwrap()).unwrap();
+        assert_eq!(load(&path).unwrap().version, VERSION);
+        old.template
+            .overrides
+            .entry(uuid::Uuid::new_v4())
+            .or_default()
+            .members
+            .insert(
+                "/properties/target".into(),
+                crate::blueprint_templates::literal_null(),
+            );
+        let bytes = crate::document::to_vec(&old).unwrap();
+        std::fs::write(&path, &bytes).unwrap();
+        assert!(
+            load(&path)
+                .unwrap_err()
+                .contains("unsupported Blueprint version")
+        );
+        assert_eq!(std::fs::read(&path).unwrap(), bytes);
+        old.version = 7;
+        std::fs::write(&path, crate::document::to_vec(&old).unwrap()).unwrap();
+        assert_eq!(load(&path).unwrap().version, VERSION);
+        old.template
+            .overrides
+            .entry(uuid::Uuid::new_v4())
+            .or_default()
+            .members
+            .insert(
+                "/components/focus/properties/canvas/initial_focus".into(),
+                serde_json::json!({"target":null}),
+            );
+        let bytes = crate::document::to_vec(&old).unwrap();
+        std::fs::write(&path, &bytes).unwrap();
+        assert!(
+            load(&path)
+                .unwrap_err()
+                .contains("unsupported Blueprint version")
+        );
+        assert_eq!(std::fs::read(&path).unwrap(), bytes);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+    #[test]
     fn earlier_versions_are_rejected_without_writing_source() {
         let root = crate::workspace::tests::temp("blueprint-playback-migration");
         std::fs::create_dir_all(&root).unwrap();
         let path = root.join("Earlier.epokbp");
-        for version in 1..VERSION {
+        for version in 1..5 {
             let mut original =
                 BlueprintAsset::new("Earlier".into(), uuid::Uuid::new_v4().to_string());
             original.version = version;

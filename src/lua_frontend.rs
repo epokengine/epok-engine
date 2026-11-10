@@ -98,6 +98,24 @@ struct Token {
     tok: Tok,
     span: Span,
 }
+/// Helper dependencies use the same lexer as gameplay compilation, excluding
+/// quoted text and both forms of Lua comments.
+pub(crate) fn helper_reference_names(
+    file: &Path,
+    source: &str,
+) -> Result<BTreeSet<String>, Diagnostic> {
+    let (tokens, _) = Lexer::new(file, source).tokens()?;
+    Ok(tokens
+        .into_iter()
+        .filter_map(|token| match token.tok {
+            Tok::Name(name) => Some(name),
+            // Class builtins name their statically resolved class with a string.
+            // Keep these conservative demands alongside direct type identifiers.
+            Tok::Str(name) => Some(name.strip_prefix("epok::").unwrap_or(&name).to_owned()),
+            _ => None,
+        })
+        .collect())
+}
 /// The reserved words. Also read by the reflection tests: a record member or an
 /// enumerator spelled like one of these is unreachable from every Lua mode.
 pub(crate) const KEYWORDS: &[&str] = &[
@@ -1294,6 +1312,9 @@ fn inherited_by_name(registry: &Registry, parent: &str) -> BTreeMap<String, sche
 }
 
 impl<'a> Lower<'a> {
+    fn pure_method(&self) -> bool {
+        self.methods.get(&self.current).is_some_and(|f| f.pure)
+    }
     fn report(&mut self, span: Span, message: impl Into<String>) {
         self.diagnostics
             .push(Diagnostic::new(self.file, span, message));
@@ -1343,6 +1364,9 @@ impl<'a> Lower<'a> {
     /// A best-effort type for an expression that does not depend on literal
     /// context. Used to give bare numeric literals the other operand's type.
     fn hint(&self, expr: &ast::Expr) -> Option<Type> {
+        if let Some(Ok((value_type, _))) = self.enum_constant(expr) {
+            return Some(value_type);
+        }
         match expr {
             ast::Expr::Bool(..) => Some(Type::Bool),
             ast::Expr::Number { integer, .. } => (!integer).then_some(Type::Fixed),
@@ -1517,6 +1541,30 @@ impl<'a> Lower<'a> {
     }
 
     // --- expressions -----------------------------------------------------
+    fn enum_constant(&self, expr: &ast::Expr) -> Option<Result<(Type, i64), String>> {
+        if self.profile == crate::settings::LuaProfile::LegacyV1 {
+            return None;
+        }
+        let ast::Expr::Field { base, name, .. } = expr else {
+            return None;
+        };
+        let path = global_name(base);
+        let root = path.split('.').next()?;
+        if root == "self" || path.contains('<') || self.slot(root).is_some() {
+            return None;
+        }
+        let value_type = crate::lua_asset::reflected_enum(self.registry, &path.replace('.', "::"))?;
+        let Type::Enum { variants, .. } = &value_type else {
+            return None;
+        };
+        Some(
+            variants
+                .get(name)
+                .copied()
+                .map(|value| (value_type, value))
+                .ok_or_else(|| format!("Unknown variant {name} on {path}")),
+        )
+    }
     fn expr(
         &mut self,
         expr: &ast::Expr,
@@ -1524,6 +1572,32 @@ impl<'a> Lower<'a> {
         pending: &mut ir::Block,
         root: bool,
     ) -> Option<ir::Expr> {
+        if let Some(value) = self.enum_constant(expr) {
+            return match value {
+                Ok((value_type, value))
+                    if expected.is_none_or(|expected| *expected == value_type) =>
+                {
+                    Some(ir::Expr::Literal {
+                        value_type,
+                        value: serde_json::json!(value),
+                    })
+                }
+                Ok((value_type, _)) => {
+                    self.report(
+                        expr.span(),
+                        format!(
+                            "Enum constant {} is not the expected type",
+                            value_type.label()
+                        ),
+                    );
+                    None
+                }
+                Err(error) => {
+                    self.report(expr.span(), error);
+                    None
+                }
+            };
+        }
         match expr {
             ast::Expr::Nil(span) => {
                 self.report(*span, profile::NIL_VALUE);
@@ -2078,6 +2152,10 @@ impl<'a> Lower<'a> {
             operation.effect,
             schema::OperationEffect::PureValue | schema::OperationEffect::StateRead
         );
+        if self.pure_method() && !pure {
+            self.report(span, "Pure functions cannot mutate state or consume events");
+            return None;
+        }
         let site = self.operation_site;
         self.operation_site += 1;
         let call = ir::Expr::CallOperation {
@@ -2220,6 +2298,10 @@ impl<'a> Lower<'a> {
         }
 
         let (parameters, returns, pure) = crate::blueprint_ir::builtin_signature(&operation);
+        if self.pure_method() && !pure {
+            self.report(span, "Pure functions cannot mutate state or consume events");
+            return None;
+        }
         let mut lowered = Vec::new();
         let mut source = written.drain(..);
         let mut base_class = None;
@@ -2649,6 +2731,13 @@ impl<'a> Lower<'a> {
                 self.report(span, format!("Unknown parent method {name}"));
                 return None;
             };
+            if function.abstract_method {
+                self.report(
+                    span,
+                    "The parent method is abstract and has no implementation",
+                );
+                return None;
+            }
             let overridden = self
                 .class
                 .functions
@@ -2678,6 +2767,10 @@ impl<'a> Lower<'a> {
                 span,
                 format!("{name} expects {} argument(s)", function.parameters.len()),
             );
+            return None;
+        }
+        if self.pure_method() && !function.pure {
+            self.report(span, "Pure functions can only call pure functions");
             return None;
         }
         let mut lowered = vec![];
@@ -2792,6 +2885,29 @@ impl<'a> Lower<'a> {
                 }
                 // `self.<vector>.x`
                 let inner = self.place(base)?;
+                if let Some(value_type @ Type::Record { .. }) = inner.value_type(&self.locals) {
+                    if self.profile == crate::settings::LuaProfile::LegacyV1 {
+                        self.report(*span, profile::TRANSFORM_RECORD);
+                        return None;
+                    }
+                    if inner.root_local().is_none() {
+                        self.report(
+                            *span,
+                            "Copy the record into a local value before editing its fields",
+                        );
+                        return None;
+                    }
+                    let Some((index, value_type)) = value_type.member_wire_offset(name) else {
+                        self.report(*span, format!("Unknown member {name}"));
+                        return None;
+                    };
+                    return Some(ir::Place::Member {
+                        base: Box::new(inner),
+                        name: name.clone(),
+                        index,
+                        value_type,
+                    });
+                }
                 let index = match (inner.value_type(&self.locals), name.as_str()) {
                     (Some(Type::Vector { length }), "x") if length >= 1 => 0,
                     (Some(Type::Vector { length }), "y") if length >= 2 => 1,
@@ -2916,6 +3032,13 @@ impl<'a> Lower<'a> {
                 let Some(place) = self.place(target) else {
                     return;
                 };
+                if self.pure_method() && place.root_local().is_none() {
+                    self.report(
+                        *span,
+                        "Pure functions cannot write properties or transforms",
+                    );
+                    return;
+                }
                 let untyped = matches!(&place, ir::Place::Local(id) if self.state(*id).0.is_none());
                 let declared = match &place {
                     ir::Place::Local(id) => self.state(*id).0,
@@ -3240,14 +3363,17 @@ fn resolved_placement(registry: &Registry, cpp_name: &str) -> schema::Placement 
         placement.placeable |= class.placement.placeable;
         placement.spawnable |= class.placement.spawnable;
         placement.scene_managed |= class.placement.scene_managed;
+        placement.placed_only |= class.placement.placed_only;
     }
     if placement.scene_managed {
         return schema::Placement {
             placeable: false,
             spawnable: false,
             scene_managed: true,
+            placed_only: false,
         };
     }
+    placement.spawnable &= !placement.placed_only;
     placement
 }
 
@@ -3454,10 +3580,8 @@ pub fn lower_class_with_profile(
 ) -> Result<ir::ClassIr, Vec<Diagnostic>> {
     let parent_cpp_name = decl.extends.clone();
     let mut properties = BTreeMap::new();
-    for ancestor in registry.ancestry(&parent_cpp_name) {
-        for property in &ancestor.properties {
-            properties.insert(property.name.clone(), property.clone());
-        }
+    for property in registry.properties(&parent_cpp_name) {
+        properties.insert(property.name.clone(), property);
     }
     for property in &class.properties {
         properties.insert(property.name.clone(), property.clone());
@@ -3630,6 +3754,77 @@ pub fn lower_class_with_profile(
 pub(crate) mod tests {
     use super::*;
     use crate::lua_asset;
+    #[test]
+    fn named_enum_constants_keep_types_in_aot_vm_and_editor_definitions() {
+        let mut registry = builtin_registry();
+        let mode = Type::Enum {
+            cpp_name: "epok::DoorState".into(),
+            variants: [("Closed".into(), 0), ("Open".into(), 1)]
+                .into_iter()
+                .collect(),
+        };
+        let other = Type::Enum {
+            cpp_name: "epok::OtherState".into(),
+            variants: [("Open".into(), 1)].into_iter().collect(),
+        };
+        registry
+            .classes
+            .get_mut(crate::object_model::ACTOR_COMPONENT_ID)
+            .unwrap()
+            .properties
+            .extend([
+                reflected("mode", mode.clone()),
+                reflected("other_mode", other),
+            ]);
+        let source = "self.mode=epok.DoorState.Open\nif self.mode==epok.DoorState.Open then self.health=amount end";
+        let lower = |source: &str, profile| {
+            let file = body(source);
+            let chunk = parse(&file).unwrap();
+            let decl = lua_asset::extract(&file).unwrap();
+            let class = lua_asset::declarations(&decl, &file, &registry).unwrap();
+            lower_class_with_profile(&decl, &chunk, &class, &registry, profile)
+                .map(|ir| (file, class, ir))
+        };
+        let (file, class, ir) = lower(source, crate::settings::LuaProfile::GameplayV2).unwrap();
+        assert!(
+            matches!(&ir.methods[0].body[0].kind,ir::StatementKind::Assign {value:ir::Expr::Literal {value_type,value},..} if *value_type==mode && *value==serde_json::json!(1))
+        );
+        let native = crate::lua_aot::emit_class(
+            &class,
+            &ir,
+            &registry,
+            crate::lua_aot::BodyMode::Native,
+            None,
+        )
+        .unwrap();
+        assert!(native.contains("epok::DoorState"), "{native}");
+        let methods = ir
+            .methods
+            .iter()
+            .map(|method| method.function.clone())
+            .collect::<Vec<_>>();
+        let mut registered = registry.clone();
+        registered.classes.insert(class.id.clone(), class.clone());
+        let fields = crate::lua_vm::field_slots_for_ir(&ir, &registered);
+        let vm = crate::lua_vm::emit_chunk(&ir, &fields, &methods, &file.path).unwrap();
+        assert!(
+            !vm.contains("epok.DoorState"),
+            "Enums lower to values through shared IR: {vm}"
+        );
+        let stub = crate::lua_api_stub::render(&registry);
+        assert!(stub.contains("epok.DoorState = {") && stub.contains("[\"Open\"] = 1,"));
+        for source in [
+            "self.mode=epok.OtherState.Open",
+            "self.mode=epok.DoorState.Missing",
+            "local epok=self.health\nself.mode=epok.DoorState.Open",
+        ] {
+            assert!(
+                lower(source, crate::settings::LuaProfile::GameplayV2).is_err(),
+                "{source}"
+            );
+        }
+        assert!(lower(source, crate::settings::LuaProfile::LegacyV1).is_err());
+    }
 
     fn file(source: &str) -> LuaFile {
         lua_asset::tests::fixture("assets/scripts/EnemyLogic.lua", source)
@@ -3657,6 +3852,116 @@ pub(crate) mod tests {
     }
     fn lower(source: &str) -> Result<ir::ClassIr, Vec<Diagnostic>> {
         lower_in(&lua_asset::tests::registry(), source)
+    }
+    #[test]
+    fn local_record_fields_lower_to_typed_copy_updates_in_every_backend() {
+        let mut registry = builtin_registry();
+        let record = Type::Record {
+            cpp_name: "epok::TestSnapshot".into(),
+            fields: vec![
+                schema::RecordField {
+                    name: "ready".into(),
+                    value_type: Type::Bool,
+                },
+                schema::RecordField {
+                    name: "velocity".into(),
+                    value_type: Type::Record {
+                        cpp_name: "epok::TestPair".into(),
+                        fields: vec![
+                            schema::RecordField {
+                                name: "x".into(),
+                                value_type: Type::Fixed,
+                            },
+                            schema::RecordField {
+                                name: "y".into(),
+                                value_type: Type::Fixed,
+                            },
+                        ],
+                    },
+                },
+                schema::RecordField {
+                    name: "offset".into(),
+                    value_type: Type::Vector { length: 2 },
+                },
+            ],
+        };
+        registry
+            .classes
+            .get_mut(crate::object_model::ACTOR_COMPONENT_ID)
+            .unwrap()
+            .properties
+            .push(reflected("packet", record));
+        let source = "local original=self.packet\nlocal edited=original\nedited.velocity.y=amount\nedited.offset.y=amount\nedited.ready=true\nself.health=original.velocity.y";
+        let file = body(source);
+        let chunk = parse(&file).unwrap();
+        let decl = lua_asset::extract(&file).unwrap();
+        let class = lua_asset::declarations(&decl, &file, &registry).unwrap();
+        registry.classes.insert(class.id.clone(), class.clone());
+        let ir = lower_class_with_profile(
+            &decl,
+            &chunk,
+            &class,
+            &registry,
+            crate::settings::LuaProfile::GameplayV2,
+        )
+        .unwrap();
+        let assignments = ir.methods[0]
+            .body
+            .iter()
+            .filter_map(|statement| match &statement.kind {
+                ir::StatementKind::Assign { target, .. } => target.local_wire_offset(),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            assignments
+                .iter()
+                .map(|(_, offset)| *offset)
+                .collect::<Vec<_>>(),
+            vec![2, 4, 0]
+        );
+        let methods = ir
+            .methods
+            .iter()
+            .map(|method| method.function.clone())
+            .collect::<Vec<_>>();
+        let fields = crate::lua_vm::field_slots_for_ir(&ir, &registry);
+        let vm = crate::lua_vm::emit_chunk(&ir, &fields, &methods, &file.path).unwrap();
+        assert!(
+            vm.contains(", 2, 1,") && vm.contains(", 4, 1,") && vm.contains("__epok_replace"),
+            "{vm}"
+        );
+        let native = crate::lua_aot::emit_class(
+            &class,
+            &ir,
+            &registry,
+            crate::lua_aot::BodyMode::Native,
+            None,
+        )
+        .unwrap();
+        assert!(
+            native.contains(").velocity).y =") && native.contains(").offset[1] ="),
+            "{native}"
+        );
+        for invalid in [
+            "self.packet.velocity.y=1.0",
+            "local a=self.packet\na.missing=1.0",
+        ] {
+            let file = body(invalid);
+            let chunk = parse(&file).unwrap();
+            let decl = lua_asset::extract(&file).unwrap();
+            assert!(
+                lower_class_with_profile(
+                    &decl,
+                    &chunk,
+                    &class,
+                    &registry,
+                    crate::settings::LuaProfile::GameplayV2
+                )
+                .is_err()
+            );
+        }
+        assert!(lower_in(&registry, source).is_err()); // Profile v1 remains scalar-only.
     }
     /// The shared fixture with `epok::ActorComponent` — the parent every test
     /// chunk extends — restated as a spatial class, so one header exercises an
@@ -4298,6 +4603,27 @@ pub(crate) mod tests {
     /// The qualified parent call: `<Class>.super.<method>(self, ...)`. It names
     /// the enclosing class literally, so the target is always the lexical
     /// parent's implementation and never a runtime lookup.
+    #[test]
+    fn lua_frontend_rejects_qualified_calls_to_abstract_parents() {
+        let mut registry = lua_asset::tests::registry();
+        registry
+            .classes
+            .get_mut(crate::object_model::ACTOR_COMPONENT_ID)
+            .unwrap()
+            .functions
+            .iter_mut()
+            .find(|function| function.name == "hit")
+            .unwrap()
+            .abstract_method = true;
+        let errors = lower_in(&registry, "EnemyLogic.super.hit(self, amount)").unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.message.contains("abstract and has no implementation")),
+            "{errors:?}"
+        );
+    }
+
     #[test]
     fn lua_frontend_rejects_super_misuse() {
         lower("EnemyLogic.super.hit(amount, self)").unwrap_err();

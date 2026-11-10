@@ -93,12 +93,30 @@ impl Scope {
         }
     }
     fn roots(&self) -> BTreeMap<PathBuf, RecursiveMode> {
+        if let Self::Files(files) = self {
+            let mut roots = BTreeMap::new();
+            for file in files {
+                let Some(directory) = file
+                    .parent()
+                    .and_then(|path| path.ancestors().find(|ancestor| ancestor.is_dir()))
+                else {
+                    continue;
+                };
+                // Exact file dependencies only need their immediate directory.
+                // A recursive config watch at the editor home would otherwise
+                // receive every build/cache event before filtering its paths.
+                roots.insert(directory.to_path_buf(), RecursiveMode::NonRecursive);
+                // Keep replacement and missing-ancestor recovery: creating an
+                // ancestor triggers a rescan and arms its new, closer directory.
+                if let Some(parent) = directory.parent() {
+                    roots.insert(parent.to_path_buf(), RecursiveMode::NonRecursive);
+                }
+            }
+            return roots;
+        }
         let candidates: BTreeSet<_> = match self {
             Self::Project(root) => [root.clone()].into(),
-            Self::Files(files) => files
-                .iter()
-                .filter_map(|file| file.parent().map(Path::to_path_buf))
-                .collect(),
+            Self::Files(_) => unreachable!(),
         };
         let candidates: BTreeSet<_> = if matches!(self, Self::Project(_)) {
             candidates // Do not recursively watch all Temp for an absent project.
@@ -286,6 +304,101 @@ impl Watch {
 mod tests {
     use super::*;
     use notify::event::{AccessKind, CreateKind, Flag, ModifyKind, RenameMode};
+
+    #[test]
+    fn exact_file_roots_are_shallow_and_keep_nested_dependency_directories() {
+        let root = std::env::temp_dir().join(format!("epok-file-roots-{}", uuid::Uuid::new_v4()));
+        let nested = root.join("assets/shared");
+        std::fs::create_dir_all(&nested).unwrap();
+        let scope = Scope::Files(
+            [
+                normalized(&root.join("Editor.epokconfig")),
+                normalized(&nested.join("Rules.hpp")),
+                normalized(&nested.join("not-created/deeper/Other.hpp")),
+            ]
+            .into(),
+        );
+        let roots = scope.roots();
+        assert!(
+            roots
+                .values()
+                .all(|mode| *mode == RecursiveMode::NonRecursive)
+        );
+        assert!(roots.contains_key(&normalized(&root)));
+        assert!(roots.contains_key(&normalized(&nested)));
+        assert!(roots.contains_key(&normalized(nested.parent().unwrap())));
+        assert!(
+            Scope::Project(normalized(&root))
+                .roots()
+                .get(&normalized(&root))
+                == Some(&RecursiveMode::Recursive)
+        );
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn exact_file_native_watch_ignores_unrelated_writes_and_rearms_missing_parents() {
+        let root =
+            std::env::temp_dir().join(format!("epok-exact-file-events-{}", uuid::Uuid::new_v4()));
+        let unrelated = root.join("target/build/irrelevant");
+        std::fs::create_dir_all(&unrelated).unwrap();
+        let config = root.join("Editor.epokconfig");
+        let nested = root.join("shared/not-created/Rules.hpp");
+        std::fs::write(&config, b"old").unwrap();
+        let mut watch = Watch::files([config.clone(), nested.clone()]);
+        assert!(watch.native_active(), "{:?}", watch.take_warning());
+        assert!(
+            watch
+                .scope
+                .roots()
+                .values()
+                .all(|mode| *mode == RecursiveMode::NonRecursive)
+        );
+        for index in 0..512 {
+            std::fs::write(unrelated.join(format!("{index}.tmp")), b"irrelevant").unwrap();
+        }
+        for _ in 0..20 {
+            assert!(
+                !watch.poll(),
+                "Unrelated descendants woke an exact-file watch"
+            );
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        let wait = |watch: &mut Watch| {
+            let started = Instant::now();
+            while !watch.poll() {
+                assert!(
+                    started.elapsed() < Duration::from_secs(5),
+                    "Exact-file event was lost"
+                );
+                std::thread::sleep(Duration::from_millis(10));
+            }
+        };
+        std::fs::write(&config, b"new").unwrap();
+        wait(&mut watch);
+        std::fs::create_dir_all(nested.parent().unwrap()).unwrap();
+        std::fs::write(&nested, b"created").unwrap();
+        wait(&mut watch);
+        assert!(
+            watch
+                .scope
+                .roots()
+                .contains_key(&normalized(nested.parent().unwrap()))
+        );
+        std::fs::write(&nested, b"edited").unwrap();
+        wait(&mut watch);
+        let directory = nested.parent().unwrap();
+        let moved = root.join("shared/not-created-old");
+        std::fs::rename(directory, &moved).unwrap();
+        wait(&mut watch);
+        std::fs::create_dir_all(nested.parent().unwrap()).unwrap();
+        std::fs::write(&nested, b"replaced").unwrap();
+        wait(&mut watch);
+        std::fs::write(&nested, b"replacement edited").unwrap();
+        wait(&mut watch);
+        drop(watch);
+        std::fs::remove_dir_all(root).unwrap();
+    }
 
     #[test]
     fn recovery_scan_is_infrequent_and_folder_replacement_rearms() {

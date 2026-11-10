@@ -1,16 +1,13 @@
----@class CoinPickup : epok.ActorComponent
-local CoinPickup = epok.ActorComponent:extend()
+---@class CoinPickup : epok.PickupComponent
+local CoinPickup = epok.PickupComponent:extend()
 
--- A collectible: the first time anything enters its trigger shape, the coin's
--- actor deactivates, which hides it and removes its collider.
--- Trigger phases are written as the numbers they are stored as: 0 Enter.
+-- The shared pickup validates the player and commits collection once.
+-- Edit this project callback to add rewards or different presentation.
 
 ---@override
-function CoinPickup:trigger_event(other, phase)
-    if phase == 0 then
-        local coin = epok.cast(epok.owner(), "epok::Actor2D")
-        coin:set_active(false)
-    end
+function CoinPickup:collected(initiator, port)
+    local coin = epok.cast(epok.owner(), "epok::Actor")
+    coin:set_active(false)
 end
 
 return CoinPickup

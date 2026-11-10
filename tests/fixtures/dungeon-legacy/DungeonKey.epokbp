@@ -1,0 +1,221 @@
+component:
+  can_root: false
+  cardinality: single
+  owners:
+  - world3d
+  - world2d
+defaults: {}
+family: component
+functions:
+- entry: 719aa0ab-baad-59ec-b9b3-d6b69ed872e0
+  id: 54cc3d29-758d-55d5-844e-3f5aafd4920b
+  name: trigger_event
+  nodes:
+  - id: 26aefbb2-4afe-5b09-91c9-280b184d9917
+    inputs: {}
+    kind:
+      kind: builtin
+      operation:
+        kind: get_owner
+    outputs: {}
+  - id: d05ac663-2504-5573-bd16-c9b4138742eb
+    inputs:
+      active:
+        kind: literal
+        value: false
+        value_type:
+          kind: bool
+      target:
+        kind: link
+        node: 26aefbb2-4afe-5b09-91c9-280b184d9917
+        pin: value
+    kind:
+      kind: builtin
+      operation:
+        kind: set_active
+    outputs: {}
+  - id: 719aa0ab-baad-59ec-b9b3-d6b69ed872e0
+    inputs: {}
+    kind:
+      kind: entry
+    outputs:
+      next:
+      - 33bcdd82-f775-5326-bd92-b7328f14ad97
+  - id: fac32d75-0a3e-510a-99af-a741ee668323
+    inputs:
+      a:
+        kind: parameter
+        name: phase
+      b:
+        kind: literal
+        value: 0
+        value_type:
+          cpp_name: epok::TriggerPhase
+          kind: enum
+          variants:
+            Enter: 0
+            Exit: 2
+            Stay: 1
+    kind:
+      kind: binary
+      op: equal
+    outputs: {}
+  - id: 610596f5-7b37-5686-b9d1-25add5178ccb
+    inputs: {}
+    kind:
+      kind: get_variable
+      member: c424f7b3-b524-578c-9b5e-ba1f46ee63b0
+    outputs: {}
+  - id: c5b13dc4-3f05-5270-b2b2-7cfa3d518c0a
+    inputs:
+      target:
+        kind: link
+        node: 610596f5-7b37-5686-b9d1-25add5178ccb
+        pin: value
+    kind:
+      kind: builtin
+      operation:
+        kind: is_valid
+    outputs: {}
+  - id: 63f0c614-5a2f-5c13-8573-bb4fd386c949
+    inputs:
+      value:
+        kind: link
+        node: c5b13dc4-3f05-5270-b2b2-7cfa3d518c0a
+        pin: value
+    kind:
+      kind: not
+    outputs: {}
+  - id: 4b41f58c-9303-5998-bd08-f2e5fe3a8b70
+    inputs:
+      a:
+        kind: parameter
+        name: other
+      b:
+        kind: link
+        node: 610596f5-7b37-5686-b9d1-25add5178ccb
+        pin: value
+    kind:
+      kind: binary
+      op: equal
+    outputs: {}
+  - id: 5071d50b-9900-5723-b6cc-133acb46b6fa
+    inputs:
+      a:
+        kind: link
+        node: 63f0c614-5a2f-5c13-8573-bb4fd386c949
+        pin: value
+      b:
+        kind: link
+        node: 4b41f58c-9303-5998-bd08-f2e5fe3a8b70
+        pin: value
+    kind:
+      kind: binary
+      op: or
+    outputs: {}
+  - id: c602a948-285d-5180-bd3e-13646589bfbd
+    inputs:
+      a:
+        kind: link
+        node: fac32d75-0a3e-510a-99af-a741ee668323
+        pin: value
+      b:
+        kind: link
+        node: 5071d50b-9900-5723-b6cc-133acb46b6fa
+        pin: value
+    kind:
+      kind: binary
+      op: and
+    outputs: {}
+  - id: 33bcdd82-f775-5326-bd92-b7328f14ad97
+    inputs:
+      condition:
+        kind: link
+        node: c602a948-285d-5180-bd3e-13646589bfbd
+        pin: value
+    kind:
+      kind: branch
+    outputs:
+      'true':
+      - d05ac663-2504-5573-bd16-c9b4138742eb
+  override_id: 45c82d77-d076-43fe-b947-a4eed670f46b
+  parameters:
+  - direction: value
+    name: other
+    value_type:
+      kind: object_ref
+  - direction: value
+    name: phase
+    value_type:
+      cpp_name: epok::TriggerPhase
+      kind: enum
+      variants:
+        Enter: 0
+        Exit: 2
+        Stay: 1
+  returns:
+    kind: void
+  timeline: null
+id: f1483d7e-5a4b-4c1e-b072-ff7c3a6d96ea
+layout:
+  comments:
+    33bcdd82-f775-5326-bd92-b7328f14ad97: Picked up the moment it is entered
+    5071d50b-9900-5723-b6cc-133acb46b6fa: Only the player, or anything while no player is alive
+  positions:
+    26aefbb2-4afe-5b09-91c9-280b184d9917:
+    - 1300.0
+    - 200.0
+    33bcdd82-f775-5326-bd92-b7328f14ad97:
+    - 1300.0
+    - 0.0
+    4b41f58c-9303-5998-bd08-f2e5fe3a8b70:
+    - 260.0
+    - 420.0
+    5071d50b-9900-5723-b6cc-133acb46b6fa:
+    - 780.0
+    - 340.0
+    610596f5-7b37-5686-b9d1-25add5178ccb:
+    - 0.0
+    - 340.0
+    63f0c614-5a2f-5c13-8573-bb4fd386c949:
+    - 520.0
+    - 280.0
+    719aa0ab-baad-59ec-b9b3-d6b69ed872e0:
+    - 0.0
+    - 0.0
+    c5b13dc4-3f05-5270-b2b2-7cfa3d518c0a:
+    - 260.0
+    - 280.0
+    c602a948-285d-5180-bd3e-13646589bfbd:
+    - 1040.0
+    - 180.0
+    d05ac663-2504-5573-bd16-c9b4138742eb:
+    - 1560.0
+    - 0.0
+    fac32d75-0a3e-510a-99af-a741ee668323:
+    - 260.0
+    - 140.0
+name: DungeonKey
+parent: 2e5021ee-d14d-4d77-9112-455f29d639d2
+template:
+  actors: []
+  construction: []
+  overrides: {}
+  references: []
+variables:
+- default: 0
+  editable: true
+  id: d1c571f1-8472-526d-9427-b8fcbcdacf6c
+  name: lock
+  timeline_animatable: false
+  value_type:
+    kind: uint32
+- default: null
+  editable: true
+  id: c424f7b3-b524-578c-9b5e-ba1f46ee63b0
+  name: player
+  timeline_animatable: false
+  value_type:
+    class: 6e6efc67-66c4-4dae-90f8-7c8c4e612dea
+    kind: actor_ref
+version: 8

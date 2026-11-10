@@ -313,11 +313,14 @@ fn world2d_usability_a_split_screen_for_two_players() {
             .contains("two nodes with a Camera2D")
     );
     s.click("Left camera");
-    s.click("Left camera: Player");
+    s.click("Left camera: Player Camera");
     s.click("Right camera");
     s.click("Right camera: Camera2D");
     let record: viewport2d::SplitScreen2D = s.record(split, world2d::SPLIT_SCREEN2D);
-    assert_eq!(record.cameras, [Some(s.named("Player")), Some(second)]);
+    assert_eq!(
+        record.cameras,
+        [Some(s.named("Player Camera")), Some(second)]
+    );
     assert!(s.warnings(split).is_empty());
     s.done("A split screen for two players", 10);
 }

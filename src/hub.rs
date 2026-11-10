@@ -1291,10 +1291,11 @@ pub fn verify_interactions(context: &mut imgui::Context) {
     assert_eq!(hub.template, *Template::ALL.last().unwrap());
 
     // Cancel returns to the project list with the selections untouched.
+    let gameplay_before_cancel = hub.gameplay;
     click(context, &mut hub, 12);
     assert!(!hub.creating);
     assert_eq!(hub.template, *Template::ALL.last().unwrap());
-    assert_eq!(hub.gameplay, workspace::GameplayFlavor::Cpp);
+    assert_eq!(hub.gameplay, gameplay_before_cancel);
     click(context, &mut hub, 2);
     assert!(hub.creating);
     hub.template = Template::Basic;
@@ -1303,7 +1304,15 @@ pub fn verify_interactions(context: &mut imgui::Context) {
 
     let mut editor =
         click(context, &mut hub, 0).expect("Create project button should open the editor");
-    assert_eq!(editor.scene.actors.len(), 1);
+    assert_eq!(editor.scene.actors.len(), 2);
+    assert!(
+        editor
+            .scene
+            .actors
+            .iter()
+            .any(|actor| actor.class.class_id.as_deref()
+                == Some(crate::basic_template::class_id(hub.gameplay)))
+    );
     let root = editor.root.clone();
     assert!(workspace::manifest_path(&root).unwrap().is_file());
     editor.scene.name = "Saved from project UI".into();

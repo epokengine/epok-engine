@@ -2,7 +2,7 @@
 
 > **Header:** `"world2d_components.hpp"` · **Tier:** Epok runtime API · **Source:** [open header](../../../runtime/world2d_components.hpp)
 
-This module covers the world2d components module. It documents 82 public callables declared directly in this header.
+This module covers the world2d components module. It documents 84 public callables declared directly in this header.
 
 ## Declared types
 
@@ -39,6 +39,7 @@ This module covers the world2d components module. It documents 82 public callabl
 - [`epok::CharacterBody2DComponent::level_attached`](#epok-characterbody2dcomponent-level-attached-1) — Performs `level attached` as part of the world2d components module.
 - [`epok::CharacterBody2DComponent::move_and_collide`](#epok-characterbody2dcomponent-move-and-collide-1) — Moves by an explicit displacement (pixels) and stops at the first obstacle.
 - [`epok::CharacterBody2DComponent::move_and_slide`](#epok-characterbody2dcomponent-move-and-slide-1) — Moves by velocity * step, slides along what it hits, zeroes the velocity components pushing into the obstacle and refreshes the floor/wall/ceiling state.
+- [`epok::CharacterBody2DComponent::move_and_slide_step`](#epok-characterbody2dcomponent-move-and-slide-step-1) — Explicit-step adapter over the same solver, snap and classification path.
 - [`epok::CharacterBody2DComponent::set_velocity`](#epok-characterbody2dcomponent-set-velocity-1) — Sets velocity as part of the world2d components module.
 - [`epok::CharacterBody2DComponent::velocity_x`](#epok-characterbody2dcomponent-velocity-x-1) — Performs `velocity x` as part of the world2d components module.
 - [`epok::CharacterBody2DComponent::velocity_y`](#epok-characterbody2dcomponent-velocity-y-1) — Performs `velocity y` as part of the world2d components module.
@@ -90,6 +91,7 @@ This module covers the world2d components module. It documents 82 public callabl
 - [`epok::world2d::List::remove`](#epok-world2d-list-remove-1) — Removes remove as part of the world2d components module.
 - [`epok::world2d::resolve_scene2d`](#epok-world2d-resolve-scene2d-1) — Performs `resolve scene2d` as part of the world2d components module.
 - [`epok::world2d::root_of`](#epok-world2d-root-of-1) — The root SceneComponent2D of a component's owner, or null.
+- [`epok::world2d::solid_collider_of`](#epok-world2d-solid-collider-of-1) — Performs `solid collider of` as part of the world2d components module.
 - [`epok::world2d::step_seconds`](#epok-world2d-step-seconds-1) — Performs `step seconds` as part of the world2d components module.
 - [`epok::world2d::world_of`](#epok-world2d-world-of-1) — World matrix of the owner's root, following SceneComponent2D attachments.
 
@@ -686,7 +688,7 @@ auto result = object.view();
 uint64_t class_id() const override
 ```
 
-- **Declared at:** [line 402](../../../runtime/world2d_components.hpp#L402)
+- **Declared at:** [line 410](../../../runtime/world2d_components.hpp#L410)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint64_t`. Check the purpose and failure notes before using the value.
@@ -719,7 +721,7 @@ auto result = object.class_id();
 bool is_on_ceiling() const
 ```
 
-- **Declared at:** [line 431](../../../runtime/world2d_components.hpp#L431)
+- **Declared at:** [line 439](../../../runtime/world2d_components.hpp#L439)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -752,7 +754,7 @@ auto result = object.is_on_ceiling();
 bool is_on_floor() const
 ```
 
-- **Declared at:** [line 429](../../../runtime/world2d_components.hpp#L429)
+- **Declared at:** [line 437](../../../runtime/world2d_components.hpp#L437)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -785,7 +787,7 @@ auto result = object.is_on_floor();
 bool is_on_wall() const
 ```
 
-- **Declared at:** [line 430](../../../runtime/world2d_components.hpp#L430)
+- **Declared at:** [line 438](../../../runtime/world2d_components.hpp#L438)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -818,7 +820,7 @@ auto result = object.is_on_wall();
 ObjectId last_collision_actor() const
 ```
 
-- **Declared at:** [line 432](../../../runtime/world2d_components.hpp#L432)
+- **Declared at:** [line 440](../../../runtime/world2d_components.hpp#L440)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `ObjectId`. Check the purpose and failure notes before using the value.
@@ -851,7 +853,7 @@ auto result = object.last_collision_actor();
 bool last_collision_is_tile() const
 ```
 
-- **Declared at:** [line 436](../../../runtime/world2d_components.hpp#L436)
+- **Declared at:** [line 444](../../../runtime/world2d_components.hpp#L444)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -884,7 +886,7 @@ auto result = object.last_collision_is_tile();
 Fixed last_motion_x() const
 ```
 
-- **Declared at:** [line 433](../../../runtime/world2d_components.hpp#L433)
+- **Declared at:** [line 441](../../../runtime/world2d_components.hpp#L441)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
@@ -917,7 +919,7 @@ auto result = object.last_motion_x();
 Fixed last_motion_y() const
 ```
 
-- **Declared at:** [line 434](../../../runtime/world2d_components.hpp#L434)
+- **Declared at:** [line 442](../../../runtime/world2d_components.hpp#L442)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
@@ -950,7 +952,7 @@ auto result = object.last_motion_y();
 int32_t last_tile_x() const
 ```
 
-- **Declared at:** [line 438](../../../runtime/world2d_components.hpp#L438)
+- **Declared at:** [line 446](../../../runtime/world2d_components.hpp#L446)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `int32_t`. Check the purpose and failure notes before using the value.
@@ -983,7 +985,7 @@ auto result = object.last_tile_x();
 int32_t last_tile_y() const
 ```
 
-- **Declared at:** [line 439](../../../runtime/world2d_components.hpp#L439)
+- **Declared at:** [line 447](../../../runtime/world2d_components.hpp#L447)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `int32_t`. Check the purpose and failure notes before using the value.
@@ -1016,7 +1018,7 @@ auto result = object.last_tile_y();
 void level_attached() override
 ```
 
-- **Declared at:** [line 403](../../../runtime/world2d_components.hpp#L403)
+- **Declared at:** [line 411](../../../runtime/world2d_components.hpp#L411)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1049,7 +1051,7 @@ object.level_attached();
 bool move_and_collide(Fixed dx, Fixed dy)
 ```
 
-- **Declared at:** [line 473](../../../runtime/world2d_components.hpp#L473)
+- **Declared at:** [line 490](../../../runtime/world2d_components.hpp#L490)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1095,7 +1097,7 @@ auto result = object.move_and_collide(dx, dy);
 bool move_and_slide()
 ```
 
-- **Declared at:** [line 444](../../../runtime/world2d_components.hpp#L444)
+- **Declared at:** [line 452](../../../runtime/world2d_components.hpp#L452)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -1116,6 +1118,48 @@ auto result = object.move_and_slide();
 
 **Trade-offs and warnings.** Check the return value; `false` is part of normal control flow for many PSX resource operations.
 
+<a id="epok-characterbody2dcomponent-move-and-slide-step-1"></a>
+
+## `epok::CharacterBody2DComponent::move_and_slide_step`
+
+**Purpose.** Explicit-step adapter over the same solver, snap and classification path.
+
+**Exact declaration**
+
+```cpp
+bool move_and_slide_step(Fixed dt)
+```
+
+- **Declared at:** [line 456](../../../runtime/world2d_components.hpp#L456)
+- **Kind:** `cxx method`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `dt` | `Fixed` | Input | Value supplied for `dt`. See the exact type and module contract. |
+
+**Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the world2d components module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "world2d_components.hpp"
+
+// Assume these named values have been initialized with valid data:
+// Fixed dt
+
+epok::CharacterBody2DComponent& object = /* obtain a valid instance */;
+
+auto result = object.move_and_slide_step(dt);
+```
+
+**Why choose it.** The boolean result makes success, availability or state explicit without exceptions.
+
+**Trade-offs and warnings.** Check the return value; `false` is part of normal control flow for many PSX resource operations.
+
 <a id="epok-characterbody2dcomponent-set-velocity-1"></a>
 
 ## `epok::CharacterBody2DComponent::set_velocity`
@@ -1128,7 +1172,7 @@ auto result = object.move_and_slide();
 void set_velocity(Fixed x, Fixed y)
 ```
 
-- **Declared at:** [line 426](../../../runtime/world2d_components.hpp#L426)
+- **Declared at:** [line 434](../../../runtime/world2d_components.hpp#L434)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1172,7 +1216,7 @@ object.set_velocity(x, y);
 Fixed velocity_x() const
 ```
 
-- **Declared at:** [line 427](../../../runtime/world2d_components.hpp#L427)
+- **Declared at:** [line 435](../../../runtime/world2d_components.hpp#L435)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
@@ -1205,7 +1249,7 @@ auto result = object.velocity_x();
 Fixed velocity_y() const
 ```
 
-- **Declared at:** [line 428](../../../runtime/world2d_components.hpp#L428)
+- **Declared at:** [line 436](../../../runtime/world2d_components.hpp#L436)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
@@ -1238,7 +1282,7 @@ auto result = object.velocity_y();
 ~CharacterBody2DComponent() override
 ```
 
-- **Declared at:** [line 404](../../../runtime/world2d_components.hpp#L404)
+- **Declared at:** [line 412](../../../runtime/world2d_components.hpp#L412)
 - **Kind:** `destructor`
 
 **Use it when.** You need the world2d components module and the preconditions in the declaration are already satisfied.
@@ -3042,6 +3086,46 @@ inline SceneComponent2D* root_of(ActorComponent& component)
 // ActorComponent & component
 
 auto result = epok::world2d::root_of(component);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to the world2d components module. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
+
+<a id="epok-world2d-solid-collider-of-1"></a>
+
+## `epok::world2d::solid_collider_of`
+
+**Purpose.** Performs `solid collider of` as part of the world2d components module.
+
+**Exact declaration**
+
+```cpp
+inline Collider2DComponent* solid_collider_of(ActorComponent& body)
+```
+
+- **Declared at:** [line 395](../../../runtime/world2d_components.hpp#L395)
+- **Kind:** `function decl`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `body` | `ActorComponent &` | Input/output; inspect the function contract | Value supplied for `body`. See the exact type and module contract. |
+
+**Returns.** Returns `Collider2DComponent *`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the world2d components module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "world2d_components.hpp"
+
+// Assume these named values have been initialized with valid data:
+// ActorComponent & body
+
+auto result = epok::world2d::solid_collider_of(body);
 ```
 
 **Why choose it.** It provides direct, allocation-conscious access to the world2d components module. No exception-based error path is implied by the signature.

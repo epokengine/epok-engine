@@ -35,6 +35,12 @@ MODULE_CONTEXT = {
     "blueprint": "compiled Blueprint execution and object interaction",
     "camera": "camera selection, projection and shared render resources",
     "collision": "bounded AABB collision queries and movement",
+    "character3d": "shared world-unit character commands, collision locomotion and motion samples",
+    "character2d": "pixel-unit character commands and derivable actors over the existing 2D body solver",
+    "character-commands": "extensible command producers and point/target movement policies for shared character motors",
+    "character-input": "routed local-player command sources and derivable player presets",
+    "character-animation": "configurable skeletal and sprite locomotion drivers with extensible selection and shared motor samples",
+    "camera-rig": "derivable camera presets, target following, obstruction booms and routed look input",
     "effect": "runtime effects and their deterministic playback state",
     "fixed-math": "shared Q12 integer math primitives",
     "fmv": "full-motion video clips and playback statistics",
@@ -76,6 +82,7 @@ MODULE_CONTEXT = {
 INTERNAL_EPOK_HEADERS = {
     "blueprint_playback_service.hpp",
     "blueprint_runtime.hpp",
+    "dialogue.hpp",
     "fmv_bitstream.hpp",
     "loading_renderer.hpp",
     "particle_effect_runtime.hpp",
@@ -417,6 +424,7 @@ def parse_module(cindex, family: str, header: Path, base: Path, engine: Path, nu
         f"-I{nugget / 'third_party' / 'EASTL' / 'include'}",
         f"-I{nugget / 'third_party' / 'EABase' / 'include' / 'Common'}",
         "-DEPOK_API_REFERENCE=1",
+        "-DEPOK_TEXT_REVEAL=1",
     ]
     unsaved = []
     missing_display = runtime / "display.hh"
@@ -525,6 +533,7 @@ def parse_family(cindex, family: str, headers: list[Path], base: Path, engine: P
         f"-I{nugget / 'third_party' / 'EASTL' / 'include'}",
         f"-I{nugget / 'third_party' / 'EABase' / 'include' / 'Common'}",
         "-DEPOK_API_REFERENCE=1",
+        "-DEPOK_TEXT_REVEAL=1",
         # Report every error. A fatal one silences the rest, which is how a
         # translation unit missing its standard headers reads as a single line.
         "-ferror-limit=0",

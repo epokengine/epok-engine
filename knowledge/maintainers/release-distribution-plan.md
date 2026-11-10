@@ -5,22 +5,40 @@ initial Debian package. Build and package through repository scripts that can
 run locally or through a manually started GitHub Actions workflow. Keep the
 existing `develop` to `release` promotion rule.
 
-Planning baseline: 20 October 2026. The engine checkout was on `develop` at
-`e6f3018` with ongoing local changes. Published behavior below refers to
-`v0.7.0`; dependencies introduced by the local code editor work must be checked
-against the commit selected for each future release. This proposal adds no
-installer implementation or publication changes.
+Revised baseline: 6 November 2026, replacing the 20 October assessment. The
+engine checkout is on `develop` at
+`fb542cd167fdc297425c0b15fedb901b7c4e0c08`; `VERSION` and Cargo report `0.9.0`.
+The working tree also contains ongoing gameplay, dialogue, runtime and template
+changes, including untracked sources. Those changes inform the candidate's
+distribution requirements; they are not all part of the published `v0.9.0`.
+Release builds must use a complete, committed candidate. This document updates
+the implementation plan without changing packaging, setup or workflows.
 
 The current [publication workflow](../../.github/workflows/tag-release.yml)
 starts on pushes to `release`, runs setup and tests, compiles the release
 binaries, creates an annotated tag and publishes one Windows portable ZIP.
-The [v0.7.0 release](https://github.com/epokengine/epok-engine/releases/tag/v0.7.0)
-contains a single approximately 69 MiB ZIP. Its
-[publication job](https://github.com/epokengine/epok-engine/actions/runs/38734331467)
-took about 34 minutes. The required
+The latest [v0.9.0 release](https://github.com/epokengine/epok-engine/releases/tag/v0.9.0)
+contains a single 85,227,071-byte Windows ZIP, approximately 81 MiB. Its
+[publication workflow run](https://github.com/epokengine/epok-engine/actions/runs/40616783446)
+completed in approximately 36 minutes on 28 October. The required
 [`release-policy` check](../../.github/workflows/release-policy.yml) also builds
 and tests the release PR; branch protection currently requires that check,
-including for administrators.
+including for administrators, as confirmed again on 6 November. Both workflows
+currently run tests with `--test-threads=1`; the local `make check` uses Cargo's
+default test scheduling. Any consolidation must preserve the chosen validation
+policy explicitly.
+
+The implementation has advanced since the first assessment:
+
+| Area | Current evidence | Consequence for this plan |
+| --- | --- | --- |
+| Windows portable | The workflow now requires both binaries, copies tracked content, and includes `Editor.epokconfig`, `VERSION`, setup scripts and manifests | Reuse this relocatable distribution rather than redesigning its inventory from scratch |
+| ZIP verification | [verify_portable.py](../../tools/verify_portable.py) checks required files, relative tool paths, example versions, archive safety and exclusion of local build state before tagging | Extend this verifier into package-specific checks and installed-product tests |
+| Code editor | Monaco is integrated; generated assets are tracked and embedded. Language servers and WebView profiles already use user data | WebView dependencies are part of the normal product; preserve the existing user storage split |
+| Native Play and HUD simulation | [hud_simulation.rs](../../src/hud_simulation.rs) compiles project runners with MSVC on Windows or `CXX`/`c++` elsewhere | A host C++ compiler is an end-user prerequisite for these features, separately from the MIPS compiler |
+| Templates and game helpers | The working tree has six templates, dialogue and shared character/world helpers, plus project-owned template installation records | Expand acceptance to the supported language combinations and preserve project identities during upgrades |
+| Application data | [workspace.rs](../../src/workspace.rs) already provides a user profile, while PSX dependency setup still writes below the editor installation | Finish this separation instead of migrating all preferences and tools indiscriminately |
+| Installer and local release tooling | Packaging/publication still lives in YAML; the macOS script builds an ad hoc signed application | Shared release commands, Windows installer, notarized DMG and Linux package remain pending |
 
 There is already a [macOS application bundler](../../tools/package-macos-app.sh),
 but it is not part of the release workflow. It creates an application with an
@@ -29,7 +47,9 @@ machine. The [macOS setup](../../tools/setup-macos.sh) supports Apple Silicon;
 [Linux setup](../../tools/setup-linux.sh) supports x86_64. Broader architecture
 support needs its own dependency and validation work.
 
-Use this initial delivery matrix:
+Use this delivery matrix, enabling each platform only when its own installation
+checks pass. The first local release can require Windows only; add macOS and
+Linux to the required asset set as they become ready.
 
 | Platform | Primary download | Installation experience | Build environment |
 | --- | --- | --- | --- |
@@ -63,15 +83,24 @@ because of its [sandbox permissions](https://docs.flatpak.org/en/latest/sandbox-
 
 Implement the transition through these six increments:
 
-1. **Make installed resources independent of writable state.**
+1. **Finish installed paths and define runtime prerequisites.**
 
-   Audit [`editor_home()` and `user_data()`](../../src/workspace.rs) and
-   [dependency installation](../../src/dependencies.rs). Keep application files
-   and bundled defaults immutable. Put preferences, dependency downloads, logs,
-   tool configuration and WebView profiles in platform user directories. Keep
-   project files and generated project data under the user's project directory.
-   Use macOS Application Support and the appropriate Windows and XDG locations.
-   Migrate existing preferences without deleting the old data.
+   Preserve the existing preferences, `CodeTools` downloads and `CodeWebView`
+   profile under [`user_data()`](../../src/workspace.rs). Its production path is
+   currently `LOCALAPPDATA`, then `XDG_DATA_HOME`, then `~/.local/share/Epok`;
+   tests now get an isolated profile. Add the macOS Application Support location
+   with a migration from the old path. Retain project-owned caches and settings
+   under the project.
+
+   Separate installation resources from the mutable owner used by
+   [`Config`](../../src/project.rs) and
+   [dependency installation](../../src/dependencies.rs). Without a project
+   override, the owner is still `editor_home()`: setup uses its `.tools/`,
+   `Local.epokconfig` and `.epok/dependencies` for downloads, configuration, logs
+   and locks. Move these mutable responsibilities to user storage, while
+   preserving explicit project overrides and portable behavior. Define the
+   installed/portable choice through distribution metadata or a marker, not
+   through a failed write followed by an implicit change of mode.
 
    Installed builds must resolve resources from their installed layout without
    relying on the builder's `CARGO_MANIFEST_DIR`, shell working directory or
@@ -79,18 +108,52 @@ Implement the transition through these six increments:
    Installing or repairing tools must not modify a signed `.app`, a read-only
    AppImage or a system package directory.
 
-   Define an explicit packaging inventory for the editor, mandatory
-   `epok-header-tool`, required resources, embedded assets, templates, runtime
-   material, setup helpers, SDK content and license notices. Inventory the
-   existing Windows ZIP and macOS bundle independently; they currently package
-   different sets of files. Exclude builder configuration, Git metadata,
-   downloads, caches and local projects. Copy bundled examples into a writable
-   location before editing them.
+   Extend the current Windows tracked-file inventory and verifier. Distinguish
+   content embedded in the binaries from files required beside them: Monaco and
+   Dungeon Complete are embedded, and `project::stage_runtime()` writes an
+   embedded runtime snapshot into build staging. The code editor also references
+   the installed `runtime/` for C++ tooling, so dropping that directory is not
+   justified by embedding alone. Keep both binaries, required raw resources,
+   setup helpers, defaults and license notices in a declared inventory. Check
+   the macOS bundle against the same functional inventory; it currently omits
+   raw runtime/content directories and libclang configuration provided through
+   the macOS setup path. Copy examples to user projects before editing them.
+
+   Add a prerequisite table to the product and package verifier:
+
+   | Capability | Current dependency | Distribution requirement |
+   | --- | --- | --- |
+   | Open editor and integrated code view | Native graphics backend plus WebView2 on Windows, WKWebView on macOS, GTK/WebKitGTK on Linux | Check native runtime availability without requiring Rust or Node |
+   | Reflect C++ and resolve project classes | Companion `epok-header-tool` and pinned libclang | Verify the helper belongs to the same candidate and the library resolves after relocation |
+   | Native Play and simulated HUD | MSVC Build Tools and Windows SDK on Windows; C++20 compiler on macOS/Linux | Detect and explain the supported host compiler before launching a runner |
+   | Build/export PSX games | MIPS compiler, Make, Nugget/psxlua, audio/disc utilities and relevant emulator workflow | Install verified tools to writable user storage or distribute a verified SDK snapshot |
+   | Completion and optional Copilot | Existing LuaLS, clangd and Copilot packages in `CodeTools` | Retain verified downloads; keep optional services and account setup independent of basic installation |
+
+   Windows currently discovers `cl.exe` through `cc::windows_registry`, rather
+   than using an arbitrary bundled compiler. Prefer detecting an existing
+   supported MSVC installation and providing its prerequisite setup path for
+   the first installer. Supporting another host compiler is a separate code
+   change. macOS must check command line compiler availability when launched
+   from Finder; a packaged editor does not provide Xcode automatically.
+
+   Resolve the path constraint before advertising normal desktop installation:
+   [getting-started.md](../../docs/getting-started.md) still requires a checkout
+   path without spaces because of upstream MIPS Makefiles. Exercise spaces and
+   non-ASCII characters in application, user-tool and project paths. Fix or
+   explicitly constrain the affected PSX build path; installer quoting alone
+   does not resolve Makefile path handling.
 
    Separate maintainer build provisioning from end-user tool installation.
    End users must be able to open Epok without installing Rust or checking out
-   the repository. Choose and document which PSX tools ship in the package and
-   which download on demand, with pinned versions and verified checksums.
+   the repository. The current Windows SDK setup still requires Git, clones
+   Nugget when absent, and refuses an existing SDK directory without Git
+   metadata. An installed SDK snapshot therefore needs a separate verified
+   provider; removing `.git` from a copy is not sufficient. Keep maintainer
+   submodule provisioning separate from this end-user route. The current
+   Nugget gitlink and dependency manifest agree on
+   `c702235f366fb1cd8c18e0a5a5392e0acae8a079`; record it and the pinned nested
+   psxlua revision in the candidate manifest. Never initialize all nested
+   submodules recursively.
 
 2. **Extract shared local build and publication commands.**
 
@@ -100,6 +163,17 @@ Implement the transition through these six increments:
    interfaces do not exist yet. Give the coordinator a dry-run mode that changes
    no Git refs or GitHub resources.
 
+   Extract the existing Windows build/stage/ZIP/verify path first and exercise it
+   locally with publication disabled. Reuse `tools/verify_portable.py` and the
+   current workflow's tracked-file enumeration. Add a separate installed-package
+   policy: its defaults need user storage rather than the portable `.tools/`
+   layout. Retain the portable verifier's existing guarantees and add coverage
+   for its rejection cases. Replace its Python `assert` checks with explicit
+   validation failures so interpreter optimization cannot disable verification.
+   Give each candidate a fresh staging subdirectory
+   below `dist/`, independently of the reusable Cargo cache, so packaging cannot
+   pick up files left by an older candidate.
+
    Resolve the selected merged `release` commit once and record its full SHA.
    Build clean source at that SHA on every host. Check `VERSION`, `Cargo.toml`,
    `Cargo.lock`, pinned SDK revisions and submodules before building. Use the
@@ -107,15 +181,30 @@ Implement the transition through these six increments:
    Package only outputs produced for this candidate, so an old binary cannot
    satisfy a missing build result.
 
+   `VERSION`, root Cargo metadata and the published release currently report
+   `0.9.0`. A new production release must increment the authoritative version
+   and synchronize shipped example descriptors through the existing version
+   policy. Require all new runtime/helper/template sources to be tracked in
+   the selected commit; the current dirty working tree cannot be the production
+   build input. Ensure the psxlua sources are present before Cargo builds the
+   Lua bytecode cooker: `build.rs` otherwise permits a build without `epok_luac`,
+   leaving bytecode cooking unavailable despite successful compilation.
+
    Inspect Cargo configuration and `CARGO_TARGET_DIR`, check disk space and cache
    size, and reuse the canonical `target/` directory with consistent profiles
    and flags. Use release builds for distribution and debug builds for routine
    development. Review caches above 15 GiB before adding build outputs, and apply
    the repository's verified, selective cleanup rules when needed.
 
-   If the selected commit includes the embedded web editor, build its JavaScript
-   assets from its lockfile before Cargo embeds them. Account for WebView2 on
-   Windows and GTK/WebKitGTK on Linux.
+   The embedded web editor is now part of the committed product, not an optional
+   future addition. Use the tracked generated assets for ordinary release
+   builds, which do not require Node or frontend network access. Run the pinned
+   `npm ci`, frontend checks and build in a separate asset-consistency check,
+   requiring its output to match the candidate before distribution. Compare
+   reproducible bytes or hashes against the candidate rather than creating a
+   silently modified source tree on each host. Preserve worker files, fonts and
+   generated license notices, beyond the three web files named in the current
+   portable verifier. Account for WebView2 on Windows and GTK/WebKitGTK on Linux.
    [Wry platform requirements](https://docs.rs/wry/0.57.0/wry/)
    describe these native engines; Microsoft's
    [WebView2 distribution guidance](https://learn.microsoft.com/en-us/microsoft-edge/webview2/concepts/distribution)
@@ -123,8 +212,9 @@ Implement the transition through these six increments:
    dependencies separately from build development packages.
 
    Emit per-platform manifests containing version, source SHA, architecture,
-   dependency versions, filenames and checksums. The coordinator must reject
-   mixed commits, missing required packages and conflicting existing tags.
+   dependency versions, enabled capabilities, filenames and checksums. Record
+   the candidate's required platform set and validation results. The coordinator
+   must reject mixed commits, missing required packages and conflicting tags.
    Produce `SHA256SUMS` after all signing and notarization steps have finished.
 
    After candidate verification, create and push the annotated version tag at
@@ -143,8 +233,9 @@ Implement the transition through these six increments:
    with uninstall ownership checks. Make desktop shortcuts and project
    associations optional.
 
-   Check native DLL requirements and, if the web editor is included, install or
-   locate WebView2. Support upgrading an existing installation while retaining
+   Check native DLL requirements and install or locate WebView2. Validate the
+   host compiler prerequisite separately from the MIPS toolchain and libclang.
+   Support upgrading an existing installation while retaining
    preferences, tool downloads and projects. Detect an open editor before
    replacement. Add Authenticode signing for the executables and installer as
    part of the version 1 distribution work.
@@ -156,6 +247,11 @@ Implement the transition through these six increments:
 
    Make the current bundler noninteractive and separate compiling from assembling
    the bundle. Remove machine-specific paths and include the complete inventory.
+   Replace opportunistic copying from the builder's `.tools/macos` with a
+   declared package policy. Include or provision pinned libclang and the
+   required compiler/tools without asking end users to run the developer setup
+   inside the signed bundle. Preserve any optional serial support requirements
+   as an explicitly tested capability.
    Derive bundle version metadata and the minimum macOS version from the chosen
    support policy and verified dependencies.
 
@@ -176,6 +272,14 @@ Implement the transition through these six increments:
    defined package layout, and provide a launcher if resource discovery requires
    it. Add a desktop entry, application icon, MIME association and package
    metadata. Declare the runtime libraries identified from the final binaries.
+
+   Keep Linux experimental until the installed package passes desktop and
+   workflow checks. Ubuntu 24.04 is available locally as a development/test
+   environment; choose and pin the oldest supported build baseline after
+   checking Rust, native libraries and the advertised target distributions.
+   A package built under WSL is not evidence of graphics, audio or serial support
+   on a user's desktop. Provide the host C++ compiler and PSX tool setup paths
+   without writing into `/usr` application resources.
 
    Test installation with dependency resolution, upgrade, removal, desktop
    launching and project association. Exercise X11 and a Wayland session through
@@ -200,6 +304,14 @@ Implement the transition through these six increments:
    checks pending, as described by
    [GitHub's skip behavior](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/skip-workflow-runs).
 
+   Include the trigger change in the release promotion that activates local
+   publication, and verify the resulting `release` workflow before running the
+   coordinator. An earlier release revision still has automatic publication
+   enabled. Rehearse the transition so the next promotion uses the intended
+   manual workflow and cannot race a local run. Prevent the local
+   coordinator and the manual fallback from publishing the same candidate
+   concurrently. A single coordinator must own tag creation and draft completion.
+
    The first production run should assemble a draft from the selected commit,
    complete installation checks for the advertised platforms, then publish once
    all required assets are present. Update
@@ -214,11 +326,13 @@ single source revision. A Windows PC can cover Windows and a Linux container or
 VM. Use a Mac for the macOS build, signing and installation validation. A hybrid
 mode can retain GitHub-hosted macOS builds when no Mac is available.
 
-Local readiness on the inspected PC: Cargo, Rust, GitHub CLI and Docker CLI are
-installed. WSL lists only `docker-desktop`; it does not provide a general Linux
-development distribution. Container execution was not tested. Inno Setup and
-SignTool were not found on PATH or the checked Inno installation paths. Set up
-these packaging tools as part of the Windows increment, and identify the Mac and
+Local readiness rechecked on 6 November: Cargo, Rust, GitHub CLI and Docker CLI
+are installed. WSL now lists `Ubuntu-24.04` as well as `docker-desktop`, and an
+Ubuntu shell reports x86_64. Linux packaging dependencies and desktop acceptance
+still need validation; container execution was not tested. Inno Setup and
+SignTool are not on PATH, and no Inno Setup directory was found under the checked
+Program Files locations. `CARGO_TARGET_DIR` is unset in this session; inspect
+Cargo configuration again before implementation builds. Identify the Mac and
 signing identities before the macOS increment.
 
 About GitHub usage: `epokengine/epok-engine` is currently public and its workflow
@@ -229,8 +343,8 @@ therefore does not establish that this repository exhausted a paid minute quota.
 Check the actual account/organization alert and billing period before assigning
 a cause to the user's earlier failures.
 
-The repository currently has eight active Actions artifacts totaling about
-510 MiB and no Actions caches. The workflow duplicates the portable ZIP in an
+On 6 November the repository has ten active Actions artifacts totaling about
+663 MiB and no Actions caches. The workflow duplicates the portable ZIP in an
 Actions artifact and a GitHub Release asset. The new local path should upload
 directly to Releases, while any fallback workflow should retain intermediate
 artifacts only briefly. This storage observation does not identify the earlier
@@ -244,13 +358,43 @@ branch protection explicitly. Self-hosted runners are an optional later route
 for automatic orchestration; direct local scripts satisfy the current request
 with less runner administration.
 
-Accept the migration when a fresh user can install, launch from the desktop,
-create and reopen a project, use the advertised scripting workflow, provision
-PSX tools and build a sample without a source checkout. Also verify an upgrade
-from the prior installer, preservation of projects and preferences during
-uninstall, paths containing spaces/non-ASCII characters, and operation without
-write permission to application resources. Test an interrupted upload and
-resumption, a tag collision, a mismatched platform manifest and the manually
-started fallback. macOS acceptance includes Gatekeeper verification of the
-downloaded distribution and an intact signature after normal use. Record which
-platforms and optional workflows actually passed before advertising them.
+The release acceptance matrix must exercise the final installed artifact with
+the source checkout unavailable and an isolated user profile. A structural ZIP
+check, a developer-machine launch or the default Cargo test suite alone cannot
+establish these outcomes:
+
+| Gate | Required installed-product evidence |
+| --- | --- |
+| Relocation and startup | Start through the OS shortcut from another working directory, without write access to application resources; check spaces/non-ASCII paths and missing WebView behavior |
+| Authoring templates | Create/reopen Basic, Sample, Third Person, Platformer 2D and Dungeon in C++, Blueprint and Lua; create Dungeon Complete in C++, its currently supported flavor. This is 16 creation cases across six templates |
+| Native execution | Build fresh Native Play/HUD runners with the supported host compiler; verify actionable behavior without that compiler and reuse after restarting |
+| Gameplay content | Exercise character/camera helpers, interaction, dialogue/widgets and project template role records where included by the selected candidate; use the relevant [gameplay helper acceptance matrix](../initiatives/gameplay-helpers/plan.md) |
+| Lua and export | Exercise the advertised Lua Native C++, VM bytecode and VM source modes, PSX build/export, and external scene files where used; ensure bytecode cooking is available |
+| Integrated editor | Open the embedded code editor, load workers and fonts, edit/save, resolve runtime headers and install/use LuaLS and clangd through the existing [acceptance path](../../docs/code-editor.md); keep Copilot optional |
+| Dependencies | Install/repair the pinned SDK and tools without changing application files; verify interrupted downloads, checksums and operation after moving the installation |
+| Upgrade and removal | Migrate preferences, retain project class UUIDs and template role bindings, preserve user modifications, handle an open editor, and uninstall without deleting projects or shared tools |
+| Platform trust | Verify signed Windows products and macOS Gatekeeper behavior after download; macOS signatures remain valid after tool installation and normal use |
+| Publication recovery | Reject a conflicting tag or mixed source manifests, resume interrupted uploads into a matching draft, verify the required asset set, and exercise the manual fallback |
+
+The 16 creation cases describe the current `Template::supports()` policy. The
+[gameplay helpers initiative](../initiatives/gameplay-helpers/plan.md) targets
+18 creation cases and 30 execution combinations once Dungeon Complete also
+supports Blueprint and Lua. At this assessment that initiative records P8 in
+progress and P9/P10 pending, including a pre-existing complete-game frame-time
+failure and missing runtime heap/stack peaks. Preserve those completion and
+budget gates when selecting the version 1 candidate. Packaging readiness does
+not establish gameplay parity or clear its outstanding acceptance results.
+
+Use existing tests as inputs, including
+[portable verification](../../tools/verify_portable.py),
+[release version/build-state tests](../../tools/test_release_workflow.py),
+[small starter checks](../../tests/integration/verify_small_starters.py),
+[Lua mode checks](../../tests/integration/verify_lua_modes.py) and
+[Dungeon Complete checks](../../tests/integration/verify_dungeon_complete.py).
+Some of the new integration sources are untracked in the assessed working tree;
+include them in the committed candidate before relying on them. Adapt harnesses
+that currently launch `target/debug/epok-editor.exe` so they can exercise the
+installed release executable. Run the relevant ignored Rust tests and Python
+integration checks explicitly; `cargo test --workspace` does not cover all of
+them. Record which
+platforms and optional capabilities actually passed before advertising them.

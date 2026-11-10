@@ -2,14 +2,14 @@
 
 Epok's gameplay-facing and engine-runtime callables. Start here for entities, input, collision, audio, scenes, timelines, effects and resource budgets.
 
-**Coverage:** 130 headers · 2216 public callables.
+**Coverage:** 149 headers · 2734 public callables.
 
 ## Modules
 
 | Module | Header | Callables | Tier |
 | --- | --- | ---: | --- |
 | [Actor Blueprint](epok/actor-blueprint.md) | `actor_blueprint.hpp` | 14 | Epok runtime API |
-| [Actor Tables](epok/actor-tables.md) | `actor_tables.hpp` | 12 | Epok runtime API |
+| [Actor Tables](epok/actor-tables.md) | `actor_tables.hpp` | 13 | Epok runtime API |
 | [Affine](epok/affine.md) | `affine.hpp` | 8 | Epok runtime API |
 | [Audio](epok/audio.md) | `audio.hpp` | 10 | Epok runtime API |
 | [Baked Draw Types](epok/baked-draw-types.md) | `baked_draw_types.hpp` | 7 | Epok runtime API |
@@ -21,11 +21,20 @@ Epok's gameplay-facing and engine-runtime callables. Start here for entities, in
 | [Blueprint Template](epok/blueprint-template.md) | `blueprint_template.hpp` | 0 | Epok runtime API |
 | [Camera Aim](epok/camera-aim.md) | `camera_aim.hpp` | 5 | Epok runtime API |
 | [Camera Direction](epok/camera-direction.md) | `camera_direction.hpp` | 4 | Epok runtime API |
+| [Camera Projection](epok/camera-projection.md) | `camera_projection.hpp` | 2 | Epok runtime API |
+| [Camera Rig](epok/camera-rig.md) | `camera_rig.hpp` | 37 | Epok runtime API |
+| [Character Animation](epok/character-animation.md) | `character_animation.hpp` | 35 | Epok runtime API |
+| [Character Commands](epok/character-commands.md) | `character_commands.hpp` | 44 | Epok runtime API |
+| [Character Input](epok/character-input.md) | `character_input.hpp` | 8 | Epok runtime API |
+| [Character2D](epok/character2d.md) | `character2d.hpp` | 17 | Epok runtime API |
+| [Character3D](epok/character3d.md) | `character3d.hpp` | 24 | Epok runtime API |
 | [Collision](epok/collision.md) | `collision.hpp` | 19 | Epok runtime API |
 | [Controller Pad](epok/controller-pad.md) | `controller_pad.hpp` | 11 | Epok runtime API |
 | [Data Table](epok/data-table.md) | `data_table.hpp` | 6 | Epok runtime API |
 | [Data Table Service](epok/data-table-service.md) | `data_table_service.hpp` | 0 | Epok runtime API |
 | [Debug Hud](epok/debug-hud.md) | `debug_hud.hpp` | 5 | Epok runtime API |
+| [Device Io](epok/device-io.md) | `device_io.hpp` | 13 | Epok runtime API |
+| [Dialogue Helpers](epok/dialogue-helpers.md) | `dialogue_helpers.hpp` | 44 | Epok runtime API |
 | [Draw Order](epok/draw-order.md) | `draw_order.hpp` | 2 | Epok runtime API |
 | [Dungeon Map](epok/dungeon-map.md) | `dungeon_map.hpp` | 16 | Epok runtime API |
 | [Dungeon Minimap](epok/dungeon-minimap.md) | `dungeon_minimap.hpp` | 1 | Epok runtime API |
@@ -40,10 +49,12 @@ Epok's gameplay-facing and engine-runtime callables. Start here for entities, in
 | [Fragment Slot](epok/fragment-slot.md) | `fragment_slot.hpp` | 5 | Epok runtime API |
 | [Frame Clear](epok/frame-clear.md) | `frame_clear.hpp` | 2 | Epok runtime API |
 | [Frustum](epok/frustum.md) | `frustum.hpp` | 14 | Epok runtime API |
-| [Gameplay Api](epok/gameplay-api.md) | `gameplay_api.hpp` | 140 | Epok runtime API |
+| [Gameplay Api](epok/gameplay-api.md) | `gameplay_api.hpp` | 163 | Epok runtime API |
+| [Gameplay Control](epok/gameplay-control.md) | `gameplay_control.hpp` | 47 | Epok runtime API |
 | [Gte Geometry](epok/gte-geometry.md) | `gte_geometry.hpp` | 27 | Epok runtime API |
-| [Hud](epok/hud.md) | `hud.hpp` | 15 | Epok runtime API |
-| [Hud Core](epok/hud-core.md) | `hud_core.hpp` | 19 | Epok runtime API |
+| [Health](epok/health.md) | `health.hpp` | 5 | Epok runtime API |
+| [Hud](epok/hud.md) | `hud.hpp` | 16 | Epok runtime API |
+| [Hud Core](epok/hud-core.md) | `hud_core.hpp` | 34 | Epok runtime API |
 | [Hud Focus](epok/hud-focus.md) | `hud_focus.hpp` | 3 | Epok runtime API |
 | [Input](epok/input.md) | `input.hpp` | 15 | Epok runtime API |
 | [Instrument Allocator](epok/instrument-allocator.md) | `instrument_allocator.hpp` | 3 | Epok runtime API |
@@ -51,9 +62,11 @@ Epok's gameplay-facing and engine-runtime callables. Start here for entities, in
 | [Instrument Preparation](epok/instrument-preparation.md) | `instrument_preparation.hpp` | 13 | Epok runtime API |
 | [Instrument Reverb](epok/instrument-reverb.md) | `instrument_reverb.hpp` | 18 | Epok runtime API |
 | [Instrument Synth](epok/instrument-synth.md) | `instrument_synth.hpp` | 37 | Epok runtime API |
+| [Interaction](epok/interaction.md) | `interaction.hpp` | 63 | Epok runtime API |
 | [Lifecycle](epok/lifecycle.md) | `lifecycle.hpp` | 4 | Epok runtime API |
 | [Lighting](epok/lighting.md) | `lighting.hpp` | 15 | Epok runtime API |
 | [Lua Runtime](epok/lua-runtime.md) | `lua_runtime.hpp` | 0 | Epok runtime API |
+| [Lua Value Storage](epok/lua-value-storage.md) | `lua_value_storage.hpp` | 5 | Epok runtime API |
 | [Memory Card](epok/memory-card.md) | `memory_card.hpp` | 20 | Epok runtime API |
 | [Memory Card Backend](epok/memory-card-backend.md) | `memory_card_backend.hpp` | 6 | Epok runtime API |
 | [Mesh Vertices](epok/mesh-vertices.md) | `mesh_vertices.hpp` | 15 | Epok runtime API |
@@ -64,7 +77,8 @@ Epok's gameplay-facing and engine-runtime callables. Start here for entities, in
 | [Native Music Service](epok/native-music-service.md) | `native_music_service.hpp` | 1 | Epok runtime API |
 | [Navigation](epok/navigation.md) | `navigation.hpp` | 17 | Epok runtime API |
 | [Navigation Components](epok/navigation-components.md) | `navigation_components.hpp` | 21 | Epok runtime API |
-| [Object Model](epok/object-model.md) | `object_model.hpp` | 365 | Epok runtime API |
+| [Object Model](epok/object-model.md) | `object_model.hpp` | 377 | Epok runtime API |
+| [Object Storage](epok/object-storage.md) | `object_storage.hpp` | 9 | Epok runtime API |
 | [Ordered Draw](epok/ordered-draw.md) | `ordered_draw.hpp` | 7 | Epok runtime API |
 | [Ordered Draw Types](epok/ordered-draw-types.md) | `ordered_draw_types.hpp` | 3 | Epok runtime API |
 | [Ordered Projection](epok/ordered-projection.md) | `ordered_projection.hpp` | 11 | Epok runtime API |
@@ -80,6 +94,7 @@ Epok's gameplay-facing and engine-runtime callables. Start here for entities, in
 | [Pocketstation Async](epok/pocketstation-async.md) | `pocketstation_async.hpp` | 13 | Epok runtime API |
 | [Pocketstation Service](epok/pocketstation-service.md) | `pocketstation_service.hpp` | 0 | Epok runtime API |
 | [Polygon](epok/polygon.md) | `polygon.hpp` | 21 | Epok runtime API |
+| [Projectile3D](epok/projectile3d.md) | `projectile3d.hpp` | 16 | Epok runtime API |
 | [Rail Camera Aim](epok/rail-camera-aim.md) | `rail_camera_aim.hpp` | 2 | Epok runtime API |
 | [Rail Navigation](epok/rail-navigation.md) | `rail_navigation.hpp` | 6 | Epok runtime API |
 | [Rail Navigation Types](epok/rail-navigation-types.md) | `rail_navigation_types.hpp` | 1 | Epok runtime API |
@@ -114,11 +129,14 @@ Epok's gameplay-facing and engine-runtime callables. Start here for entities, in
 | [Timeline Service](epok/timeline-service.md) | `timeline_service.hpp` | 9 | Epok runtime API |
 | [Track Camera Pose](epok/track-camera-pose.md) | `track_camera_pose.hpp` | 2 | Epok runtime API |
 | [Transition](epok/transition.md) | `transition.hpp` | 8 | Epok runtime API |
+| [Ui Anchor](epok/ui-anchor.md) | `ui_anchor.hpp` | 10 | Epok runtime API |
+| [Ui Anchor Service](epok/ui-anchor-service.md) | `ui_anchor_service.hpp` | 5 | Epok runtime API |
 | [Utility](epok/utility.md) | `utility.hpp` | 64 | Epok runtime API |
 | [Visibility](epok/visibility.md) | `visibility.hpp` | 14 | Epok runtime API |
 | [Visibility Track](epok/visibility-track.md) | `visibility_track.hpp` | 15 | Epok runtime API |
+| [World Gameplay](epok/world-gameplay.md) | `world_gameplay.hpp` | 56 | Epok runtime API |
 | [World2D](epok/world2d.md) | `world2d.hpp` | 49 | Epok runtime API |
-| [World2D Components](epok/world2d-components.md) | `world2d_components.hpp` | 82 | Epok runtime API |
+| [World2D Components](epok/world2d-components.md) | `world2d_components.hpp` | 84 | Epok runtime API |
 | [World2D Content](epok/world2d-content.md) | `world2d_content.hpp` | 79 | Epok runtime API |
 | [World2D Navigation](epok/world2d-navigation.md) | `world2d_navigation.hpp` | 44 | Epok runtime API |
 | [World2D Physics](epok/world2d-physics.md) | `world2d_physics.hpp` | 25 | Epok runtime API |
@@ -129,6 +147,7 @@ Epok's gameplay-facing and engine-runtime callables. Start here for entities, in
 | [World2D Viewports](epok/world2d-viewports.md) | `world2d_viewports.hpp` | 23 | Epok runtime API |
 | [Blueprint Playback Service](epok/blueprint-playback-service.md) | `blueprint_playback_service.hpp` | 0 | Engine internal |
 | [Blueprint Runtime](epok/blueprint-runtime.md) | `blueprint_runtime.hpp` | 65 | Engine internal |
+| [Dialogue](epok/dialogue.md) | `dialogue.hpp` | 24 | Engine internal |
 | [Fmv Bitstream](epok/fmv-bitstream.md) | `fmv_bitstream.hpp` | 17 | Engine internal |
 | [Loading Renderer](epok/loading-renderer.md) | `loading_renderer.hpp` | 1 | Engine internal |
 | [Particle Effect Runtime](epok/particle-effect-runtime.md) | `particle_effect_runtime.hpp` | 22 | Engine internal |

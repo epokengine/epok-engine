@@ -1,10 +1,10 @@
 {
   "nugget_revision": "c702235f366fb1cd8c18e0a5a5392e0acae8a079",
   "epok": {
-    "headers": 130,
-    "types": 559,
-    "callables": 2216,
-    "properties": 3207
+    "headers": 149,
+    "types": 717,
+    "callables": 2734,
+    "properties": 3955
   },
   "psyqo": {
     "headers": 53,
@@ -27,10 +27,10 @@
       "family": "epok",
       "header": "actor_tables.hpp",
       "slug": "actor-tables",
-      "callables": 12,
-      "types": 8,
-      "properties": 46,
-      "source_sha256": "4f6ea3ea311109f5233ed4e950e7b4688bde084c350160137c6057c80f6fcba4",
+      "callables": 13,
+      "types": 9,
+      "properties": 48,
+      "source_sha256": "d18e03fae9ca30d9e5148d234922e3bed14b4680a7b5d0cc7eb3862060c78b5d",
       "diagnostics": []
     },
     {
@@ -165,6 +165,76 @@
     },
     {
       "family": "epok",
+      "header": "camera_projection.hpp",
+      "slug": "camera-projection",
+      "callables": 2,
+      "types": 0,
+      "properties": 0,
+      "source_sha256": "5653ff2e7abb924c7c97045a18150800ca8ead6b0bf7ebfe301bb39105729fd0",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
+      "header": "camera_rig.hpp",
+      "slug": "camera-rig",
+      "callables": 37,
+      "types": 13,
+      "properties": 62,
+      "source_sha256": "4ae74889a8a9090c2cf0ad9a66e00b442830c0e8ef250aeaa33d6897c3626e2a",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
+      "header": "character2d.hpp",
+      "slug": "character2d",
+      "callables": 17,
+      "types": 4,
+      "properties": 22,
+      "source_sha256": "b90b5ebe3d4f1bb7ea8065c33a0811df0abc07c52fac017445522b5eb51f1213",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
+      "header": "character3d.hpp",
+      "slug": "character3d",
+      "callables": 24,
+      "types": 9,
+      "properties": 46,
+      "source_sha256": "496e306a284ed14f1d982f50319471010314a73b828284d17c68148f047b7ffa",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
+      "header": "character_animation.hpp",
+      "slug": "character-animation",
+      "callables": 35,
+      "types": 10,
+      "properties": 64,
+      "source_sha256": "df7ad8851ad4daaf9503f3347027761a41f07d7f3efb38b07860447c27e85dbc",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
+      "header": "character_commands.hpp",
+      "slug": "character-commands",
+      "callables": 44,
+      "types": 13,
+      "properties": 45,
+      "source_sha256": "8b5a1fe9d94304b7ac2e2fdb347ddde7500932614901a97d7e5dfe1618548116",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
+      "header": "character_input.hpp",
+      "slug": "character-input",
+      "callables": 8,
+      "types": 4,
+      "properties": 15,
+      "source_sha256": "085798ce9df54ec6fa46c125bfcf4d68676679bad518af28388b631fc01e3028",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
       "header": "collision.hpp",
       "slug": "collision",
       "callables": 19,
@@ -211,6 +281,36 @@
       "types": 1,
       "properties": 17,
       "source_sha256": "7c90fcc88a022d5a6009bbf280b5308e2fcbfd0e5bf74a3e45592a3cee41565d",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
+      "header": "device_io.hpp",
+      "slug": "device-io",
+      "callables": 13,
+      "types": 3,
+      "properties": 11,
+      "source_sha256": "afa57cefa112cf4df0f432e1c456f472aed6d5b7436b956d54c745beddcdd0e3",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
+      "header": "dialogue.hpp",
+      "slug": "dialogue",
+      "callables": 24,
+      "types": 24,
+      "properties": 116,
+      "source_sha256": "62d357f484b5953d2e44b0c75dac022cc272466cc13f90c224bb30ede2e0789e",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
+      "header": "dialogue_helpers.hpp",
+      "slug": "dialogue-helpers",
+      "callables": 44,
+      "types": 10,
+      "properties": 64,
+      "source_sha256": "45e51a051eaf73f1a7e9e4f46028143c0317058a4efc354f702e1774b31844b2",
       "diagnostics": []
     },
     {
@@ -279,8 +379,8 @@
       "slug": "epok",
       "callables": 63,
       "types": 64,
-      "properties": 377,
-      "source_sha256": "604a9a0bd5b7315d91823da9b5fa7f8d8cef4d48a85551adab6a1387ccf5a48e",
+      "properties": 379,
+      "source_sha256": "428df8d04c7db4243e4841789be5837faa2e32afcf02e7222bc45a2ece740304",
       "diagnostics": []
     },
     {
@@ -367,10 +467,20 @@
       "family": "epok",
       "header": "gameplay_api.hpp",
       "slug": "gameplay-api",
-      "callables": 140,
-      "types": 39,
-      "properties": 143,
-      "source_sha256": "7b49e1fcdbf1f0abcfeabccfb268f060dd8725020c6d35ab16908153d812c217",
+      "callables": 163,
+      "types": 42,
+      "properties": 150,
+      "source_sha256": "b05e40fea4a546f54e04885c7b9052331501f6c44ac5c1a73931624b764ac13f",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
+      "header": "gameplay_control.hpp",
+      "slug": "gameplay-control",
+      "callables": 47,
+      "types": 5,
+      "properties": 30,
+      "source_sha256": "15281db1d4c3303796d722e6994e055c43f065fa939e7c5076c06cbdedb3230b",
       "diagnostics": []
     },
     {
@@ -385,22 +495,32 @@
     },
     {
       "family": "epok",
+      "header": "health.hpp",
+      "slug": "health",
+      "callables": 5,
+      "types": 4,
+      "properties": 10,
+      "source_sha256": "d3e7cac0434a79f574b8ea0ac2af34005f8e50514b000e3a135b259017ae7705",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
       "header": "hud.hpp",
       "slug": "hud",
-      "callables": 15,
+      "callables": 16,
       "types": 2,
       "properties": 0,
-      "source_sha256": "a3b2ddb4ff7495139c64440b88db331466016b9c06c8c75dafadfe8f9db95b31",
+      "source_sha256": "b1ddf82c3e2be537a547d5d198e2be955280d1e9760ec540b11ee3dedeca38a9",
       "diagnostics": []
     },
     {
       "family": "epok",
       "header": "hud_core.hpp",
       "slug": "hud-core",
-      "callables": 19,
-      "types": 7,
-      "properties": 17,
-      "source_sha256": "bd8e60d618a9dc57dd41efdc3551946bfffb638d9a676646fe41154b4b2aedbe",
+      "callables": 34,
+      "types": 14,
+      "properties": 41,
+      "source_sha256": "469e5737d76bf66b1f4ccd53605e90c0e5439e9a1bc972b7bc82ba5487e18fee",
       "diagnostics": []
     },
     {
@@ -410,7 +530,7 @@
       "callables": 3,
       "types": 0,
       "properties": 0,
-      "source_sha256": "57224b3bfb63b73074bbb90858eaecfcd3b9d01536d096b80a8e9c0379cfc7d3",
+      "source_sha256": "75b09054ea423d1b52ce4a5da41996eb629f6762433852df1a36d2b26e03b288",
       "diagnostics": []
     },
     {
@@ -475,6 +595,16 @@
     },
     {
       "family": "epok",
+      "header": "interaction.hpp",
+      "slug": "interaction",
+      "callables": 63,
+      "types": 11,
+      "properties": 52,
+      "source_sha256": "7f2bd1aa60cf3a4fe7435aead13364f7cba3a0230e4eda58424c5b6de0726f9c",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
       "header": "lifecycle.hpp",
       "slug": "lifecycle",
       "callables": 4,
@@ -510,7 +640,17 @@
       "callables": 0,
       "types": 0,
       "properties": 0,
-      "source_sha256": "3cac5abeeebe1c6f8c196978db4c866e87f58fc139d70f47d28bea1dc3f6be37",
+      "source_sha256": "d9853197b77bd050ac53ab9db72e3d16a1a72cfecbaddd91614f83925fd4f5ef",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
+      "header": "lua_value_storage.hpp",
+      "slug": "lua-value-storage",
+      "callables": 5,
+      "types": 1,
+      "properties": 0,
+      "source_sha256": "6328f1a87536a593cbab6dcf5e0aa8cf7a227790c6e4ad7037976a76d5697a99",
       "diagnostics": []
     },
     {
@@ -617,10 +757,20 @@
       "family": "epok",
       "header": "object_model.hpp",
       "slug": "object-model",
-      "callables": 365,
-      "types": 53,
-      "properties": 162,
-      "source_sha256": "e57ae5d636950c7f7ca413a24dd5a6f9ca17dbab109ec959d886a729f8b97fef",
+      "callables": 377,
+      "types": 56,
+      "properties": 175,
+      "source_sha256": "9afa074f412fd322f49c6725b3aa7a256adace05c8ab03e0c6fc561ef5c649bc",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
+      "header": "object_storage.hpp",
+      "slug": "object-storage",
+      "callables": 9,
+      "types": 4,
+      "properties": 18,
+      "source_sha256": "d69b303709891848dddf5747d17b4ee802f1e3fc5e70f4100534fabe9a021139",
       "diagnostics": []
     },
     {
@@ -781,6 +931,16 @@
       "types": 9,
       "properties": 24,
       "source_sha256": "dd64356082793b306b7da2c21b2c8246bb8cda1332a9afb3783135320b4b93e9",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
+      "header": "projectile3d.hpp",
+      "slug": "projectile3d",
+      "callables": 16,
+      "types": 13,
+      "properties": 72,
+      "source_sha256": "7ab0329c3449344e30ff9a10ced08e7a9a0952df44d14bf17596f738382742e3",
       "diagnostics": []
     },
     {
@@ -1069,8 +1229,8 @@
       "slug": "text",
       "callables": 2,
       "types": 4,
-      "properties": 23,
-      "source_sha256": "6c6369c137522573e06da06cce64ce79baed92ba552b54748c2e2a058e2b5563",
+      "properties": 24,
+      "source_sha256": "83ded29871a6aa1a60cef757a8e049607f16e166caba2f05a900800d7fe3ea03",
       "diagnostics": []
     },
     {
@@ -1175,6 +1335,26 @@
     },
     {
       "family": "epok",
+      "header": "ui_anchor.hpp",
+      "slug": "ui-anchor",
+      "callables": 10,
+      "types": 2,
+      "properties": 15,
+      "source_sha256": "426a53b540a1e114039500c97a23ac37bdac4216666883d99a4993f7b4ef2011",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
+      "header": "ui_anchor_service.hpp",
+      "slug": "ui-anchor-service",
+      "callables": 5,
+      "types": 1,
+      "properties": 4,
+      "source_sha256": "0a32622691bbf16a2645a6defbab959ff46b0a7f18cff83d21f16ebf05de4f74",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
       "header": "utility.hpp",
       "slug": "utility",
       "callables": 64,
@@ -1227,10 +1407,10 @@
       "family": "epok",
       "header": "world2d_components.hpp",
       "slug": "world2d-components",
-      "callables": 82,
+      "callables": 84,
       "types": 7,
       "properties": 77,
-      "source_sha256": "24349d4c74602ac983d7316e00e7fc12672cdbe952c0183b89f3497409515528",
+      "source_sha256": "abfb669821c01d586b3a5404167b563c230fc101b98227bc1f07385ac0fdea6f",
       "diagnostics": []
     },
     {
@@ -1280,7 +1460,7 @@
       "callables": 52,
       "types": 10,
       "properties": 79,
-      "source_sha256": "2e642a4cd193333adfce658ccade8048bc7344bf0f0ad11200d85d79e9fc51bc",
+      "source_sha256": "d9ba846e5eafb4202f231129b87b4ac865155cd2e80a0c46206ec04eef8abdee",
       "diagnostics": []
     },
     {
@@ -1311,6 +1491,16 @@
       "types": 4,
       "properties": 36,
       "source_sha256": "9f88477687b413e42f350c616f3b9f03c9189da87bec730e07dd9c6f32d5f13f",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
+      "header": "world_gameplay.hpp",
+      "slug": "world-gameplay",
+      "callables": 56,
+      "types": 14,
+      "properties": 53,
+      "source_sha256": "7781391e8fb8dad1f39a40f5b7a1a3e6a47e11db06a5e7228214620954ab4e27",
       "diagnostics": []
     },
     {

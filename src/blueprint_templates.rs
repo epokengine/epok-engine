@@ -15,6 +15,61 @@ use uuid::Uuid;
 pub const MAX_ENTITIES: usize = 32;
 pub const MAX_CONSTRUCTION_OPS: usize = 256;
 
+// A property set to None differs from deleting its override. The marker cannot
+// be a reflected record field (its key is not a C++/Blueprint identifier).
+pub(crate) fn literal_null() -> Value {
+    serde_json::json!({"$epok.literal":null})
+}
+pub(crate) fn is_literal_null(value: &Value) -> bool {
+    value
+        .as_object()
+        .is_some_and(|v| v.len() == 1 && v.get("$epok.literal").is_some_and(Value::is_null))
+}
+pub(crate) fn uses_literal_null(template: &Template) -> bool {
+    template
+        .overrides
+        .values()
+        .any(|o| o.members.values().any(is_literal_null))
+}
+pub(crate) fn uses_focus_links(template: &Template) -> bool {
+    template
+        .actors
+        .iter()
+        .any(|item| crate::hud::has_focus_links(&item.entity))
+        || template
+            .overrides
+            .values()
+            .any(|edits| focus_member_edits(&edits.members))
+}
+pub(crate) fn focus_member_edits(edits: &BTreeMap<String, Value>) -> bool {
+    fn contains(value: &Value) -> bool {
+        match value {
+            Value::Object(fields) => {
+                fields
+                    .get("canvas")
+                    .and_then(|v| v.get("initial_focus"))
+                    .is_some_and(|v| !v.is_null())
+                    || fields
+                        .get("focusable")
+                        .and_then(|v| v.get("navigation"))
+                        .is_some_and(|v| !v.is_null())
+                    || fields.values().any(contains)
+            }
+            Value::Array(items) => items.iter().any(contains),
+            _ => false,
+        }
+    }
+    edits.iter().any(|(path, value)| {
+        path.contains("/properties/canvas/initial_focus")
+            || path.contains("/properties/focusable/navigation")
+            || (path.ends_with("/properties/canvas")
+                && value.get("initial_focus").is_some_and(|v| !v.is_null()))
+            || (path.ends_with("/properties/focusable")
+                && value.get("navigation").is_some_and(|v| !v.is_null()))
+            || contains(value)
+    })
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct Instance {
@@ -37,6 +92,10 @@ pub struct Instance {
 pub struct Template {
     #[serde(default)]
     pub actors: Vec<TemplateEntity>,
+    /// Local child roots whose registered class supplies a reusable composition.
+    /// Their authored changes use the existing override/reference tables.
+    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
+    pub instances: BTreeSet<Uuid>,
     #[serde(default)]
     pub overrides: BTreeMap<Uuid, EntityOverride>,
     #[serde(default)]
@@ -72,6 +131,8 @@ pub struct ObjectReference {
     pub owner: Uuid,
     /// Stable reflected property ID; renames do not silently retarget a reference.
     pub member: String,
+    /// Nil explicitly clears an inherited binding. Other targets must belong to
+    /// the same class composition and are remapped with its object identities.
     pub target: Uuid,
 }
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -89,6 +150,8 @@ pub enum ConstructionOp {
 pub struct ResolvedTemplate {
     pub actors: Vec<TemplateEntity>,
     pub references: Vec<ObjectReference>,
+    /// Editor provenance only; runtime still receives the same flat Actor tree.
+    pub nested_roots: BTreeSet<Uuid>,
 }
 #[derive(Clone, Debug)]
 pub struct Placement {
@@ -129,7 +192,7 @@ impl Template {
     }
     pub fn remove_local(&mut self, id: Uuid) -> Result<(), String> {
         if !self.actors.iter().any(|item| item.entity.id == id) {
-            return Err("Inherited template actors cannot be deleted; deactivate explicitly or edit the declaring Blueprint.".into());
+            return Err("Inherited template actors cannot be deleted; deactivate explicitly or edit the declaring class.".into());
         }
         if self.actors.iter().any(|item| item.parent == Some(id))
             || self
@@ -143,6 +206,7 @@ impl Template {
             );
         }
         self.actors.retain(|item| item.entity.id != id);
+        self.instances.remove(&id);
         self.overrides.remove(&id);
         Ok(())
     }
@@ -258,18 +322,53 @@ pub fn template_audio_signature(template: &Template, registry: Option<&Registry>
             | ConstructionOp::Reparent { .. } => {}
         }
     }
-    crate::scene_dependencies::hash((actors, overrides))
+    if template.instances.is_empty() {
+        crate::scene_dependencies::hash((actors, overrides))
+    } else {
+        let instances = template
+            .instances
+            .iter()
+            .map(|id| {
+                (
+                    *id,
+                    template
+                        .actors
+                        .iter()
+                        .find(|item| item.entity.id == *id)
+                        .map(|item| {
+                            item.entity
+                                .class
+                                .class_id
+                                .as_deref()
+                                .unwrap_or(&item.entity.class.name)
+                        }),
+                )
+            })
+            .collect::<Vec<_>>();
+        crate::scene_dependencies::hash((actors, overrides, instances))
+    }
 }
 
 /// Resolve already ordered native-to-derived template layers. Inputs are never
 /// modified on error. Derived overrides retain their identity and explicitness.
 pub fn resolve(layers: &[&Template]) -> Result<ResolvedTemplate, String> {
+    resolve_expanded(layers, |_| {
+        Err("Nested class instances require the project's composition sources.".into())
+    })
+}
+fn resolve_expanded(
+    layers: &[&Template],
+    mut expand: impl FnMut(&TemplateEntity) -> Result<ResolvedTemplate, String>,
+) -> Result<ResolvedTemplate, String> {
     if layers.len() > 64 {
         return Err("Template inheritance exceeds 64 classes.".into());
     }
     let mut actors = BTreeMap::<Uuid, TemplateEntity>::new();
+    let mut order = Vec::new();
     let mut references = BTreeMap::new();
     let mut operations = vec![];
+    let mut instances = BTreeSet::new();
+    let mut overrides = vec![];
     for layer in layers {
         for item in &layer.actors {
             if item.entity.id.is_nil()
@@ -278,20 +377,13 @@ pub fn resolve(layers: &[&Template]) -> Result<ResolvedTemplate, String> {
             {
                 return Err("Template entity requires a unique non-nil UUID and UUID parent; numeric scene parents are not portable.".into());
             }
+            order.push(item.entity.id);
         }
         if actors.len() > MAX_ENTITIES {
             return Err(format!("Template exceeds {MAX_ENTITIES} actors."));
         }
-        for (id, edits) in &layer.overrides {
-            apply_override(
-                actors.get_mut(id).ok_or_else(|| {
-                    format!(
-                        "Orphaned template override {id}; restore its entity or migrate explicitly."
-                    )
-                })?,
-                edits,
-            )?;
-        }
+        instances.extend(layer.instances.iter().copied());
+        overrides.extend(layer.overrides.iter());
         let mut local_references = BTreeSet::new();
         for reference in &layer.references {
             if !local_references.insert((reference.owner, reference.member.as_str())) {
@@ -304,6 +396,44 @@ pub fn resolve(layers: &[&Template]) -> Result<ResolvedTemplate, String> {
         }
         operations.extend(layer.construction.iter());
     }
+    for id in &instances {
+        let item = actors
+            .get(id)
+            .ok_or_else(|| format!("Nested class root {id} is missing."))?;
+        if item.parent.is_none() {
+            return Err("Use class inheritance for the composition root; nested instances require a parent.".into());
+        }
+    }
+    let mut expanded_order = Vec::new();
+    let mut nested_roots = BTreeSet::new();
+    for id in order {
+        if instances.contains(&id) {
+            let nested = expand(&actors.remove(&id).unwrap())?;
+            nested_roots.extend(nested.nested_roots);
+            for item in nested.actors {
+                let id = item.entity.id;
+                if actors.insert(id, item).is_some() {
+                    return Err(format!("Nested class object identity collision at {id}."));
+                }
+                expanded_order.push(id);
+            }
+        } else {
+            expanded_order.push(id);
+        }
+        if actors.len() > MAX_ENTITIES {
+            return Err(format!("Nested composition exceeds {MAX_ENTITIES} actors."));
+        }
+    }
+    for (id, edits) in overrides {
+        apply_override(
+            actors.get_mut(id).ok_or_else(|| {
+                format!(
+                    "Orphaned template override {id}; restore its entity or migrate explicitly."
+                )
+            })?,
+            edits,
+        )?;
+    }
     if operations.len() > MAX_CONSTRUCTION_OPS {
         return Err(format!(
             "Construction exceeds {MAX_CONSTRUCTION_OPS} operations."
@@ -313,43 +443,242 @@ pub fn resolve(layers: &[&Template]) -> Result<ResolvedTemplate, String> {
         construct(&mut actors, operation)?;
     }
     let result = ResolvedTemplate {
-        actors: actors.into_values().collect(),
+        // Actor order is also the authored paint order of sibling UI controls.
+        // Identity lookup must not sort a background over its foreground text.
+        actors: expanded_order
+            .into_iter()
+            .map(|id| actors.remove(&id).unwrap())
+            .collect(),
         references: references.into_values().collect(),
+        nested_roots,
     };
     result.validate()?;
     Ok(result)
 }
-/// Resolve one class directly from the indexed asset set. Native classes have no
-/// template layer; missing parents and cycles are errors rather than empty data.
+/// Resolve Blueprint-only composition. Source-based companions are supplied to
+/// `resolve_class`; missing parents and cycles always remain errors.
+#[cfg(test)]
 pub fn resolve_assets(
     files: &[crate::blueprint_asset::AssetFile],
     registry: &Registry,
     id: &str,
 ) -> Result<ResolvedTemplate, String> {
-    let mut assets = BTreeMap::new();
-    for file in files {
-        if assets.insert(file.asset.id.as_str(), &file.asset).is_some() {
-            return Err("Duplicate Blueprint class identity while resolving template.".into());
-        }
+    resolve_class(files, registry, id, &BTreeMap::new())
+}
+/// Resolve the same template layers for every registered authoring provider.
+pub fn resolve_class(
+    files: &[crate::blueprint_asset::AssetFile],
+    registry: &Registry,
+    id: &str,
+    compositions: &BTreeMap<String, Template>,
+) -> Result<ResolvedTemplate, String> {
+    ClassResolver::new(files, registry, compositions)?.class(id)
+}
+/// All authoring providers contribute to the existing class composition resolver.
+/// This is source input, not a runtime class catalog or a second widget hierarchy.
+pub struct CompositionSources {
+    pub blueprints: Vec<crate::blueprint_asset::AssetFile>,
+    pub companions: BTreeMap<String, Template>,
+}
+impl CompositionSources {
+    pub fn resolve_class(&self, registry: &Registry, id: &str) -> Result<ResolvedTemplate, String> {
+        resolve_class(&self.blueprints, registry, id, &self.companions)
     }
-    let mut current = id;
-    let mut seen = BTreeSet::new();
-    let mut layers = vec![];
-    loop {
-        if !seen.insert(current) {
-            return Err(format!("Template inheritance cycle at {current}."));
+    pub fn resolve_layers(
+        &self,
+        registry: &Registry,
+        owner: &str,
+        layers: &[&Template],
+    ) -> Result<ResolvedTemplate, String> {
+        ClassResolver::new(&self.blueprints, registry, &self.companions)?.layers(owner, layers)
+    }
+}
+struct ClassResolver<'a> {
+    assets: BTreeMap<&'a str, &'a crate::blueprint_asset::BlueprintAsset>,
+    registry: &'a Registry,
+    compositions: &'a BTreeMap<String, Template>,
+    stack: Vec<String>,
+    operations: usize,
+}
+impl<'a> ClassResolver<'a> {
+    fn new(
+        files: &'a [crate::blueprint_asset::AssetFile],
+        registry: &'a Registry,
+        compositions: &'a BTreeMap<String, Template>,
+    ) -> Result<Self, String> {
+        let mut assets = BTreeMap::new();
+        for file in files {
+            if assets.insert(file.asset.id.as_str(), &file.asset).is_some() {
+                return Err("Duplicate Blueprint class identity while resolving template.".into());
+            }
         }
-        if let Some(asset) = assets.get(current) {
-            layers.push(&asset.template);
-            current = &asset.parent;
-        } else if registry.classes.contains_key(current) {
-            break;
+        Ok(Self {
+            assets,
+            registry,
+            compositions,
+            stack: vec![],
+            operations: 0,
+        })
+    }
+    fn class(&mut self, id: &str) -> Result<ResolvedTemplate, String> {
+        let registry = self.registry;
+        let compositions = self.compositions;
+        let mut current = id;
+        let mut seen = BTreeSet::new();
+        let mut layers = vec![];
+        loop {
+            if !seen.insert(current) {
+                return Err(format!("Template inheritance cycle at {current}."));
+            }
+            if let Some(asset) = self.assets.get(current).copied() {
+                layers.push(&asset.template);
+                current = &asset.parent;
+            } else if let Some(class) = registry.classes.get(current) {
+                if let Some(template) = compositions.get(current) {
+                    layers.push(template);
+                }
+                if let Some(parent) = &class.parent {
+                    current = parent;
+                } else {
+                    break;
+                }
+            } else {
+                return Err(format!("Template parent class {current} is missing."));
+            }
+        }
+        layers.reverse();
+        self.layers(id, &layers)
+    }
+    fn layers(&mut self, owner: &str, layers: &[&Template]) -> Result<ResolvedTemplate, String> {
+        if self.stack.iter().any(|id| id == owner) {
+            return Err(format!(
+                "Nested class composition cycle: {} -> {owner}.",
+                self.stack.join(" -> ")
+            ));
+        }
+        if self.stack.len() >= 64 {
+            return Err("Nested class composition exceeds 64 levels.".into());
+        }
+        self.operations += layers
+            .iter()
+            .map(|layer| layer.construction.len())
+            .sum::<usize>();
+        if self.operations > MAX_CONSTRUCTION_OPS {
+            return Err(format!(
+                "Nested construction exceeds {MAX_CONSTRUCTION_OPS} operations."
+            ));
+        }
+        self.stack.push(owner.to_owned());
+        let result = resolve_expanded(layers, |item| self.instance(item));
+        self.stack.pop();
+        result
+    }
+    fn instance(&mut self, site: &TemplateEntity) -> Result<ResolvedTemplate, String> {
+        let class = match &site.entity.class.class_id {
+            Some(id) => self.registry.classes.get(id),
+            None => self.registry.named(&site.entity.class.name),
+        }
+        .ok_or_else(|| format!("Nested class {} is missing.", site.entity.class.name))?;
+        if class.abstract_class {
+            return Err(format!("Nested class {} is abstract.", class.cpp_name));
+        }
+        let model = self.registry.model().map_err(|errors| {
+            errors
+                .into_iter()
+                .map(|e| e.message)
+                .collect::<Vec<_>>()
+                .join("\n")
+        })?;
+        if model
+            .class(&class.id)
+            .is_none_or(|class| class.family != crate::reflection_schema::ClassFamily::Actor)
+        {
+            return Err("Nested class instances require an Actor class.".into());
+        }
+        let resolved = self.class(&class.id)?;
+        let root = resolved.root();
+        let mut scene = if root.is_some() {
+            resolved.scene(
+                ClassDefaults {
+                    name: class.cpp_name.clone(),
+                    class_id: Some(class.id.clone()),
+                    provider: class.provider.clone(),
+                    backend: class.backend.clone(),
+                    ..Default::default()
+                },
+                self.registry,
+            )?
         } else {
-            return Err(format!("Template parent class {current} is missing."));
+            let local = nested_identity(
+                Uuid::parse_str(&class.id).map_err(|_| "Nested class needs a persistent UUID.")?,
+                Uuid::nil(),
+            );
+            let mut actor = crate::actor_document::ActorInstance::new(
+                local,
+                crate::actor_document::ClassReference::new(&class.cpp_name, &class.id),
+                &class.cpp_name,
+            );
+            crate::class_composition::hydrate(&mut actor, &model)?;
+            Scene {
+                actors: vec![actor],
+                ..Default::default()
+            }
+        };
+        let root = root.unwrap_or(scene.actors[0].id);
+        let mut identities = BTreeMap::new();
+        for actor in &scene.actors {
+            identities.insert(
+                actor.id,
+                if actor.id == root {
+                    site.entity.id
+                } else {
+                    nested_identity(site.entity.id, actor.id)
+                },
+            );
+            for component in &actor.components {
+                identities.insert(component.id, nested_identity(site.entity.id, component.id));
+            }
         }
+        let mut nested_roots = resolved
+            .nested_roots
+            .iter()
+            .map(|id| identities[id])
+            .collect::<BTreeSet<_>>();
+        nested_roots.insert(site.entity.id);
+        let mut actors = vec![];
+        for mut actor in scene.actors.drain(..) {
+            let is_root = actor.id == root;
+            crate::actor_document::remap_actor(&mut actor, &identities);
+            actor.data.parent = None;
+            actor.data.blueprint_instance = None;
+            if is_root {
+                actor.name = site.entity.name.clone();
+                actor.logical_parent = site.parent;
+                actor.attach = site.entity.attach.clone();
+            }
+            actors.push(TemplateEntity {
+                parent: actor.logical_parent,
+                entity: actor,
+            });
+        }
+        // Child scene() already bound its references. Ordinary property remapping
+        // preserves them; parent overrides can now replace them without being undone.
+        Ok(ResolvedTemplate {
+            actors,
+            references: vec![],
+            nested_roots,
+        })
     }
-    layers.reverse();
-    resolve(&layers)
+}
+pub fn nested_identity(instance: Uuid, local: Uuid) -> Uuid {
+    use sha2::{Digest, Sha256};
+    let mut hash = Sha256::new();
+    hash.update(b"nested-class-v1");
+    hash.update(instance.as_bytes());
+    hash.update(local.as_bytes());
+    let mut bytes = [0; 16];
+    bytes.copy_from_slice(&hash.finalize()[..16]);
+    Uuid::from_bytes(bytes)
 }
 fn quantize(value: f32) -> Result<i32, String> {
     let raw = (f64::from(value) * 4096.).round();
@@ -454,7 +783,7 @@ impl ResolvedTemplate {
         let identities = crate::actor_document::fresh_identities(&scene.actors);
         for reference in &self.references {
             if !identities.contains_key(&reference.owner)
-                || !identities.contains_key(&reference.target)
+                || (!reference.target.is_nil() && !identities.contains_key(&reference.target))
                 || reference.member.is_empty()
             {
                 return Err(
@@ -468,10 +797,26 @@ impl ResolvedTemplate {
     /// cooking. Cookers resolve resources through the usual scene pipeline.
     pub fn scene(&self, binding: ClassDefaults, registry: &Registry) -> Result<Scene, String> {
         self.validate()?;
-        let root = self.root().ok_or("Blueprint has no Actor template.")?;
+        let root = self.root().ok_or("Class has no Actor template.")?;
         let class = registry
             .bound(&binding)
-            .ok_or("Actor Blueprint class is unresolved.")?;
+            .ok_or("Actor class is unresolved.")?;
+        // Lightweight synthetic registries used by document-only callers have
+        // no native defaults. Real native defaults always use the shared model.
+        let native_defaults = registry
+            .ancestry(&class.cpp_name)
+            .iter()
+            .any(|class| !class.default_components.is_empty());
+        let model = native_defaults
+            .then(|| registry.model())
+            .transpose()
+            .map_err(|errors| {
+                errors
+                    .into_iter()
+                    .map(|e| e.message)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            })?;
         let mut scene = Scene::default();
         scene.actors.clear();
         scene.name = "ActorTemplate".into();
@@ -486,12 +831,18 @@ impl ResolvedTemplate {
                     .or_else(|| registry.named(&actor.class.name).map(|c| c.id.as_str()))
                     .ok_or("Template root class is unresolved")?;
                 if !crate::blueprint_refs::class_is_a(registry, &class.id, base) {
-                    return Err("Template root must be an ancestor of the Actor Blueprint being instantiated".into());
+                    return Err(
+                        "Template root must be an ancestor of the Actor class being instantiated"
+                            .into(),
+                    );
                 }
                 actor.class =
                     crate::actor_document::ClassReference::new(&class.cpp_name, &class.id);
                 actor.properties.extend(binding.properties.clone());
                 actor.overrides.extend(binding.overrides.clone());
+            }
+            if let Some(model) = &model {
+                crate::class_composition::hydrate(&mut actor, model)?;
             }
             scene.actors.push(actor);
         }
@@ -525,12 +876,23 @@ impl ResolvedTemplate {
                     "Template reference member must be an Actor or ActorComponent reference".into(),
                 );
             }
-            owner
-                .1
-                .insert(property.name.clone(), serde_json::json!(reference.target));
+            owner.1.insert(
+                property.name.clone(),
+                if reference.target.is_nil() {
+                    Value::Null
+                } else {
+                    serde_json::json!(reference.target)
+                },
+            );
             owner.2.insert(property.name.clone());
         }
+        crate::hud::stabilize_focus(&mut scene.actors);
         validate_properties(&scene, registry)?;
+        if let Some(model) = &model {
+            for actor in &scene.actors {
+                crate::actor_components::validate_with_model(model, actor)?;
+            }
+        }
         scene.validate()?;
         Ok(scene)
     }
@@ -599,8 +961,106 @@ pub fn place(
 
 /// Captures component composition and Actor properties with fresh asset-local identities.
 pub fn capture(scene: &Scene, root: usize, registry: &Registry) -> Result<Template, String> {
+    capture_internal(scene, root, registry, None).map(|capture| capture.template)
+}
+pub struct CapturedTemplate {
+    pub template: Template,
+    pub identities: crate::actor_document::IdentityMap,
+}
+pub fn remap_template(template: &mut Template, identities: &crate::actor_document::IdentityMap) {
+    fn id(value: &mut Uuid, identities: &crate::actor_document::IdentityMap) {
+        if let Some(mapped) = identities.get(value) {
+            *value = *mapped;
+        }
+    }
+    fn parent(value: &mut ParentOverride, identities: &crate::actor_document::IdentityMap) {
+        if let ParentOverride::Actor { entity } = value {
+            id(entity, identities);
+        }
+    }
+    for item in &mut template.actors {
+        crate::actor_document::remap_actor(&mut item.entity, identities);
+        if let Some(value) = &mut item.parent {
+            id(value, identities);
+        }
+    }
+    template.instances = std::mem::take(&mut template.instances)
+        .into_iter()
+        .map(|mut value| {
+            id(&mut value, identities);
+            value
+        })
+        .collect();
+    template.overrides = std::mem::take(&mut template.overrides)
+        .into_iter()
+        .map(|(mut owner, mut edits)| {
+            id(&mut owner, identities);
+            edits.members = edits
+                .members
+                .into_iter()
+                .map(|(path, mut value)| {
+                    let path = path
+                        .split('/')
+                        .map(|part| {
+                            Uuid::parse_str(part)
+                                .ok()
+                                .and_then(|id| identities.get(&id))
+                                .map(|id| id.to_string())
+                                .unwrap_or_else(|| part.to_owned())
+                        })
+                        .collect::<Vec<_>>()
+                        .join("/");
+                    crate::actor_document::remap_json(&mut value, identities);
+                    (path, value)
+                })
+                .collect();
+            if let Some(value) = &mut edits.parent {
+                parent(value, identities);
+            }
+            (owner, edits)
+        })
+        .collect();
+    for reference in &mut template.references {
+        id(&mut reference.owner, identities);
+        id(&mut reference.target, identities);
+    }
+    for operation in &mut template.construction {
+        let entity = match operation {
+            ConstructionOp::Translate { entity, .. }
+            | ConstructionOp::SetPosition { entity, .. }
+            | ConstructionOp::SetRotation { entity, .. }
+            | ConstructionOp::SetScale { entity, .. }
+            | ConstructionOp::SetActive { entity, .. }
+            | ConstructionOp::SetColor { entity, .. }
+            | ConstructionOp::Reparent { entity, .. } => entity,
+        };
+        id(entity, identities);
+        if let ConstructionOp::Reparent {
+            parent: Some(value),
+            ..
+        } = operation
+        {
+            id(value, identities);
+        }
+    }
+}
+pub fn capture_with_sources(
+    scene: &Scene,
+    root: usize,
+    registry: &Registry,
+    sources: &CompositionSources,
+) -> Result<CapturedTemplate, String> {
+    capture_internal(scene, root, registry, Some(sources))
+}
+fn capture_internal(
+    scene: &Scene,
+    root: usize,
+    registry: &Registry,
+    sources: Option<&CompositionSources>,
+) -> Result<CapturedTemplate, String> {
     let mut source = scene.clone();
     source.sync_actor_components();
+    crate::hud::stabilize_focus(&mut source.actors);
     source.validate()?;
     let root_id = source.actors.get(root).ok_or("Select an Actor first.")?.id;
     let branch = source.actor_branch(root_id);
@@ -610,11 +1070,138 @@ pub fn capture(scene: &Scene, root: usize, registry: &Registry) -> Result<Templa
         .filter(|a| branch.contains(&a.id))
         .cloned()
         .collect::<Vec<_>>();
-    let identities = crate::actor_document::fresh_identities(&actors);
+    let mut identities = crate::actor_document::fresh_identities(&actors);
+    let root_group = source.actors[root]
+        .blueprint_instance
+        .as_ref()
+        .map(|i| i.instance);
+    let nested = if sources.is_some() {
+        actors
+            .iter()
+            .filter_map(|actor| {
+                let state = actor.blueprint_instance.as_ref()?;
+                (state.instance == actor.id
+                    && actor.id != root_id
+                    && Some(state.instance) != root_group)
+                    .then_some(actor.id)
+            })
+            .collect::<BTreeSet<_>>()
+    } else {
+        BTreeSet::new()
+    };
+    for actor in &actors {
+        let Some(state) = actor
+            .blueprint_instance
+            .as_ref()
+            .filter(|i| nested.contains(&i.instance))
+        else {
+            continue;
+        };
+        let site = identities[&state.instance];
+        identities.insert(
+            actor.id,
+            if actor.id == state.instance {
+                site
+            } else {
+                nested_identity(site, state.template_entity)
+            },
+        );
+        for (local, placed) in &state.component_ids {
+            identities.insert(*placed, nested_identity(site, *local));
+        }
+    }
+    let mut baselines = BTreeMap::new();
+    if let Some(sources) = sources {
+        for group in &nested {
+            let original = actors.iter().find(|a| a.id == *group).unwrap();
+            let state = original.blueprint_instance.as_ref().unwrap();
+            let class = registry
+                .classes
+                .get(&state.class)
+                .ok_or("Nested class is missing while capturing.")?;
+            let baseline = sources.resolve_class(registry, &state.class)?;
+            if baseline.root() != Some(state.template_entity) {
+                return Err(
+                    "Nested class root changed; refresh the instance before capturing.".into(),
+                );
+            }
+            let baseline = baseline.scene(
+                ClassDefaults {
+                    name: class.cpp_name.clone(),
+                    class_id: Some(class.id.clone()),
+                    ..Default::default()
+                },
+                registry,
+            )?;
+            let mut local = BTreeMap::new();
+            for actor in &baseline.actors {
+                local.insert(
+                    actor.id,
+                    if actor.id == state.template_entity {
+                        identities[group]
+                    } else {
+                        nested_identity(identities[group], actor.id)
+                    },
+                );
+                for component in &actor.components {
+                    local.insert(
+                        component.id,
+                        nested_identity(identities[group], component.id),
+                    );
+                }
+            }
+            let mut baseline_actors = BTreeMap::new();
+            for mut actor in baseline.actors {
+                crate::actor_document::remap_actor(&mut actor, &local);
+                baseline_actors.insert(actor.id, actor);
+            }
+            baselines.insert(*group, baseline_actors);
+        }
+    }
     let mut template = Template::default();
     for mut actor in actors {
         let is_root = actor.id == root_id;
+        let nested_state = actor
+            .blueprint_instance
+            .as_ref()
+            .filter(|i| nested.contains(&i.instance));
+        let nested_root = nested_state.is_some_and(|i| i.instance == actor.id);
+        let nested_child = nested_state.is_some() && !nested_root;
+        let group = nested_state.map(|state| state.instance);
         crate::actor_document::remap_actor(&mut actor, &identities);
+        if let Some(state) = actor
+            .blueprint_instance
+            .as_ref()
+            .filter(|_| group.is_some())
+        {
+            let baseline = baselines
+                .get(&group.unwrap())
+                .and_then(|actors| actors.get(&actor.id))
+                .ok_or("Nested control changed; refresh the instance before capturing.")?;
+            let changes = changed_members(baseline, &actor)?;
+            if !changes.is_empty() {
+                template
+                    .overrides
+                    .entry(actor.id)
+                    .or_default()
+                    .members
+                    .extend(changes);
+            }
+            if nested_child && actor.logical_parent != baseline.logical_parent {
+                template.overrides.entry(actor.id).or_default().parent =
+                    Some(actor.logical_parent.map_or(ParentOverride::Root, |entity| {
+                        ParentOverride::Actor { entity }
+                    }));
+            } else if let Some(parent) = &state.parent {
+                template.overrides.entry(actor.id).or_default().parent = Some(parent.clone());
+            }
+        }
+        if nested_child {
+            continue;
+        }
+        if nested_root {
+            template.instances.insert(actor.id);
+        }
         if is_root {
             actor.logical_parent = None;
             actor.attach = None;
@@ -627,13 +1214,38 @@ pub fn capture(scene: &Scene, root: usize, registry: &Registry) -> Result<Templa
             parent,
         });
     }
-    resolve(&[&template])?;
+    let mut references_scene = if let Some(sources) = sources {
+        sources
+            .resolve_layers(registry, "captured-composition", &[&template])?
+            .scene(
+                ClassDefaults {
+                    name: source.actors[root].class.name.clone(),
+                    class_id: source.actors[root].class.class_id.clone(),
+                    ..Default::default()
+                },
+                registry,
+            )?
+    } else {
+        resolve(&[&template])?;
+        Scene {
+            actors: template.actors.iter().map(|i| i.entity.clone()).collect(),
+            ..Default::default()
+        }
+    };
+    // Only locally authored objects contribute new bindings. A nested class's
+    // existing references remain inherited; its placed overrides were captured above.
+    references_scene.actors.retain(|a| {
+        template.actors.iter().any(|item| item.entity.id == a.id)
+            && !template.instances.contains(&a.id)
+    });
     let local = Scene {
         actors: template.actors.iter().map(|i| i.entity.clone()).collect(),
         ..Default::default()
     };
-    validate_properties(&local, registry)?;
-    for actor in &local.actors {
+    if sources.is_none() {
+        validate_properties(&local, registry)?;
+    }
+    for actor in &references_scene.actors {
         for (owner, class, values) in std::iter::once((actor.id, &actor.class, &actor.properties))
             .chain(
                 actor
@@ -660,7 +1272,22 @@ pub fn capture(scene: &Scene, root: usize, registry: &Registry) -> Result<Templa
             }
         }
     }
-    Ok(template)
+    if let Some(sources) = sources {
+        sources
+            .resolve_layers(registry, "captured-composition", &[&template])?
+            .scene(
+                ClassDefaults {
+                    name: source.actors[root].class.name.clone(),
+                    class_id: source.actors[root].class.class_id.clone(),
+                    ..Default::default()
+                },
+                registry,
+            )?;
+    }
+    Ok(CapturedTemplate {
+        template,
+        identities,
+    })
 }
 
 fn validate_properties(scene: &Scene, registry: &Registry) -> Result<(), String> {
@@ -755,19 +1382,112 @@ pub(crate) fn changed_members(
         "properties",
         "overrides",
     ] {
-        diff_instance(&before[key], &after[key], &format!("/{key}"), &mut edits);
+        diff_instance(
+            before.get(key),
+            after.get(key),
+            &format!("/{key}"),
+            &mut edits,
+        );
     }
     Ok(edits)
 }
 fn escape_key(key: &str) -> String {
     key.replace('~', "~0").replace('/', "~1")
 }
-fn diff_instance(before: &Value, after: &Value, path: &str, edits: &mut BTreeMap<String, Value>) {
+pub(crate) fn property_path(actor: Uuid, owner: Uuid, key: &str) -> String {
+    let prefix = if actor == owner {
+        String::new()
+    } else {
+        format!("/components/{owner}")
+    };
+    format!("{prefix}/properties/{}", escape_key(key))
+}
+pub(crate) fn member_is_overridden(edits: &BTreeMap<String, Value>, prefix: &str) -> bool {
+    edits.iter().any(|(path, value)| {
+        path == prefix
+            || path.starts_with(&format!("{prefix}/"))
+            || prefix
+                .strip_prefix(&format!("{path}/"))
+                .is_some_and(|tail| value.pointer(&format!("/{tail}")).is_some())
+    })
+}
+/// Remove one property from precise or broader authored member edits. Other
+/// properties in an added component or a captured property map remain authored.
+pub(crate) fn reset_property_members(
+    edits: &mut BTreeMap<String, Value>,
+    actor: Uuid,
+    owner: Uuid,
+    key: &str,
+) {
+    let prefix = property_path(actor, owner, key);
+    let marker = if owner == actor {
+        "/overrides".into()
+    } else {
+        format!("/components/{owner}/overrides")
+    };
+    for (path, value) in edits.iter_mut() {
+        if let Some(tail) = prefix.strip_prefix(&format!("{path}/")) {
+            let (parent, last) = tail.rsplit_once('/').unwrap_or(("", tail));
+            let container = if parent.is_empty() {
+                Some(&mut *value)
+            } else {
+                value.pointer_mut(&format!("/{parent}"))
+            };
+            if let Some(object) = container.and_then(Value::as_object_mut) {
+                object.remove(&last.replace("~1", "/").replace("~0", "~"));
+            }
+        }
+        let flags = if path == &marker {
+            Some(&mut *value)
+        } else {
+            marker
+                .strip_prefix(&format!("{path}/"))
+                .and_then(|tail| value.pointer_mut(&format!("/{tail}")))
+        };
+        if let Some(flags) = flags.and_then(Value::as_array_mut) {
+            flags.retain(|v| v.as_str() != Some(key));
+        }
+    }
+    edits.retain(|path, _| path != &prefix && !path.starts_with(&format!("{prefix}/")));
+}
+pub(crate) fn placement_property_overrides(actor: &Actor, owner: Uuid) -> BTreeSet<String> {
+    let (properties, flags) = if owner == actor.id {
+        (&actor.properties, &actor.overrides)
+    } else {
+        let Some(component) = actor.components.iter().find(|c| c.id == owner) else {
+            return BTreeSet::new();
+        };
+        (&component.properties, &component.overrides)
+    };
+    let Some(instance) = &actor.blueprint_instance else {
+        return flags.clone();
+    };
+    properties
+        .keys()
+        .filter(|key| {
+            member_is_overridden(&instance.overrides, &property_path(actor.id, owner, key))
+        })
+        .cloned()
+        .collect()
+}
+fn diff_instance(
+    before: Option<&Value>,
+    after: Option<&Value>,
+    path: &str,
+    edits: &mut BTreeMap<String, Value>,
+) {
     if before == after {
         return;
     }
+    let Some(after) = after else {
+        edits.insert(path.into(), Value::Null);
+        return;
+    };
     if path == "/components" {
-        let a = before.as_array().cloned().unwrap_or_default();
+        let a = before
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
         let b = after.as_array().cloned().unwrap_or_default();
         let ids = a
             .iter()
@@ -776,28 +1496,37 @@ fn diff_instance(before: &Value, after: &Value, path: &str, edits: &mut BTreeMap
             .collect::<BTreeSet<_>>();
         for id in ids {
             diff_instance(
-                a.iter().find(|c| c["id"] == id).unwrap_or(&Value::Null),
-                b.iter().find(|c| c["id"] == id).unwrap_or(&Value::Null),
+                a.iter().find(|c| c["id"] == id),
+                b.iter().find(|c| c["id"] == id),
                 &format!("{path}/{id}"),
                 edits,
             );
         }
-    } else if let (Some(a), Some(b)) = (before.as_object(), after.as_object()) {
+    } else if let (Some(a), Some(b)) = (before.and_then(Value::as_object), after.as_object()) {
         for key in a.keys().chain(b.keys()).collect::<BTreeSet<_>>() {
             diff_instance(
-                a.get(key).unwrap_or(&Value::Null),
-                b.get(key).unwrap_or(&Value::Null),
+                a.get(key),
+                b.get(key),
                 &format!("{path}/{}", escape_key(key)),
                 edits,
             );
         }
     } else {
-        edits.insert(path.into(), after.clone());
+        edits.insert(
+            path.into(),
+            if after.is_null() {
+                literal_null()
+            } else {
+                after.clone()
+            },
+        );
     }
 }
 fn apply_instance_edits(actor: &mut Actor, edits: &BTreeMap<String, Value>) -> Result<(), String> {
     let mut document = serde_json::to_value(&*actor).map_err(|e| e.to_string())?;
     for (path, value) in edits {
+        let literal_null = is_literal_null(value);
+        let value = if literal_null { &Value::Null } else { value };
         if ![
             "/name",
             "/active",
@@ -836,7 +1565,7 @@ fn apply_instance_edits(actor: &mut Actor, edits: &BTreeMap<String, Value>) -> R
         }
         if let Some(array) = current.as_array_mut() {
             let index = array.iter().position(|item| item["id"] == last);
-            if value.is_null() {
+            if value.is_null() && !literal_null {
                 if let Some(i) = index {
                     array.remove(i);
                 }
@@ -847,7 +1576,7 @@ fn apply_instance_edits(actor: &mut Actor, edits: &BTreeMap<String, Value>) -> R
             }
         } else {
             let fields = current.as_object_mut().ok_or("Invalid override member")?;
-            if value.is_null() {
+            if value.is_null() && !literal_null {
                 fields.remove(&last);
             } else {
                 fields.insert(last, value.clone());
@@ -877,10 +1606,19 @@ pub fn record_parent_override(scene: &mut Scene, index: usize) -> Result<(), Str
 /// Apply updated inherited templates to linked scene instances in one validated
 /// transaction. Unknown removed actors/fields remain untouched with an error;
 /// new descendants receive fresh authoring UUIDs, never recycled runtime handles.
+#[cfg(test)]
 pub fn refresh_instances(
     scene: &mut Scene,
     files: &[crate::blueprint_asset::AssetFile],
     registry: &Registry,
+) -> Result<(), String> {
+    refresh_class_instances(scene, files, registry, &BTreeMap::new())
+}
+pub fn refresh_class_instances(
+    scene: &mut Scene,
+    files: &[crate::blueprint_asset::AssetFile],
+    registry: &Registry,
+    compositions: &BTreeMap<String, Template>,
 ) -> Result<(), String> {
     scene.validate()?;
     let mut candidate = scene.clone();
@@ -902,13 +1640,13 @@ pub fn refresh_instances(
         let class = registry
             .classes
             .get(&root_state.class)
-            .ok_or("Linked Blueprint class is missing")?;
-        let resolved = resolve_assets(files, registry, &class.id)?;
+            .ok_or("Linked Actor class is missing")?;
+        let resolved = resolve_class(files, registry, &class.id, compositions)?;
         let template_root = resolved
             .root()
-            .ok_or("Linked Blueprint has no Actor template")?;
+            .ok_or("Linked class has no Actor template")?;
         if root_state.template_entity != template_root {
-            return Err("Linked Blueprint root identity changed".into());
+            return Err("Linked class root identity changed".into());
         }
         let prototype = resolved.scene(
             ClassDefaults {
@@ -932,7 +1670,7 @@ pub fn refresh_instances(
                     .any(|a| a.id == state.template_entity)
                 || positions.insert(state.template_entity, index).is_some()
             {
-                return Err("Linked Actor is missing from its Blueprint template".into());
+                return Err("Linked Actor is missing from its class template".into());
             }
             identities.insert(state.template_entity, actor.id);
             identities.extend(state.component_ids.clone());
@@ -981,10 +1719,41 @@ pub fn refresh_instances(
             }
         }
     }
+    let linked_changed = candidate.actors != scene.actors;
+    // Source classes also inherit native components without a linked class
+    // document. Adopt authored singletons and assign their native identities
+    // before cooking; otherwise the runtime would add them a second time.
+    if registry.classes.values().any(|class| {
+        class
+            .default_components
+            .iter()
+            .any(|component| !component.root)
+    }) {
+        let model = registry.model().map_err(|errors| {
+            errors
+                .into_iter()
+                .map(|error| error.message)
+                .collect::<Vec<_>>()
+                .join("\n")
+        })?;
+        for actor in &mut candidate.actors {
+            if actor.class.resolve(&model).is_some_and(|class| {
+                class
+                    .default_components
+                    .iter()
+                    .any(|component| !component.root)
+            }) {
+                crate::class_composition::hydrate(actor, &model)
+                    .map_err(|error| format!("{}: {error}", actor.name))?;
+            }
+        }
+    }
     candidate.refresh_actor_hierarchy();
     candidate.sync_actor_components();
     candidate.validate()?;
-    if candidate.actors != scene.actors {
+    if linked_changed
+        || crate::lighting::fingerprint(&candidate) != crate::lighting::fingerprint(scene)
+    {
         candidate.bake = None;
     }
     *scene = candidate;
@@ -1118,6 +1887,7 @@ mod tests {
             component: None,
             default_components: vec![],
             explicit_abstract: false,
+            default_overrides: Default::default(),
             id: "base".into(),
             cpp_name: "Base".into(),
             parent: None,
@@ -1372,6 +2142,58 @@ mod tests {
         );
     }
     #[test]
+    fn literal_none_and_member_deletion_keep_distinct_inheritance_semantics() {
+        let mut base = Template::root("Root");
+        let actor = &mut base.actors[0].entity;
+        actor
+            .properties
+            .insert("optional".into(), serde_json::json!(Uuid::new_v4()));
+        actor
+            .properties
+            .insert("counter".into(), serde_json::json!(7));
+        actor
+            .overrides
+            .extend(["optional".into(), "counter".into()]);
+        let id = actor.id;
+        let mut child = Template::default();
+        child
+            .overrides
+            .entry(id)
+            .or_default()
+            .members
+            .insert("/properties/optional".into(), literal_null());
+        let resolved = resolve(&[&base, &child]).unwrap();
+        assert!(resolved.actors[0].entity.properties["optional"].is_null());
+        assert_eq!(
+            resolved.actors[0].entity.properties["counter"],
+            serde_json::json!(7)
+        );
+        assert!(uses_literal_null(&child));
+        child
+            .overrides
+            .get_mut(&id)
+            .unwrap()
+            .members
+            .insert("/properties/optional".into(), Value::Null);
+        child
+            .overrides
+            .get_mut(&id)
+            .unwrap()
+            .members
+            .insert("/overrides".into(), serde_json::json!(["counter"]));
+        let resolved = resolve(&[&base, &child]).unwrap();
+        assert!(
+            !resolved.actors[0]
+                .entity
+                .properties
+                .contains_key("optional")
+        );
+        assert!(!uses_literal_null(&child));
+        assert!(!is_literal_null(
+            &serde_json::json!({"$epok.literal":null,"other":1})
+        ));
+    }
+    #[test]
     fn template_entity_references_remap_by_identity_and_fail_without_data_loss() {
         use crate::reflection_schema as schema;
         let mut registry = fixture_registry();
@@ -1384,6 +2206,7 @@ mod tests {
                 component: None,
                 default_components: vec![],
                 explicit_abstract: false,
+                default_overrides: Default::default(),
                 id: "class".into(),
                 provider: schema::native_provider(),
                 backend: schema::native_backend(),
@@ -1507,6 +2330,37 @@ mod tests {
         );
     }
     #[test]
+    fn member_diffs_distinguish_nullable_values_from_absent_members() {
+        use serde_json::json;
+        let mut original = Template::root("Nullable").actors.remove(0).entity;
+        let mut edited = original.clone();
+        edited
+            .properties
+            .insert("optional/value~".into(), Value::Null);
+        let edits = changed_members(&original, &edited).unwrap();
+        let path = "/properties/optional~1value~0";
+        assert_eq!(edits[path], literal_null());
+        apply_instance_edits(&mut original, &edits).unwrap();
+        assert_eq!(original.properties["optional/value~"], Value::Null);
+        let before = original.clone();
+        original.properties.remove("optional/value~");
+        let edits = changed_members(&before, &original).unwrap();
+        assert_eq!(edits[path], Value::Null);
+        let mut applied = before;
+        apply_instance_edits(&mut applied, &edits).unwrap();
+        assert!(!applied.properties.contains_key("optional/value~"));
+        let mut broader = BTreeMap::from([
+            (
+                "/properties".into(),
+                json!({"optional/value~":null,"keep":12}),
+            ),
+            ("/overrides".into(), json!(["optional/value~", "keep"])),
+        ]);
+        reset_property_members(&mut broader, original.id, original.id, "optional/value~");
+        assert_eq!(broader["/properties"], json!({"keep":12}));
+        assert_eq!(broader["/overrides"], json!(["keep"]));
+    }
+    #[test]
     fn linked_instances_refresh_defaults_preserve_explicit_edits_and_keep_orphans() {
         use crate::{
             blueprint_asset::{AssetFile, BlueprintAsset},
@@ -1519,6 +2373,7 @@ mod tests {
             component: None,
             default_components: vec![],
             explicit_abstract: false,
+            default_overrides: Default::default(),
             id: "native".into(),
             provider: schema::native_provider(),
             backend: schema::native_backend(),
@@ -1552,6 +2407,7 @@ mod tests {
             component: None,
             default_components: vec![],
             explicit_abstract: false,
+            default_overrides: Default::default(),
             id: asset.id.clone(),
             cpp_name: asset.name.clone(),
             parent: Some("native".into()),
@@ -1673,7 +2529,7 @@ mod tests {
         assert!(
             refresh_instances(&mut scene, &files, &registry)
                 .unwrap_err()
-                .contains("missing from its Blueprint template")
+                .contains("missing from its class template")
         );
         assert_eq!(scene, before);
     }

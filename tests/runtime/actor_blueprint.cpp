@@ -32,6 +32,10 @@ bool AudioSource::is_playing() const { return false; }
 // is all `epok::bp::actor_handle` needs to be exercised.
 static ActorData* slots[8] = {};
 static uint16_t slot_count = 0;
+int entity_index(const ActorData* entity) {
+    for(uint16_t i=0;i<slot_count;++i)if(slots[i]==entity)return int(i);
+    return -1;
+}
 DataHandle handle(const ActorData* entity) {
     DataHandle result;
     if (!entity) return result;
@@ -116,7 +120,7 @@ namespace epok {
 #define EPOK_CONCRETE_ROW(Type, Parent, Family, Domain, Owners, Flags)                       \
     {Type::static_class_id, Parent, epok::ObjectFamily::Family, epok::ObjectDomain::Domain,    \
      Owners, Flags, &epok::object_construct<Type>, &epok::object_destruct, sizeof(Type),       \
-     alignof(Type), &epok::ObjectPool<Type, 4>::acquire, &epok::ObjectPool<Type, 4>::release}
+     alignof(Type), &epok::SharedObjectPool<Type, 4>::acquire, &epok::SharedObjectPool<Type, 4>::release}
 
 inline const ClassDescriptor object_classes[] = {
     EPOK_ABSTRACT_ROW(Object, UINT64_C(0), Object, None),
@@ -131,11 +135,15 @@ inline const ClassDescriptor object_classes[] = {
 };
 [[gnu::used]] inline const size_t object_class_count =
     sizeof(object_classes) / sizeof(object_classes[0]);
-static_assert((epok::ObjectPool<BP_Goblin, 4>::storage_bytes +
-               epok::ObjectPool<BP_Siren, 4>::storage_bytes +
-               epok::ObjectPool<epok::Actor3D, 4>::storage_bytes +
-               epok::ObjectPool<epok::AudioComponent, 4>::storage_bytes +
-               epok::ObjectPool<epok::SceneComponent3D, 4>::storage_bytes) <= 65536,
+inline constexpr size_t fixture_fixed_bytes=(epok::SharedObjectPool<BP_Goblin, 4>::storage_bytes +
+               epok::SharedObjectPool<BP_Siren, 4>::storage_bytes +
+               epok::SharedObjectPool<epok::Actor3D, 4>::storage_bytes +
+               epok::SharedObjectPool<epok::AudioComponent, 4>::storage_bytes +
+               epok::SharedObjectPool<epok::SceneComponent3D, 4>::storage_bytes)+sizeof(object_storage::Hooks)+sizeof(object_storage::Binding<1>);
+inline constexpr size_t fixture_value_bytes=SharedObjectPool<BP_Goblin,4>::value_bytes+SharedObjectPool<BP_Siren,4>::value_bytes+SharedObjectPool<Actor3D,4>::value_bytes+SharedObjectPool<AudioComponent,4>::value_bytes+SharedObjectPool<SceneComponent3D,4>::value_bytes;
+inline object_storage::Arena<object_storage::capacity_units(fixture_fixed_bytes,fixture_value_bytes)> fixture_storage;
+inline object_storage::Binding fixture_binding(fixture_storage);
+static_assert(sizeof(fixture_storage)+fixture_fixed_bytes <= 65536,
               "Object pools exceed the 64 KiB cook limit");
 }  // namespace epok
 

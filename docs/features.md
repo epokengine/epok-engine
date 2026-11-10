@@ -213,7 +213,8 @@ The complete interaction and preview contract is in the
 - **C++ and Blueprint chains.** `EPOK_CLASS(Blueprintable, Placeable, Spawnable,
   Domain=World3D, Id="…")` and `EPOK_COMPONENT(Root, Name="…")` declare actors and
   their default components; Blueprints derive from them with Begin Play / Tick /
-  End Play, typed actor/component references and a Spawn Actor node.
+  End Play, typed actor/component references and a Spawn Actor node. `PlacedOnly`
+  withdraws an inherited `Spawnable`, for a class that exists once in its scene.
 - **Scene Blueprint per map.** Each map owns one `SceneScriptActor` class, edited
   from Map Settings, compiled with the project, and able to name actors, components
   and entities of its own map by identity.

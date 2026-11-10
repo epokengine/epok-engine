@@ -1,3 +1,4 @@
+-- Pre-extraction comparison fixture. New projects use ThirdPersonInput.lua.
 ---@class ThirdPersonController : epok.ActorComponent
 local ThirdPersonController = epok.ActorComponent:extend()
 
@@ -69,8 +70,8 @@ end
 --- passes over the character's head or under the floor.
 ---@param delta_seconds Fixed
 function ThirdPersonController:orbit_camera(delta_seconds)
-    local right_x = epok.input.axis(2, 0)
-    local right_y = epok.input.axis(3, 0)
+    local right_x = epok.gameplay_input.axis(2, 0)
+    local right_y = epok.gameplay_input.axis(3, 0)
     local look = epok.math.stick_intent(right_x.value, right_y.value)
     self.camera_yaw = epok.math.wrap_degrees(
         self.camera_yaw + look.x * 140.0 * delta_seconds)
@@ -87,20 +88,20 @@ function ThirdPersonController:move(delta_seconds)
     -- A held direction is full deflection, so the keyboard and the stick agree.
     local digital_x = 0.0
     local digital_z = 0.0
-    if epok.input.held(5, 0) then
+    if epok.gameplay_input.button_held(5, 0) then
         digital_x = digital_x + 1.0
     end
-    if epok.input.held(7, 0) then
+    if epok.gameplay_input.button_held(7, 0) then
         digital_x = digital_x - 1.0
     end
-    if epok.input.held(4, 0) then
+    if epok.gameplay_input.button_held(4, 0) then
         digital_z = digital_z + 1.0
     end
-    if epok.input.held(6, 0) then
+    if epok.gameplay_input.button_held(6, 0) then
         digital_z = digital_z - 1.0
     end
-    local left_x = epok.input.axis(0, 0)
-    local left_y = epok.input.axis(1, 0)
+    local left_x = epok.gameplay_input.axis(0, 0)
+    local left_y = epok.gameplay_input.axis(1, 0)
     local move_x = left_x.value
     local move_z = left_y.value
     if digital_x ~= 0.0 or digital_z ~= 0.0 then
@@ -129,7 +130,7 @@ function ThirdPersonController:move(delta_seconds)
     self.velocity.x = self.velocity.x + (desired_x - self.velocity.x) * response
     self.velocity.z = self.velocity.z + (desired_z - self.velocity.z) * response
 
-    local jumped = self.grounded and epok.input.pressed(14, 0)
+    local jumped = self.grounded and epok.gameplay_input.button_pressed(14, 0)
     if self.grounded then
         self.velocity.y = 0.0
         if jumped then

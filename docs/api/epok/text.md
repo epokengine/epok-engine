@@ -25,7 +25,7 @@ This module covers native text data and HUD text components. It documents 2 publ
 const char* get(int key) const
 ```
 
-- **Declared at:** [line 34](../../../runtime/text.hpp#L34)
+- **Declared at:** [line 38](../../../runtime/text.hpp#L38)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -67,7 +67,7 @@ auto result = object.get(key);
 void set_text(const char* text)
 ```
 
-- **Declared at:** [line 21](../../../runtime/text.hpp#L21)
+- **Declared at:** [line 25](../../../runtime/text.hpp#L25)
 - **Kind:** `cxx method`
 
 **Parameters**

@@ -77,9 +77,8 @@ fn a_3d_dungeon_bakes_into_a_few_actors_that_cook() {
         "{}",
         bake.nodes.len()
     );
-    // The cooker accepts the map, compound collider included. Unit tests run without
-    // the reflected engine headers, so the bake volumes' reflected component is left
-    // to the editor build check.
+    // The cooker accepts the map, compound collider included. Use the same
+    // reflected shared-class registry as the editor's staging path.
     let mut cooked = scene.clone();
     for actor in &mut cooked.actors {
         actor
@@ -91,7 +90,11 @@ fn a_3d_dungeon_bakes_into_a_few_actors_that_cook() {
     crate::mesh::resolve(&mut cooked, &textures).unwrap();
     crate::texture::resolve(&mut cooked, &textures).unwrap();
     let catalog = crate::scripts::catalog(&root).unwrap();
-    let header = crate::project::scene_header(&cooked, &catalog).unwrap();
+    let registry = crate::scripts::declaration_registry(&root).unwrap();
+    let header = crate::project::scene_header_with_registry(
+        &cooked, &catalog, &cooked, true, &cooked, &registry,
+    )
+    .unwrap();
     assert!(header.contains("collider_boxes_"));
     std::fs::remove_dir_all(parent).unwrap();
 }
@@ -440,7 +443,11 @@ fn gameplay_actors(scene: &Scene, class: (&str, &str)) -> Vec<(usize, u64)> {
                 .find(|c| c.class.class_id.as_deref() == Some(class.1))?;
             Some((
                 i,
-                component.properties[dungeon_bake::LOCK_PROPERTY].as_u64()?,
+                component
+                    .properties
+                    .get(crate::dungeon_gameplay::LOCK_ID)
+                    .or_else(|| component.properties.get(dungeon_bake::LOCK_PROPERTY))?
+                    .as_u64()?,
             ))
         })
         .collect()
@@ -531,11 +538,14 @@ fn recipe_dungeons_bake_markers_within_budget_and_cook() {
             let key = door
                 .components
                 .iter()
-                .find_map(|c| c.properties.get(crate::dungeon_gameplay::KEY_REFERENCE))
+                .find_map(|c| c.properties.get("requirement_flag"))
                 .and_then(|v| v.as_str())
                 .unwrap();
             let (key_index, _) = keys.iter().find(|(_, l)| l == lock).unwrap();
-            assert_eq!(key, scene.actors[*key_index].id.to_string());
+            assert_eq!(
+                key,
+                crate::dungeon_gameplay::key_state_id(scene.actors[*key_index].id).to_string()
+            );
             assert!(!door.collider.as_ref().unwrap().trigger);
             assert!((door.scale[0] - g.cell_size).abs() < 1e-4);
             assert!((door.scale[1] - g.door_height).abs() < 1e-4);
@@ -572,12 +582,188 @@ fn recipe_dungeons_bake_markers_within_budget_and_cook() {
     crate::mesh::resolve(&mut cooked, &textures).unwrap();
     crate::texture::resolve(&mut cooked, &textures).unwrap();
     let catalog = crate::scripts::catalog(&root).unwrap();
-    crate::project::scene_header(&cooked, &catalog).unwrap();
+    let registry = crate::scripts::declaration_registry(&root).unwrap();
+    crate::project::scene_header_with_registry(
+        &cooked, &catalog, &cooked, true, &cooked, &registry,
+    )
+    .unwrap();
     // A missing recipe is reported, not replaced by the built-in one.
     scene.dungeons[0].recipe = Some(Uuid::from_u128(0xbad));
     let error = dungeon_bake::generate(&root, &mut scene, id, None).unwrap_err();
     assert!(error.contains("Dungeon Recipe is missing"), "{error}");
     std::fs::remove_dir_all(parent).unwrap();
+}
+
+#[test]
+fn regeneration_consumes_recorded_key_and_door_roles_after_class_replacement() {
+    let (parent, root) = project("recorded-replacement");
+    let (mut scene, id) = scene_3d(1);
+    scene.dungeons[0].source = crate::dungeon::Source::Recipe;
+    dungeon_bake::generate(&root, &mut scene, id, None).unwrap();
+    let actor_ids: Vec<_> = scene.actors.iter().map(|a| a.id).collect();
+    let mut installation = crate::template_install::read(&root).unwrap().unwrap();
+    let old_key = installation.roles["key"].clone();
+    let old_door = installation.roles["door"].clone();
+    let replacement = Uuid::new_v4().to_string();
+    std::fs::write(root.join("assets/scripts/ProjectDungeonKey.hpp"),format!(
+        "#pragma once\n#include \"DungeonKey.hpp\"\nclass EPOK_CLASS(Blueprintable,Id=\"{replacement}\") ProjectDungeonKey : public DungeonKey {{}};\n"
+    )).unwrap();
+    installation.roles.insert(
+        "key".into(),
+        crate::actor_document::ClassReference::new("ProjectDungeonKey", &replacement),
+    );
+    // Stale display names deliberately differ from source names: UUIDs bind them.
+    installation.roles.get_mut("door").unwrap().name = "OldDoorDisplayName".into();
+    std::fs::write(
+        root.join(crate::template_install::PATH),
+        crate::document::to_vec(&installation).unwrap(),
+    )
+    .unwrap();
+    let header = root.join("assets/scripts/DungeonDoor.hpp");
+    let source = std::fs::read_to_string(&header).unwrap();
+    std::fs::write(&header, source.replace("DungeonDoor", "RenamedProjectDoor")).unwrap();
+    dungeon_bake::generate(&root, &mut scene, id, None).unwrap();
+    assert_eq!(
+        scene.actors.iter().map(|a| a.id).collect::<Vec<_>>(),
+        actor_ids
+    );
+    let keys: Vec<_> = scene
+        .actors
+        .iter()
+        .filter(|a| {
+            a.components
+                .iter()
+                .any(|c| c.class.class_id.as_deref() == Some(&replacement))
+        })
+        .map(|a| a.id)
+        .collect();
+    assert!(!keys.is_empty());
+    assert!(
+        scene
+            .actors
+            .iter()
+            .flat_map(|a| &a.components)
+            .all(|c| c.class.class_id != old_key.class_id)
+    );
+    let doors: Vec<_> = scene
+        .actors
+        .iter()
+        .flat_map(|a| &a.components)
+        .filter(|c| c.class.class_id == old_door.class_id)
+        .collect();
+    assert!(!doors.is_empty());
+    for door in doors {
+        assert_eq!(door.class.name, "RenamedProjectDoor");
+        let key = Uuid::parse_str(door.properties["requirement_flag"].as_str().unwrap()).unwrap();
+        assert!(
+            keys.iter()
+                .any(|actor| crate::dungeon_gameplay::key_state_id(*actor) == key)
+        );
+    }
+    let saved = crate::document::to_vec(&scene).unwrap();
+    let mut reopened: Scene = crate::document::from_slice(&saved).unwrap();
+    dungeon_bake::generate(&root, &mut reopened, id, None).unwrap();
+    assert_eq!(
+        reopened.actors.iter().map(|a| a.id).collect::<Vec<_>>(),
+        actor_ids
+    );
+    std::fs::remove_dir_all(parent).unwrap();
+}
+
+#[test]
+fn shared_key_state_and_collider_references_survive_stabilization_and_reopen() {
+    for two_d in [false, true] {
+        let (parent, root) = project("component-reference-stability");
+        let (mut scene, id) = scene_3d(1);
+        scene.dungeons[0].source = crate::dungeon::Source::Recipe;
+        if two_d {
+            let actor_id = scene.actors[0].id;
+            scene.actors[0] =
+                crate::world2d::create(crate::world2d::Preset::Node2D, "Dungeon", [0., 0.]);
+            scene.actors[0].id = actor_id;
+            scene.refresh_actor_hierarchy();
+        }
+        let validate = |scene: &Scene| {
+            let key_class = crate::dungeon_gameplay::classes(crate::workspace::GameplayFlavor::Cpp)
+                .key
+                .1;
+            let door_class =
+                crate::dungeon_gameplay::classes(crate::workspace::GameplayFlavor::Cpp)
+                    .door
+                    .1;
+            let mut keys = std::collections::BTreeMap::new();
+            for actor in &scene.actors {
+                if let Some(key) = actor
+                    .components
+                    .iter()
+                    .find(|c| c.class.class_id.as_deref() == Some(key_class))
+                {
+                    let flag = key.properties["collected_flag"].as_str().unwrap();
+                    let target = actor
+                        .components
+                        .iter()
+                        .find(|c| c.id.to_string() == flag)
+                        .expect("pickup flag must resolve on the key actor");
+                    assert_eq!(
+                        target.class.class_id.as_deref(),
+                        Some(crate::dungeon_gameplay::FLAG_BASE)
+                    );
+                    assert_eq!(target.id, crate::dungeon_gameplay::key_state_id(actor.id));
+                    keys.insert(
+                        flag.to_string(),
+                        key.properties[crate::dungeon_gameplay::LOCK_ID].clone(),
+                    );
+                }
+            }
+            assert!(!keys.is_empty());
+            let mut count = 0;
+            for actor in &scene.actors {
+                if let Some(door) = actor
+                    .components
+                    .iter()
+                    .find(|c| c.class.class_id.as_deref() == Some(door_class))
+                {
+                    count += 1;
+                    let flag = door.properties["requirement_flag"].as_str().unwrap();
+                    assert_eq!(
+                        keys.get(flag),
+                        Some(&door.properties[crate::dungeon_gameplay::LOCK_ID])
+                    );
+                    let collider = door.properties
+                        [if two_d { "collider_2d" } else { "collider_3d" }]
+                    .as_str()
+                    .unwrap();
+                    assert!(
+                        actor
+                            .components
+                            .iter()
+                            .any(|c| c.id.to_string() == collider),
+                        "collider must resolve on its own door"
+                    );
+                }
+            }
+            assert!(count > 0);
+        };
+        dungeon_bake::generate(&root, &mut scene, id, None).unwrap();
+        validate(&scene);
+        let before: Vec<_> = scene
+            .actors
+            .iter()
+            .map(|a| (a.id, a.components.iter().map(|c| c.id).collect::<Vec<_>>()))
+            .collect();
+        scene = crate::document::from_slice(&crate::document::to_vec(&scene).unwrap()).unwrap();
+        dungeon_bake::generate(&root, &mut scene, id, None).unwrap();
+        validate(&scene);
+        assert_eq!(
+            before,
+            scene
+                .actors
+                .iter()
+                .map(|a| (a.id, a.components.iter().map(|c| c.id).collect::<Vec<_>>()))
+                .collect::<Vec<_>>()
+        );
+        std::fs::remove_dir_all(parent).unwrap();
+    }
 }
 
 /// The player a generator's keys name, if any.
@@ -589,7 +775,7 @@ fn key_players(scene: &Scene) -> Vec<Option<String>> {
             scene.actors[index]
                 .components
                 .iter()
-                .find_map(|c| c.properties.get(crate::dungeon_gameplay::PLAYER))
+                .find_map(|c| c.properties.get("accepted_initiator"))
                 .and_then(|v| v.as_str())
                 .map(str::to_owned)
         })

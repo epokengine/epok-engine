@@ -56,6 +56,7 @@ private:
     uint32_t host_sequence_=0;
     uint32_t last_poll_clock_=0;
     bool polled_=false,have_poll_clock_=false;
+    uint8_t probe_=1;
     static void delay(unsigned n){for(unsigned i=0;i<n;++i)asm volatile("");}
     static bool byte(uint8_t out,uint8_t& in){
         using namespace psyqo::Hardware;
@@ -176,7 +177,11 @@ private:
             host_sequence_=sequence;
         }
         if(!psyqo::SIO0Bus::owned()){
-            for(unsigned p=0;p<4;++p)poll(p);
+            // An empty multitap address costs a full ACK timeout on the main
+            // thread, so at most one is probed per frame. A pad that appears
+            // there is found within three frames; slot A is always read.
+            for(unsigned p=0;p<4;++p)if(p==0||p==probe_||pads_[p].connected||pads_[p].phase!=Phase::Read)poll(p);
+            probe_=probe_==3?1:probe_+1;
             polled_=true;
         }
         // Submit a one-frame pulse before consuming its last lease frame. The
