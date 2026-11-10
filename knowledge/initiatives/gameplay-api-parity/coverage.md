@@ -2,7 +2,7 @@
 
 Generated from `coverage.json` by `tools/gameplay_api_parity.py`; do not edit by hand.
 
-Baseline commit: `edd266e43a31d49171b13bc7c9afe752f58e5cfd`. Frozen semantic candidate rows: **5366**.
+Baseline commit: `fb542cd167fdc297425c0b15fedb901b7c4e0c08`. Frozen semantic candidate rows: **6626**.
 
 A classified row is not necessarily implemented. The strict checker fails until every public gameplay row has executable support, tests, examples, and cost evidence on all five surfaces.
 
@@ -12,8 +12,8 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | --- | ---: |
 | `compatibility_alias` | 48 |
 | `hardware_backend` | 23 |
-| `internal_implementation` | 4673 |
-| `public_gameplay` | 622 |
+| `internal_implementation` | 5411 |
+| `public_gameplay` | 1144 |
 
 ## Public gameplay gaps
 
@@ -30,25 +30,25 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | Category | Rows |
 | --- | ---: |
 | `audio_music` | 281 |
-| `cameras_scenes` | 52 |
-| `collision_3d` | 69 |
-| `components_hierarchy` | 7 |
-| `gameplay_2d` | 103 |
-| `implementation_support` | 2427 |
-| `input_time` | 51 |
+| `cameras_scenes` | 150 |
+| `collision_3d` | 226 |
+| `components_hierarchy` | 333 |
+| `gameplay_2d` | 142 |
+| `implementation_support` | 2612 |
+| `input_time` | 151 |
 | `language_adapter` | 134 |
 | `materials_visuals` | 61 |
 | `math_values` | 11 |
-| `memory_card` | 146 |
-| `objects_actors` | 607 |
+| `memory_card` | 170 |
+| `objects_actors` | 634 |
 | `particles_effects` | 169 |
 | `resources_diagnostics` | 60 |
-| `runtime_facade` | 719 |
-| `skeletal_animation` | 34 |
+| `runtime_facade` | 751 |
+| `skeletal_animation` | 132 |
 | `sprites_palettes` | 72 |
 | `static_editable_meshes` | 96 |
 | `timelines_sequences` | 72 |
-| `ui_text` | 76 |
+| `ui_text` | 250 |
 | `utilities_events` | 119 |
 
 ## Public gameplay rows
@@ -103,10 +103,54 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `epok::Camera3DComponent::make_active` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::Camera3DComponent::set_enabled` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::Camera3DComponent::set_field_of_view` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CameraOrbitInputComponent::update` | `camera-rig` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CameraRig3D::add_look` | `camera-rig` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CameraRig3D::calculate_view` | `camera-rig` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CameraRig3D::make_active` | `camera-rig` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CameraRig3D::refresh` | `camera-rig` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CameraRig3D::sample` | `camera-rig` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CameraRig3D::set_angles` | `camera-rig` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CameraRig3D::snap` | `camera-rig` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CameraRig3D::view_updated` | `camera-rig` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::CanvasComponent::enabled` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::CanvasComponent::focused` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CanvasComponent::screen_overlay` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::CanvasComponent::set_enabled` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::CanvasComponent::set_focused` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CanvasComponent::set_screen_overlay` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::Character2D::motion` | `character2d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::Character2D::motor_id` | `character2d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::Character2D::stop_movement` | `character2d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::Character2D::submit_command` | `character2d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::Character3D::motion` | `character3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::Character3D::motor_id` | `character3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::Character3D::stop_movement` | `character3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::Character3D::submit_command` | `character3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterCommandSource2DComponent::calculate_command` | `character-commands` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterCommandSource2DComponent::command_submitted` | `character-commands` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterCommandSource2DComponent::release_command` | `character-commands` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterCommandSource2DComponent::sample` | `character-commands` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterCommandSource2DComponent::set_enabled` | `character-commands` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterCommandSource2DComponent::update` | `character-commands` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterCommandSource3DComponent::calculate_command` | `character-commands` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterCommandSource3DComponent::command_submitted` | `character-commands` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterCommandSource3DComponent::release_command` | `character-commands` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterCommandSource3DComponent::sample` | `character-commands` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterCommandSource3DComponent::set_enabled` | `character-commands` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterCommandSource3DComponent::update` | `character-commands` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterMotor2DComponent::motion` | `character2d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterMotor2DComponent::reset_motion` | `character2d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterMotor2DComponent::simulate` | `character2d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterMotor2DComponent::stop` | `character2d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterMotor2DComponent::submit` | `character2d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterMotor3DComponent::clear_velocity` | `character3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterMotor3DComponent::motion` | `character3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterMotor3DComponent::reset_motion` | `character3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterMotor3DComponent::set_facing` | `character3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterMotor3DComponent::simulate` | `character3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterMotor3DComponent::simulate_shared` | `character3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterMotor3DComponent::stop` | `character3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterMotor3DComponent::submit` | `character3d` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::Collider3DComponent::enabled` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::Collider3DComponent::layer` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::Collider3DComponent::mask` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
@@ -121,6 +165,39 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `epok::CollisionLibrary::move` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::CollisionLibrary::overlap_box` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::CollisionLibrary::raycast_segment` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialogueInteractionComponent::dialogue_finished` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialogueInteractionComponent::dialogue_node_entered` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialogueInteractionComponent::dialogue_started` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialogueInteractionComponent::last_result` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialogueInteractionComponent::session` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialogueInteractionComponent::start_dialogue` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialoguePresenter::can_present` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialoguePresenter::dialogue_closed` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialoguePresenter::dialogue_opened` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialoguePresenter::present` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialogueRoleBindingsComponent::receiver` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialogueRoleBindingsComponent::role_id` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialogueRoleBindingsComponent::set_binding` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialogueSessionLibrary::advance` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialogueSessionLibrary::cancel` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialogueSessionLibrary::choice_id` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialogueSessionLibrary::move_selection` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialogueSessionLibrary::owner_session` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialogueSessionLibrary::snapshot` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialogueSessionLibrary::start` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialogueSessionLibrary::valid` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DoorComponent::can_open` | `world-gameplay` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DoorComponent::close` | `world-gameplay` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DoorComponent::door_changed` | `world-gameplay` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DoorComponent::door_requested` | `world-gameplay` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DoorComponent::has_pending_transition` | `world-gameplay` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DoorComponent::last_result` | `world-gameplay` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DoorComponent::lock` | `world-gameplay` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DoorComponent::open` | `world-gameplay` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DoorComponent::requirement_met` | `world-gameplay` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DoorComponent::reset_door` | `world-gameplay` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DoorComponent::state` | `world-gameplay` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DoorComponent::unlock` | `world-gameplay` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::DungeonLibrary::distance` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::DungeonLibrary::explore_everything` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::DungeonLibrary::explore_room` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
@@ -160,15 +237,49 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `epok::FocusableComponent::is_toggle` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::FocusableComponent::neighbor` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::FocusableComponent::order` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::FocusableComponent::outline_enabled` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::FocusableComponent::set_checked` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::FocusableComponent::set_enabled` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::FocusableComponent::set_highlight` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::FocusableComponent::set_neighbor` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::FocusableComponent::set_order` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::FocusableComponent::set_outline` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::FocusableComponent::set_toggle` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::FocusableComponent::take_cancelled` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::FocusableComponent::take_changed` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::FocusableComponent::take_pressed` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::GameplayFlagComponent::changing` | `world-gameplay` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::GameplayFlagComponent::set_value` | `world-gameplay` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::GameplayFlagComponent::value` | `world-gameplay` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::GameplayFlagComponent::value_changed` | `world-gameplay` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::GameplayInputLibrary::all_actions` | `gameplay-control` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::GameplayInputLibrary::axis` | `gameplay-control` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::GameplayInputLibrary::axis_raw` | `gameplay-control` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::GameplayInputLibrary::axis_value` | `gameplay-control` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::GameplayInputLibrary::bind_axis` | `gameplay-control` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::GameplayInputLibrary::bind_button` | `gameplay-control` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::GameplayInputLibrary::button_frame_pressed` | `gameplay-control` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::GameplayInputLibrary::button_held` | `gameplay-control` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::GameplayInputLibrary::button_pressed` | `gameplay-control` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::GameplayInputLibrary::capture` | `gameplay-control` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::GameplayInputLibrary::captured` | `gameplay-control` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::GameplayInputLibrary::context_sample` | `gameplay-control` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::GameplayInputLibrary::context_take_pressed` | `gameplay-control` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::GameplayInputLibrary::frame_sample` | `gameplay-control` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::GameplayInputLibrary::look_actions` | `gameplay-control` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::GameplayInputLibrary::mask` | `gameplay-control` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::GameplayInputLibrary::movement_actions` | `gameplay-control` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::GameplayInputLibrary::owner_capture` | `gameplay-control` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::GameplayInputLibrary::release` | `gameplay-control` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::GameplayInputLibrary::sample` | `gameplay-control` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::GameplayInputLibrary::take_frame_pressed` | `gameplay-control` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::GameplayInputLibrary::take_pressed` | `gameplay-control` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::GameplayInputLibrary::valid` | `gameplay-control` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::HealthLibrary::damage` | `health` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::HealthLibrary::heal` | `health` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::HealthLibrary::is_depleted` | `health` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::HealthLibrary::make_state` | `health` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::HealthLibrary::valid` | `health` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::ImageComponent::enabled` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::ImageComponent::set_borders` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::ImageComponent::set_color` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
@@ -190,6 +301,29 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `epok::InputLibrary::rumble_supported` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::InputLibrary::set_rumble_enabled` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::InputLibrary::stop_rumble` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::InteractableComponent::availability` | `interaction` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::InteractableComponent::can_interact` | `interaction` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::InteractableComponent::complete` | `interaction` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::InteractableComponent::focus_gained` | `interaction` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::InteractableComponent::focus_lost` | `interaction` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::InteractableComponent::hold_open` | `interaction` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::InteractableComponent::interaction_finished` | `interaction` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::InteractableComponent::interaction_started` | `interaction` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::InteractableComponent::is_busy` | `interaction` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::InteractableComponent::request` | `interaction` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::InteractableComponent::set_enabled` | `interaction` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::InteractionSensor2DComponent::binding_status` | `interaction` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::InteractionSensor2DComponent::set_monitoring` | `interaction` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::InteractionSensor3DComponent::binding_status` | `interaction` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::InteractionSensor3DComponent::set_monitoring` | `interaction` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::InteractorComponent::candidate_count` | `interaction` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::InteractorComponent::focus_changed` | `interaction` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::InteractorComponent::focused_target` | `interaction` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::InteractorComponent::interact` | `interaction` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::InteractorComponent::overflow_count` | `interaction` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::InteractorComponent::refresh` | `interaction` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::InteractorComponent::register_candidate` | `interaction` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::InteractorComponent::unregister_candidate` | `interaction` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::LayoutContainerComponent::columns` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::LayoutContainerComponent::enabled` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::LayoutContainerComponent::kind` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
@@ -228,9 +362,11 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `epok::LocalizationLibrary::language_count` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::LocalizationLibrary::set_language` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::MathLibrary::add` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::MathLibrary::bit_xor` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::MathLibrary::clamp` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::MathLibrary::cosine_degrees` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::MathLibrary::delta_degrees` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::MathLibrary::floor` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::MathLibrary::heading_degrees` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::MathLibrary::length` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::MathLibrary::length2` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
@@ -244,8 +380,11 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `epok::MathLibrary::stick_dead_zone` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::MathLibrary::stick_intent` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::MathLibrary::subtract` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::MathLibrary::truncate_unsigned` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::MathLibrary::vector3` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::MathLibrary::wrap_degrees` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::MathLibrary::wrapping_multiply` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::MemoryCardLibrary::clear_staged_metadata` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::MemoryCardLibrary::clear_staged_payload` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::MemoryCardLibrary::file` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::MemoryCardLibrary::list` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
@@ -253,11 +392,15 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `epok::MemoryCardLibrary::payload` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::MemoryCardLibrary::probe` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::MemoryCardLibrary::read` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::MemoryCardLibrary::read_staged_name` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::MemoryCardLibrary::set_staged_name_byte` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::MemoryCardLibrary::set_staged_title_byte` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::MemoryCardLibrary::set_staged_word` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::MemoryCardLibrary::snapshot` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::MemoryCardLibrary::staged_word` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::MemoryCardLibrary::write` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::MemoryCardLibrary::write_staged` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::MemoryCardLibrary::write_staged_named` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::Mesh3DComponent::bone_count` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::Mesh3DComponent::clip_count` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::Mesh3DComponent::clip_frames` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
@@ -298,6 +441,11 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `epok::ParticleEmitterComponent::set_rate` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::ParticleEmitterComponent::state` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::ParticleEmitterComponent::stop` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::PickupComponent::can_collect` | `world-gameplay` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::PickupComponent::collect` | `world-gameplay` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::PickupComponent::collected` | `world-gameplay` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::PickupComponent::is_collected` | `world-gameplay` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::PickupComponent::reset_collection` | `world-gameplay` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::PlaybackLibrary::burst_effect` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::PlaybackLibrary::effect_sequence` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::PlaybackLibrary::effect_state` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
@@ -321,6 +469,14 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `epok::PocketStationLibrary::set_value` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::PocketStationLibrary::start_program` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::PocketStationLibrary::value` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::PocketTransactionComponent::begin` | `device-io` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::PocketTransactionComponent::cancel` | `device-io` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::PocketTransactionComponent::clear_request` | `device-io` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::PocketTransactionComponent::last_rejection` | `device-io` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::PocketTransactionComponent::poll` | `device-io` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::PocketTransactionComponent::reply_byte` | `device-io` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::PocketTransactionComponent::set_request_byte` | `device-io` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::PocketTransactionComponent::snapshot` | `device-io` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::ProgressBarComponent::enabled` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::ProgressBarComponent::set_colors` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::ProgressBarComponent::set_enabled` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
@@ -328,6 +484,17 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `epok::ProgressBarComponent::set_value` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::ProgressBarComponent::step` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::ProgressBarComponent::value` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ProjectileLibrary::filter` | `projectile3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ProjectileLibrary::spawn` | `projectile3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ProjectilePool3DComponent::active_count` | `projectile3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ProjectilePool3DComponent::bind` | `projectile3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ProjectilePool3DComponent::binding` | `projectile3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ProjectilePool3DComponent::launch` | `projectile3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ProjectilePool3DComponent::reset` | `projectile3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ProjectilePool3DComponent::result` | `projectile3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ProjectilePool3DComponent::snapshot` | `projectile3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ProjectilePool3DComponent::step` | `projectile3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ProjectilePool3DComponent::stop` | `projectile3d` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::RectTransformComponent::enabled` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::RectTransformComponent::rotation` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::RectTransformComponent::set_anchors` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
@@ -365,6 +532,25 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `epok::SceneLibrary::set_screen_fade` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::SceneLibrary::snapshot` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::SceneLibrary::transition_snapshot` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ScreenAnchorComponent::refresh` | `ui-anchor` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ScreenAnchorComponent::set_target` | `ui-anchor` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ScreenAnchorComponent::status` | `ui-anchor` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ScreenAnchorComponent::valid_content` | `ui-anchor` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::SkeletalLocomotionComponent::animation_applied` | `character-animation` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::SkeletalLocomotionComponent::reset` | `character-animation` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::SkeletalLocomotionComponent::sample` | `character-animation` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::SkeletalLocomotionComponent::select_animation` | `character-animation` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::SkeletalLocomotionComponent::set_enabled` | `character-animation` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::SkeletalLocomotionComponent::update` | `character-animation` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::SpatialQueryContextComponent::move` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::SpatialQueryContextComponent::publish_actor` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::SpatialQueryContextComponent::raycast_pair` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::SpatialQueryContextComponent::raycast_segment` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::SpatialQueryContextComponent::reset_queries` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::SpringArmComponent::reset` | `camera-rig` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::SpringArmComponent::sample` | `camera-rig` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::SpringArmComponent::solve` | `camera-rig` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::SpringArmComponent::solve_shared` | `camera-rig` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::Sprite3DComponent::enabled` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::Sprite3DComponent::pause_animation` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::Sprite3DComponent::play_clip` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
@@ -377,6 +563,17 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `epok::Sprite3DComponent::set_size` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::Sprite3DComponent::set_texture` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::Sprite3DComponent::take_completion` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::SpriteLocomotion2DComponent::animation_applied` | `character-animation` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::SpriteLocomotion2DComponent::reset` | `character-animation` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::SpriteLocomotion2DComponent::sample` | `character-animation` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::SpriteLocomotion2DComponent::select_animation` | `character-animation` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::SpriteLocomotion2DComponent::set_enabled` | `character-animation` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::SpriteLocomotion2DComponent::update` | `character-animation` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::SwitchComponent::activate` | `world-gameplay` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::SwitchComponent::can_switch` | `world-gameplay` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::SwitchComponent::reset_switch` | `world-gameplay` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::SwitchComponent::switched` | `world-gameplay` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::SwitchComponent::value` | `world-gameplay` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::TextComponent::align` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::TextComponent::clear_text` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::TextComponent::enabled` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
@@ -389,9 +586,12 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `epok::TextComponent::set_text_key` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::TextComponent::set_text_word` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::TextComponent::set_unsigned` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::TextComponent::set_visible_glyphs` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::TextComponent::set_wrap` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::TextComponent::show_all_text` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::TextComponent::text_key` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::TextComponent::text_word` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::TextComponent::visible_glyphs` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::TimeLibrary::paused` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::TimeLibrary::set_paused` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::TimeLibrary::snapshot` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
@@ -421,21 +621,159 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `epok::BoneSample::position` | `epok` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::BoneSample::sampled_frame` | `epok` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::BoneSample::success` | `epok` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CameraOrbitInputComponent::enabled` | `camera-rig` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CameraOrbitInputComponent::only_when_current` | `camera-rig` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CameraOrbitInputComponent::pitch_rate` | `camera-rig` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CameraOrbitInputComponent::port` | `camera-rig` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CameraOrbitInputComponent::rig` | `camera-rig` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CameraOrbitInputComponent::yaw_rate` | `camera-rig` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CameraRig3D::automatic_tick` | `camera-rig` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CameraRig3D::distance` | `camera-rig` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CameraRig3D::follow_response` | `camera-rig` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CameraRig3D::follow_target` | `camera-rig` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CameraRig3D::offset_x` | `camera-rig` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CameraRig3D::offset_y` | `camera-rig` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CameraRig3D::offset_z` | `camera-rig` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CameraRig3D::pitch` | `camera-rig` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CameraRig3D::pitch_max` | `camera-rig` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CameraRig3D::pitch_min` | `camera-rig` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CameraRig3D::spring_arm` | `camera-rig` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CameraRig3D::target` | `camera-rig` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CameraRig3D::yaw` | `camera-rig` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CameraRigSample::blocked` | `camera-rig` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CameraRigSample::distance` | `camera-rig` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CameraRigSample::pitch` | `camera-rig` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CameraRigSample::position` | `camera-rig` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CameraRigSample::roll` | `camera-rig` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CameraRigSample::status` | `camera-rig` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CameraRigSample::yaw` | `camera-rig` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::CardFileSample::blocks` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::CardFileSample::name_hash` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::CardFileSample::valid` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::Character2D::camera` | `character2d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::Character2D::visual` | `character2d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::Character3D::camera` | `character3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::Character3D::visual` | `character3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterCommand2D::jump` | `character2d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterCommand2D::velocity` | `character2d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterCommand3D::heading` | `character3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterCommand3D::jump` | `character3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterCommand3D::turn` | `character3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterCommand3D::velocity` | `character3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterCommandResult2D::command` | `character-commands` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterCommandResult2D::status` | `character-commands` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterCommandResult3D::command` | `character-commands` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterCommandResult3D::status` | `character-commands` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterCommandSource2DComponent::automatic_tick` | `character-commands` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterCommandSource2DComponent::enabled` | `character-commands` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterCommandSource2DComponent::motor` | `character-commands` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterCommandSource3DComponent::automatic_tick` | `character-commands` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterCommandSource3DComponent::enabled` | `character-commands` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterCommandSource3DComponent::motor` | `character-commands` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterMotionSample2D::blocked` | `character2d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterMotionSample2D::displacement` | `character2d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterMotionSample2D::grounded` | `character2d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterMotionSample2D::jumped` | `character2d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterMotionSample2D::on_ceiling` | `character2d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterMotionSample2D::on_wall` | `character2d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterMotionSample2D::status` | `character2d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterMotionSample2D::velocity` | `character2d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterMotionSample3D::blocked` | `character3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterMotionSample3D::displacement` | `character3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterMotionSample3D::facing` | `character3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterMotionSample3D::grounded` | `character3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterMotionSample3D::jumped` | `character3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterMotionSample3D::speed` | `character3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterMotionSample3D::status` | `character3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterMotionSample3D::unresolved_overlap` | `character3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterMotionSample3D::velocity` | `character3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterMotor2DComponent::automatic_tick` | `character2d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterMotor2DComponent::body` | `character2d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterMotor2DComponent::gravity` | `character2d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterMotor2DComponent::jump_speed` | `character2d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterMotor3DComponent::air_response` | `character3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterMotor3DComponent::automatic_tick` | `character3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterMotor3DComponent::collision_mask` | `character3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterMotor3DComponent::gravity` | `character3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterMotor3DComponent::ground_response` | `character3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterMotor3DComponent::ground_stick` | `character3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterMotor3DComponent::jump_speed` | `character3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterMotor3DComponent::measure_speed` | `character3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterMotor3DComponent::step_height` | `character3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CharacterMotor3DComponent::turn_rate` | `character3d` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::CollisionHit2DSample::actor` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::CollisionHit2DSample::fraction` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::CollisionHit2DSample::hit` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::CollisionHit2DSample::normal` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::CollisionHit2DSample::point` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::CollisionHit2DSample::started_inside` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CollisionHitPair::first` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CollisionHitPair::second` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::CollisionHitSample::actor` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::CollisionHitSample::fraction` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::CollisionHitSample::hit` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::CollisionHitSample::normal` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::CollisionHitSample::point` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::CollisionHitSample::started_inside` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialogueHandle::generation` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialogueInteractionComponent::automatic_input` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialogueInteractionComponent::bindings` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialogueInteractionComponent::conversation` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialogueInteractionComponent::presenter` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialogueInteractionComponent::style` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialoguePresenter::anchor` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialoguePresenter::body` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialoguePresenter::choice0` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialoguePresenter::choice1` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialoguePresenter::choice2` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialoguePresenter::choice3` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialoguePresenter::choice_panel` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialoguePresenter::continuation` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialoguePresenter::default_timing` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialoguePresenter::panel` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialoguePresenter::portrait` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialoguePresenter::prompt` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialoguePresenter::speaker_name` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialogueRoleBindingsComponent::role0` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialogueRoleBindingsComponent::role1` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialogueRoleBindingsComponent::role2` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialogueRoleBindingsComponent::role3` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialogueRoleBindingsComponent::role4` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialogueRoleBindingsComponent::role5` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialogueRoleBindingsComponent::role6` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialogueRoleBindingsComponent::role7` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialogueRoleBindingsComponent::target0` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialogueRoleBindingsComponent::target1` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialogueRoleBindingsComponent::target2` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialogueRoleBindingsComponent::target3` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialogueRoleBindingsComponent::target4` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialogueRoleBindingsComponent::target5` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialogueRoleBindingsComponent::target6` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialogueRoleBindingsComponent::target7` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialogueSnapshot::choice_page` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialogueSnapshot::choices` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialogueSnapshot::generation` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialogueSnapshot::glyphs` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialogueSnapshot::initiator` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialogueSnapshot::node` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialogueSnapshot::page` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialogueSnapshot::pages` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialogueSnapshot::phase` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialogueSnapshot::port` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialogueSnapshot::presenter` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialogueSnapshot::result` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialogueSnapshot::revealed` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialogueSnapshot::selected` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialogueSnapshot::source` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialogueSnapshot::speaker` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialogueStartResult::result` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialogueStartResult::session` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialogueTiming::auto_advance_ms` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DialogueTiming::reveal_ms` | `dialogue-helpers` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DoorComponent::collider_2d` | `world-gameplay` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DoorComponent::collider_3d` | `world-gameplay` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DoorComponent::initial_state` | `world-gameplay` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DoorComponent::requirement_flag` | `world-gameplay` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::DungeonPoint::lock` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::DungeonPoint::position` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::DungeonPoint::room` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
@@ -480,6 +818,11 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `epok::FogSettings::start_distance` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::GameplayAabb::maximum` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::GameplayAabb::minimum` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::GameplayActionSample::connected` | `gameplay-control` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::GameplayActionSample::held` | `gameplay-control` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::GameplayActionSample::pressed` | `gameplay-control` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::GameplayActionSample::released` | `gameplay-control` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::GameplayActionSample::value` | `gameplay-control` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::GameplayCamera2D::position` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::GameplayCamera2D::rotation` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::GameplayCamera2D::viewport_height` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
@@ -496,6 +839,7 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `epok::GameplayEventSample::kind` | `utility` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::GameplayEventSample::source` | `utility` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::GameplayEventSample::value` | `utility` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::GameplayFlagComponent::initial_value` | `world-gameplay` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::GameplayPlaybackSnapshot::result` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::GameplayPlaybackSnapshot::revision` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::GameplayTransitionOptions::blue` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
@@ -527,9 +871,74 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `epok::GameplayVector3TweenState::from` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::GameplayVector3TweenState::timing` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::GameplayVector3TweenState::to` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::HealthChange::applied` | `health` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::HealthChange::depleted` | `health` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::HealthChange::result` | `health` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::HealthChange::revived` | `health` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::HealthChange::state` | `health` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::HealthState::current` | `health` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::HealthState::maximum` | `health` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::InputAxisSample::analog` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::InputAxisSample::connected` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::InputAxisSample::value` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::InputCapture::generation` | `gameplay-control` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::InputCapture::slot` | `gameplay-control` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::InteractableComponent::enabled` | `interaction` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::InteractableComponent::priority` | `interaction` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::InteractableComponent::prompt_key` | `interaction` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::InteractableComponent::range_2d` | `interaction` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::InteractableComponent::range_3d` | `interaction` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::InteractableComponent::selection_order` | `interaction` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::InteractionPromptComponent::input_port` | `interaction` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::InteractionPromptComponent::interactor` | `interaction` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::InteractionSensor2DComponent::accepted_initiator` | `interaction` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::InteractionSensor2DComponent::height` | `interaction` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::InteractionSensor2DComponent::monitoring` | `interaction` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::InteractionSensor2DComponent::target` | `interaction` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::InteractionSensor2DComponent::width` | `interaction` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::InteractionSensor3DComponent::accepted_initiator` | `interaction` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::InteractionSensor3DComponent::depth` | `interaction` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::InteractionSensor3DComponent::height` | `interaction` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::InteractionSensor3DComponent::monitoring` | `interaction` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::InteractionSensor3DComponent::target` | `interaction` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::InteractionSensor3DComponent::width` | `interaction` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::InteractorComponent::auto_input` | `interaction` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::InteractorComponent::enabled` | `interaction` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::InteractorComponent::input_port` | `interaction` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::InteractorComponent::proximity` | `interaction` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::InteractorComponent::range_2d` | `interaction` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::InteractorComponent::range_3d` | `interaction` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::LocalPlayer2DInputComponent::allow_jump` | `character-input` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::LocalPlayer2DInputComponent::max_speed` | `character-input` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::LocalPlayer2DInputComponent::port` | `character-input` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::LocalPlayer3DInputComponent::allow_jump` | `character-input` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::LocalPlayer3DInputComponent::camera` | `character-input` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::LocalPlayer3DInputComponent::camera_relative` | `character-input` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::LocalPlayer3DInputComponent::max_speed` | `character-input` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::LocalPlayer3DInputComponent::port` | `character-input` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::LocalPlayer3DInputComponent::turn_to_movement` | `character-input` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::LocomotionClips::idle` | `character-animation` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::LocomotionClips::jump_down` | `character-animation` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::LocomotionClips::jump_up` | `character-animation` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::LocomotionClips::land` | `character-animation` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::LocomotionClips::run` | `character-animation` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::LocomotionClips::walk` | `character-animation` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::LocomotionSample::changed` | `character-animation` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::LocomotionSample::clip` | `character-animation` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::LocomotionSample::rate` | `character-animation` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::LocomotionSample::state` | `character-animation` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::LocomotionSample::status` | `character-animation` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::LocomotionSelection::clip` | `character-animation` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::LocomotionSelection::looping` | `character-animation` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::LocomotionSelection::rate` | `character-animation` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::LocomotionSelection::state` | `character-animation` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::LocomotionTuning::idle_speed` | `character-animation` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::LocomotionTuning::max_rate` | `character-animation` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::LocomotionTuning::min_rate` | `character-animation` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::LocomotionTuning::run_cycle_speed` | `character-animation` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::LocomotionTuning::run_enter` | `character-animation` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::LocomotionTuning::run_exit` | `character-animation` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::LocomotionTuning::walk_cycle_speed` | `character-animation` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::MaterialSnapshot::blend` | `epok` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::MaterialSnapshot::blue` | `epok` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::MaterialSnapshot::depth_bias` | `epok` | yes | yes | yes | yes | yes | `implemented` |
@@ -559,6 +968,17 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `epok::MoveSample::normal` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::MoveSample::unresolved_overlap` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::MoveSample::valid` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::MoveTo2DComponent::goal` | `character-commands` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::MoveTo2DComponent::speed` | `character-commands` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::MoveTo2DComponent::stop_distance` | `character-commands` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::MoveTo2DComponent::target` | `character-commands` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::MoveTo2DComponent::use_point` | `character-commands` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::MoveTo3DComponent::goal` | `character-commands` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::MoveTo3DComponent::speed` | `character-commands` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::MoveTo3DComponent::stop_distance` | `character-commands` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::MoveTo3DComponent::target` | `character-commands` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::MoveTo3DComponent::turn_to_movement` | `character-commands` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::MoveTo3DComponent::use_point` | `character-commands` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::MovementIntent::strength` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::MovementIntent::x` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::MovementIntent::y` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
@@ -586,9 +1006,69 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `epok::ParticleEmitterState::pending` | `epok` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::ParticleEmitterState::playing` | `epok` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::ParticleEmitterState::valid` | `epok` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::PickupComponent::accepted_initiator` | `world-gameplay` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::PickupComponent::auto_collect` | `world-gameplay` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::PickupComponent::collected_flag` | `world-gameplay` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::PickupComponent::deactivate_on_collect` | `world-gameplay` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::PickupComponent::input_port` | `world-gameplay` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::PocketTransactionComponent::automatic_poll` | `device-io` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::PocketTransactionComponent::port` | `device-io` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::PocketTransferHandle::component` | `device-io` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::PocketTransferHandle::request` | `device-io` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::PocketTransferSnapshot::busy` | `device-io` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::PocketTransferSnapshot::error` | `device-io` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::PocketTransferSnapshot::ready` | `device-io` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::PocketTransferSnapshot::received` | `device-io` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::PocketTransferSnapshot::request` | `device-io` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::PocketTransferSnapshot::valid` | `device-io` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::ProjectedPoint::success` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::ProjectedPoint::x` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::ProjectedPoint::y` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ProjectileBatch::count` | `projectile3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ProjectileBatch::pool` | `projectile3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ProjectileBatch::sequence` | `projectile3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ProjectileBatch::state` | `projectile3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ProjectileHandle::pool` | `projectile3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ProjectileHandle::ticket` | `projectile3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ProjectileLaunchResult::actor` | `projectile3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ProjectileLaunchResult::handle` | `projectile3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ProjectileLaunchResult::result` | `projectile3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ProjectilePool3DComponent::manage_sprite_visibility` | `projectile3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ProjectilePool3DComponent::query_context` | `projectile3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ProjectilePool3DComponent::sprite_grid` | `projectile3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ProjectilePool3DComponent::visual0` | `projectile3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ProjectilePool3DComponent::visual1` | `projectile3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ProjectilePool3DComponent::visual2` | `projectile3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ProjectilePool3DComponent::visual3` | `projectile3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ProjectilePool3DComponent::visual4` | `projectile3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ProjectilePool3DComponent::visual5` | `projectile3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ProjectilePool3DComponent::visual6` | `projectile3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ProjectilePool3DComponent::visual7` | `projectile3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ProjectileSnapshot::active` | `projectile3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ProjectileSnapshot::actor` | `projectile3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ProjectileSnapshot::lifetime` | `projectile3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ProjectileSnapshot::position` | `projectile3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ProjectileSnapshot::valid` | `projectile3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ProjectileSnapshot::velocity` | `projectile3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ProjectileSpawn3D::lifetime` | `projectile3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ProjectileSpawn3D::origin` | `projectile3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ProjectileSpawn3D::tag` | `projectile3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ProjectileSpawn3D::velocity` | `projectile3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ProjectileSpriteGrid::cell_height` | `projectile3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ProjectileSpriteGrid::cell_width` | `projectile3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ProjectileSpriteGrid::enabled` | `projectile3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ProjectileSpriteGrid::frames` | `projectile3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ProjectileSpriteGrid::start_x` | `projectile3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ProjectileSpriteGrid::start_y` | `projectile3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ProjectileSpriteGrid::ticks_per_frame` | `projectile3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ProjectileStep::handle` | `projectile3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ProjectileStep::point` | `projectile3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ProjectileStep::state` | `projectile3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ProjectileStep::tag` | `projectile3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ProjectileStep::target` | `projectile3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ProjectileTraceFilter::ignore` | `projectile3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ProjectileTraceFilter::mask` | `projectile3d` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ProjectileTraceFilter::triggers` | `projectile3d` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::ResourceSnapshot::active_slots` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::ResourceSnapshot::active_texture_bytes` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::ResourceSnapshot::alive_slots` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
@@ -625,6 +1105,24 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `epok::SceneSnapshot::rejected` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::SceneSnapshot::transitions` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::SceneSnapshot::waiting` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ScreenAnchorComponent::content` | `ui-anchor` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ScreenAnchorComponent::enabled` | `ui-anchor` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ScreenAnchorComponent::margin` | `ui-anchor` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ScreenAnchorComponent::offset_x` | `ui-anchor` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ScreenAnchorComponent::offset_y` | `ui-anchor` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ScreenAnchorComponent::offset_z` | `ui-anchor` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ScreenAnchorComponent::pixel_x` | `ui-anchor` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ScreenAnchorComponent::pixel_y` | `ui-anchor` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ScreenAnchorComponent::target` | `ui-anchor` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ScriptedCommand2DComponent::desired` | `character-commands` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ScriptedCommand3DComponent::desired` | `character-commands` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::SkeletalLocomotionComponent::automatic_tick` | `character-animation` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::SkeletalLocomotionComponent::clips` | `character-animation` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::SkeletalLocomotionComponent::distance_driven` | `character-animation` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::SkeletalLocomotionComponent::enabled` | `character-animation` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::SkeletalLocomotionComponent::motor` | `character-animation` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::SkeletalLocomotionComponent::tuning` | `character-animation` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::SkeletalLocomotionComponent::visual` | `character-animation` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::SkeletalPlaybackState::clip` | `epok` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::SkeletalPlaybackState::enabled` | `epok` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::SkeletalPlaybackState::looping` | `epok` | yes | yes | yes | yes | yes | `implemented` |
@@ -637,6 +1135,26 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `epok::SkeletalQuerySnapshot::decoded_bytes` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::SkeletalQuerySnapshot::failures` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::SkeletalQuerySnapshot::vertices` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::SpatialQueryContextComponent::automatic_reset` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::SpringArmComponent::adaptive_pull_in` | `camera-rig` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::SpringArmComponent::collision_enabled` | `camera-rig` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::SpringArmComponent::collision_mask` | `camera-rig` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::SpringArmComponent::extension_response` | `camera-rig` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::SpringArmComponent::minimum_fraction` | `camera-rig` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::SpringArmComponent::pull_in` | `camera-rig` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::SpringArmSample::blocked` | `camera-rig` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::SpringArmSample::fraction` | `camera-rig` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::SpringArmSample::position` | `camera-rig` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::SpringArmSample::status` | `camera-rig` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::SpriteLocomotion2DComponent::animate_air` | `character-animation` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::SpriteLocomotion2DComponent::automatic_tick` | `character-animation` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::SpriteLocomotion2DComponent::clips` | `character-animation` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::SpriteLocomotion2DComponent::distance_driven` | `character-animation` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::SpriteLocomotion2DComponent::enabled` | `character-animation` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::SpriteLocomotion2DComponent::face_motion` | `character-animation` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::SpriteLocomotion2DComponent::motor` | `character-animation` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::SpriteLocomotion2DComponent::tuning` | `character-animation` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::SpriteLocomotion2DComponent::visual` | `character-animation` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::SpritePlaybackState::clip` | `epok` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::SpritePlaybackState::clip_count` | `epok` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::SpritePlaybackState::completed` | `epok` | yes | yes | yes | yes | yes | `implemented` |
@@ -646,6 +1164,10 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `epok::SpritePlaybackState::pending_events` | `epok` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::SpritePlaybackState::playing` | `epok` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::SpritePlaybackState::valid` | `epok` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::SwitchComponent::accepted_initiator` | `world-gameplay` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::SwitchComponent::initial_value` | `world-gameplay` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::SwitchComponent::target_flag` | `world-gameplay` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::SwitchComponent::toggle` | `world-gameplay` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::TimeSnapshot::dropped_steps` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::TimeSnapshot::fixed_delta` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::TimeSnapshot::frame_microseconds` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |

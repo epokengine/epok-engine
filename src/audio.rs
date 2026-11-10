@@ -207,7 +207,7 @@ pub fn registry_selection_signature(registry: &crate::blueprint::Registry) -> St
                 .properties(&class.cpp_name)
                 .into_iter()
                 .filter(|property| is_clip_type(&property.value_type))
-                .map(|property| (&property.id, &property.name, &property.default))
+                .map(|property| (property.id, property.name, property.default))
                 .collect::<Vec<_>>();
             (!properties.is_empty()).then_some((&class.id, &class.cpp_name, properties))
         })

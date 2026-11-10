@@ -5,7 +5,7 @@ use std::{
     path::PathBuf,
 };
 
-pub const SCHEMA_VERSION: u32 = 10;
+pub const SCHEMA_VERSION: u32 = 11;
 pub const CLANG_VERSION: &str = "18.1.1";
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -126,7 +126,9 @@ impl Domain {
 }
 
 /// How an actor class may enter a level. `scene_managed` classes are created by
-/// the level loader only and are never placeable or spawnable.
+/// the level loader only and are never placeable or spawnable. `placed_only`
+/// withdraws the Spawnable a class would inherit: such a class exists once,
+/// authored in its scene, so it costs no spawn prototype.
 #[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Placement {
     #[serde(default)]
@@ -135,6 +137,8 @@ pub struct Placement {
     pub spawnable: bool,
     #[serde(default)]
     pub scene_managed: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub placed_only: bool,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -236,6 +240,21 @@ impl Type {
             | Self::ActorRef { .. }
             | Self::ComponentRef { .. } => 1,
         }
+    }
+    /// Lua ABI v2 preserves aggregate shape even for a one-word record.
+    /// Word count alone cannot distinguish that record from its scalar member.
+    #[allow(dead_code)]
+    pub fn requires_wire_value(&self) -> bool {
+        matches!(
+            self,
+            Self::Record { .. }
+                | Self::Vector { .. }
+                | Self::AssetRef { .. }
+                | Self::ClassRef { .. }
+                | Self::SequenceHandle
+                | Self::EffectHandle
+                | Self::EffectLayerRef { .. }
+        )
     }
     #[allow(dead_code)]
     pub fn member_wire_offset(&self, name: &str) -> Option<(usize, Type)> {
@@ -591,6 +610,10 @@ pub struct Class {
     /// `Abstract` token; `is_abstract_record` sets `abstract_class` independently.
     #[serde(default)]
     pub explicit_abstract: bool,
+    /// Constant assignments in a parameterless native constructor. Schema 11.
+    /// Keys name existing reflected properties; no new field identity is created.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub default_overrides: BTreeMap<String, serde_json::Value>,
     pub properties: Vec<Property>,
     pub functions: Vec<Function>,
     pub source: Location,
@@ -659,7 +682,8 @@ mod tests {
         for field in ["family", "domain", "component", "default_components"] {
             assert!(round_trip.get(field).is_none(), "{field} was serialized");
         }
-        assert_eq!(super::SCHEMA_VERSION, 10);
+        assert!(class.default_overrides.is_empty());
+        assert_eq!(super::SCHEMA_VERSION, 11);
     }
 
     #[test]

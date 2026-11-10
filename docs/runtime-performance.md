@@ -54,6 +54,18 @@ UV/material state when a triangle actually needs clipping.
 The surrounding runtime and gameplay scripts default
 to `-O2`; the SDK remains size-optimized. `EPOK_RUNTIME_OPT` and `EPOK_SCRIPT_OPT`
 permit build comparisons. The normal executable RAM-budget gate still applies.
+
+A large project can set **Optimize Scripts For Size** in Project Settings, stored
+as `build.script_optimization: size`. Gameplay classes then compile with `-Os`,
+including classes written entirely in headers, while the renderer and simulation
+stay at `-O2`. Wrap per-tick gameplay code in `EPOK_SPEED_BEGIN` and
+`EPOK_SPEED_END` to keep it at `-O2`, spending RAM only where the frame budget is
+decided. An explicit `EPOK_SCRIPT_OPT` still overrides the project setting.
+
+Two compiler passes keep rule code from recomputing a value. Pure Blueprint
+functions name a repeated pure call once, and the rule generators do the same for
+C++ and Lua. Each local sits where every later path evaluates the value, so a call
+that a branch or a short circuit protected never runs earlier than it did.
 Clipping uses native 32-bit division when the numerator fits, with exactly the
 same floor rounding and a wide fallback. Its interpolation fraction retains
 16-bit precision; tests compare it against the wide reference calculation.
@@ -82,6 +94,12 @@ sprite's `enabled` field. This avoids repeated whole-level activation scans;
 it is not appropriate when actor enable/disable callbacks are part of gameplay.
 Cache generation-checked component handles rather than scanning components on
 each AI tick.
+
+Simulation runs at 60 Hz, so a frame over one vblank runs two steps and shows only
+the last. `time.drawn_step` is false on a step the renderer never shows. Native
+gameplay can use it to leave presentation for the drawn step: a camera solve, an aim
+pose, sprite tints, HUD publication. Pass that step the accumulated time, and keep
+anything that decides gameplay on every step. Dungeon Complete is the worked example.
 
 ## Measuring
 

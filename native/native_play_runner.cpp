@@ -25,6 +25,7 @@ extern "C" __declspec(dllimport) unsigned long __stdcall SetErrorMode(unsigned l
 #include "hud_focus.hpp"
 #include "native_play_protocol.h"
 #include "transform_cache.hpp"
+#include "camera_projection.hpp"
 #include "track_camera_pose.hpp"
 static uint32_t rumble_identities[4]={};
 
@@ -51,6 +52,9 @@ void activate_texture_bank(const Texture* textures){texture_assets=textures;}
 #include "scene_lifecycle.hpp"
 #ifdef EPOK_WORLD2D
 #include "world2d_service.hpp"
+#endif
+#ifdef EPOK_UI_ANCHOR
+#include "ui_anchor_service.hpp"
 #endif
 
 namespace {
@@ -119,6 +123,12 @@ void dispatch_trigger(const epok::TriggerEvent& event){
 namespace epok {
 bool scene_loading(){return pending_scene>=0||transition.busy();}
 void reset_runtime_services(){
+#ifdef EPOK_DIALOGUE
+    dialogue::session().reset();
+#endif
+#ifdef EPOK_GAMEPLAY_CONTROL
+    gameplay_controls().reset();
+#endif
     rumble.suspend();
     transform_cache.clear();collision_world.clear();camera_override={};
     input.discard_edges();time=Time{};world3d_visible=true;
@@ -154,12 +164,11 @@ bool set_active_camera(ActorData* camera){
 DataHandle active_camera(){return handle(camera_entity());}
 bool camera_project(const Fixed* point,Fixed* screen){
     if(!point||!screen)return false;Matrix view;if(!camera_space(view))return false;auto* camera=camera_entity();
-    Fixed p[3];view.point(point,p);if(p[2]<=Fixed(0.25))return false;
-    int32_t fov=camera->camera_settings.field_of_view.raw();if(fov<25*4096)fov=25*4096;if(fov>120*4096)fov=120*4096;
-    const double focal=1.0/std::tan(double(fov)*3.14159265358979323846/(2.0*180.0*4096.0));
-    const int64_t x=int64_t(p[0].raw()*focal)*(camera->camera_settings.mirror_x?-1:1),y=int64_t(p[1].raw()*focal),z=p[2].raw();
-    screen[0]=Fixed(int32_t(int64_t(display_width/2)*4096+x*(display_width/2)*4096/z),Fixed::RAW);
-    screen[1]=Fixed(int32_t(int64_t(display_height/2)*4096-y*(display_height*2/3)*4096/z),Fixed::RAW);return true;
+    Fixed p[3];view.point(point,p);
+    const int32_t focal=camera_projection::focal(camera->camera_settings.field_of_view.raw());
+    const int32_t input[3]={p[0].raw(),p[1].raw(),p[2].raw()};int32_t result[2];
+    if(!camera_projection::point(input,camera->camera_settings.mirror_x?-focal:focal,focal,display_width,display_height,result))return false;
+    screen[0]=Fixed(result[0],Fixed::RAW);screen[1]=Fixed(result[1],Fixed::RAW);return true;
 }
 SpatialHit raycast(const Fixed* origin,const Fixed* delta,uint32_t mask,const ActorData* ignore,bool triggers){refresh_collisions();return collision_world.raycast(origin,delta,mask,entity_index(ignore),triggers);}
 void raycast_batch(const RaycastQuery* queries,SpatialHit* results,size_t count,uint32_t mask,const ActorData* ignore,bool triggers){if(!queries||!results)return;refresh_collisions();collision_world.raycast_batch(queries,results,count,mask,entity_index(ignore),triggers);}
@@ -413,17 +422,43 @@ int main(){
         epok::rumble.begin_frame(now,!elapsed||epok::time.paused()||epok::scene_loading());
         for(unsigned p=0;p<4;++p)epok::rumble.device(p,flags[p]&1,flags[p]&2,false,flags[p]&4,rumble_identities[p]);
         if(elapsed){epok::scene_tick(now);}
-        if(elapsed&&!epok::scene_loading()){for(unsigned p=0;p<4;++p)epok::input.sample(p,flags[p]&1,uint16_t(buttons[p]),analog[p],uint8_t(axes[p]),uint8_t(axes[p]>>8),uint8_t(axes[p]>>16),uint8_t(axes[p]>>24));const auto steps=epok::time.advance(now);epok::level.frame_update(epok::time.frame_microseconds);
-            if(epok::time.paused())epok::input.discard_edges();if(!epok::time.paused())epok::nav::world.tick();
-            for(unsigned step=0;step<steps&&!epok::time.paused();++step){epok::time.begin_tick();epok::input.begin_tick();const Fixed dt(epok::time.delta_raw,Fixed::RAW);epok::level.tick(dt);
+#ifdef EPOK_DIALOGUE
+        if(epok::scene_loading())epok::dialogue::session().reset();
+#endif
+        if(elapsed&&!epok::scene_loading()){for(unsigned p=0;p<4;++p)epok::input.sample(p,flags[p]&1,uint16_t(buttons[p]),analog[p],uint8_t(axes[p]),uint8_t(axes[p]>>8),uint8_t(axes[p]>>16),uint8_t(axes[p]>>24));
+#ifdef EPOK_GAMEPLAY_CONTROL
+            epok::gameplay_controls().begin_frame();
+#endif
+            const auto steps=epok::time.advance(now);
+#ifdef EPOK_DIALOGUE
+            epok::dialogue::session().update_microseconds(epok::time.frame_microseconds);
+#endif
+            epok::level.frame_update(epok::time.frame_microseconds);
+            if(epok::time.paused()||epok::scene_loading())epok::input.discard_edges();if(!epok::time.paused()&&!epok::scene_loading())epok::nav::world.tick();
+#ifdef EPOK_GAMEPLAY_CONTROL
+            if(epok::time.paused()||epok::scene_loading())epok::gameplay_controls().discard_tick_edges();
+#endif
+            for(unsigned step=0;step<steps&&!epok::time.paused()&&!epok::scene_loading();++step){epok::time.begin_tick();epok::input.begin_tick();
+#ifdef EPOK_GAMEPLAY_CONTROL
+                epok::gameplay_controls().begin_tick();
+#endif
+                const Fixed dt(epok::time.delta_raw,Fixed::RAW);epok::level.tick(dt);
 #ifdef EPOK_WORLD2D
                 epok::world2d::service.step(dt,&epok::level);
 #endif
 
                 bool triggers=collision_world.has_trigger_pairs();for(size_t i=0;i<epok::object_count&&!triggers;++i)triggers=epok::objects[i].collider.enabled&&epok::objects[i].collider.trigger&&epok::is_active_slot(i);
-                if(triggers){refresh_collisions();collision_world.update_triggers(dispatch_trigger);}for(size_t i=0;i<epok::object_count;++i)if(epok::is_active_slot(i)){epok::objects[i].animator.advance();epok::objects[i].sprite_animator.advance(dt,epok::objects[i].sprite);epok::objects[i].palette_animator.advance(dt);}epok::input.end_tick();}
+                if(triggers){refresh_collisions();collision_world.update_triggers(dispatch_trigger);}for(size_t i=0;i<epok::object_count;++i)if(epok::is_active_slot(i)){epok::objects[i].animator.advance();epok::objects[i].sprite_animator.advance(dt,epok::objects[i].sprite);epok::objects[i].palette_animator.advance(dt);}epok::input.end_tick();
+#ifdef EPOK_GAMEPLAY_CONTROL
+                epok::gameplay_controls().end_tick();
+#endif
+            }
             advance_camera_track(epok::time.frame_microseconds);epok::level.refresh_stats();
-        }else {epok::time.synchronize(now);epok::input.discard_edges();}
+        }else {epok::time.synchronize(now);epok::input.discard_edges();
+#ifdef EPOK_GAMEPLAY_CONTROL
+            epok::gameplay_controls().discard_tick_edges();
+#endif
+        }
         if(epok::time.paused()||epok::scene_loading()||!elapsed)epok::rumble.suspend();
         if(elapsed){cards.pump();++epok::performance_stats.frame;}frame();
     }

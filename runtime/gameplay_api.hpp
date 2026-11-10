@@ -158,6 +158,10 @@ inline ObjectId gameplay_actor_id(DataHandle handle){auto* data=handle.get();ret
 inline const char* gameplay_card_slot_name(uint32_t slot){static const char* names[8]={"SAVE0","SAVE1","SAVE2","SAVE3","SAVE4","SAVE5","SAVE6","SAVE7"};return slot<8?names[slot]:nullptr;}
 inline int16_t gameplay_i16(int32_t value){return int16_t(value<-32768?-32768:value>32767?32767:value);}
 inline uint32_t* gameplay_save_words(){alignas(4) static uint32_t words[MemoryCardService::max_payload/4]{};return words;}
+// Metadata is staged independently of all 4096 payload bytes. The service copies
+// name, title and payload before returning; later staging cannot alter a request.
+struct GameplayCardMetadata {char name[19]{},title[129]="EPOK Save";};
+inline GameplayCardMetadata& gameplay_card_metadata(){static GameplayCardMetadata value;return value;}
 inline uint16_t gameplay_u16(uint32_t value){return uint16_t(value>65535?65535:value);}
 inline uint8_t gameplay_u8(uint32_t value){return uint8_t(value>255?255:value);}
 inline GameplayVector3TweenState gameplay_vector_tween(GameplayVector3 from,GameplayVector3 to,Tween timing){return {from,to,gameplay_tween_state(timing)};}
@@ -238,6 +242,18 @@ struct EPOK_FUNCTION_LIBRARY(Category="Localization", Id="c8e1aeab-b60e-4a89-924
 };
 
 struct EPOK_FUNCTION_LIBRARY(Category="Math", Id="895f8595-ac0d-4584-b749-df23ae5dfbde") MathLibrary {
+    EPOK_FUNCTION(BlueprintPure, PureValue, Id="fd15a18f-5bec-56a2-86b5-4543deeba153") static uint32_t bit_xor(uint32_t left,uint32_t right){return left^right;}
+    // Explicit modulo-2^32 multiplication for hashes and bit arithmetic. The
+    // ordinary Blueprint/Lua UInt32 arithmetic retains its saturating contract.
+    EPOK_FUNCTION(BlueprintPure, PureValue, Id="36c9a85a-f38e-5dc1-bdde-4bb547859c44") static uint32_t wrapping_multiply(uint32_t left,uint32_t right){return left*right;}
+    // Round toward negative infinity, including negative fractions and INT32_MIN.
+    EPOK_FUNCTION(BlueprintPure, PureValue, Id="bdad1566-6175-567e-bcdf-28a445aea53c") static Fixed floor(Fixed value){
+        const auto raw=value.raw();int32_t whole=raw/4096;if(raw<0&&raw%4096)--whole;
+        return Fixed(whole*4096,Fixed::RAW);
+    }
+    // Truncate whole positive units; negative values saturate at zero. Q12's
+    // representable positive range fits uint32_t without overflow.
+    EPOK_FUNCTION(BlueprintPure, PureValue, Id="29249825-c121-54e6-a908-8cc041db8971") static uint32_t truncate_unsigned(Fixed value){return value.raw()>0?uint32_t(value.raw()/4096):0;}
     EPOK_FUNCTION(BlueprintPure, PureValue, Id="6b6ba8bd-8446-4fef-a147-e41b61f88a61") static Fixed clamp(Fixed value,Fixed minimum,Fixed maximum){return value<minimum?minimum:value>maximum?maximum:value;}
     EPOK_FUNCTION(BlueprintPure, PureValue, Id="53a63dd4-901c-4f40-92b3-241c879e96a7") static Fixed lerp(Fixed from,Fixed to,Fixed alpha){return from+(to-from)*clamp(alpha,0.0,1.0);}
     EPOK_FUNCTION(BlueprintPure, PureValue, Id="380031af-9e10-4051-823b-7468b3a95f15") static Fixed smoothstep(Fixed alpha){alpha=clamp(alpha,0.0,1.0);return alpha*alpha*(Fixed(3.0)-Fixed(2.0)*alpha);}
@@ -345,6 +361,92 @@ struct EPOK_FUNCTION_LIBRARY(Category="Collision", Id="ae8a0a0d-d96e-4b15-bb0e-b
     }
 };
 
+struct EPOK_VALUE(Id="52b2dfa8-463d-59af-abd2-0d3c3481311c") CollisionHitPair {
+    CollisionHitSample first{},second{};
+};
+
+// Reusable synchronization boundary over the existing world queries. Default
+// batches expire each Input tick. Manual batches must publish every direct
+// collider/transform edit and reset after scene or collision ownership changes.
+class EPOK_CLASS(Blueprintable,Domain=World3D,Owners=World3D,Id="382ad26d-3bc1-53e4-94a2-c1e18e6b25e9") SpatialQueryContextComponent:public ActorComponent {
+    friend class SpringArmComponent;
+    friend class CharacterMotor3DComponent;
+    SpatialQueryBatch queries_{};
+    uint32_t reset_epoch_=1;
+    struct RayCache {
+        Fixed origin[3]{},displacement[3]{};
+        ObjectId consumer{},ignore{};
+        uint32_t revision=0,mask=0;
+        SpatialHit hit{};
+        bool valid=false;
+    } ray_cache_{};
+    // One recent native ray is a bounded optimization. A different consumer
+    // replaces it and executes the query; no query or result is rejected.
+    SpatialHit cached_ray(ObjectId consumer,const Fixed* origin,const Fixed* displacement,uint32_t mask,const ActorData* ignored,ObjectId ignore,uint32_t revision,bool allow_cache){
+        bool reuse=allow_cache&&revision&&ray_cache_.valid&&ray_cache_.consumer==consumer&&ray_cache_.ignore==ignore&&ray_cache_.revision==revision&&ray_cache_.mask==mask;
+        for(unsigned i=0;i<3;++i)reuse&=ray_cache_.origin[i]==origin[i]&&ray_cache_.displacement[i]==displacement[i];
+        if(!reuse){
+            ray_cache_.hit=queries_.raycast(origin,displacement,mask,ignored);
+            for(unsigned i=0;i<3;++i){ray_cache_.origin[i]=origin[i];ray_cache_.displacement[i]=displacement[i];}
+            ray_cache_.consumer=consumer;ray_cache_.ignore=ignore;ray_cache_.revision=revision;ray_cache_.mask=mask;ray_cache_.valid=revision!=0;
+        }
+        return ray_cache_.hit;
+    }
+    Actor* available_owner(){
+        auto* owner=get_owner();
+        return !m_ended&&owner&&!owner->pending_destruction()&&is_active(owner)?owner:nullptr;
+    }
+    ActorData* subject(ObjectId id,bool active){
+        auto* owner=available_owner();
+        auto* actor=active_object_registry?active_object_registry->resolve<Actor3D>(id):nullptr;
+        return owner&&actor&&actor->level_id()==owner->level_id()&&(!active||is_active(actor))?actor->data():nullptr;
+    }
+    static CollisionHitSample sample(const SpatialHit& hit){
+        CollisionHitSample result;result.hit=bool(hit);result.started_inside=hit.started_inside;
+        result.actor=gameplay_actor_id(hit_entity(hit));result.fraction=hit.fraction;
+        result.point=gameplay_vector(hit.point);result.normal=gameplay_vector(hit.normal);return result;
+    }
+public:
+    static constexpr TickGroup tick_group=TickGroup::Input;
+    static constexpr uint64_t static_class_id=detail::compact_class_id("382ad26d-3bc1-53e4-94a2-c1e18e6b25e9");
+    uint64_t class_id()const override{return m_runtime_class_id?m_runtime_class_id:static_class_id;}
+    EPOK_PROPERTY(EditAnywhere,Id="c830c4a3-3c6e-5e8a-bd74-5f02ba8b595e") bool automatic_reset=true;
+    EPOK_FUNCTION(BlueprintCallable,Id="056e76a9-b1e1-56e3-93f1-6a37c05e7c91") void reset_queries(){queries_={};ray_cache_.valid=false;if(!++reset_epoch_)++reset_epoch_;}
+    EPOK_FUNCTION(BlueprintCallable,Id="a834707c-90d9-5f97-a4c7-2720fc06c981") bool publish_actor(ObjectId actor){
+        auto* data=subject(actor,false);if(!data)return false;queries_.changed(*data);ray_cache_.valid=false;return true;
+    }
+    EPOK_FUNCTION(BlueprintCallable,Id="85fa62ac-f768-5ccb-bc2f-2642576b5936") CollisionHitSample raycast_segment(GameplayVector3 origin,GameplayVector3 displacement,uint32_t mask,ObjectId ignore,bool triggers){
+        if(!available_owner())return {};
+        auto* ignored=ignore.valid()?subject(ignore,false):nullptr;if(ignore.valid()&&!ignored)return {};
+        Fixed from[3],delta[3];gameplay_vector(origin,from);gameplay_vector(displacement,delta);
+        return sample(queries_.raycast(from,delta,mask,ignored,triggers));
+    }
+    EPOK_FUNCTION(BlueprintCallable,Id="eedca811-a219-5a34-b166-3340cc9c635c") CollisionHitPair raycast_pair(GameplayVector3 first_origin,GameplayVector3 first_displacement,GameplayVector3 second_origin,GameplayVector3 second_displacement,uint32_t mask,ObjectId ignore,bool triggers){
+        if(!available_owner())return {};
+        auto* ignored=ignore.valid()?subject(ignore,false):nullptr;if(ignore.valid()&&!ignored)return {};
+        RaycastQuery queries[2]{};gameplay_vector(first_origin,queries[0].origin);gameplay_vector(first_displacement,queries[0].displacement);
+        gameplay_vector(second_origin,queries[1].origin);gameplay_vector(second_displacement,queries[1].displacement);
+        SpatialHit hits[2]{};queries_.raycast_batch(queries,hits,2,mask,ignored,triggers);
+        return {sample(hits[0]),sample(hits[1])};
+    }
+    EPOK_FUNCTION(BlueprintCallable,Id="70a2856f-6b3c-56f1-925d-5f6954c37d66") MoveSample move(ObjectId actor,GameplayVector3 displacement,uint32_t mask){
+        MoveSample result;auto* data=subject(actor,true);if(!data)return result;
+        Fixed delta[3];gameplay_vector(displacement,delta);const auto moved=queries_.move_and_slide(*data,delta,mask);
+        ray_cache_.valid=false;
+        result.valid=true;result.grounded=moved.grounded;result.blocked=moved.blocked;result.unresolved_overlap=moved.unresolved_overlap;
+        result.actor=moved.entity<0?ObjectId{}:gameplay_actor_id(DataHandle{uint16_t(moved.entity),moved.generation});
+        result.displacement=gameplay_vector(moved.displacement);result.normal=gameplay_vector(moved.normal);return result;
+    }
+    // Native consumers can share the same kernel without copying a snapshot.
+    SpatialQueryBatch& batch(){return queries_;}
+    SpatialQueryBatch* live_batch(){return available_owner()?&queries_:nullptr;}
+    void begin_play()override{reset_queries();}
+    void on_enable()override{reset_queries();}
+    void on_disable()override{reset_queries();}
+    void end_play(EndPlayReason)override{reset_queries();}
+    void tick(Fixed)override{if(automatic_reset)reset_queries();}
+};
+
 struct EPOK_FUNCTION_LIBRARY(Category="Scene", Id="e018f41e-b530-46f2-9331-9cf15f459fd2") SceneLibrary {
     EPOK_FUNCTION(BlueprintPure, Id="674276b6-f8a7-4030-9019-013f8cab971c") static SceneSnapshot snapshot(){return {uint32_t(current_scene()),scene_transition_count(),scene_rejected_count(),scene_loading(),scene_waiting()};}
     EPOK_FUNCTION(BlueprintPure, Id="f1d52fde-d755-4557-a8b4-dbed8c82af0e") static GameplayTransitionSnapshot transition_snapshot(){return {transition.phase,transition.audio_gain,transition.opacity,transition.busy(),transition.presented};}
@@ -422,6 +524,17 @@ struct EPOK_FUNCTION_LIBRARY(Category="Memory Card", Id="6073b812-ff1e-4764-9ba2
     EPOK_FUNCTION(BlueprintPure, Id="e2e0df92-13dd-4a46-99e5-54e255c8446b") static uint32_t staged_word(uint32_t index){return index<MemoryCardService::max_payload/4?gameplay_save_words()[index]:0;}
     EPOK_FUNCTION(BlueprintCallable, AsyncRequest, Id="c2809980-126a-4ed0-bf4f-1a073766d813") static bool write_staged(uint32_t slot,uint32_t bytes,uint32_t port){const char* name=gameplay_card_slot_name(slot);return name&&bytes<=MemoryCardService::max_payload&&memory_card.write(name,"EPOK Save",gameplay_save_words(),bytes,port);}
     EPOK_FUNCTION(BlueprintPure, Id="3164add9-daa1-4853-a44d-03b649f93f11") static uint32_t loaded_word(uint32_t index){const uint32_t offset=index*4;if(index>=MemoryCardService::max_payload/4||offset>=memory_card.size())return 0;uint32_t value=0;const auto* data=memory_card.data();for(uint32_t byte=0;byte<4&&offset+byte<memory_card.size();++byte)value|=uint32_t(data[offset+byte])<<(byte*8);return value;}
+    EPOK_FUNCTION(BlueprintCallable, Id="c85f588e-4e05-59cd-90a5-96ac8203f334") static void clear_staged_metadata(){gameplay_card_metadata()=GameplayCardMetadata{};}
+    EPOK_FUNCTION(BlueprintCallable, Id="e69301bf-afdb-52cb-82f6-289a8fa519fa") static bool set_staged_name_byte(uint32_t index,uint32_t value){
+        if(index>=18||value>255)return false;gameplay_card_metadata().name[index]=char(value);return true;
+    }
+    EPOK_FUNCTION(BlueprintCallable, Id="b11a5b05-e5af-5b4e-8929-c40bf1858c5e") static bool set_staged_title_byte(uint32_t index,uint32_t value){
+        if(index>=128||value>255)return false;gameplay_card_metadata().title[index]=char(value);return true;
+    }
+    EPOK_FUNCTION(BlueprintCallable, AsyncRequest, Id="f3eebadf-54e1-5f20-abfa-d33f6f5ead6a") static bool read_staged_name(uint32_t port){return memory_card.read(gameplay_card_metadata().name,port);}
+    EPOK_FUNCTION(BlueprintCallable, AsyncRequest, Id="46f5bfa3-061d-56bd-8e7d-b82cbf43022d") static bool write_staged_named(uint32_t bytes,uint32_t port){
+        const auto& metadata=gameplay_card_metadata();return memory_card.write(metadata.name,metadata.title,gameplay_save_words(),bytes,port);
+    }
 };
 
 // A PocketStation in a memory card slot (runtime/pocketstation.hpp). Each call

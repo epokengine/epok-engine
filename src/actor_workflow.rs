@@ -9,6 +9,7 @@ use crate::{
 pub struct State {
     pub requested: bool,
     pub search: String,
+    pub helpers_only: bool,
     pub class: String,
     pub parent: Option<uuid::Uuid>,
     pub convert: Option<uuid::Uuid>,
@@ -121,10 +122,12 @@ pub fn draw(ui: &imgui::Ui, e: &mut Editor) {
         ui.text(format!("Actor classes for the {} view",e.scene_view_mode.label()));
         ui.set_next_item_width(500.);
         ui.input_text("Search classes",&mut state.search).build();
+        ui.checkbox("Game Helpers", &mut state.helpers_only);
         let model=e.object_model();
         ui.child_window("actor-class-tree").size([550.,320.]).border(true).build(|| {
             if let Some(model)=&model {
-                let mut classes=model.iter().filter(|c|c.family==ClassFamily::Actor && c.domain==e.scene_view_mode.domain() && !c.placement.scene_managed).collect::<Vec<_>>();
+                let mut classes=model.iter().filter(|c|c.family==ClassFamily::Actor && c.domain==e.scene_view_mode.domain() && !c.placement.scene_managed && (!state.helpers_only || crate::game_helper_catalog::group(c).is_some())).collect::<Vec<_>>();
+                if !classes.iter().any(|c|c.id==state.class) { state.class.clear(); }
                 classes.sort_by(|a,b|a.cpp_name.cmp(&b.cpp_name));
                 class_tree(ui,&classes,None,&state.search.to_lowercase(),&mut state.class);
             } else {ui.text_wrapped("The class catalog is unavailable. Resolve the project compilation errors to create an Actor.");}

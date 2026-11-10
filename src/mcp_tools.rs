@@ -165,30 +165,9 @@ fn snapshot(e: &Editor) -> Value {
     json!({"project":e.project_name(),"root":e.root,"scene_path":assets::path_string(&e.root,&e.scene_path()),"revision":revision(&e.scene),"dirty":e.dirty,"actors":e.scene.actors.len(),"selected":e.selected,"playing":e.playing,"paused":e.paused,"play_profile":profile,"serial":serial,"build_or_play_active":e.job.is_some(),"stopping":e.job.as_ref().is_some_and(crate::pipeline::Job::stopping),"scene_loading":e.scene_loading.is_some(),"editing_locked":e.critical_busy(),"installation_active":e.dependencies.busy(),"operation":operation,"import_active":e.assets.busy,"import_error":e.assets.error,"bake_active":e.bake_job.is_some(),"last_error":e.last_error,"runtime_error":e.runtime_error,"console_error":e.console.error,"game_error":e.game_error,"native_frame":native_frame,"game_frame":e.game_frame.as_ref().map(|f|json!({"sequence":f.sequence,"width":f.width,"height":f.height,"buttons":f.buttons,"vsyncs":f.vsyncs,"cycles":f.cycles})),"view":e.view,"scene_2d":e.scene_2d(),"view_mode":e.scene_view_mode.key(),"grid":e.grid,"wire":e.wire,"baked_preview":{"enabled":e.baked_preview.enabled,"streaming":e.baked_preview.streaming,"sample":e.baked_preview.sample,"committed":e.baked_preview.committed,"resident_pages":e.baked_preview.resident,"requested_pages":e.baked_preview.requested,"error":e.baked_preview.error}})
 }
 
-/// Resolved Object/Actor/Component model for the editor's current catalog. `None` when
-/// the project has never compiled: the actor tools then run their structural half only.
+/// The editor's authoritative class registry includes SDK classes in an empty project.
 fn actor_model(e: &Editor) -> Option<crate::object_model::Model> {
-    crate::blueprint::registry_from_catalog(&e.root, &e.catalog)
-        .model()
-        .ok()
-}
-/// Root component class for a placeable actor's domain, so a new actor satisfies
-/// `Model::validate_component_set` the moment it is created.
-pub fn root_component_class(
-    model: &crate::object_model::Model,
-    class: &crate::object_model::ClassModel,
-) -> Option<crate::actor_document::ClassReference> {
-    let id = match class.domain {
-        crate::reflection_schema::Domain::World3D => crate::object_model::SCENE_COMPONENT3D_ID,
-        crate::reflection_schema::Domain::World2D => crate::object_model::SCENE_COMPONENT2D_ID,
-        crate::reflection_schema::Domain::UI => crate::object_model::RECT_TRANSFORM_COMPONENT_ID,
-        crate::reflection_schema::Domain::None => return None,
-    };
-    let root = model.class(id)?;
-    Some(crate::actor_document::ClassReference::new(
-        &root.cpp_name,
-        &root.id,
-    ))
+    e.class_registry.model().ok()
 }
 /// Whole-actor component validation, shared by the Inspector's Add Component
 /// popup and by `scene_set_actor`. Neither re-implements root uniqueness,
@@ -197,46 +176,15 @@ pub fn validate_actor_components(
     model: &crate::object_model::Model,
     actor: &crate::actor_document::ActorInstance,
 ) -> Result<(), String> {
-    let owner = actor
-        .class
-        .resolve(model)
-        .ok_or_else(|| format!("`{}` is not a reflected class", actor.class.name))?;
-    let specs: Vec<_> = actor
-        .components
-        .iter()
-        .map(|c| crate::object_model::ComponentSpec {
-            id: c.id,
-            class: c
-                .class
-                .class_id
-                .clone()
-                .unwrap_or_else(|| c.class.name.clone()),
-            root: c.root,
-        })
-        .collect();
-    model
-        .validate_component_set(&owner.id, &specs)
-        .map_err(|diagnostics| {
-            diagnostics
-                .iter()
-                .map(|d| d.message.clone())
-                .collect::<Vec<_>>()
-                .join("\n")
-        })
+    crate::actor_components::validate_with_model(model, actor)
 }
-/// Why one component may not be removed from its actor, or `None` when it may.
-/// The Inspector shows these as tooltips on a disabled Remove button.
+/// Why one component may not be removed from its actor.
 pub fn component_removal_refusal(
     component: &crate::actor_document::ComponentInstance,
 ) -> Option<&'static str> {
-    if component.root {
-        Some("the root component cannot be removed")
-    } else if component.inherited {
-        Some("inherited from the class; disable instead")
-    } else {
-        None
-    }
+    crate::actor_components::component_removal_refusal(component)
 }
+
 /// The spatial attachment a logical reparent implies.
 ///
 /// `attach` exists only between actors of one spatial domain: a UI actor
@@ -445,29 +393,22 @@ pub fn execute(e: &mut Editor, state: &mut State, name: &str, a: Value) -> Resul
                 })?;
             let before = e.scene.clone();
             let mut scene = before.clone();
-            let mut actor = crate::actor_document::ActorInstance::new(
-                uuid::Uuid::new_v4(),
-                crate::actor_document::ClassReference::new(&class.cpp_name, &class.id),
-                a["name"].as_str().unwrap_or(&class.cpp_name),
-            );
+            let index = crate::editor::place_class(
+                &mut scene,
+                &e.root,
+                &e.class_registry,
+                &model,
+                &class.id,
+            )?;
+            scene.actors[index].name = a["name"].as_str().unwrap_or(&class.cpp_name).into();
             if let Some(parent) = a.get("parent").filter(|v| !v.is_null()) {
                 let parent: uuid::Uuid = decode(parent.clone())?;
                 if !scene.actors.iter().any(|other| other.id == parent) {
                     return Err("parent must be the id of an actor in this scene".into());
                 }
-                actor.logical_parent = Some(parent);
+                scene.actors[index].logical_parent = Some(parent);
             }
-            if let Some(root) = root_component_class(&model, class) {
-                let mut component = crate::actor_document::ComponentInstance::new(
-                    uuid::Uuid::new_v4(),
-                    root,
-                    "Root",
-                );
-                component.root = true;
-                actor.components.push(component);
-            }
-            let id = actor.id;
-            scene.actors.push(actor);
+            let id = scene.actors[index].id;
             scene.validate_with_model(Some(&model))?;
             commit(e, state, before, scene)?;
             e.log(format!("MCP: added actor {} ({})", id, class.cpp_name));

@@ -1,4 +1,13 @@
 #pragma once
+// Marks per-tick gameplay code in a project that compiles its scripts for size,
+// spending RAM only where the frame budget is decided.
+#if defined(__mips__)
+#define EPOK_SPEED_BEGIN _Pragma("GCC push_options") _Pragma("GCC optimize(\"O2\")")
+#define EPOK_SPEED_END _Pragma("GCC pop_options")
+#else
+#define EPOK_SPEED_BEGIN
+#define EPOK_SPEED_END
+#endif
 #include "baked_draw_types.hpp"
 #include "mesh_vertices.hpp"
 #ifndef EPOK_NATIVE_REQUIREMENTS
@@ -114,7 +123,7 @@ struct SkeletalQueryStats {
 };
 // The authored initial focus and the runtime current focus are the same field:
 // an actor index into the scene's objects array, -1 for none.
-struct Canvas { bool enabled=false; int16_t focused=-1; };
+struct Canvas { bool enabled=false; int16_t focused=-1; bool screen_overlay=false; };
 struct RectTransform {
     bool enabled=false;
     Fixed anchor_min[2]={0.5,0.5},anchor_max[2]={0.5,0.5},pivot[2]={0.5,0.5};
@@ -135,7 +144,7 @@ struct Image { bool enabled=false; uint8_t color[3]={51,102,166}; int texture=-1
 // Values are pinned; this enum only ever grows at the end.
 enum class FocusKind : uint8_t { Button=0, Toggle=1 };
 inline constexpr uint8_t focus_pressed=1,focus_changed=2,focus_cancelled=4;
-struct Focusable { bool enabled=false; int16_t neighbors[4]={-1,-1,-1,-1}; uint8_t order=0; uint8_t highlight[3]={255,255,255}; FocusKind kind=FocusKind::Button; bool checked=false; uint8_t events=0; };
+struct Focusable { bool enabled=false; int16_t neighbors[4]={-1,-1,-1,-1}; uint8_t order=0; uint8_t highlight[3]={255,255,255}; FocusKind kind=FocusKind::Button; bool checked=false; uint8_t events=0; bool outline=false; };
 // A bar with a `step` above zero is a slider: while it is focused, Left and Right
 // move its value by one step instead of moving the focus.
 struct ProgressBar { bool enabled=false;Fixed value=0.75;uint8_t color[3]={64,217,77},background[3]={31,31,31};Fixed step=0.0; };
@@ -412,6 +421,40 @@ inline uint32_t blueprint_scene_generation=1;
 #endif
 #if !defined(EPOK_INCLUDE_FROM_GAMEPLAY_API) && !defined(EPOK_INCLUDE_FROM_SKELETAL) && !defined(EPOK_INCLUDE_FROM_BLUEPRINT_API) && !defined(EPOK_INCLUDE_FROM_BLUEPRINT_RUNTIME) && !defined(EPOK_INCLUDE_FROM_UTILITY)
 #include "gameplay_api.hpp"
+#ifndef EPOK_INCLUDE_FROM_CHARACTER3D
+#include "character3d.hpp"
+#endif
 #include "world2d_components.hpp"
+#ifndef EPOK_INCLUDE_FROM_CHARACTER2D
+#include "character2d.hpp"
+#endif
+#if defined(EPOK_UI_ANCHOR) || defined(EPOK_REFLECTION)
+#include "ui_anchor.hpp"
+#endif
+#ifndef EPOK_INCLUDE_FROM_GAMEPLAY_CONTROL
+#include "gameplay_control.hpp"
+#endif
+#if !defined(EPOK_INCLUDE_FROM_CAMERA_RIG) && !defined(EPOK_INCLUDE_FROM_GAMEPLAY_CONTROL) && (defined(EPOK_CAMERA_RIG) || defined(EPOK_REFLECTION))
+#include "camera_rig.hpp"
+#endif
+#if !defined(EPOK_INCLUDE_FROM_CHARACTER_COMMANDS) && (defined(EPOK_CHARACTER_COMMANDS) || defined(EPOK_REFLECTION))
+#include "character_commands.hpp"
+#endif
+#if !defined(EPOK_INCLUDE_FROM_CHARACTER_INPUT) && (defined(EPOK_CHARACTER_INPUT) || defined(EPOK_REFLECTION))
+#include "character_input.hpp"
+#endif
+#if !defined(EPOK_INCLUDE_FROM_CHARACTER_ANIMATION) && (defined(EPOK_CHARACTER_ANIMATION) || defined(EPOK_REFLECTION))
+#include "character_animation.hpp"
+#endif
+#if !defined(EPOK_INCLUDE_FROM_INTERACTION) && (defined(EPOK_INTERACTION) || defined(EPOK_REFLECTION))
+#include "interaction.hpp"
+#endif
+#if !defined(EPOK_INCLUDE_FROM_WORLD_GAMEPLAY) && !defined(EPOK_INCLUDE_FROM_INTERACTION) && !defined(EPOK_INCLUDE_FROM_GAMEPLAY_CONTROL) && (defined(EPOK_WORLD_GAMEPLAY) || defined(EPOK_REFLECTION))
+#include "world_gameplay.hpp"
+#endif
+#if !defined(EPOK_INCLUDE_FROM_INTERACTION) && !defined(EPOK_INCLUDE_FROM_GAMEPLAY_CONTROL) && (defined(EPOK_DIALOGUE) || defined(EPOK_REFLECTION))
+#include "dialogue.hpp"
 #endif
 #endif
+#endif
+#include "health.hpp"

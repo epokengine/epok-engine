@@ -412,3 +412,14 @@ the saved profile, using `--scene` as the current scene, or startup when it is
 omitted. Without that flag,
 headless tools preserve the existing full-bank build. **Package Disc** builds
 the whole game from startup with CD data, independently of the Play destination.
+
+## Automating Play
+
+Set `EPOK_PLAY_LUA` to a Redux Lua script and `--play-psx` loads it beside the desktop
+bridge. A script drives the controller by assigning `EPOK_AUTOMATION_PAD`, a button mask
+the bridge merges into the pad it applies each frame. Input reaches the game as a physical
+press, so frame and simulation readers both see it. Neither setting affects a build.
+
+Set `EPOK_MUTE_AUDIO` to silence automated runs. Play in the emulator and on Native PC
+keeps every audio event and its timing; only the speakers stay quiet. The acceptance
+runner and the test harnesses set it themselves.

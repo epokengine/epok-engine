@@ -417,7 +417,8 @@ def cli(*args, ok=True, timeout=2400):
 
 
 def tool(name, *args):
-    binary = shutil.which(f"{PREFIX}-{name}")
+    pinned = ROOT / ".tools/mips/bin" / f"{PREFIX}-{name}{'.exe' if os.name == 'nt' else ''}"
+    binary = str(pinned) if pinned.is_file() else shutil.which(f"{PREFIX}-{name}")
     assert binary, f"missing {PREFIX}-{name} on PATH"
     result = subprocess.run([binary, *map(str, args)], capture_output=True, text=True,
                             encoding="utf-8", errors="replace", timeout=300)

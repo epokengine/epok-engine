@@ -11,8 +11,8 @@ pub const REGISTRY: &str = "ProjectSettings/Maps.epoksettings";
 /// Fixed bounds of the Object/Actor/Component runtime, mirroring the constants in
 /// `runtime/object_model.hpp`. The cook refuses a map that would exceed one instead of
 /// emitting a capacity the runtime arrays cannot honour.
-const LEVEL_ACTOR_CAPACITY: usize = 64;
-const ACTOR_COMPONENT_CAPACITY: usize = 8;
+pub(crate) const LEVEL_ACTOR_CAPACITY: usize = 64;
+const ACTOR_COMPONENT_CAPACITY: usize = crate::actor_components::CAPACITY;
 /// Largest `EPOK_OBJECT_REGISTRY_CAPACITY` the bounds above can ever produce: every actor
 /// of a full level carrying a full component set, plus the 32 dynamic slots.
 const OBJECT_REGISTRY_MAX: usize = LEVEL_ACTOR_CAPACITY * (1 + ACTOR_COMPONENT_CAPACITY) + 32;
@@ -193,6 +193,7 @@ pub fn resources(scenes: &[Scene]) -> Scene {
     out.fonts.clear();
     out.tilesets.clear();
     out.reference_tables.clear();
+    out.strings = scenes.iter().find_map(|s| s.strings.clone());
     for s in scenes {
         out.actors.extend(s.actors.clone());
         out.textures.extend(s.textures.clone());
@@ -446,7 +447,25 @@ pub fn header_with_templates_for(
             &format!("if(bank==bank_textures_{bank})return bank_texture_packets_{bank}.words;\n");
     }
     textures += "return nullptr;\n}\n";
-    let capacity = scenes.iter().map(|s| s.actors.len() + 32).max().unwrap();
+    let capacity = scenes
+        .iter()
+        .map(|s| s.actors.len() + s.spawn_slots())
+        .max()
+        .unwrap();
+    let largest_spawn = templates
+        .iter()
+        .map(|t| t.scene.actors.len())
+        .max()
+        .unwrap_or(0);
+    for scene in scenes {
+        if scene.spawn_slots() < largest_spawn {
+            return Err(format!(
+                "{}: spawn reserve {} is below the {largest_spawn}-actor prefab this project can spawn",
+                scene.name,
+                scene.spawn_slots()
+            ));
+        }
+    }
     let mut headers = Vec::new();
     let mut render_capacity = 0;
     let mut minimap_capacity = 0;
@@ -534,6 +553,22 @@ pub fn header_with_templates_for(
     // runtime arrays are fixed-size, so a larger table would be dropped at load time
     // (`ObjectStats::rejected`) rather than honoured.
     let object_registry_capacity = {
+        // Data slots reserve actors; the object registry also stores every
+        // component plus the level/scene script. A multi-control widget can
+        // consume more than the old flat 32-object reserve in one spawn.
+        let dynamic_density = templates
+            .iter()
+            .filter(|t| !t.scene.actors.is_empty())
+            .map(|t| {
+                (t.scene.actors.len()
+                    + t.scene
+                        .actors
+                        .iter()
+                        .map(|a| a.components.len())
+                        .sum::<usize>())
+                .div_ceil(t.scene.actors.len())
+            })
+            .max();
         let mut capacity = 32;
         for scene in scenes {
             if scene.actors.len() > LEVEL_ACTOR_CAPACITY {
@@ -555,13 +590,18 @@ pub fn header_with_templates_for(
                     actor.components.len()
                 ));
             }
+            let spare = dynamic_density.map_or(32, |density| {
+                let actors = (scene.actors.len() + scene.spawn_slots()).min(LEVEL_ACTOR_CAPACITY)
+                    - scene.actors.len();
+                (actors * density + 2).max(32)
+            });
             let slots = scene.actors.len()
                 + scene
                     .actors
                     .iter()
                     .map(|actor| actor.components.len())
                     .sum::<usize>()
-                + 32;
+                + spare;
             capacity = capacity.max(slots);
         }
         if capacity > OBJECT_REGISTRY_MAX {
@@ -579,9 +619,13 @@ pub fn header_with_templates_for(
         class_registry,
     );
     out += &crate::world2d::capacity_defines(world2d, scenes, templates.iter().map(|t| &t.scene));
+    // Header-defined classes compile inside main.o. These markers apply the
+    // project's script profile to them, the same one its .cpp files receive.
+    out += "#ifdef EPOK_SCRIPT_SIZE_OPT\n#pragma GCC push_options\n#pragma GCC optimize(\"Os\")\n#endif\n";
     for s in catalog {
         out += &format!("#include \"scripts/{}\"\n", s.header_path());
     }
+    out += "#ifdef EPOK_SCRIPT_SIZE_OPT\n#pragma GCC pop_options\n#endif\n";
     out += &crate::blueprint_spawn::object_class_table_for_scenes_and_templates(
         class_registry,
         scenes,
@@ -606,6 +650,7 @@ pub fn header_with_templates_for(
             "Streamed geometry and scene headers use different vertex colour palettes".into(),
         );
     }
+    out += "// Immutable authored base state contains only the seven aggregate fields the\n// scene header initializes. All component/default state lives in the unchanged\n// ActorData defaults and initialize_components(), never in a second full pool.\nstruct SceneActorInitialData {\n    bool camera,mesh,tiled;int parent;Transform transform;Material material;\n    void apply(ActorData& data)const{\n        data.camera=camera;data.mesh=mesh;data.tiled=tiled;data.parent=parent;\n        data.transform=transform;data.material=material;\n    }\n};\nstatic_assert(sizeof(SceneActorInitialData)==68,\"Authored base-state wire layout changed\");\n";
     out += &vertex_colors.header();
     out += &format!("inline constexpr size_t retained_quad_capacity={retained_quad_capacity};\n");
     out += &streaming.map_or_else(
@@ -640,7 +685,7 @@ pub fn header_with_templates_for(
                 s.actors.len() + 32
             ),
             &format!(
-                "inline const std::array<ActorData, {}> initial_objects",
+                "inline const std::array<SceneActorInitialData, {}> initial_objects",
                 s.actors.len()
             ),
         );
@@ -650,7 +695,7 @@ pub fn header_with_templates_for(
         out += &h;
         out.push('\n');
         out += &format!(
-            "namespace epok {{inline void load_bank_{i}(){{\nobject_count=authored_count=scene_{i}::authored_count;\nfor(size_t j=0;j<objects.size();++j){{auto generation=objects[j].generation+1;if(!generation)generation=1;objects[j]=j<object_count?scene_{i}::initial_objects[j]:ActorData{{}};objects[j].generation=generation;objects[j].alive=j<object_count;}}\ntransform_order={{scene_{i}::transform_order.data(),scene_{i}::transform_order.size()}};\n"
+            "namespace epok {{inline void load_bank_{i}(){{\nobject_count=authored_count=scene_{i}::authored_count;\nfor(size_t j=0;j<objects.size();++j){{auto generation=objects[j].generation+1;if(!generation)generation=1;objects[j]=ActorData{{}};if(j<object_count)scene_{i}::initial_objects[j].apply(objects[j]);objects[j].generation=generation;objects[j].alive=j<object_count;}}\ntransform_order={{scene_{i}::transform_order.data(),scene_{i}::transform_order.size()}};\n"
         );
         if !effects.is_empty() {
             out += &crate::particle_effect_scene::setup(
@@ -986,6 +1031,135 @@ mod tests {
     }
 
     #[test]
+    fn spawn_prototypes_write_only_their_own_slots() {
+        let catalog = object_model_catalog();
+        let scene = actor_scene();
+        let mut registry = crate::actor_document::tests::registry();
+        registry
+            .classes
+            .extend(crate::blueprint::registry_from_catalog(Path::new(""), &catalog).classes);
+        let text = crate::project::prototype_header(&scene, &catalog, &scene, &registry).unwrap();
+        // The host scene owns these. A first spawn once replaced all of them.
+        for owned in [
+            "set_visibility_track",
+            "lighting_environment",
+            "fog_environment",
+            "localization.strings",
+            "localization.apply",
+            "nav::world",
+            "dungeon::reset",
+        ] {
+            assert!(!text.contains(owned), "prototype writes {owned}");
+        }
+        assert!(text.contains("initialize_components(PrototypeSlots objects)"));
+        assert!(text.contains(&format!(
+            "std::array<SceneActorInitialData, {}> initial_objects",
+            scene.actors.len()
+        )));
+        // Complete records would keep one resident ActorData per prefab actor.
+        assert!(!text.contains("std::array<ActorData"));
+    }
+    #[test]
+    fn an_authored_spawn_reserve_replaces_the_general_one() {
+        let catalog = object_model_catalog();
+        let mut scene = actor_scene();
+        let objects = |extra: usize, scene: &crate::scene::Scene| {
+            format!(
+                "inline std::array<ActorData,{}> objects;",
+                scene.actors.len() + extra
+            )
+        };
+        assert!(
+            header(std::slice::from_ref(&scene), &catalog)
+                .unwrap()
+                .contains(&objects(32, &scene))
+        );
+        scene.spawn_reserve = Some(6);
+        assert!(
+            header(std::slice::from_ref(&scene), &catalog)
+                .unwrap()
+                .contains(&objects(6, &scene))
+        );
+        scene.spawn_reserve = Some(crate::scene::Scene::SPAWN_RESERVE + 1);
+        assert!(scene.validate().is_err());
+    }
+    #[test]
+    fn compact_initial_banks_preserve_3d_2d_components_defaults_and_load_order() {
+        use crate::{
+            actor_document::ClassReference, object_model as om, reflection_schema::Domain,
+        };
+        let mut catalog = object_model_catalog();
+        let mut actor2d = catalog[0]
+            .classes
+            .iter()
+            .find(|c| c.id == om::ACTOR3D_ID)
+            .unwrap()
+            .clone();
+        actor2d.id = om::ACTOR2D_ID.into();
+        actor2d.cpp_name = "epok::Actor2D".into();
+        actor2d.domain = Some(Domain::World2D);
+        let mut root2d = catalog[0]
+            .classes
+            .iter()
+            .find(|c| c.id == om::SCENE_COMPONENT3D_ID)
+            .unwrap()
+            .clone();
+        root2d.id = om::SCENE_COMPONENT2D_ID.into();
+        root2d.cpp_name = "epok::SceneComponent2D".into();
+        root2d.domain = Some(Domain::World2D);
+        root2d.component.as_mut().unwrap().owners = [Domain::World2D].into_iter().collect();
+        catalog[0].classes.extend([actor2d, root2d]);
+        let three = actor_scene();
+        let mut two = three.clone();
+        two.name = "TwoD".into();
+        two.scene_script = None;
+        let mut actor = two.actors.remove(0);
+        actor.class = ClassReference::new("epok::Actor2D", om::ACTOR2D_ID);
+        actor.properties.clear();
+        actor.overrides.clear();
+        actor.components[0].class =
+            ClassReference::new("epok::SceneComponent2D", om::SCENE_COMPONENT2D_ID);
+        two.actors = vec![actor];
+        let scenes = [three, two];
+        let text = header(&scenes, &catalog).unwrap();
+        assert_eq!(text.matches("struct SceneActorInitialData {").count(), 1);
+        assert!(text.contains("inline std::array<ActorData,34> objects;"));
+        assert!(text.contains("inline const std::array<SceneActorInitialData, 2> initial_objects"));
+        assert!(text.contains("inline const std::array<SceneActorInitialData, 1> initial_objects"));
+        assert!(!text.contains("const std::array<ActorData,"));
+        assert!(text.contains("SceneComponent2D"));
+        assert!(text.contains("Footsteps"));
+        for bank in 0..2 {
+            let begin = text
+                .find(&format!("inline void load_bank_{bank}(){{"))
+                .unwrap();
+            let body = &text[begin..];
+            let reset = body.find("objects[j]=ActorData{};").unwrap();
+            let apply = body
+                .find(&format!(
+                    "scene_{bank}::initial_objects[j].apply(objects[j]);"
+                ))
+                .unwrap();
+            let generation = body.find("objects[j].generation=generation").unwrap();
+            let components = body
+                .find(&format!("scene_{bank}::initialize_components();"))
+                .unwrap();
+            let lifecycle = body
+                .find(&format!(
+                    "load_actor_bank(scene_{bank}::actor_table,objects.data(),object_count);"
+                ))
+                .unwrap();
+            assert!(
+                reset < apply
+                    && apply < generation
+                    && generation < components
+                    && components < lifecycle
+            );
+        }
+        assert_eq!(text, header(&scenes, &catalog).unwrap());
+    }
+
+    #[test]
     fn bank_headers_share_pool_resources_and_reset_scripts() {
         let a = Scene::default();
         let mut b = a.clone();
@@ -1024,6 +1198,7 @@ mod tests {
                 component: None,
                 default_components: vec![],
                 explicit_abstract: false,
+                default_overrides: Default::default(),
                 id: id.into(),
                 provider: schema::native_provider(),
                 backend: schema::native_backend(),
@@ -1051,6 +1226,7 @@ mod tests {
             placeable: true,
             spawnable: true,
             scene_managed: false,
+            placed_only: false,
         };
         let mut script_actor = class(
             om::SCENE_SCRIPT_ACTOR_ID,
@@ -1061,6 +1237,7 @@ mod tests {
             placeable: false,
             spawnable: false,
             scene_managed: true,
+            placed_only: false,
         };
         let mut component = class(
             om::ACTOR_COMPONENT_ID,
@@ -1414,7 +1591,7 @@ mod tests {
         assert!(assertion.starts_with("static_assert(("));
         assert!(assertion.contains("<= 65536"));
         assert!(
-            assertion.contains("epok::ObjectPool<BP_Hero,5>::storage_bytes"),
+            text.contains("epok::SharedObjectPool<BP_Hero,5>::storage_bytes"),
             "{assertion}"
         );
     }

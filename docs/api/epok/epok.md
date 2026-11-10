@@ -86,7 +86,7 @@ This module covers the epok module. It documents 63 public callables declared di
 void activate_texture_bank(const Texture* textures)
 ```
 
-- **Declared at:** [line 348](../../../runtime/epok.hpp#L348)
+- **Declared at:** [line 357](../../../runtime/epok.hpp#L357)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -126,7 +126,7 @@ epok::activate_texture_bank(textures);
 DataHandle active_camera()
 ```
 
-- **Declared at:** [line 346](../../../runtime/epok.hpp#L346)
+- **Declared at:** [line 355](../../../runtime/epok.hpp#L355)
 - **Kind:** `function decl`
 
 **Returns.** Returns `DataHandle`. Check the purpose and failure notes before using the value.
@@ -157,7 +157,7 @@ auto result = epok::active_camera();
 template<class T>T& add()
 ```
 
-- **Declared at:** [line 291](../../../runtime/epok.hpp#L291)
+- **Declared at:** [line 300](../../../runtime/epok.hpp#L300)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Returns.** Returns `T &`. Check the purpose and failure notes before using the value.
@@ -193,7 +193,7 @@ auto result = object.add<T>();
 template<class T>T& component()
 ```
 
-- **Declared at:** [line 289](../../../runtime/epok.hpp#L289)
+- **Declared at:** [line 298](../../../runtime/epok.hpp#L298)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Returns.** Returns `T &`. Check the purpose and failure notes before using the value.
@@ -229,7 +229,7 @@ auto result = object.component<T>();
 template<class T>T* get()
 ```
 
-- **Declared at:** [line 290](../../../runtime/epok.hpp#L290)
+- **Declared at:** [line 299](../../../runtime/epok.hpp#L299)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Returns.** Returns `T *`. Check the purpose and failure notes before using the value.
@@ -265,7 +265,7 @@ auto result = object.get<T>();
 template<class T>void remove()
 ```
 
-- **Declared at:** [line 292](../../../runtime/epok.hpp#L292)
+- **Declared at:** [line 301](../../../runtime/epok.hpp#L301)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -301,7 +301,7 @@ object.remove<T>();
 void set_name(const char* value)
 ```
 
-- **Declared at:** [line 288](../../../runtime/epok.hpp#L288)
+- **Declared at:** [line 297](../../../runtime/epok.hpp#L297)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -343,7 +343,7 @@ object.set_name(value);
 ActorData* allocate_actor_data(const char* name,ActorData* parent=nullptr)
 ```
 
-- **Declared at:** [line 321](../../../runtime/epok.hpp#L321)
+- **Declared at:** [line 330](../../../runtime/epok.hpp#L330)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -385,7 +385,7 @@ auto result = epok::allocate_actor_data(name, parent);
 void advance()
 ```
 
-- **Declared at:** [line 268](../../../runtime/epok.hpp#L268)
+- **Declared at:** [line 277](../../../runtime/epok.hpp#L277)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -418,7 +418,7 @@ object.advance();
 void pause()
 ```
 
-- **Declared at:** [line 267](../../../runtime/epok.hpp#L267)
+- **Declared at:** [line 276](../../../runtime/epok.hpp#L276)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -451,7 +451,7 @@ object.pause();
 bool play(int index,bool loop=true)
 ```
 
-- **Declared at:** [line 266](../../../runtime/epok.hpp#L266)
+- **Declared at:** [line 275](../../../runtime/epok.hpp#L275)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -495,7 +495,7 @@ auto result = object.play(index, loop);
 void resume()
 ```
 
-- **Declared at:** [line 267](../../../runtime/epok.hpp#L267)
+- **Declared at:** [line 276](../../../runtime/epok.hpp#L276)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -528,7 +528,7 @@ object.resume();
 void stop()
 ```
 
-- **Declared at:** [line 267](../../../runtime/epok.hpp#L267)
+- **Declared at:** [line 276](../../../runtime/epok.hpp#L276)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -561,7 +561,7 @@ object.stop();
 bool is_playing() const
 ```
 
-- **Declared at:** [line 63](../../../runtime/epok.hpp#L63)
+- **Declared at:** [line 72](../../../runtime/epok.hpp#L72)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -594,7 +594,7 @@ auto result = object.is_playing();
 void play()
 ```
 
-- **Declared at:** [line 63](../../../runtime/epok.hpp#L63)
+- **Declared at:** [line 72](../../../runtime/epok.hpp#L72)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -627,7 +627,7 @@ object.play();
 void stop()
 ```
 
-- **Declared at:** [line 63](../../../runtime/epok.hpp#L63)
+- **Declared at:** [line 72](../../../runtime/epok.hpp#L72)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -660,7 +660,7 @@ object.stop();
 bool camera_project(const Fixed* world_point,Fixed* screen_xy)
 ```
 
-- **Declared at:** [line 347](../../../runtime/epok.hpp#L347)
+- **Declared at:** [line 356](../../../runtime/epok.hpp#L356)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -702,7 +702,7 @@ auto result = epok::camera_project(world_point, screen_xy);
 bool collider_aabb(const ActorData& entity,Aabb& output)
 ```
 
-- **Declared at:** [line 387](../../../runtime/epok.hpp#L387)
+- **Declared at:** [line 396](../../../runtime/epok.hpp#L396)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -744,7 +744,7 @@ auto result = epok::collider_aabb(entity, output);
 size_t current_scene()
 ```
 
-- **Declared at:** [line 340](../../../runtime/epok.hpp#L340)
+- **Declared at:** [line 349](../../../runtime/epok.hpp#L349)
 - **Kind:** `function decl`
 
 **Returns.** Returns `size_t`. Check the purpose and failure notes before using the value.
@@ -775,7 +775,7 @@ auto result = epok::current_scene();
 ActorData* get() const
 ```
 
-- **Declared at:** [line 324](../../../runtime/epok.hpp#L324)
+- **Declared at:** [line 333](../../../runtime/epok.hpp#L333)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `ActorData *`. Check the purpose and failure notes before using the value.
@@ -808,7 +808,7 @@ auto result = object.get();
 explicit operator bool() const
 ```
 
-- **Declared at:** [line 325](../../../runtime/epok.hpp#L325)
+- **Declared at:** [line 334](../../../runtime/epok.hpp#L334)
 - **Kind:** `conversion function`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -841,7 +841,7 @@ auto result = object.operator bool();
 bool destroy_actor_data(ActorData* entity)
 ```
 
-- **Declared at:** [line 328](../../../runtime/epok.hpp#L328)
+- **Declared at:** [line 337](../../../runtime/epok.hpp#L337)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -883,7 +883,7 @@ auto result = epok::destroy_actor_data(entity);
 int entity_index(const ActorData* entity)
 ```
 
-- **Declared at:** [line 320](../../../runtime/epok.hpp#L320)
+- **Declared at:** [line 329](../../../runtime/epok.hpp#L329)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -923,7 +923,7 @@ auto result = epok::entity_index(entity);
 ActorData* find_actor_data(const char* name)
 ```
 
-- **Declared at:** [line 316](../../../runtime/epok.hpp#L316)
+- **Declared at:** [line 325](../../../runtime/epok.hpp#L325)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -963,7 +963,7 @@ auto result = epok::find_actor_data(name);
 WorldAffineSample gameplay_world_affine(const ActorData* entity)
 ```
 
-- **Declared at:** [line 395](../../../runtime/epok.hpp#L395)
+- **Declared at:** [line 404](../../../runtime/epok.hpp#L404)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1003,7 +1003,7 @@ auto result = epok::gameplay_world_affine(entity);
 DataHandle handle(const ActorData* entity)
 ```
 
-- **Declared at:** [line 327](../../../runtime/epok.hpp#L327)
+- **Declared at:** [line 336](../../../runtime/epok.hpp#L336)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1043,7 +1043,7 @@ auto result = epok::handle(entity);
 inline DataHandle hit_entity(const SpatialHit& hit)
 ```
 
-- **Declared at:** [line 356](../../../runtime/epok.hpp#L356)
+- **Declared at:** [line 365](../../../runtime/epok.hpp#L365)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1083,7 +1083,7 @@ auto result = epok::hit_entity(hit);
 bool is_active(const ActorData* entity)
 ```
 
-- **Declared at:** [line 330](../../../runtime/epok.hpp#L330)
+- **Declared at:** [line 339](../../../runtime/epok.hpp#L339)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1123,7 +1123,7 @@ auto result = epok::is_active(entity);
 bool is_active_slot(size_t index)
 ```
 
-- **Declared at:** [line 332](../../../runtime/epok.hpp#L332)
+- **Declared at:** [line 341](../../../runtime/epok.hpp#L341)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1165,7 +1165,7 @@ auto result = epok::is_active_slot(index);
 MeshDataState mesh_geometry_state(const MeshGeometry* geometry)
 ```
 
-- **Declared at:** [line 392](../../../runtime/epok.hpp#L392)
+- **Declared at:** [line 401](../../../runtime/epok.hpp#L401)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1205,7 +1205,7 @@ auto result = epok::mesh_geometry_state(geometry);
 MoveResult move_and_slide(ActorData& entity,const Fixed* world_displacement,uint32_t mask=0xffffffffu)
 ```
 
-- **Declared at:** [line 357](../../../runtime/epok.hpp#L357)
+- **Declared at:** [line 366](../../../runtime/epok.hpp#L366)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1249,7 +1249,7 @@ auto result = epok::move_and_slide(entity, world_displacement, mask);
 size_t overlap(const Aabb& box,DataHandle* output,size_t capacity,uint32_t mask=0xffffffffu,const ActorData* ignore=nullptr,bool triggers=true)
 ```
 
-- **Declared at:** [line 354](../../../runtime/epok.hpp#L354)
+- **Declared at:** [line 363](../../../runtime/epok.hpp#L363)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1301,7 +1301,7 @@ auto result = epok::overlap(box, output, capacity, mask, ignore, triggers);
 bool prewarm_geometry(ActorData* entity)
 ```
 
-- **Declared at:** [line 380](../../../runtime/epok.hpp#L380)
+- **Declared at:** [line 389](../../../runtime/epok.hpp#L389)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1341,7 +1341,7 @@ auto result = epok::prewarm_geometry(entity);
 SpatialHit query_ground(const ActorData& entity,Fixed distance,uint32_t mask=0xffffffffu)
 ```
 
-- **Declared at:** [line 355](../../../runtime/epok.hpp#L355)
+- **Declared at:** [line 364](../../../runtime/epok.hpp#L364)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1387,7 +1387,7 @@ auto result = epok::query_ground(entity, distance, mask);
 SpatialHit raycast(const Fixed* origin,const Fixed* displacement,uint32_t mask=0xffffffffu,const ActorData* ignore=nullptr,bool triggers=false)
 ```
 
-- **Declared at:** [line 350](../../../runtime/epok.hpp#L350)
+- **Declared at:** [line 359](../../../runtime/epok.hpp#L359)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1437,7 +1437,7 @@ auto result = epok::raycast(origin, displacement, mask, ignore, triggers);
 void raycast_batch(const RaycastQuery* queries,SpatialHit* results,size_t count,uint32_t mask=0xffffffffu,const ActorData* ignore=nullptr,bool triggers=false)
 ```
 
-- **Declared at:** [line 353](../../../runtime/epok.hpp#L353)
+- **Declared at:** [line 362](../../../runtime/epok.hpp#L362)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1487,7 +1487,7 @@ epok::raycast_batch(queries, results, count, mask, ignore, triggers);
 void remove_runtime_owner(size_t index)
 ```
 
-- **Declared at:** [line 397](../../../runtime/epok.hpp#L397)
+- **Declared at:** [line 406](../../../runtime/epok.hpp#L406)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1527,7 +1527,7 @@ epok::remove_runtime_owner(index);
 uint32_t rendered_actor_scanlines(size_t index)
 ```
 
-- **Declared at:** [line 382](../../../runtime/epok.hpp#L382)
+- **Declared at:** [line 391](../../../runtime/epok.hpp#L391)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1567,7 +1567,7 @@ auto result = epok::rendered_actor_scanlines(index);
 bool request_mesh_geometry(const MeshGeometry* geometry)
 ```
 
-- **Declared at:** [line 393](../../../runtime/epok.hpp#L393)
+- **Declared at:** [line 402](../../../runtime/epok.hpp#L402)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1607,7 +1607,7 @@ auto result = epok::request_mesh_geometry(geometry);
 bool request_scene(const char* name)
 ```
 
-- **Declared at:** [line 337](../../../runtime/epok.hpp#L337)
+- **Declared at:** [line 346](../../../runtime/epok.hpp#L346)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1647,7 +1647,7 @@ auto result = epok::request_scene(name);
 bool request_scene(const char* name,const TransitionOptions& options)
 ```
 
-- **Declared at:** [line 339](../../../runtime/epok.hpp#L339)
+- **Declared at:** [line 348](../../../runtime/epok.hpp#L348)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1689,7 +1689,7 @@ auto result = epok::request_scene(name, options);
 bool request_scene(size_t index)
 ```
 
-- **Declared at:** [line 336](../../../runtime/epok.hpp#L336)
+- **Declared at:** [line 345](../../../runtime/epok.hpp#L345)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1729,7 +1729,7 @@ auto result = epok::request_scene(index);
 bool request_scene(size_t index,const TransitionOptions& options)
 ```
 
-- **Declared at:** [line 338](../../../runtime/epok.hpp#L338)
+- **Declared at:** [line 347](../../../runtime/epok.hpp#L347)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1771,7 +1771,7 @@ auto result = epok::request_scene(index, options);
 void reset_motion_interpolation()
 ```
 
-- **Declared at:** [line 375](../../../runtime/epok.hpp#L375)
+- **Declared at:** [line 384](../../../runtime/epok.hpp#L384)
 - **Kind:** `function decl`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1802,7 +1802,7 @@ epok::reset_motion_interpolation();
 void reset_runtime_services()
 ```
 
-- **Declared at:** [line 396](../../../runtime/epok.hpp#L396)
+- **Declared at:** [line 405](../../../runtime/epok.hpp#L405)
 - **Kind:** `function decl`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1833,7 +1833,7 @@ epok::reset_runtime_services();
 MeshVertexSample sample_mesh_vertex(const ActorData* entity,uint32_t vertex,CoordinateSpace space)
 ```
 
-- **Declared at:** [line 394](../../../runtime/epok.hpp#L394)
+- **Declared at:** [line 403](../../../runtime/epok.hpp#L403)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1877,7 +1877,7 @@ auto result = epok::sample_mesh_vertex(entity, vertex, space);
 bool scene_loading()
 ```
 
-- **Declared at:** [line 341](../../../runtime/epok.hpp#L341)
+- **Declared at:** [line 350](../../../runtime/epok.hpp#L350)
 - **Kind:** `function decl`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -1908,7 +1908,7 @@ auto result = epok::scene_loading();
 uint32_t scene_rejected_count()
 ```
 
-- **Declared at:** [line 343](../../../runtime/epok.hpp#L343)
+- **Declared at:** [line 352](../../../runtime/epok.hpp#L352)
 - **Kind:** `function decl`
 
 **Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
@@ -1939,7 +1939,7 @@ auto result = epok::scene_rejected_count();
 uint32_t scene_transition_count()
 ```
 
-- **Declared at:** [line 342](../../../runtime/epok.hpp#L342)
+- **Declared at:** [line 351](../../../runtime/epok.hpp#L351)
 - **Kind:** `function decl`
 
 **Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
@@ -1970,7 +1970,7 @@ auto result = epok::scene_transition_count();
 bool scene_waiting()
 ```
 
-- **Declared at:** [line 344](../../../runtime/epok.hpp#L344)
+- **Declared at:** [line 353](../../../runtime/epok.hpp#L353)
 - **Kind:** `function decl`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -2001,7 +2001,7 @@ auto result = epok::scene_waiting();
 bool set_active(ActorData* entity,bool active)
 ```
 
-- **Declared at:** [line 329](../../../runtime/epok.hpp#L329)
+- **Declared at:** [line 338](../../../runtime/epok.hpp#L338)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -2043,7 +2043,7 @@ auto result = epok::set_active(entity, active);
 bool set_active_camera(ActorData* camera)
 ```
 
-- **Declared at:** [line 345](../../../runtime/epok.hpp#L345)
+- **Declared at:** [line 354](../../../runtime/epok.hpp#L354)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -2083,7 +2083,7 @@ auto result = epok::set_active_camera(camera);
 inline void set_world3d_visible(bool visible)
 ```
 
-- **Declared at:** [line 386](../../../runtime/epok.hpp#L386)
+- **Declared at:** [line 395](../../../runtime/epok.hpp#L395)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -2123,7 +2123,7 @@ epok::set_world3d_visible(visible);
 BoneSample skeletal_sample_bone(const ActorData* entity,uint32_t bone,PoseKind pose,CoordinateSpace space)
 ```
 
-- **Declared at:** [line 390](../../../runtime/epok.hpp#L390)
+- **Declared at:** [line 399](../../../runtime/epok.hpp#L399)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -2169,7 +2169,7 @@ auto result = epok::skeletal_sample_bone(entity, bone, pose, space);
 VertexSample skeletal_sample_vertex(const ActorData* entity,uint32_t vertex,PoseKind pose,CoordinateSpace space)
 ```
 
-- **Declared at:** [line 388](../../../runtime/epok.hpp#L388)
+- **Declared at:** [line 397](../../../runtime/epok.hpp#L397)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -2215,7 +2215,7 @@ auto result = epok::skeletal_sample_vertex(entity, vertex, pose, space);
 VertexSamples4 skeletal_sample_vertices(const ActorData* entity,VertexIndexBatch4 indices,PoseKind pose,CoordinateSpace space)
 ```
 
-- **Declared at:** [line 389](../../../runtime/epok.hpp#L389)
+- **Declared at:** [line 398](../../../runtime/epok.hpp#L398)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -2261,7 +2261,7 @@ auto result = epok::skeletal_sample_vertices(entity, indices, pose, space);
 bool skeletal_world_point(const ActorData& entity,const Fixed* model,Fixed* world)
 ```
 
-- **Declared at:** [line 391](../../../runtime/epok.hpp#L391)
+- **Declared at:** [line 400](../../../runtime/epok.hpp#L400)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -2307,7 +2307,7 @@ auto result = epok::skeletal_world_point(entity, model, world);
 void changed(ActorData& entity)
 ```
 
-- **Declared at:** [line 369](../../../runtime/epok.hpp#L369)
+- **Declared at:** [line 378](../../../runtime/epok.hpp#L378)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -2349,7 +2349,7 @@ object.changed(entity);
 MoveResult move_and_slide(ActorData& entity,const Fixed* displacement,uint32_t mask=0xffffffffu)
 ```
 
-- **Declared at:** [line 372](../../../runtime/epok.hpp#L372)
+- **Declared at:** [line 381](../../../runtime/epok.hpp#L381)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -2395,7 +2395,7 @@ auto result = object.move_and_slide(entity, displacement, mask);
 SpatialHit raycast(const Fixed* origin,const Fixed* displacement,uint32_t mask=0xffffffffu,const ActorData* ignore=nullptr,bool triggers=false) const
 ```
 
-- **Declared at:** [line 370](../../../runtime/epok.hpp#L370)
+- **Declared at:** [line 379](../../../runtime/epok.hpp#L379)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -2445,7 +2445,7 @@ auto result = object.raycast(origin, displacement, mask, ignore, triggers);
 void raycast_batch(const RaycastQuery* queries,SpatialHit* results,size_t count,uint32_t mask=0xffffffffu,const ActorData* ignore=nullptr,bool triggers=false) const
 ```
 
-- **Declared at:** [line 371](../../../runtime/epok.hpp#L371)
+- **Declared at:** [line 380](../../../runtime/epok.hpp#L380)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -2497,7 +2497,7 @@ object.raycast_batch(queries, results, count, mask, ignore, triggers);
 SpatialQueryBatch()=default
 ```
 
-- **Declared at:** [line 365](../../../runtime/epok.hpp#L365)
+- **Declared at:** [line 374](../../../runtime/epok.hpp#L374)
 - **Kind:** `constructor`
 
 **Use it when.** You need the epok module and the preconditions in the declaration are already satisfied.
@@ -2526,7 +2526,7 @@ epok::SpatialQueryBatch value();
 void sync(ActorData& entity)
 ```
 
-- **Declared at:** [line 366](../../../runtime/epok.hpp#L366)
+- **Declared at:** [line 375](../../../runtime/epok.hpp#L375)
 - **Kind:** `cxx method`
 
 **Parameters**

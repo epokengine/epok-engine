@@ -451,6 +451,7 @@ pub fn windows(ui: &imgui::Ui, e: &mut Editor) {
                         scene_table(ui,m,&state.scene_list);
                         ui.text_wrapped("Build generates the current Play configuration. Play builds pending changes and launches it. Editing never starts compilation automatically.");
                         section(ui,"Build Reports",||{row(ui,"Generate Asset Report","Generate the detailed asset and memory report after Build/Play. File sizes are always recorded.",||{ui.checkbox("##asset-report",&mut m.build.generate_asset_report);});});
+                        section(ui,"Gameplay Code",||{row(ui,"Optimize Scripts For Size","Compile this project's gameplay classes for size. The engine's renderer and simulation keep their speed profile, so a large game keeps RAM for its content.",||{let mut size=m.build.script_optimization==crate::build_report::ScriptOptimization::Size;if ui.checkbox("##script-size",&mut size){m.build.script_optimization=if size{crate::build_report::ScriptOptimization::Size}else{crate::build_report::ScriptOptimization::Speed};}});});
                         ui.spacing();
                         ui.text("Play Profile");
                         crate::play_ui::controls(ui,&mut m.play, &e.root, ((ui.content_region_avail()[0]-24.)/4.).min(220.));

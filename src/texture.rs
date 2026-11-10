@@ -302,20 +302,7 @@ pub fn resolve(scene: &mut Scene, index: &assets::Index) -> Result<(), String> {
     }
     crate::localization::resolve(scene, index);
     for id in ids(scene) {
-        let load = || {
-            let r = index.resolve(id)?;
-            if r.meta.kind != assets::Kind::Texture {
-                return Err(format!("{id} is not a Texture"));
-            }
-            crate::source_cache::load(&r.path, &format!("texture-psx-v1-{id}"), |bytes| {
-                let package = assets::Package::parse(bytes)?;
-                if package.meta.kind != assets::Kind::Texture || package.meta.id != id {
-                    return Err("The texture asset was replaced; refresh the asset index".into());
-                }
-                decode(&package.source)
-            })
-        };
-        match load() {
+        match load_asset(index, id) {
             Ok(d) => {
                 scene.textures.insert(id, d);
             }
@@ -327,6 +314,19 @@ pub fn resolve(scene: &mut Scene, index: &assets::Index) -> Result<(), String> {
     } else {
         Err(errors.join("\n"))
     }
+}
+pub(crate) fn load_asset(index: &assets::Index, id: Uuid) -> Result<std::sync::Arc<Data>, String> {
+    let record = index.resolve(id)?;
+    if record.meta.kind != assets::Kind::Texture {
+        return Err(format!("{id} is not a Texture"));
+    }
+    crate::source_cache::load(&record.path, &format!("texture-psx-v1-{id}"), |bytes| {
+        let package = assets::Package::parse(bytes)?;
+        if package.meta.kind != assets::Kind::Texture || package.meta.id != id {
+            return Err("The texture asset was replaced; refresh the asset index".into());
+        }
+        decode(&package.source)
+    })
 }
 pub fn validate_region(id: Option<Uuid>, r: [u16; 4], scene: &Scene) -> Result<(), String> {
     let (w, h) = id

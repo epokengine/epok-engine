@@ -20,6 +20,8 @@
 
 namespace epok {
 ActorData* DataHandle::get() const { return nullptr; }
+// These object-only World2D tests do not allocate compact renderer/HUD slots.
+int entity_index(const ActorData*) { return -1; }
 void AudioSource::play() {}
 void AudioSource::stop() {}
 bool AudioSource::is_playing() const { return false; }

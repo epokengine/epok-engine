@@ -354,6 +354,19 @@ pub fn compile(
         artifacts.native_sources.extend(package.native_sources);
         artifacts.dependencies.extend(package.dependencies);
     }
+    for (path, bytes) in &artifacts.files {
+        if path
+            .extension()
+            .is_some_and(|extension| extension == "cpp" || extension == "hpp")
+        {
+            let text =
+                std::str::from_utf8(bytes).map_err(|e| fail(&anywhere, top, e.to_string()))?;
+            artifacts.runtime_capabilities.extend(
+                crate::script_backend::native_requirements(text)
+                    .map_err(|e| fail(&anywhere, top, e))?,
+            );
+        }
+    }
     scripts.sort_by(|a, b| a.name.cmp(&b.name));
 
     let sources = order
@@ -385,6 +398,43 @@ pub fn report(errors: &[Diagnostic]) -> String {
 mod tests {
     use super::*;
     use crate::lua_asset::{LuaFile, tests::HEADER};
+    #[test]
+    fn lua_enum_only_program_retains_its_header_without_helper_pools() {
+        let root = crate::workspace::tests::temp("lua-enum-only");
+        crate::workspace::create(&root, "Enums", crate::workspace::Template::Basic).unwrap();
+        let registry = crate::blueprint::native_registry(&root, &[]).unwrap();
+        let file = LuaFile {
+            id: Some("ef18dd9a-4655-59dc-9c5d-69ace8474402".into()),path:"assets/scripts/EnumRule.lua".into(),
+            source: "---@class EnumRule : epok.ActorComponent\nlocal EnumRule=epok.ActorComponent:extend()\n---@id 22d89c29-caa2-57bd-9ffc-c479415f7bed\nEnumRule.mode=epok.Enum(epok.DoorState,\"Closed\")\n---@id 74c7417f-e661-5ad4-857e-c82dc002a04a\n---@return Bool\nfunction EnumRule:is_open()\n return self.mode==epok.DoorState.Open\nend\nreturn EnumRule\n".into(),
+        };
+        for mode in [
+            LuaExecution::NativeCpp,
+            LuaExecution::VmBytecode,
+            LuaExecution::VmSource,
+        ] {
+            let compiled = compile(&root, &registry, std::slice::from_ref(&file), mode).unwrap();
+            assert!(
+                compiled
+                    .artifacts
+                    .runtime_capabilities
+                    .contains("world-gameplay")
+            );
+            assert!(
+                !compiled
+                    .artifacts
+                    .runtime_capabilities
+                    .contains("interaction")
+            );
+            let table =
+                crate::blueprint_spawn::object_class_table_for_scenes(&compiled.registry, &[])
+                    .unwrap();
+            assert!(
+                !table.contains("ObjectPool<epok::DoorComponent")
+                    && !table.contains("EPOK_INTERACTION_USED")
+            );
+        }
+        std::fs::remove_dir_all(root).unwrap();
+    }
 
     fn temp(label: &str) -> PathBuf {
         let root = crate::workspace::tests::temp(label);

@@ -80,14 +80,12 @@ impl Prepared {
         // Scripts belong to the project, not the scene. The source watcher owns
         // catalog refresh; navigation must not rerun the native extractor.
         let mut dirty = false;
-        if scene.actors.iter().any(|a| a.blueprint_instance.is_some()) {
+        if !scene.actors.is_empty() {
             let previous = scene.clone();
             if let Err(error) = crate::blueprint_asset::load_all(root).and_then(|files| {
-                crate::blueprint_templates::refresh_instances(&mut scene, &files, registry)
+                crate::class_composition::refresh_instances(root, &mut scene, &files, registry)
             }) {
-                emit(Message::new(format!(
-                    "Blueprint instances preserved: {error}"
-                )));
+                emit(Message::new(format!("Class instances preserved: {error}")));
             }
             dirty = scene != previous;
         }

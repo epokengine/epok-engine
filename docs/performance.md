@@ -247,4 +247,35 @@ When using the editor, rebuild it after runtime source changes because it embeds
 
 Use the same scene, input sequence, resolution, build mode and instrumentation for comparisons. Track dropped simulation steps and primitives alongside timings, and inspect rendered frames for regressions. Changing camera position, visible geometry, HUD content or particles can change the measured workload.
 
+Optional PC sampling is enabled with `EPOK_RUNTIME_OPT="-O2 -DEPOK_PROFILE_SAMPLE"`.
+Its default uses Timer0 and a 32 KiB histogram: 8,192 bins of 128 bytes cover physical
+code addresses `0x10000..0x110000`. Native-only sequence music uses Timer2 and
+can remain enabled; legacy sequence timing uses Timer0 and rejects this combination
+at compilation. The sampler starts after sequence-clock setup, which clears Timer0.
+Normal builds do not contain its state or interrupt handler.
+
+Diagnostic builds can override `EPOK_PROFILE_SAMPLE_BASE`,
+`EPOK_PROFILE_SAMPLE_SHIFT` and `EPOK_PROFILE_SAMPLE_BINS`. A focused window at
+`0x70000`, shift 6 and 2,048 bins covers 128 KiB at 64-byte resolution with an
+8 KiB histogram. Choose the window from the matching ELF; instrumentation can
+move code. The compiler requires aligned RAM-code addresses, 1..8,192 bins and
+a shift of 2..16, with the whole window inside 2 MiB RAM. Samples outside the
+chosen window remain in the outside counter; they are not discarded or assigned
+to a function in that window.
+
+Debugger tools can pause collection through `epok::cpu_sample_enabled` and read
+`cpu_sample_layout`, `cpu_sample_bins` and `cpu_sample_outside`. Clear the bins
+while collection is disabled and record the exact measurement window. The
+Complete-game verifier's `--deterministic-route --capture-cpu-samples` options
+collect frames 301 through 1,440 without removing music. They read the linked
+layout and verify its count against the ELF buffer size. This is a diagnostic
+build, and its timings do not certify normal-build performance.
+
+Use `tools/summarize_cpu_samples.py --samples <cpu-samples.json> --elf <matching.elf>
+--nm <mipsel-none-elf-nm> --out <report.json>` to attribute samples. Only bins
+wholly inside one linked function are assigned to it. Boundary bins remain
+ambiguous, inlined work belongs to its containing function, and time spent with
+interrupts masked can defer sampling and underrepresent interrupt handlers.
+Always retain the matching executable and ELF alongside the report.
+
 Capacity limits are not frame-rate guarantees. Emulator measurements describe the tested workload; physical-console timing and GPU/presentation costs require separate validation. No scene-specific benchmark results are bundled with this guide.

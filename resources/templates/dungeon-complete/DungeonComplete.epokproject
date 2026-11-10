@@ -1,6 +1,7 @@
 auto_build: false
 build:
   generate_asset_report: true
+  script_optimization: size
 controls:
   mouse_sensitivity: 16
   pads:
@@ -138,7 +139,7 @@ debug:
   spu_ram: false
 default_scene_script_parent: null
 default_sound_bank: 1e494766-8cf6-495b-8f6a-a8e27b027f42
-editor_version: 0.9.0
+editor_version: 0.10.0
 format_version: 1
 lua_execution: native_cpp
 lua_profile: gameplay_v2

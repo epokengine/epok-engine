@@ -257,6 +257,19 @@ fn reference_value(
 
 pub type Footprints = BTreeMap<String, (String, BTreeMap<String, String>)>;
 
+fn operation_inputs(
+    operation: &str,
+    declaration: &schema::Operation,
+    inputs: &mut BTreeMap<String, String>,
+) {
+    inputs.insert(format!("gameplay-operation:{operation}"), hash(declaration));
+    for demand in &declaration.resource_demands {
+        // A shared demand is independent of which operation consumed it. The
+        // operation dependency above separately pins its complete declaration.
+        inputs.insert(format!("gameplay-resource-demand:{demand}"), hash(demand));
+    }
+}
+
 /// Capture the exact snapshots that produced the generated code. Reading source
 /// files again here could incorrectly certify old code against a newer revision.
 pub fn capture(
@@ -350,13 +363,7 @@ pub fn capture(
                         let declaration = registry
                             .operation(operation)
                             .ok_or_else(|| format!("Missing gameplay operation {operation}"))?;
-                        inputs.insert(format!("gameplay-operation:{operation}"), hash(declaration));
-                        for demand in &declaration.resource_demands {
-                            inputs.insert(
-                                format!("gameplay-resource-demand:{demand}"),
-                                hash((operation, demand)),
-                            );
-                        }
+                        operation_inputs(operation, declaration, &mut inputs);
                     }
                     NodeKind::Builtin {
                         operation:
@@ -459,4 +466,47 @@ pub fn record(root: &Path, compiled: &Compilation) -> Result<(), String> {
         }
     })?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn shared_resource_demand_is_stable_across_classes_and_operations() {
+        let make: schema::Operation = serde_json::from_value(serde_json::json!({
+            "version": 1, "id": "make-state", "namespace": "health", "name": "make_state",
+            "category": "Combat", "receiver": {"kind": "service", "library": "HealthLibrary"},
+            "native_target": "epok::HealthLibrary::make_state", "parameters": [], "outputs": [],
+            "effect": "pure_value", "resource_demands": ["health"],
+            "error_contract": "bounded", "complexity": "constant",
+            "source": {"file": "runtime/health.hpp", "line": 1, "column": 1}
+        }))
+        .unwrap();
+        let mut damage = make.clone();
+        damage.id = "damage".into();
+        damage.native_target = "epok::HealthLibrary::damage".into();
+        let mut vitality = BTreeMap::new();
+        let mut encounter = BTreeMap::new();
+        operation_inputs(&damage.id, &damage, &mut vitality);
+        operation_inputs(&make.id, &make, &mut encounter);
+        let root = crate::workspace::tests::temp("shared-resource-demand");
+        let mut batch =
+            crate::playback_staging::Batch::new(&root, &root.join(".epok/build")).unwrap();
+        for (id, signature) in vitality.iter().chain(&encounter) {
+            batch.scene_input(id.clone(), signature.clone()).unwrap();
+        }
+        assert_eq!(
+            vitality["gameplay-resource-demand:health"],
+            encounter["gameplay-resource-demand:health"]
+        );
+        let before = vitality["gameplay-operation:damage"].clone();
+        damage.native_target = "changed::damage".into();
+        operation_inputs(&damage.id, &damage, &mut vitality);
+        assert_ne!(before, vitality["gameplay-operation:damage"]);
+        assert_eq!(
+            vitality["gameplay-resource-demand:health"],
+            encounter["gameplay-resource-demand:health"]
+        );
+    }
 }

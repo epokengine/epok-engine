@@ -846,7 +846,7 @@ pub const PARENT: &str =
 /// A reflected enum, found by name. Enums are not declared on their own: the
 /// registry spells one out wherever a member uses it, so an authored
 /// `epok.Enum(Mode, "Idle")` is resolved by looking for that spelling.
-fn reflected_enum(registry: &Registry, cpp_name: &str) -> Option<Type> {
+pub(crate) fn reflected_enum(registry: &Registry, cpp_name: &str) -> Option<Type> {
     fn walk(ty: &Type, cpp_name: &str) -> Option<Type> {
         match ty {
             Type::Enum {
@@ -859,19 +859,38 @@ fn reflected_enum(registry: &Registry, cpp_name: &str) -> Option<Type> {
             _ => None,
         }
     }
-    registry.classes.values().find_map(|class| {
-        class
-            .properties
-            .iter()
-            .map(|p| &p.value_type)
-            .chain(class.functions.iter().flat_map(|f| {
-                f.parameters
+    registry
+        .classes
+        .values()
+        .find_map(|class| {
+            class
+                .properties
+                .iter()
+                .map(|p| &p.value_type)
+                .chain(class.functions.iter().flat_map(|f| {
+                    f.parameters
+                        .iter()
+                        .map(|p| &p.value_type)
+                        .chain(std::iter::once(&f.returns))
+                }))
+                .find_map(|ty| walk(ty, cpp_name))
+        })
+        .or_else(|| {
+            registry.operations.values().find_map(|operation| {
+                operation
+                    .parameters
                     .iter()
                     .map(|p| &p.value_type)
-                    .chain(std::iter::once(&f.returns))
-            }))
-            .find_map(|ty| walk(ty, cpp_name))
-    })
+                    .chain(operation.outputs.iter().map(|p| &p.value_type))
+                    .find_map(|ty| walk(ty, cpp_name))
+            })
+        })
+        .or_else(|| {
+            registry
+                .value_types
+                .values()
+                .find_map(|value| walk(&value.value_type, cpp_name))
+        })
 }
 
 fn location(path: &Path, span: Span) -> schema::Location {
@@ -1174,6 +1193,7 @@ pub fn declarations(
         component: None,
         default_components: vec![],
         explicit_abstract: false,
+        default_overrides: Default::default(),
         properties,
         functions: declared,
         source: location(path, decl.span),
@@ -1224,7 +1244,7 @@ local {name} = {parent}:extend()\n\
 -- cannot say has a constructor, such as epok.UInt32(0), epok.Vector3(0.0, 1.0,\n\
 -- 0.0), epok.ActorRef(SomeClass) or epok.Hidden(1.0) for a field the Inspector\n\
 -- does not show.\n\
-{name}.speed = 1.0\n\
+-- {name}.speed = 1.0\n\
 \n\
 -- Lifecycle events take their signature from the parent: begin_play, tick,\n\
 -- end_play, on_enable and on_disable.\n\
@@ -2188,10 +2208,8 @@ EnemyLogic.ready = true
         assert_eq!(declaration.name, "Spinner");
         assert_eq!(declaration.extends, "epok::ActorComponent");
         assert_eq!(declaration.id, "1f4d9c8e-2b3a-4c5d-8e6f-7a8b9c0d1e2f");
-        let speed = &declaration.properties[0];
-        assert_eq!(speed.name, "speed");
-        assert_eq!(speed.value_type, Type::Fixed);
-        assert_eq!(declaration.properties.len(), 1);
+        // An empty derived class must not consume a project property slot.
+        assert!(declaration.properties.is_empty());
         // The empty lifecycle body is the only declared member: a synthesized
         // override of the parent's begin_play, nothing from the comments.
         assert_eq!(

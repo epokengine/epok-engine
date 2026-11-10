@@ -19,7 +19,12 @@ struct ActorTable {
  const SceneReferenceRecord* references=nullptr;size_t reference_count=0;
  void (*bind_reference)(ObjectRegistry&,Actor&,uint64_t,ObjectId)=nullptr;
 };
-struct ActorPrototype {const ActorTable* table=nullptr;const ActorData* data=nullptr;size_t count=0;bool (*configure_services)(const DataHandle*,size_t)=nullptr;};
+// Writes a cooked prototype through allocated slots. It offers the indexing the
+// generated component initializer uses, so one emitter serves scenes and prefabs.
+struct PrototypeSlots {ActorData* const* slots=nullptr;ActorData& operator[](size_t index)const{return *slots[index];}};
+// `initialize` builds each spawn in place, so a cooked prefab keeps no resident
+// ActorData copy. `data` remains for prototypes held as complete records.
+struct ActorPrototype {const ActorTable* table=nullptr;const ActorData* data=nullptr;size_t count=0;bool (*configure_services)(const DataHandle*,size_t)=nullptr;void (*initialize)(ActorData* const*)=nullptr;};
 inline const ActorPrototype* (*actor_template_lookup)(uint64_t)=nullptr;
 struct ActorStats {uint32_t alive=0,peak=0,rejected=0,spawned=0,deferred=0,actors=0,components=0,scene_scripts=0,banks_loaded=0;};
 inline ActorStats actor_stats;
@@ -43,7 +48,7 @@ public:
   ObjectId ids[level_actor_capacity]={};Context current{&table,ids,data,count,{},nullptr};
   auto* previous=context;context=&current;const auto loaded=instantiate(current,ids,nullptr);
   if(loaded==table.count)create_bank_scene_script(table);
-  context=previous;++actor_stats.banks_loaded;refresh_stats();return loaded;
+  context=previous;++actor_stats.banks_loaded;refresh_stats(true);return loaded;
  }
  ObjectId spawn_actor(const ClassDescriptor& type,const char* name,ObjectId parent={}) override {
   if(!m_registry||type.family!=ObjectFamily::Actor||!(type.flags&ObjectClassSpawnable)||(type.flags&ObjectClassSceneManaged))return {};
@@ -60,10 +65,11 @@ public:
   ActorData* data[level_actor_capacity]={};
   auto rollback=[&](){for(size_t i=0;i<count;++i)if(data[i]&&!data[i]->owner){data[i]->alive=false;++data[i]->generation;}};
   for(size_t i=0;i<count;++i){data[i]=allocate_actor_data(nullptr,nullptr);if(!data[i]){rollback();return {};}
-   if(prototype){const auto generation=data[i]->generation;*data[i]=prototype->data[i];data[i]->generation=generation;data[i]->owner=nullptr;data[i]->alive=true;}}
+   if(prototype){const auto generation=data[i]->generation;if(prototype->data)*data[i]=prototype->data[i];data[i]->generation=generation;data[i]->owner=nullptr;data[i]->alive=true;}}
+  if(prototype&&prototype->initialize)prototype->initialize(data);
   ObjectId ids[level_actor_capacity]={};Context current{source,ids,data,count,parent,prototype};
   auto* previous=context;context=&current;const auto loaded=instantiate(current,ids,name);context=previous;
-  if(loaded!=count){rollback();return {};}refresh_stats();return ids[0];
+  if(loaded!=count){rollback();return {};}refresh_stats(true);return ids[0];
  }
  ObjectId create_bank_scene_script(const ActorTable& table) {
   if(!m_registry||scene_script().valid())return {};
@@ -82,8 +88,10 @@ public:
    table.bind_reference(*m_registry,*actor,row.member,row.kind==SceneRefKind::Actor?id:(row.component>=0?target->component_id(size_t(row.component)):target->root_id()));++count;}
   return count;
  }
- void refresh_stats() {
+ void refresh_stats(bool force=false) {
   if(!m_registry)return;const auto& s=m_registry->stats;
+  // Runs every frame: the walk below only matters after the population changed.
+  if(!force&&actor_stats.alive==s.alive&&actor_stats.spawned==s.spawned&&actor_stats.rejected==s.rejected&&actor_stats.deferred==s.deferred&&actor_stats.actors==actor_count())return;
   actor_stats.alive=s.alive;actor_stats.peak=s.peak;actor_stats.rejected=s.rejected;actor_stats.spawned=s.spawned;actor_stats.deferred=s.deferred;
   actor_stats.actors=uint32_t(actor_count());actor_stats.components=0;
   for(size_t i=0;i<actor_count();++i)if(auto* a=m_registry->resolve<Actor>(actor_at(i)))actor_stats.components+=uint32_t(a->component_count());
@@ -143,6 +151,11 @@ private:
    if(actor->data()) {
     auto* parent=spatial_parent;
     actor->data()->parent=parent&&parent->data()?int(handle(parent->data()).index):-1;
+    if(context->prototype) {
+     auto remap_focus=[&](int16_t source)->int16_t{return source>=0&&size_t(source)<context->data_count?int16_t(handle(context->data[size_t(source)]).index):-1;};
+     auto& data=*actor->data();data.canvas.focused=remap_focus(data.canvas.focused);
+     for(auto& neighbor:data.focusable.neighbors)neighbor=remap_focus(neighbor);
+    }
    }
    if(row.apply)row.apply(*m_registry,*actor,components,context->actors);
   }
@@ -154,7 +167,7 @@ inline ObjectRegistryStorage<EPOK_OBJECT_REGISTRY_CAPACITY> object_registry;
 inline SceneLevel level;
 inline constexpr size_t object_registry_capacity=EPOK_OBJECT_REGISTRY_CAPACITY;
 inline size_t load_actor_bank(const ActorTable& table,ActorData* slots,size_t count){return level.ensure_bound(object_registry)?level.load_bank(table,slots,count):0;}
-inline void unload_actor_bank(){level.end_play_all(EndPlayReason::LevelUnloaded);level.refresh_stats();}
+inline void unload_actor_bank(){level.end_play_all(EndPlayReason::LevelUnloaded);level.refresh_stats(true);}
 inline void collect_object_quarantine(){object_registry.collect_quarantined();}
 inline ObjectId actor_for_slot(const ActorData* data){return data&&data->owner?data->owner->id():ObjectId{};}
 inline size_t dispatch_slot_trigger(DataHandle self,DataHandle other,TriggerPhase phase){const auto actor=actor_for_slot(self.get());return actor.valid()?dispatch_trigger(level,actor,other,phase):0;}

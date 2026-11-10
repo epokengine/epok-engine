@@ -5,9 +5,11 @@
 //! and clouds, spinning coins and a screen-space coin icon -
 //! with its gameplay written in the selected flavor. The artwork is original pixel
 //! art generated here at creation time, so the template ships no binary files.
+#[cfg(test)]
+use crate::blueprint_asset::{BinaryOp, Variable};
 use crate::{
     actor_document::{ClassReference, ComponentInstance},
-    blueprint_asset::{BinaryOp, BlueprintAsset, Builtin, Graph, Input, Node, NodeKind, Variable},
+    blueprint_asset::{BlueprintAsset, Builtin, Graph, Input, Node, NodeKind},
     reflection_schema::{self as schema, Type},
     scene::{Actor, Scene},
     tilemap::{Cell, Cells},
@@ -169,22 +171,15 @@ pub fn create(root: &Path, flavor: GameplayFlavor) -> Result<Scene, String> {
         texture: Some(texture),
         ..Default::default()
     };
-    // Grouping nodes: logical parents only, so they tidy the Hierarchy without
-    // moving their children.
+    // One logical world root leaves room for a complete dialogue widget without
+    // consuming runtime actor slots on separate organizational headings.
     let group = |scene: &mut Scene, name: &str| {
         let actor = world2d::create(Preset::Node2D, name, [0., 0.]);
         let id = actor.id;
         scene.actors.push(actor);
         id
     };
-    // The Hierarchy reads top to bottom like the screen is built: scenery behind, the
-    // level, who lives in it, props, coins, effects, then the HUD.
-    let scenery = group(&mut scene, "Scenery");
-    let level = group(&mut scene, "Level");
-    let characters = group(&mut scene, "Characters");
-    let props_group = group(&mut scene, "Props");
-    let collectibles = group(&mut scene, "Coins");
-    let effects = group(&mut scene, "Effects");
+    let world = group(&mut scene, "World2D");
     // Parallax backgrounds: hills scroll at half the camera's speed and repeat every
     // 256 pixels; clouds drift slowly and repeat every 768.
     let mut hills = world2d::create(Preset::Parallax2D, "Hills", [0., GROUND - 32.]);
@@ -284,7 +279,7 @@ pub fn create(root: &Path, flavor: GameplayFlavor) -> Result<Scene, String> {
                 ..Default::default()
             },
         );
-        layer.logical_parent = Some(level);
+        layer.logical_parent = Some(world);
         scene.actors.push(layer);
     }
     scene.tilesets.insert(set_id, Arc::new(tiles));
@@ -299,7 +294,7 @@ pub fn create(root: &Path, flavor: GameplayFlavor) -> Result<Scene, String> {
             closed: false,
         },
     );
-    rail.logical_parent = Some(level);
+    rail.logical_parent = Some(world);
     let rail_id = rail.id;
     scene.actors.push(rail);
     let mut lift = world2d::create(Preset::PathFollow2D, "Lift", [24., -8.]);
@@ -353,7 +348,7 @@ pub fn create(root: &Path, flavor: GameplayFlavor) -> Result<Scene, String> {
             ..Default::default()
         },
     );
-    vine.logical_parent = Some(level);
+    vine.logical_parent = Some(world);
     scene.actors.push(vine);
     let mut fireflies = world2d::create(Preset::Particles2D, "Fireflies", [-120., 70.]);
     set(
@@ -376,7 +371,7 @@ pub fn create(root: &Path, flavor: GameplayFlavor) -> Result<Scene, String> {
             ..Default::default()
         },
     );
-    fireflies.logical_parent = Some(level);
+    fireflies.logical_parent = Some(world);
     scene.actors.push(fireflies);
     // A screen-space coin icon in the top-left corner, drawn over the world.
     let mut hud = world2d::create(Preset::CanvasLayer2D, "HUD", [0., 0.]);
@@ -442,7 +437,7 @@ pub fn create(root: &Path, flavor: GameplayFlavor) -> Result<Scene, String> {
                 ..sprite(art.coin)
             },
         );
-        coin.logical_parent = Some(collectibles);
+        coin.logical_parent = Some(world);
         coins.push(scene.actors.len());
         scene.actors.push(coin);
     }
@@ -500,34 +495,20 @@ pub fn create(root: &Path, flavor: GameplayFlavor) -> Result<Scene, String> {
             ..Default::default()
         },
     );
-    let body = component_id(&player, world2d::CHARACTER_BODY2D)?;
-    let sprite_component = component_id(&player, world2d::SPRITE2D)?;
-    let mut controller = ComponentInstance::new(
+    let controller = ComponentInstance::new(
         Uuid::new_v4(),
         ClassReference::new(CONTROLLER, controller_id(flavor)),
         "Controller",
     );
-    if flavor != GameplayFlavor::Cpp {
-        // Typed references, resolved once here: renaming a component never breaks them.
-        controller
-            .properties
-            .insert("body".into(), json!(body.to_string()));
-        controller
-            .properties
-            .insert("sprite".into(), json!(sprite_component.to_string()));
-        controller
-            .overrides
-            .extend(controller.properties.keys().cloned());
-    }
     player.components.push(controller);
     player.refresh_components();
     let player_id = player.id;
     scene.actors.push(player);
-    guide(&mut scene, art.guide, player_id, characters);
-    wisp(&mut scene, art.spark, player_id, characters);
-    props(&mut scene, art.tiles, art.guide, props_group);
-    scenery_layers(&mut scene, &art, scenery);
-    ambience(&mut scene, art.spark, effects);
+    guide(&mut scene, art.guide, player_id, world);
+    wisp(&mut scene, art.spark, player_id, world);
+    props(&mut scene, art.tiles, art.guide, world);
+    scenery_layers(&mut scene, &art, world);
+    ambience(&mut scene, art.spark, world);
     controls_hint(&mut scene);
     // Top-level nodes join their group; attached nodes stay under what they hang from.
     for actor in &mut scene.actors {
@@ -535,32 +516,128 @@ pub fn create(root: &Path, flavor: GameplayFlavor) -> Result<Scene, String> {
             continue;
         }
         actor.logical_parent = match actor.name.as_str() {
-            "Hills" | "Clouds" => Some(scenery),
-            "Player" => Some(characters),
-            "Fireflies" => Some(effects),
+            "Hills" | "Clouds" | "Player" | "Fireflies" => Some(world),
             _ => None,
         };
     }
-    for actor in &mut scene.actors {
-        if actor.name == "Fireflies" || actor.name == "WispPaths" {
-            actor.logical_parent = Some(if actor.name == "Fireflies" {
-                effects
-            } else {
-                level
-            });
-        }
-    }
     for index in coins {
-        let pickup = ComponentInstance::new(
+        let mut pickup = ComponentInstance::new(
             Uuid::new_v4(),
             ClassReference::new(COIN, coin_id(flavor)),
             "Pickup",
         );
+        pickup.properties.extend([
+            ("accepted_initiator".into(), json!(player_id)),
+            ("auto_collect".into(), json!(true)),
+        ]);
+        pickup
+            .overrides
+            .extend(["accepted_initiator".into(), "auto_collect".into()]);
         scene.actors[index].components.push(pickup);
         scene.actors[index].refresh_components();
     }
     install_gameplay(root, flavor)?;
+    compose_character(root, &mut scene, player_id)?;
+    let player = &scene.actors[scene
+        .actor_index(player_id)
+        .ok_or("Platformer player is unresolved.")?];
+    let role = |name: &str| -> Result<ClassReference, String> {
+        player
+            .components
+            .iter()
+            .find(|c| c.class.name == name)
+            .map(|c| c.class.clone())
+            .ok_or_else(|| format!("Platformer role {name} is unresolved."))
+    };
+    crate::template_install::write(
+        root,
+        crate::workspace::Template::Platformer2D,
+        flavor,
+        [
+            ("player", player.class.clone()),
+            ("controller", role(CONTROLLER)?),
+            ("locomotion", role("epok::SpriteLocomotion2DComponent")?),
+            ("pickup", ClassReference::new(COIN, coin_id(flavor))),
+            (
+                "camera",
+                ClassReference::new("epok::Camera2DComponent", world2d::CAMERA2D),
+            ),
+        ],
+    )?;
     Ok(scene)
+}
+
+/// Reuse the authored body/sprite while adding the common motor and driver.
+/// Keep the following camera on a separate attached actor to leave one player
+/// component slot available for interactions or another project capability.
+fn compose_character(root: &Path, scene: &mut Scene, player: Uuid) -> Result<(), String> {
+    let registry = crate::scripts::declaration_registry(root)?;
+    let model = crate::object_model::Model::from_registry(&registry).map_err(|errors| {
+        errors
+            .iter()
+            .map(|e| e.message.clone())
+            .collect::<Vec<_>>()
+            .join("\n")
+    })?;
+    let index = scene
+        .actor_index(player)
+        .ok_or("Platformer player is unresolved.")?;
+    let actor = &mut scene.actors[index];
+    let class = registry
+        .named("epok::Character2D")
+        .ok_or("Shared Character2D class is unresolved.")?;
+    actor.class = ClassReference::new(&class.cpp_name, &class.id);
+    // Collider2D permits multiple shapes. This newly generated player has one
+    // authored shape; explicitly bind it to the inherited collider declaration
+    // instead of asking generic hydration to choose among user-owned shapes.
+    let declared_collider = model
+        .class(&class.id)
+        .and_then(|c| c.default_components.iter().find(|d| d.field == "collider"))
+        .ok_or("Shared Character2D collider declaration is unresolved.")?;
+    let collider = actor
+        .components
+        .iter_mut()
+        .find(|c| c.class.class_id.as_deref() == Some(world2d::COLLIDER2D))
+        .ok_or("Platformer player collider is unresolved.")?;
+    collider.default_id = Some(declared_collider.id.clone());
+    collider.inherited = true;
+    crate::class_composition::hydrate(actor, &model)?;
+    let visual = component_id(actor, world2d::SPRITE2D)?;
+    let camera_index = actor
+        .components
+        .iter()
+        .position(|c| c.class.class_id.as_deref() == Some(world2d::CAMERA2D))
+        .ok_or("Platformer camera is unresolved.")?;
+    let camera_component = actor.components.remove(camera_index);
+    let camera_id = camera_component.id;
+    let mut camera = world2d::create(Preset::Node2D, "Player Camera", [0., 0.]);
+    camera.logical_parent = Some(player);
+    camera.attach = Some(crate::actor_document::Attachment {
+        actor: player,
+        component: None,
+    });
+    camera.components.push(camera_component);
+    camera.refresh_components();
+    actor.properties.extend([
+        ("visual".into(), json!(visual)),
+        ("camera".into(), json!(camera_id)),
+    ]);
+    actor.overrides.extend(["visual".into(), "camera".into()]);
+    let class = registry
+        .named("epok::SpriteLocomotion2DComponent")
+        .ok_or("Shared sprite driver is unresolved.")?;
+    let mut animation = ComponentInstance::new(
+        Uuid::new_v4(),
+        ClassReference::new(&class.cpp_name, &class.id),
+        "Locomotion",
+    );
+    animation.properties.insert("visual".into(), json!(visual));
+    animation.overrides.insert("visual".into());
+    actor.components.push(animation);
+    actor.refresh_components();
+    scene.actors.push(camera);
+    scene.validate_with_model(Some(&model))?;
+    Ok(())
 }
 
 /// A cut-out guide near the start: a Skeleton2D whose robe breathes and head nods on a
@@ -1651,6 +1728,7 @@ mod art {
 mod blueprint {
     use super::*;
 
+    #[cfg(test)]
     mod op {
         pub const SET_VELOCITY: &str = "8cbd83fc-9005-4378-b295-17b7db2423c2";
         pub const VELOCITY_Y: &str = "a9dd10c9-5330-432b-a1a8-e045f3143111";
@@ -1659,11 +1737,15 @@ mod blueprint {
         pub const PLAY: &str = "232abd11-a1eb-4041-ada7-20a45d58b72e";
         pub const SET_FLIP_H: &str = "480f44c0-403e-4090-b367-9e7f848cedd0";
     }
+    #[cfg(test)]
     const TICK: &str =
         "cpp:c:@N@epok@S@ActorComponent@F@tick#$@N@psyqo@S@FixedPoint>#Vi12#I#Vi4096#";
-    const TRIGGER_EVENT: &str = "45c82d77-d076-43fe-b947-a4eed670f46b";
+    const COLLECTED: &str = "cpp:c:@N@epok@S@PickupComponent@F@collected#$@N@epok@S@ObjectId#i#";
+    #[cfg(test)]
     const RIGHT: u64 = 5;
+    #[cfg(test)]
     const LEFT: u64 = 7;
+    #[cfg(test)]
     const CROSS: u64 = 14;
 
     fn ident(namespace: &str, key: &str) -> String {
@@ -1679,14 +1761,17 @@ mod blueprint {
     enum Src {
         Pin(String),
         Lit(Type, serde_json::Value),
+        #[cfg(test)]
         Param(String),
     }
     fn out(node: &str) -> Src {
         Src::Pin(node.into())
     }
+    #[cfg(test)]
     fn fixed(value: f64) -> Src {
         Src::Lit(Type::Fixed, json!(value))
     }
+    #[cfg(test)]
     fn count(value: u64) -> Src {
         Src::Lit(Type::UInt32, json!(value))
     }
@@ -1750,6 +1835,7 @@ mod blueprint {
                     pin: "value".into(),
                 },
                 Src::Lit(value_type, value) => Input::Literal { value_type, value },
+                #[cfg(test)]
                 Src::Param(name) => Input::Parameter { name },
             };
             self.nodes
@@ -1767,11 +1853,13 @@ mod blueprint {
                 .outputs
                 .insert(pin.into(), vec![to.into()]);
         }
+        #[cfg(test)]
         fn chain(&mut self, steps: &[String]) {
             for pair in steps.windows(2) {
                 self.exec(&pair[0], "next", &pair[1]);
             }
         }
+        #[cfg(test)]
         fn read(&mut self, key: &str, variable: &str) -> String {
             self.data(
                 key,
@@ -1780,18 +1868,35 @@ mod blueprint {
                 },
             )
         }
+        #[cfg(test)]
         fn binary(&mut self, key: &str, op: BinaryOp, a: Src, b: Src) -> String {
             let node = self.data(key, NodeKind::Binary { op });
             self.feed(&node, "a", a);
             self.feed(&node, "b", b);
             node
         }
+        #[cfg(test)]
         fn input(&mut self, key: &str, operation: Builtin, button: u64) -> String {
-            let node = self.data(key, NodeKind::Builtin { operation });
-            self.feed(&node, "button", count(button));
-            self.feed(&node, "port", count(0));
+            let operation = match operation {
+                Builtin::InputHeld => crate::gameplay_control::HELD,
+                Builtin::InputPressed => crate::gameplay_control::PRESSED,
+                _ => unreachable!("controller input uses held or pressed"),
+            };
+            let node = self.data(
+                key,
+                NodeKind::Operation {
+                    operation: operation.into(),
+                },
+            );
+            self.feed(
+                &node,
+                &format!("{operation}:parameter:0"),
+                Src::Lit(crate::gameplay_control::button_type(), json!(button)),
+            );
+            self.feed(&node, &format!("{operation}:parameter:1"), count(0));
             node
         }
+        #[cfg(test)]
         fn query(&mut self, key: &str, operation: &str, target: Src) -> String {
             let node = self.data(
                 key,
@@ -1802,6 +1907,7 @@ mod blueprint {
             self.feed(&node, "__target", target);
             node
         }
+        #[cfg(test)]
         fn perform_on(&mut self, key: &str, operation: &str, target: Src, args: &[Src]) -> String {
             let node = self.step(
                 key,
@@ -1819,6 +1925,7 @@ mod blueprint {
             }
             node
         }
+        #[cfg(test)]
         fn call(&mut self, key: &str, graph: &str, args: &[(&str, Src)]) -> String {
             let node = self.step(
                 key,
@@ -1860,6 +1967,7 @@ mod blueprint {
             direction: schema::Direction::Value,
         }
     }
+    #[cfg(test)]
     fn variable(
         name: &str,
         value_type: Type,
@@ -1887,8 +1995,21 @@ mod blueprint {
         asset
     }
 
-    /// The PlatformerController graph: the same movement as the C++ and Lua flavors.
+    /// Project input extension. Shared input and motor defaults supply the
+    /// starter behavior; project rules can override calculate_command here.
     pub fn controller() -> BlueprintAsset {
+        let mut asset = component_asset(CONTROLLER, BLUEPRINT_CONTROLLER_ID);
+        asset.parent = crate::game_helpers::CHARACTER_INPUT_CLASSES
+            .iter()
+            .find(|(name, _)| *name == "LocalPlayer2DInputComponent")
+            .expect("shared input identity")
+            .1
+            .into();
+        asset
+    }
+
+    #[cfg(test)]
+    pub fn legacy_controller() -> BlueprintAsset {
         let mut asset = component_asset(CONTROLLER, BLUEPRINT_CONTROLLER_ID);
         let reference = |class: &str| Type::ComponentRef {
             class: Some(class.into()),
@@ -2031,29 +2152,22 @@ mod blueprint {
         asset
     }
 
-    /// CoinPickup: deactivate the owner the first time something enters the trigger.
+    /// Project collection policy; validation and once-only state are inherited.
     pub fn coin() -> BlueprintAsset {
         let mut asset = component_asset(COIN, BLUEPRINT_COIN_ID);
-        let phase = Type::Enum {
-            cpp_name: "epok::TriggerPhase".into(),
-            variants: [("Enter", 0), ("Stay", 1), ("Exit", 2)]
+        asset.component.as_mut().expect("component contract").owners =
+            [schema::Domain::World3D, schema::Domain::World2D]
                 .into_iter()
-                .map(|(n, v)| (n.to_string(), v))
-                .collect(),
-        };
-        let mut b = Build::new("coin", "trigger_event");
+                .collect();
+        asset.parent = crate::game_helpers::WORLD_GAMEPLAY_CLASSES
+            .iter()
+            .find(|(name, _)| *name == "PickupComponent")
+            .expect("shared pickup identity")
+            .1
+            .into();
+        let mut b = Build::new("coin", "collected");
         let entry = b.place("entry", NodeKind::Entry, 0, 0);
         b.lane(1, 0);
-        let entered = b.binary(
-            "entered",
-            BinaryOp::Equal,
-            Src::Param("phase".into()),
-            Src::Lit(phase.clone(), json!(0)),
-        );
-        let branch = b.step("branch", NodeKind::Branch);
-        b.feed(&branch, "condition", out(&entered));
-        b.exec(&entry, "next", &branch);
-        b.lane(2, 1);
         let owner = b.data(
             "owner",
             NodeKind::Builtin {
@@ -2068,13 +2182,13 @@ mod blueprint {
         );
         b.feed(&hide, "target", out(&owner));
         b.feed(&hide, "active", flag(false));
-        b.exec(&branch, "true", &hide);
+        b.exec(&entry, "next", &hide);
         let (graph, layout) = b.finish(
-            "trigger_event",
-            Some(TRIGGER_EVENT),
+            "collected",
+            Some(COLLECTED),
             vec![
-                parameter("other", Type::ObjectRef { class: None }),
-                parameter("phase", phase),
+                parameter("initiator", Type::ObjectRef { class: None }),
+                parameter("port", Type::UInt32),
             ],
             Type::Void,
         );
@@ -2088,6 +2202,63 @@ mod blueprint {
 mod tests {
     use super::*;
     #[test]
+    fn every_flavor_compiles_its_shared_input_and_stages_the_composition() {
+        for flavor in [
+            GameplayFlavor::Cpp,
+            GameplayFlavor::Blueprint,
+            GameplayFlavor::Lua,
+        ] {
+            let root = crate::workspace::tests::temp("platformer-foundation");
+            crate::workspace::create_with_options(
+                &root,
+                "Platformer Foundation",
+                crate::workspace::CreateOptions::new(crate::workspace::Template::Platformer2D)
+                    .with_gameplay(flavor),
+            )
+            .unwrap();
+            let registry = crate::scripts::declaration_registry(&root).unwrap();
+            let input = registry.named("epok::LocalPlayer2DInputComponent").unwrap();
+            let controller = registry.named(CONTROLLER).unwrap();
+            assert_eq!(controller.parent.as_deref(), Some(input.id.as_str()));
+            let pickup = registry.named("epok::PickupComponent").unwrap();
+            assert_eq!(
+                registry.named(COIN).unwrap().parent.as_deref(),
+                Some(pickup.id.as_str())
+            );
+            let model = crate::object_model::Model::from_registry(&registry).unwrap();
+            assert_eq!(
+                model
+                    .class(coin_id(flavor))
+                    .unwrap()
+                    .component
+                    .as_ref()
+                    .unwrap()
+                    .owners,
+                model
+                    .class(&pickup.id)
+                    .unwrap()
+                    .component
+                    .as_ref()
+                    .unwrap()
+                    .owners
+            );
+            let scene = Scene::load(&crate::workspace::startup_scene(&root).unwrap()).unwrap();
+            let build =
+                crate::project::stage(&root, &scene).unwrap_or_else(|e| panic!("{flavor:?}: {e}"));
+            let header = std::fs::read_to_string(build.join("scene.hh")).unwrap();
+            assert!(
+                header.contains("SpriteLocomotion2DComponent"),
+                "{flavor:?} omitted the sprite driver"
+            );
+            assert!(
+                header.contains("CharacterMotor2DComponent"),
+                "{flavor:?} omitted the motor"
+            );
+            std::fs::remove_dir_all(&root).unwrap();
+        }
+    }
+
+    #[test]
     fn every_flavor_creates_a_valid_platformer_with_its_gameplay() {
         for flavor in [
             GameplayFlavor::Cpp,
@@ -2100,12 +2271,21 @@ mod tests {
             std::fs::create_dir_all(root.join("assets/scripts")).unwrap();
             let scene = create(&root, flavor).unwrap();
             scene.validate().unwrap();
+            assert_eq!(
+                scene.actors.len(),
+                52,
+                "five organizational slots are reclaimed"
+            );
+            let world = &scene.actors[0];
+            assert_eq!(world.name, "World2D");
+            assert_eq!(world.components.len(), 1);
+            assert!(world.logical_parent.is_none() && world.attach.is_none());
             let player = scene.actors.iter().find(|a| a.name == "Player").unwrap();
+            assert_eq!(player.logical_parent, Some(world.id));
             for class in [
                 world2d::SPRITE2D,
                 world2d::COLLIDER2D,
                 world2d::CHARACTER_BODY2D,
-                world2d::CAMERA2D,
             ] {
                 assert!(
                     world2d::component(player, class).is_some(),
@@ -2121,9 +2301,43 @@ mod tests {
                 controller.class.class_id.as_deref(),
                 Some(controller_id(flavor))
             );
+            assert_eq!(player.class.name, "epok::Character2D");
             assert_eq!(
-                controller.properties.contains_key("body"),
-                flavor != GameplayFlavor::Cpp
+                player.components.len(),
+                7,
+                "{:?}",
+                player
+                    .components
+                    .iter()
+                    .map(|c| (&c.name, &c.class.name, &c.default_id))
+                    .collect::<Vec<_>>()
+            );
+            assert!(controller.properties.is_empty());
+            let installed = crate::template_install::read(&root).unwrap().unwrap();
+            assert_eq!(installed.template, "platformer-2d");
+            assert_eq!(installed.gameplay, flavor.key());
+            assert_eq!(installed.roles["player"], player.class);
+            assert_eq!(installed.roles["controller"], controller.class);
+            for coin in scene
+                .actors
+                .iter()
+                .flat_map(|a| &a.components)
+                .filter(|c| c.class == installed.roles["pickup"])
+            {
+                assert_eq!(coin.properties["accepted_initiator"], json!(player.id));
+                assert_eq!(coin.properties["auto_collect"], json!(true));
+                assert!(!coin.properties.contains_key("deactivate_on_collect"));
+            }
+            let camera = scene
+                .actors
+                .iter()
+                .find(|a| a.name == "Player Camera")
+                .unwrap();
+            assert!(world2d::component(camera, world2d::CAMERA2D).is_some());
+            assert_eq!(camera.attach.as_ref().unwrap().actor, player.id);
+            assert_eq!(
+                player.properties["camera"],
+                json!(component_id(camera, world2d::CAMERA2D).unwrap())
             );
             assert_eq!(
                 scene
@@ -2169,6 +2383,7 @@ mod tests {
         let a = serde_json::to_string(&blueprint::controller()).unwrap();
         let b = serde_json::to_string(&blueprint::controller()).unwrap();
         assert_eq!(a, b);
+        assert_eq!(blueprint::legacy_controller().variables.len(), 7);
         assert_eq!(
             serde_json::to_string(&blueprint::coin()).unwrap(),
             serde_json::to_string(&blueprint::coin()).unwrap()

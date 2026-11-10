@@ -98,6 +98,11 @@ const PSX_CAPABILITIES: &[&str] = &[
     "progress",
     "layout",
     "focus",
+    "gameplay-control",
+    "interaction",
+    "world-gameplay",
+    "text-reveal",
+    "dialogue",
     "timeline",
     "effect",
     "palette",
@@ -223,14 +228,13 @@ impl ClassModel {
     /// Whether `author` may declare a subclass of this class. Mirrors
     /// `script_backend::can_derive` over resolved values.
     pub fn derivable_by(&self, author: &Extension) -> bool {
-        script_backend::capabilities(author)
-            .is_ok_and(|c| c.create && c.derive_backends.contains(&self.backend.id))
-            && (self.provider == schema::native_provider()
-                || (*author == script_backend::blueprint_provider()
-                    && self.provider == script_backend::blueprint_provider()))
-            && self.backend == schema::native_backend()
-            && self.blueprintable
-            && !self.final_class
+        script_backend::derivation_supported(
+            author,
+            &self.provider,
+            &self.backend,
+            self.blueprintable,
+            self.final_class,
+        )
     }
     /// Instantiable classes only; abstract bases exist to be derived from.
     pub fn instantiable(&self) -> bool {
@@ -874,6 +878,7 @@ fn resolve_class(
         placeable: class.placement.placeable || inherited_placement.placeable,
         spawnable: class.placement.spawnable || inherited_placement.spawnable,
         scene_managed: class.placement.scene_managed || inherited_placement.scene_managed,
+        placed_only: class.placement.placed_only || inherited_placement.placed_only,
     };
     // SceneManaged wins: the level loader owns these instances.
     let placement = if placement.scene_managed {
@@ -881,9 +886,13 @@ fn resolve_class(
             placeable: false,
             spawnable: false,
             scene_managed: true,
+            placed_only: false,
         }
     } else {
-        placement
+        Placement {
+            spawnable: placement.spawnable && !placement.placed_only,
+            ..placement
+        }
     };
     if family != ClassFamily::Actor
         && (placement.placeable || placement.spawnable || placement.scene_managed)
@@ -1040,6 +1049,7 @@ mod tests {
                 component: None,
                 default_components: vec![],
                 explicit_abstract: false,
+                default_overrides: Default::default(),
                 properties: vec![],
                 functions: vec![],
                 source: Location {

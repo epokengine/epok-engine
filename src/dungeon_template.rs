@@ -1,8 +1,8 @@
 //! The Dungeon starter: the Third Person character and camera in a generated dungeon.
 //!
 //! The Third Person template provides the character, its controller in the chosen
-//! flavor, the camera and the lighting setup; its arena is replaced by a Dungeon
-//! Generator following the built-in recipe and style, and the key and door are
+//! flavor and camera; a Dungeon Generator supplies the world geometry and light
+//! following the built-in recipe and style. The key and door are
 //! installed in the same flavor as the controller.
 use crate::{
     dungeon::{Generator, Source},
@@ -13,6 +13,9 @@ use std::path::Path;
 
 /// A seed whose built-in recipe gives a varied first dungeon within the budget.
 pub const SEED: u32 = 1207;
+/// The starter has no billboard sprites or sprite VFX. Keep a small editable
+/// reserve instead of paying for 2,048 unused double-buffered GPU triangles.
+pub const SPRITE_TRIANGLE_BUDGET: u16 = 64;
 /// The map the sample handmade room is built in; outside assets/scenes, so it is never
 /// cooked or played.
 pub const WORKBENCH: &str = "assets/Dungeons/Rooms/Workbench.epokmap";
@@ -21,28 +24,11 @@ const REACTOR_ROOM: &str = "assets/Dungeons/Rooms/Reactor.epokasset";
 const RECIPE: &str = "assets/Dungeons/Recipes/Dungeon.epokasset";
 
 pub fn create(root: &Path, flavor: GameplayFlavor) -> Result<Scene, String> {
-    let mut scene = crate::third_person::create(root, flavor)?;
+    let assembly = crate::third_person::create_player_scene(root, flavor)?;
+    let world = Some(assembly.world);
+    let player = assembly.player;
+    let mut scene = assembly.scene;
     scene.sync_actor_components();
-    // The arena, its props and its sun give way to the dungeon, which brings its own
-    // light. Inactive actors would still be cooked, so they are deleted.
-    let environment = scene
-        .actors
-        .iter()
-        .find(|a| a.name == "Environment")
-        .map(|a| a.id)
-        .ok_or("The Third Person scene has no Environment to replace")?;
-    scene.delete_actor_branch(environment);
-    let world = scene
-        .actors
-        .iter()
-        .find(|a| a.name == "World")
-        .map(|a| a.id);
-    let player = scene
-        .actors
-        .iter()
-        .find(|a| a.name == "Player")
-        .map(|a| a.id)
-        .ok_or("The Third Person scene has no Player")?;
 
     let mut root_actor = Actor::cube("Dungeon".into());
     root_actor.kind = "Empty".into();
@@ -71,6 +57,29 @@ pub fn create(root: &Path, flavor: GameplayFlavor) -> Result<Scene, String> {
     scene.refresh_actor_hierarchy();
 
     crate::dungeon_gameplay::install(root, flavor)?;
+    crate::template_install::write(
+        root,
+        crate::workspace::Template::Dungeon,
+        flavor,
+        assembly
+            .roles
+            .iter()
+            .map(|(role, class)| (role.as_str(), class.clone()))
+            .chain({
+                let classes = crate::dungeon_gameplay::classes(flavor);
+                [
+                    (
+                        "key",
+                        crate::actor_document::ClassReference::new(classes.key.0, classes.key.1),
+                    ),
+                    (
+                        "door",
+                        crate::actor_document::ClassReference::new(classes.door.0, classes.door.1),
+                    ),
+                    ("key_state", crate::dungeon_gameplay::default_key_state()),
+                ]
+            }),
+    )?;
     crate::dungeon_bake::generate(root, &mut scene, id, None)?;
     scene.sync_actor_components();
     scene.bake = Some(crate::lighting::bake(&scene)?);
@@ -347,18 +356,19 @@ fn readme(flavor: GameplayFlavor) -> String {
             "The character controller is project-owned C++ in\n",
             "`assets/scripts/ThirdPersonController.hpp` and `.cpp`. The key and the door are\n",
             "`assets/scripts/DungeonKey.hpp` and `assets/scripts/DungeonDoor.hpp`: a key\n",
-            "deactivates when touched, a door when the key it names is gone."
+            "extends the shared pickup and records ownership in a GameplayFlagComponent;\n",
+            "the door extends DoorComponent and opens when that ownership flag is ready."
         ),
         GameplayFlavor::Blueprint => concat!(
             "The character controller, the key and the door are project-owned visual graphs in\n",
-            "`assets/Blueprints/`: `ThirdPersonController`, `DungeonKey` (deactivates when\n",
-            "touched) and `DungeonDoor` (deactivates when the key it names is gone). The build\n",
+            "`assets/Blueprints/`: `ThirdPersonController`, `DungeonKey` (shared pickup with\n",
+            "an explicit ownership flag) and `DungeonDoor` (shared door with an automatic opening rule). The build\n",
             "backend turns the graphs into native console code."
         ),
         GameplayFlavor::Lua => concat!(
             "The character controller, the key and the door are project-owned Lua in\n",
-            "`assets/scripts/`: `ThirdPersonController.lua`, `DungeonKey.lua` (deactivates when\n",
-            "touched) and `DungeonDoor.lua` (deactivates when the key it names is gone). They\n",
+            "`assets/scripts/`: `ThirdPersonController.lua`, `DungeonKey.lua` (shared pickup\n",
+            "with explicit ownership) and `DungeonDoor.lua` (shared door with an automatic opening rule). They\n",
             "are compiled with this project's Lua execution setting."
         ),
     };
@@ -385,7 +395,39 @@ mod tests {
             )
             .unwrap_or_else(|e| panic!("{flavor:?} project creation: {e}"));
             let scene = Scene::load(&crate::workspace::startup_scene(&root).unwrap()).unwrap();
+            assert_eq!(
+                crate::workspace::read_manifest(&root)
+                    .unwrap()
+                    .rendering
+                    .sprite_triangle_budget,
+                SPRITE_TRIANGLE_BUDGET
+            );
+            assert!(
+                scene.actors.iter().all(|actor| actor.sprite.is_none()
+                    && actor.particle_emitter.is_none()
+                    && actor.particle_effect.is_none()),
+                "Update the sprite reserve when adding sprite/VFX content to this template"
+            );
             assert!(!scene.actors.iter().any(|a| a.name == "Environment"));
+            assert!(
+                !root.join("assets/Meshes/Optimized").exists(),
+                "Dungeon must not install unused arena geometry"
+            );
+            let installed = crate::template_install::read(&root).unwrap().unwrap();
+            assert_eq!(installed.template, "dungeon");
+            assert_eq!(installed.gameplay, flavor.key());
+            assert!(
+                scene
+                    .actors
+                    .iter()
+                    .any(|a| a.class == installed.roles["player"])
+            );
+            assert!(
+                scene
+                    .actors
+                    .iter()
+                    .any(|a| a.class == installed.roles["camera"])
+            );
             let g = &scene.dungeons[0];
             assert!(!g.output.is_empty() && !g.stale(), "{flavor:?}");
             // The character stands in the spawn room.
@@ -418,7 +460,7 @@ mod tests {
             let named = keys[0]
                 .components
                 .iter()
-                .find_map(|c| c.properties.get(crate::dungeon_gameplay::PLAYER))
+                .find_map(|c| c.properties.get("accepted_initiator"))
                 .and_then(|v| v.as_str());
             assert_eq!(named, Some(player.id.to_string().as_str()), "{flavor:?}");
             assert!(!doors.is_empty(), "{flavor:?}");
@@ -426,9 +468,16 @@ mod tests {
                 let named = door
                     .components
                     .iter()
-                    .find_map(|c| c.properties.get(crate::dungeon_gameplay::KEY_REFERENCE))
+                    .find_map(|c| c.properties.get("requirement_flag"))
                     .and_then(|v| v.as_str());
-                assert_eq!(named, Some(keys[0].id.to_string().as_str()));
+                assert_eq!(
+                    named,
+                    Some(
+                        crate::dungeon_gameplay::key_state_id(keys[0].id)
+                            .to_string()
+                            .as_str()
+                    )
+                );
             }
             // Within the console budget, lit and ready.
             assert!(

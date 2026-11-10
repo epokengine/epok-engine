@@ -16,6 +16,8 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <type_traits>
+#include <initializer_list>
+#include "object_storage.hpp"
 
 #if defined(__clang__) && defined(EPOK_REFLECTION)
 // Declarative default component on an actor field: EPOK_COMPONENT(Root, Name="Body").
@@ -25,10 +27,30 @@
 #endif
 
 namespace epok {
+#ifdef EPOK_DIALOGUE
+namespace dialogue {inline void activation_changed();}
+#endif
+#ifdef EPOK_INTERACTION
+namespace interaction {inline void activation_changed();}
+#endif
+#ifdef EPOK_GAMEPLAY_CONTROL
+inline void gameplay_controls_activation_changed();
+#endif
 // Actor activation is private state, changed only through Level. Spatial and
 // render services can memoize inherited activation until one of these edits.
 inline uint32_t actor_activation_revision=1;
-inline void invalidate_actor_activation(){if(!++actor_activation_revision)++actor_activation_revision;}
+inline void invalidate_actor_activation(){
+    if(!++actor_activation_revision)++actor_activation_revision;
+#ifdef EPOK_GAMEPLAY_CONTROL
+    gameplay_controls_activation_changed();
+#endif
+#ifdef EPOK_INTERACTION
+    interaction::activation_changed();
+#endif
+#ifdef EPOK_DIALOGUE
+    dialogue::activation_changed();
+#endif
+}
 class Object;
 class Actor;
 class ActorComponent;
@@ -60,6 +82,14 @@ enum class ObjectState : uint8_t { Unused, Reserved, Initialized, Playing, Endin
 enum class EndPlayReason : uint8_t { Destroyed, LevelUnloaded, Quit };
 enum class ObjectDomain : uint8_t { None, World3D, World2D, UI };
 enum class ObjectFamily : uint8_t { Object, Actor, Component, World, Level };
+// Simulation stages are independent of actor placement and component order.
+enum class TickGroup : uint8_t { Gameplay, Physics, PostPhysics, Input };
+constexpr uint8_t tick_group_callback(TickGroup group){return group==TickGroup::Input?16:group==TickGroup::Gameplay?1:group==TickGroup::Physics?4:8;}
+template<class T,class=void> struct TickGroupOf {static constexpr TickGroup value=TickGroup::Gameplay;};
+template<class T> struct TickGroupOf<T,std::enable_if_t<std::is_same_v<decltype(T::tick_group),const TickGroup>&&!std::is_member_object_pointer_v<decltype(&T::tick_group)>>> {
+    static constexpr TickGroup value=T::tick_group;
+    static_assert(value>=TickGroup::Gameplay&&value<=TickGroup::Input,"Invalid native tick_group");
+};
 // 2D world transform: XY position in Q12 pixels (Y points down, as on screen),
 // rotation in degrees about the view axis, per-axis scale and a z-index draw order.
 // Screen conversion belongs to Camera2D; see world2d.hpp for the full contract.
@@ -165,13 +195,27 @@ struct ClassDescriptor {
     // Legacy hand-written tables remain conservative. Cooked tables detect
     // inherited no-op callbacks at compile time, including inherited overrides.
     bool component_tick=true,component_frame=true,component_activation=true;
+    TickGroup tick_group=TickGroup::Gameplay;
 };
 // Emitted by the Rust cook next to the scene banks. Host tests provide their own table.
 extern const ClassDescriptor object_classes[];
 extern const size_t object_class_count;
 inline const ClassDescriptor* find_object_class(uint64_t id) {
-    if (id) for (size_t i = 0; i < object_class_count; ++i)
+    if (!id) return nullptr;
+#ifdef EPOK_SORTED_CLASS_TABLE
+    // The cooker sorts this table by id. Ancestry walks run from ticking and
+    // typed resolves, so a lookup must not visit every class.
+    for (size_t low = 0, high = object_class_count; low < high;) {
+        const size_t middle = (low + high) / 2;
+        const uint64_t candidate = object_classes[middle].id;
+        if (candidate == id) return &object_classes[middle];
+        if (candidate < id) low = middle + 1;
+        else high = middle;
+    }
+#else
+    for (size_t i = 0; i < object_class_count; ++i)
         if (object_classes[i].id == id) return &object_classes[i];
+#endif
     return nullptr;
 }
 // Ancestry walk bounded by the table size; the cook rejects cycles before emitting.
@@ -239,6 +283,38 @@ template<class T, size_t N> struct ObjectPool {
         for (size_t i = 0; i < N; ++i) if (used[i]) ++count;
         return count;
     }
+};
+
+// Cooked class factories share payload storage while retaining their individual
+// admission bounds. Empty reserve slots do not reserve a second copy of T.
+template<class T,size_t N> struct SharedObjectPool {
+    static_assert(N>0&&N<=256,"Object pool capacity must stay bounded");
+    static_assert(sizeof(T)<=65536,"A runtime object exceeds the 64 KiB storage budget");
+    inline static Object* handles[N]={};
+    inline static void* storage[N]={};
+    inline static bool used[N]={};
+    static constexpr size_t capacity=N;
+    static constexpr size_t storage_bytes=object_storage::rounded(sizeof(handles)+sizeof(storage)+sizeof(used));
+    static constexpr size_t value_bytes=(object_storage::rounded(sizeof(T))+(alignof(T)>object_storage::unit_bytes?alignof(T)-object_storage::unit_bytes:0))*N;
+    static Object* acquire(){
+        auto& hooks=object_storage::hooks;
+        if(!hooks.context||!hooks.acquire)return nullptr;
+        for(size_t i=0;i<N;++i)if(!used[i]){
+            void* block=hooks.acquire(hooks.context,sizeof(T),alignof(T));
+            if(!block)return nullptr;
+            used[i]=true;storage[i]=block;handles[i]=object_construct<T>(block);return handles[i];
+        }
+        return nullptr;
+    }
+    static void release(Object* instance){
+        for(size_t i=0;i<N;++i)if(used[i]&&handles[i]==instance){
+            object_destruct(instance);
+            auto& hooks=object_storage::hooks;
+            hooks.release(hooks.context,storage[i],sizeof(T));
+            handles[i]=nullptr;storage[i]=nullptr;used[i]=false;return;
+        }
+    }
+    static size_t live(){size_t count=0;for(size_t i=0;i<N;++i)if(used[i])++count;return count;}
 };
 
 struct ObjectSlot {
@@ -361,9 +437,11 @@ struct ObjectRegistry {
     void finish_release() {
         if (dispatch || !pending_releases) return;
         stats.quarantined = 0;  // gauge, not a counter: slots still held by a service.
-        for (uint16_t i = 0; i < capacity; ++i) {
+        uint16_t remaining = pending_releases;
+        for (uint16_t i = 0; i < capacity && remaining; ++i) {
             auto& record = slots[i];
             if (!record.used || !record.releasing) continue;
+            --remaining;
             if (object_storage_quarantined(record.instance)) { ++stats.quarantined; continue; }
             if (record.owns_storage && record.type && record.type->release) record.type->release(record.instance);
             record.instance = nullptr;
@@ -392,7 +470,7 @@ private:
         record.used = true;
         record.releasing = false;
         record.owns_storage = owned;
-        record.callbacks=uint8_t(type.component_tick?1:0)|uint8_t(type.component_frame?2:0);
+        record.callbacks=uint8_t(type.component_tick?tick_group_callback(type.tick_group):0)|uint8_t(type.component_frame?2:0);
         instance->m_id = ObjectId{index, record.generation};
         instance->m_state = ObjectState::Reserved;
         instance->m_runtime_class_id = type.id;
@@ -455,6 +533,7 @@ public:
     // Reflected identity/hierarchy readers. Every authoring provider (C++, Blueprint,
     // Lua) inherits them from this base instead of bridging a private builtin.
     EPOK_FUNCTION(BlueprintPure, Id="8e2697a0-4267-4923-808b-62acb68d5f3e") ObjectId level_id() const { return m_level; }
+    bool pending_destruction() const { return m_doomed; }
     EPOK_FUNCTION(BlueprintPure, Id="d8217460-caff-411c-b7bc-f0ebb34b1c83") ObjectId root_id() const { return m_root; }
     EPOK_FUNCTION(BlueprintPure, Id="146a6de0-328f-4273-bc7e-ba379ff26ad7") ObjectId logical_parent() const { return m_logical_parent; }
     EPOK_FUNCTION(BlueprintPure, Id="3538d7f8-8886-4437-a7ab-41afa18aad93") ObjectId component_id(size_t index) const { return index < actor_component_capacity ? m_components[index] : ObjectId{}; }
@@ -472,16 +551,19 @@ protected:
     char m_name[33] = {};
     ActorData* m_data=nullptr;
     ObjectId m_level, m_root, m_logical_parent;
+    bool m_has_children=false;
     ObjectId m_components[actor_component_capacity] = {};
     uint8_t m_component_count = 0;
     // Immutable callback capabilities, refreshed only when component order or
     // ownership changes. Avoid resolving every inert render/collider component
     // just to rediscover that it has no tick or frame callback.
     uint8_t m_tick_components = 0, m_frame_components = 0, m_activation_components=0;
-    bool m_actor_tick = true, m_actor_frame = true, m_actor_activation=true;
-    bool m_active = true;
-    bool m_wants_tick = true;
-    bool m_begun = false, m_ended = false, m_doomed = false;
+    uint8_t m_physics_components=0,m_postphysics_components=0,m_input_components=0;
+    TickGroup m_tick_group=TickGroup::Gameplay;
+    bool m_actor_tick:1=true, m_actor_frame:1=true, m_actor_activation:1=true;
+    bool m_active:1=true;
+    bool m_wants_tick:1=true;
+    bool m_begun:1=false, m_ended:1=false, m_doomed:1=false;
 };
 
 class EPOK_CLASS(Abstract, Blueprintable, Family=Component, Domain=None, Owners=World3D|World2D|UI, Id="2e5021ee-d14d-4d77-9112-455f29d639d2") ActorComponent : public Object {
@@ -809,6 +891,8 @@ public:
     ActorData* entity_slot() const {auto* owner=const_cast<CanvasComponent*>(this)->get_owner();return owner?owner->data():nullptr;}
     EPOK_FUNCTION(BlueprintPure, Id="00aeb910-bc8e-41cd-9a73-0fe2eef92a29") bool enabled() const {const auto* data=entity_slot();return data&&data->canvas.enabled;}
     EPOK_FUNCTION(BlueprintCallable, Id="45fd9028-92b6-463b-bd03-f34787624b73") void set_enabled(bool value) {auto* data=entity_slot();if(data)data->canvas.enabled=value;}
+    EPOK_FUNCTION(BlueprintPure, Id="fdb7cbda-6308-56fd-9b60-6e4d8b930e4c") bool screen_overlay() const {const auto* data=entity_slot();return data&&data->canvas.screen_overlay;}
+    EPOK_FUNCTION(BlueprintCallable, Id="9535a8e8-7d45-5c89-8b2d-f7c340b4411f") void set_screen_overlay(bool value) {auto* data=entity_slot();if(data)data->canvas.screen_overlay=value;}
     // The focused element, as an actor index into the scene's objects array, or
     // -1. Authored initial focus and runtime focus are this one field.
     EPOK_FUNCTION(BlueprintPure, Id="6c7c7c84-562b-438c-a4a0-ea89dbd7e8aa") int32_t focused() const {const auto* data=entity_slot();return data?int32_t(data->canvas.focused):-1;}
@@ -844,6 +928,11 @@ public:
     // current language, and keeps following it when the language changes.
     EPOK_FUNCTION(BlueprintCallable, Id="79d0e4ff-e2c7-46f6-81b5-36bf933179fd") void set_text_key(int32_t key) {auto* data=entity_slot();if(!data)return;data->text.key=int16_t(key<-1?-1:key>32767?32767:key);data->text.set_text(localization.get(key));}
     EPOK_FUNCTION(BlueprintPure, Id="14d80281-8009-4593-83af-3e8c467f369e") int32_t text_key() const {const auto* data=entity_slot();return data?int32_t(data->text.key):-1;}
+#if defined(EPOK_TEXT_REVEAL) || defined(EPOK_REFLECTION)
+    EPOK_FUNCTION(BlueprintCallable, Capability="text-reveal", Id="b576a265-010c-55c3-a6eb-12b41673609e") void set_visible_glyphs(uint32_t count){auto* data=entity_slot();if(data)data->text.visible_glyphs=uint16_t(count>0xffffu?0xffffu:count);}
+    EPOK_FUNCTION(BlueprintPure, Capability="text-reveal", Id="78f28b3c-2529-5367-a504-502c259d68c6") uint32_t visible_glyphs() const{const auto* data=entity_slot();return data?data->text.visible_glyphs:0;}
+    EPOK_FUNCTION(BlueprintCallable, Capability="text-reveal", Id="1b100c44-f6cc-5b8a-bcd0-83ba859c78f4") void show_all_text(){set_visible_glyphs(0xffffu);}
+#endif
     EPOK_FUNCTION(BlueprintCallable, Id="cbcc41a3-936a-49c0-b55e-12dbbe869c7e") bool set_text_word(uint32_t index,uint32_t packed) {auto* data=entity_slot();if(!data||index>=128)return false;char* output=data->text.value+index*4;for(uint32_t i=0;i<4;++i){const uint8_t value=uint8_t(packed>>(i*8));output[i]=value&&value<128?char(value):value?'?':0;}data->text.value[511]=0;return true;}
     EPOK_FUNCTION(BlueprintPure, Id="694cc674-49fb-4c9f-8851-b655b1b8fd45") uint32_t text_word(uint32_t index) const {const auto* data=entity_slot();if(!data||index>=128)return 0;uint32_t result=0;for(uint32_t i=0;i<4;++i)result|=uint32_t(uint8_t(data->text.value[index*4+i]))<<(i*8);return result;}
     EPOK_FUNCTION(BlueprintCallable, Id="0e61f050-7634-473f-a3bf-85d4067af329") void set_color(uint32_t red,uint32_t green,uint32_t blue) {auto* data=entity_slot();if(data){data->text.color[0]=uint8_t(red>255?255:red);data->text.color[1]=uint8_t(green>255?255:green);data->text.color[2]=uint8_t(blue>255?255:blue);}}
@@ -921,6 +1010,8 @@ public:
     EPOK_FUNCTION(BlueprintPure, Id="3cab80d1-3b2b-4007-a1b4-ce73582dfd00") int32_t order() const {const auto* data=entity_slot();return data?int32_t(data->focusable.order):0;}
     EPOK_FUNCTION(BlueprintCallable, Id="e487a3bb-b41f-4f3e-9654-fd8690b91000") void set_order(int value) {auto* data=entity_slot();if(data)data->focusable.order=uint8_t(value<0?0:value>255?255:value);}
     EPOK_FUNCTION(BlueprintCallable, Id="b1a87ee4-d338-4d13-b97b-5912a5c8d526") void set_highlight(int red,int green,int blue) {auto* data=entity_slot();if(!data)return;const int values[3]={red,green,blue};for(int i=0;i<3;++i)data->focusable.highlight[i]=uint8_t(values[i]<0?0:values[i]>255?255:values[i]);}
+    EPOK_FUNCTION(BlueprintPure, Id="8e4811f1-4cc2-4ee2-bc49-2cc3fd0797af") bool outline_enabled() const {const auto* data=entity_slot();return data&&data->focusable.outline;}
+    EPOK_FUNCTION(BlueprintCallable, Id="47dc6b7d-5eb1-4247-9000-4f363f4776dc") void set_outline(bool value) {auto* data=entity_slot();if(data)data->focusable.outline=value;}
     // True once after Cross was pressed while this element had the focus: a button.
     EPOK_FUNCTION(BlueprintCallable, Id="fc4e655b-c717-444f-992f-00d833480add") bool take_pressed() {return take(focus_pressed);}
     // True once after a Toggle flipped or a slider moved through the D-pad.
@@ -1065,7 +1156,7 @@ public:
             if(!ancestor || ancestor->level_id()!=actor->level_id())return false;
             current=ancestor->logical_parent();
         }
-        actor->m_logical_parent=parent;invalidate_actor_activation();return true;
+        actor->m_logical_parent=parent;if(auto* owner=m_registry->resolve<Actor>(parent))owner->m_has_children=true;invalidate_actor_activation();return true;
     }
 
     // ---- spawning ------------------------------------------------------------------
@@ -1105,6 +1196,7 @@ public:
             actor->m_level = id();
             actor->m_active = requests[i].active;
             actor->m_logical_parent = requests[i].logical_parent;
+            if(auto* owner=m_registry->resolve<Actor>(requests[i].logical_parent))owner->m_has_children=true;
             invalidate_actor_activation();
             actor->set_name(requests[i].name);
             if (!install_default_root(*actor)) { ok = false; break; }
@@ -1202,11 +1294,22 @@ public:
     // ---- ticking -------------------------------------------------------------------
     void tick(Fixed delta) {
         if (!m_registry) return;
+        // Few actors tick, so scan them once rather than once per group. The set
+        // is fixed here, as it is for spawned actors: a late attach starts next tick.
         ObjectId snapshot[level_actor_capacity] = {};
-        const size_t count = m_actor_count;
-        for (size_t i = 0; i < count; ++i) snapshot[i] = m_actors[i];
-        for (size_t i = 0; i < count; ++i) {const auto* record=m_registry->slot(snapshot[i]);if(record&&(record->callbacks&1))tick_actor(snapshot[i], delta);}
-        tick_actor(m_scene_script, delta);
+        size_t count = 0;
+        for (size_t i = 0; i < m_actor_count; ++i) {
+            const auto id=m_actors[i];
+            if(id.index<m_registry->capacity&&(m_registry->slots[id.index].callbacks&m_tick_groups))snapshot[count++]=id;
+        }
+        for(auto group:{TickGroup::Input,TickGroup::Gameplay,TickGroup::Physics,TickGroup::PostPhysics}) {
+            const auto bit=tick_group_callback(group);if(!(m_tick_groups&bit))continue;
+            // This is only a broad callback filter. The dispatcher below still
+            // validates generation, family, lifetime and activation. A stale
+            // slot may admit extra work here, but cannot authorize a callback.
+            for (size_t i = 0; i < count; ++i) {const auto id=snapshot[i];if(id.index<m_registry->capacity&&(m_registry->slots[id.index].callbacks&bit))tick_actor(id, delta,group);}
+            tick_actor(m_scene_script, delta,group);
+        }
         flush_pending();
     }
     // Once per rendered frame, even while paused (legacy Behaviour parity).
@@ -1215,7 +1318,7 @@ public:
         ObjectId snapshot[level_actor_capacity] = {};
         const size_t count = m_actor_count;
         for (size_t i = 0; i < count; ++i) snapshot[i] = m_actors[i];
-        for (size_t i = 0; i < count; ++i) {const auto* record=m_registry->slot(snapshot[i]);if(record&&(record->callbacks&2))frame_update_actor(snapshot[i], elapsed);}
+        for (size_t i = 0; i < count; ++i) {const auto id=snapshot[i];if(id.index<m_registry->capacity&&(m_registry->slots[id.index].callbacks&2))frame_update_actor(id, elapsed);}
         frame_update_actor(m_scene_script, elapsed);
         flush_pending();
     }
@@ -1245,6 +1348,15 @@ public:
                 // or run a callback that mutates the hierarchy. Slot activation
                 // memos observe its own active flag directly; no global expiry.
                 instance->m_active=active;if(instance->m_data)instance->m_data->active=active;
+#ifdef EPOK_INTERACTION
+                if(!active)interaction::activation_changed();
+#endif
+#ifdef EPOK_GAMEPLAY_CONTROL
+                if(!active)gameplay_controls_activation_changed();
+#endif
+#ifdef EPOK_DIALOGUE
+                if(!active)dialogue::activation_changed();
+#endif
                 flush_pending();return true;
             }
         }
@@ -1344,6 +1456,9 @@ protected:
     ObjectId m_actors[level_actor_capacity] = {};
     ObjectId m_scene_script;
     size_t m_actor_count = 0;
+    // Conservative stage presence. Removal may leave an empty later pass;
+    // attachment during Gameplay must be visible in the same simulation step.
+    uint8_t m_tick_groups=1;
     LevelPendingOp m_pending[level_pending_capacity] = {};
     size_t m_pending_count = 0;
     bool m_flushing = false;
@@ -1356,7 +1471,7 @@ protected:
     }
     bool install_default_root(Actor& actor) {
         const auto* actor_type=find_object_class(actor.class_id());
-        if(actor_type){actor.m_actor_tick=actor_type->component_tick;actor.m_actor_frame=actor_type->component_frame;actor.m_actor_activation=actor_type->component_activation;}
+        if(actor_type){actor.m_actor_tick=actor_type->component_tick;actor.m_actor_frame=actor_type->component_frame;actor.m_actor_activation=actor_type->component_activation;actor.m_tick_group=actor_type->tick_group;if(actor.m_actor_tick)m_tick_groups|=tick_group_callback(actor.m_tick_group);}
         if(actor_type && actor_type->default_component && actor_type->default_component_count) {
             if(actor_type->default_component_count>actor_component_capacity)return false;
             for(size_t c=0;c<actor_type->default_component_count;++c) {
@@ -1423,15 +1538,25 @@ protected:
     }
     void refresh_component_callbacks(Actor& owner) {
         static_assert(actor_component_capacity<=8,"Widen the callback masks with the component capacity");
-        owner.m_tick_components=owner.m_frame_components=owner.m_activation_components=0;
+        owner.m_tick_components=owner.m_frame_components=owner.m_activation_components=owner.m_physics_components=owner.m_postphysics_components=owner.m_input_components=0;
         for(size_t c=0;c<owner.m_component_count;++c){
             const auto* type=m_registry->class_of(owner.m_components[c]);
             if(!type)continue;
-            if(type->component_tick)owner.m_tick_components|=uint8_t(1u<<c);
+            if(type->component_tick){
+                auto& mask=type->tick_group==TickGroup::Input?owner.m_input_components:type->tick_group==TickGroup::Physics?owner.m_physics_components:type->tick_group==TickGroup::PostPhysics?owner.m_postphysics_components:owner.m_tick_components;
+                mask|=uint8_t(1u<<c);
+            }
             if(type->component_frame)owner.m_frame_components|=uint8_t(1u<<c);
             if(type->component_activation)owner.m_activation_components|=uint8_t(1u<<c);
         }
-        if(auto* record=m_registry->slot(owner.id()))record->callbacks=uint8_t((owner.m_tick_components||owner.m_actor_tick)?1:0)|uint8_t((owner.m_frame_components||owner.m_actor_frame)?2:0);
+        uint8_t callbacks=uint8_t((owner.m_frame_components||owner.m_actor_frame)?2:0);
+        if(owner.m_tick_components)callbacks|=1;
+        if(owner.m_physics_components)callbacks|=4;
+        if(owner.m_postphysics_components)callbacks|=8;
+        if(owner.m_input_components)callbacks|=16;
+        if(owner.m_actor_tick)callbacks|=tick_group_callback(owner.m_tick_group);
+        m_tick_groups|=callbacks&29;
+        if(auto* record=m_registry->slot(owner.id()))record->callbacks=callbacks;
     }
     bool order_components(Actor& actor,const ObjectId* ids,size_t count) {
         if(count!=actor.m_component_count)return false;
@@ -1476,18 +1601,20 @@ protected:
         if (!m_scene_script.valid()) return;
         begin_play_actor(m_scene_script);
     }
-    void tick_actor(ObjectId id, Fixed delta) {
+    void tick_actor(ObjectId id, Fixed delta,TickGroup group) {
         auto* actor = m_registry->resolve<Actor>(id);
         if (!actor || actor->m_doomed || !actor->m_begun) return;
-        if(!actor->m_tick_components&&(!actor->m_wants_tick||!actor->m_actor_tick))return;
+        const uint8_t components=group==TickGroup::Input?actor->m_input_components:group==TickGroup::Physics?actor->m_physics_components:group==TickGroup::PostPhysics?actor->m_postphysics_components:actor->m_tick_components;
+        const bool actor_tick=actor->m_tick_group==group&&actor->m_wants_tick&&actor->m_actor_tick;
+        if(!components&&!actor_tick)return;
         if (!actor_active(*actor)) return;
         ObjectDispatchScope scope(*m_registry);
         for (size_t c = 0; c < actor->m_component_count; ++c) {
             if (actor->m_doomed) return;
-            if (actor->m_tick_components & (1u<<c))
+            if (components & (1u<<c))
                 if (auto* component = m_registry->resolve<ActorComponent>(actor->m_components[c])) component->tick(delta);
         }
-        if (!actor->m_doomed && actor->m_wants_tick && actor->m_actor_tick) actor->tick(delta);
+        if (!actor->m_doomed && actor_tick) actor->tick(delta);
     }
     void frame_update_actor(ObjectId id, uint32_t elapsed) {
         auto* actor = m_registry->resolve<Actor>(id);
@@ -1502,12 +1629,29 @@ protected:
         }
         if(!actor->m_doomed&&actor->m_actor_frame)actor->frame_update(elapsed);
     }
+    // Cooked HUD links use compact data indices. Clear incoming links before
+    // storage reuse so they cannot refer to a different actor in the same slot.
+    void clear_focus_to(ActorData* target) {
+        const int index=entity_index(target);
+        if(index<0)return;
+        // Focus links only name focusable nodes, which this skips for most of a tree.
+        const auto& focus=target->focusable;
+        if(!focus.enabled&&focus.neighbors[0]<0&&focus.neighbors[1]<0&&focus.neighbors[2]<0&&focus.neighbors[3]<0)return;
+        for(size_t i=0;i<m_actor_count;++i) {
+            auto* actor=m_registry->resolve<Actor>(m_actors[i]);
+            auto* data=actor?actor->data():nullptr;
+            if(!data)continue;
+            if(data->canvas.focused==index)data->canvas.focused=-1;
+            for(auto& neighbor:data->focusable.neighbors)if(neighbor==index)neighbor=-1;
+        }
+    }
     // Releases an unstarted reservation: no gameplay event ever ran on it.
     void release_actor_storage(ObjectId id) {
         auto* actor = m_registry->resolve<Actor>(id);
         if (actor) for (size_t c = 0; c < actor->m_component_count; ++c) m_registry->release(actor->m_components[c]);
         if(actor && actor->data()) {
             auto* data=actor->data();
+            clear_focus_to(data);
             data->alive=false;data->active=false;data->owner=nullptr;
             ++data->generation;if(!data->generation)data->generation=1;
         }
@@ -1521,8 +1665,9 @@ protected:
         invalidate_actor_activation();
         // Logical children belong to the placement; remove them before releasing
         // their parent so no child retains a dead parent or spatial root.
+        // Most actors in a subtree are leaves; only a parent needs the level scan.
         ObjectId children[level_actor_capacity]={};size_t child_count=0;
-        for(size_t i=0;i<m_actor_count;++i) {
+        if(actor->m_has_children)for(size_t i=0;i<m_actor_count;++i) {
             auto* child=m_registry->resolve<Actor>(m_actors[i]);
             if(child&&child->logical_parent()==id)children[child_count++]=child->id();
         }
@@ -1543,6 +1688,7 @@ protected:
         for (size_t c = 0; c < actor->m_component_count; ++c) m_registry->release(actor->m_components[c]);
         actor->m_component_count = 0;
         if (auto* data=actor->data()) {
+            clear_focus_to(data);
             data->audio.stop(); data->alive=false; data->active=false; data->owner=nullptr;
             ++data->generation; if (!data->generation) data->generation=1;
         }
@@ -1685,3 +1831,13 @@ inline bool attach_component(ObjectId child, ObjectId parent) {
     return true;
 }
 }
+#ifdef EPOK_GAMEPLAY_CONTROL
+// Direct includes also need the selected lifecycle hook after Actor/Level exist.
+#include "gameplay_control.hpp"
+#endif
+#ifdef EPOK_INTERACTION
+#include "interaction.hpp"
+#endif
+#if defined(EPOK_DIALOGUE) && !defined(EPOK_INCLUDE_FROM_INTERACTION)
+#include "dialogue.hpp"
+#endif

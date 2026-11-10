@@ -1,0 +1,14 @@
+{
+  "passed": true,
+  "tests_run": 14,
+  "failures": 0,
+  "errors": 0,
+  "scope": "Host models + actual composed Lua with PCSX mocks; no editor/MIPS/emulator acceptance",
+  "sources": {
+    "player_routes.py": "6e40fc205e6692626eacf288d571dbb3d93322f5a38715b9f6777b3666c1b2fc",
+    "physical_routes.lua": "cc09ab1802c37e418c0231cbdcb5921065e9aae131152f946cd564fcbb2b589e",
+    "physical_support.py": "14483df2f60f3afcb14700c9f0f06ea163a723e63072fae2443cdb2073e99dd9",
+    "capture_reuse.py": "a30dd4a6f5b110729b688818fb60b90c4386eb3dc096357aab6907d372f5d4c4",
+    "test_physical_routes.py": "bff9d49d7a11d7805cc312a809780de0a80a77ade63682497e086a9b39b559b7"
+  }
+}

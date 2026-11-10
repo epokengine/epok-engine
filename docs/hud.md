@@ -30,17 +30,33 @@ A container measures and places exactly the children it draws. Clearing an eleme
 
 Layout runs in the same fixed-point pass the console uses, so the editor viewport, the native preview and the PSX build agree on every rectangle. Each laid-out rect still costs one entry of the scene's `hud_budget.layouts`.
 
+A spawnable widget has no budget of its own. The build reserves the busiest scene plus the largest prefab, measured from their authored text, images and rects, and a higher authored budget is kept. A script that writes longer strings than its class authors needs a scene budget that covers them; anything past the budget is dropped and counted in `hud_stats.dropped`.
+
 ## Panel styling
 
 Image's **Nine-slice borders** hold back the left, top, right and bottom strips of the source region so a frame keeps its corners at any size; all four at zero stretches the whole region as before. **Tiling** decides how the remaining area is filled: **Tile** repeats the region at its own texel size starting from the rect's bottom-left and clips the last column and row, and **Tile Fit** rounds the count on each axis to the nearest whole number, at least one, and scales the tiles so they fill exactly. With borders set, only the centre piece tiles. Every tile is one more textured quad and counts against `hud_budget.rectangles`, so a large panel over a small source is expensive; the editor refuses a scene whose tiles overrun that budget.
 
 ## Focus and D-pad navigation
 
-**Button** is a recipe — a rect with an Image, an unwrapped Text and a **Focusable** — not a new component type. Focusable names the element reached by each D-pad direction, a tab **Order**, and a **Highlight** colour. Focus itself is one index on the Canvas, its **Initial focus**, which the runtime then moves: on a direction's press edge it follows that link if the target is alive, active and focusable, and otherwise stays put. Nothing searches, so a menu of any size costs the same. While an element holds focus its Image and Progress Bar colours are multiplied by its Highlight, which lights a button up without emitting a single extra primitive. Neighbours are stored as actor indices, so reordering actors means revisiting the links; the inspector picks them by name, and the viewport draws each one as a line from the selected element to its target.
+**Button** combines a RectTransform, Image, Text and **Focusable**. Focusable selects the control reached by each D-pad direction, a tab **Order** and a **Highlight** colour. Canvas selects its **Initial focus**. These authored bindings store persistent actor UUIDs and offer focusable UI controls within the same Canvas. Reordering, renaming, class placement, duplication and refresh retain the targets; **None** explicitly clears a binding. The cooker resolves identities into the existing runtime index table. On a direction's press edge, the runtime follows the link when its target is alive, active and focusable. While focused, Image and Progress Bar colours are multiplied by Highlight without adding a primitive. The viewport draws navigation links from the selected element to its targets.
 
 ### Pressing, check boxes and sliders
 
+Destroying a target clears incoming Canvas focus and navigation links before its
+runtime slot can be reused. This also covers disabled controls, failed spawn
+preparation and level unload. A replacement actor starts with its own defaults;
+select a surviving control explicitly when the UI needs a new focus target.
+
 **Cross** presses the focused element and **Circle** cancels on it. Neither moves the focus; each leaves an event on the element that gameplay collects once, through `FocusableComponent::take_pressed()`, `take_changed()` and `take_cancelled()` (Blueprint and Lua get the same calls). An event nobody reads is simply overwritten by the next one, so a menu that only cares about Cross ignores the rest at no cost.
+
+**Focus outline** adds a one-pixel frame in the Highlight colour while the control
+holds focus. It works with text-only controls and leaves their text and markup
+colours unchanged. A frame uses up to four rectangles, or four rotated primitives
+when the control is rotated. A hidden text/image/progress control draws no frame;
+a Toggle can draw its own frame without another visual. Each Canvas reserves its
+largest outline cost for navigation. Gameplay can use `outline_enabled()` and
+`set_outline(bool)` in C++, Blueprint or Lua. The option defaults to off for
+existing controls.
 
 A **Check Box** is the same Focusable with **Kind** set to **Toggle**: Cross flips its **Checked** state and raises a changed event, and the box itself is drawn at the right edge of the rect, three fills — frame, well and, when checked, a mark — beside the element's own Text. `is_checked()` and `set_checked()` read and set it from gameplay.
 
@@ -88,6 +104,98 @@ sound end up being the same kind of thing. See
 
 Canvas entities and UI actors coexist in one map. Nothing about the entities above
 changes, and the HUD budget covers both.
+
+### Reusable widget classes
+
+A widget is a normal class derived from `epok::UIActor`. Create its C++, Blueprint
+or Lua class through **Project > Create > Blueprints & Scripts**, selecting a UI
+parent. Choose **Edit UI Class** from the source's context menu or a placed actor's
+Inspector to open the common class designer. The hierarchy, canvas and component
+properties edit that class's composition. Use **Add** to create child actors and
+attach UI controls, then edit their RectTransforms and component properties.
+
+**Behavior** opens the same class's source or Blueprint graph. The designer's
+Save, Revert, Undo and Redo operate on the composition. Child classes inherit
+controls and may override their properties. Placed instances retain their own
+overrides when the class is refreshed. The preview renders authored values through
+the HUD compiler; it does not execute project behavior to discover a layout.
+
+Class and scene control inspectors use the project's typed asset selectors:
+choose an Image texture, Text font or playable audio by source path. Missing or
+incompatible references remain visible for repair, and conflicting asset UUIDs
+are excluded from choices. A Text can select a key from the project's HUD string
+table; **Strings...** opens the normal string editor. The widget preview uses
+the project's current preview language, including imported font metrics. Changing
+language refreshes the rendered preview without changing the authored text.
+
+Blueprint stores its composition in `.epokbp`. A C++ or Lua class stores it in an
+`.epokclass` companion with the source class's UUID. The companion adds no second
+runtime class. Save protects against conflicting external edits, and ordinary
+placement and spawning use the same composition.
+
+[Dialogue widgets](dialogue-widgets.md) use this class model: a native dialogue
+base supplies presentation events and typed control bindings, while an ordinary
+editable project class owns its visuals and behavior. Reusable widget classes
+support inheritance and child instances through **Add > Reusable class** in the
+shared hierarchy. Select the intended parent before inserting a class. Its
+controls and behavior remain owned by that class; local property overrides survive
+refresh. Generated descendants can be overridden, while editing their declaring
+class updates every instance. **Remove class instance** removes a local branch
+after bindings from other controls have been cleared.
+Their child actors count toward the map's normal actor and HUD budgets.
+
+A nested Canvas uses its RectTransform within the parent. Enable **Screen
+overlay** on Canvas to use the full viewport independently of ancestor layout and
+rotation. Overlay canvases do not reserve a parent layout cell. Speech Bubble
+enables this setting for world tracking, so it can also live inside another
+widget's logical hierarchy. Top-level canvases always use the viewport.
+
+Compositions expand to the existing Actor hierarchy with deterministic local
+identities; no additional widget runtime is required. Cycles and expansions over
+32 actors are rejected. The level's 64-actor and eight-components-per-actor limits
+still apply. Blueprint format 8 and `.epokclass` format 4 store class instances,
+literal **None** overrides and persistent focus bindings.
+Compatible Blueprint 5/6/7 and companion 1/2/3 compositions load in memory without
+changing the source file; an explicit save writes the current version.
+
+Select a component in the class hierarchy to edit its reflected properties and
+typed control references. Common UI components show their own fields: selecting
+Text shows text/font/localization controls; RectTransform, Canvas, Image,
+Focusable and the layout components have separate inspectors. Audio shows its
+own clip and playback settings. **Add Component** uses the same owner, dependency and
+eight-component limit as the scene Inspector. Local additions can be removed;
+class-defined components remain inherited. A removal that leaves a binding
+dangling is rejected. **Reset to inherited** restores the parent value or binding,
+including future parent changes. The component's normal behavior button opens
+its C++, Blueprint or Lua class. Screenshot automation can select the component
+with `--open-ui-class WidgetClass --ui-component UUID-or-unique-name`.
+
+Placed classes use the same property contract in the scene Inspector. Selecting
+**None** keeps an explicit empty reference; **Reset to inherited** removes the
+placement edit and immediately resolves the class value. Inherited class fields
+are not labelled as placement overrides. Scene format 8 stores literal None
+placement edits and persistent focus bindings. Actor-format scenes 6/7 upgrade in
+memory without rewriting their files; Save publishes version 8. Legacy focus
+indices are materialized while the original actor ordering is known. Old null
+deletion edits retain their meaning. Spawned widget prototypes remap their local
+focus indices to the allocated runtime slots before BeginPlay.
+
+### Follow a world actor
+
+Add `ScreenAnchorComponent` to a UIActor with a Canvas. Bind `content` to the
+RectTransform of a direct child container and `target` to a 2D or 3D actor. Put
+the label, image and other controls beneath that container. The component only
+moves the container; the children retain their authored layout and appearance.
+It is optional and does not enable interaction or dialogue services on its own.
+
+`offset_x/y/z` are world offsets (`z` applies to 3D). `pixel_x/y` are screen
+offsets with positive Y upward, and `margin` keeps the rotated container inside
+the viewport. The container must fit and its Canvas parent must not arrange
+children with a LayoutContainer. An unavailable projection uses a bottom-center
+fallback. Clearing the target or setting `enabled` false retains the last
+position. `refresh` updates immediately and returns a `ScreenAnchorStatus`;
+normal frame callbacks update automatically, including while simulation is paused.
+Native Play runs world projection; the class designer renders authored defaults.
 
 ## Native component access
 
@@ -140,3 +248,19 @@ Scroll containers, tab bars and shared themes are not part of this profile yet; 
 `utility.hpp` supplies generic `Focus`, `EventQueue`, and `layout_list` APIs. Focus skips inactive/destroyed handles, supports forward/reverse navigation, and emits activation/cancel events. These are primitives for the game's UI logic. Parent masks and world-space Canvas remain outside this profile; so does scaling a font at runtime, which is an import-time choice.
 
 The editor and PSX use the same generated bitmap data and the same cooked font atlases. Font and derived glyph attribution is preserved in [third-party notices](../THIRD_PARTY_NOTICES.md).
+
+## Native timing diagnostics
+
+`tools/profile_runtime.py --detail` enables HUD phase timing in native console
+builds, alongside the existing detailed renderer timers. `hud_detail` reports the
+draw number, GPU parity, whole-HUD reuse flag and hardware counter-1 scanlines for
+change detection, layout, primitive emission and the total draw. `hud_peak` retains
+one invocation with the largest total; its phases belong to that same invocation.
+The draw identity is published last; capture tools skip an identity of zero while
+the record is being replaced.
+The total includes work between phases. The enclosing `hud_scanlines` performance
+counter also includes focus, minimap and fade work.
+
+These counters and their storage are absent in ordinary builds. Instrumented frame
+times describe the diagnostic build; compare matching ordinary builds to accept a
+performance change.

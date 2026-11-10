@@ -20,6 +20,7 @@ mod audio_ir;
 mod baked_draw;
 mod baked_preview;
 mod bank_compat;
+mod basic_template;
 mod bitmap_font;
 mod blueprint;
 mod blueprint_asset;
@@ -42,6 +43,8 @@ mod build_report;
 mod busy_ui;
 mod camera_path;
 mod camera_path_ui;
+mod class_composition;
+mod class_designer;
 mod code_editor;
 mod collision;
 mod collision_editor;
@@ -52,6 +55,18 @@ mod controls_ui;
 mod data_table;
 mod data_table_editor;
 mod dependencies;
+mod dialogue_asset;
+mod dialogue_compile;
+mod dialogue_cook;
+mod dialogue_editor;
+mod dialogue_graph;
+mod dialogue_layout;
+mod dialogue_presenter;
+mod dialogue_preview;
+mod dialogue_starter;
+mod dialogue_style_inspector;
+mod dialogue_text;
+mod dialogue_widget;
 mod disc;
 mod document;
 mod draw_order_codec;
@@ -83,8 +98,12 @@ mod export_ui;
 mod file_watch;
 mod fmv;
 mod font_asset;
+mod game_helper_catalog;
+mod game_helpers;
+mod gameplay_control;
 mod gizmo;
 mod gui;
+mod helper_install;
 mod hub;
 mod hud;
 mod hud_editor;
@@ -231,6 +250,7 @@ mod sprites_editor;
 mod spu_encoder;
 mod staging_files;
 mod streaming;
+mod template_install;
 mod terrain;
 mod terrain_compile;
 mod terrain_editor;
@@ -372,6 +392,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let options = workspace::creation_options(template, gameplay)?;
         let project = workspace::create_with_options(&destination, name, options)?;
         println!("Created project: {}", project.root.display());
+        eprintln!(
+            "Starter gameplay: {}",
+            project_templates::info(options.template).gameplay_note(options.gameplay)
+        );
         return Ok(());
     }
     if let Some(pair) = args.windows(2).find(|v| v[0] == "--migrate-project") {
@@ -421,11 +445,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "--render-music-sequence",
             "--scan-assets",
             "--create-data-table",
+            "--create-dialogue",
+            "--create-dialogue-style",
             "--validate-data-tables",
             "--inspect-audio-source",
             "--reflect",
+            "--class-registry",
             "--new-script",
             "--new-blueprint",
+            "--capture-ui-class",
+            "--new-dialogue-widget",
             "--new-lua-class",
             "--compile-blueprints",
             "--new-timeline",
@@ -457,6 +486,50 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     let project = workspace::Project::open(&requested_root)?;
     let root = project.root.clone();
+    if let Some(pair) = args.windows(2).find(|v| v[0] == "--new-dialogue-widget") {
+        let presentation = args
+            .windows(2)
+            .find(|v| v[0] == "--presentation")
+            .map(|v| v[1].as_str())
+            .unwrap_or("classic_box");
+        let presentation = dialogue_asset::Presentation::parse(presentation).ok_or(
+            "Use --presentation classic_box|portrait_conversation|subtitles|speech_bubble",
+        )?;
+        let flavor = args
+            .windows(2)
+            .find(|v| v[0] == "--gameplay")
+            .map(|v| v[1].as_str())
+            .unwrap_or("cpp");
+        let flavor =
+            workspace::GameplayFlavor::parse(flavor).ok_or("Use --gameplay cpp|blueprint|lua")?;
+        let rendering = settings::rendering(&root)?;
+        let id = dialogue_widget::create(
+            &root,
+            &pair[1],
+            flavor,
+            presentation,
+            [rendering.width, rendering.height],
+        )?;
+        println!("{id}");
+        return Ok(());
+    }
+    if let Some(pair) = args.windows(2).find(|v| v[0] == "--create-dialogue") {
+        let id = dialogue_asset::create(&root, &pair[1], &Default::default())?;
+        println!("{id}");
+        return Ok(());
+    }
+    if let Some(pair) = args.windows(2).find(|v| v[0] == "--create-dialogue-style") {
+        if args.iter().any(|a| a == "--presentation") {
+            return Err("Dialogue Style owns timing and sounds. Use --new-dialogue-widget with --presentation to choose editable controls".into());
+        }
+        let id = dialogue_asset::create_style(
+            &root,
+            &pair[1],
+            &dialogue_asset::DialogueStyle::default(),
+        )?;
+        println!("{id}");
+        return Ok(());
+    }
     if let Some(pair) = args.windows(2).find(|v| v[0] == "--create-data-table") {
         let name = args
             .windows(2)
@@ -667,6 +740,37 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         return Ok(());
     }
+    if let Some(pair) = args.windows(2).find(|v| v[0] == "--capture-ui-class") {
+        let catalog = scripts::catalog(&root)?;
+        let registry = blueprint::native_registry(&root, &catalog)?;
+        let class = registry
+            .classes
+            .get(&pair[1])
+            .or_else(|| registry.named(&pair[1]))
+            .ok_or("UI class is missing.")?;
+        let actor = args
+            .windows(2)
+            .find(|v| v[0] == "--actor")
+            .map(|v| v[1].as_str())
+            .ok_or("--capture-ui-class requires --actor UUID-or-name.")?;
+        let scene_path = args
+            .windows(2)
+            .find(|v| v[0] == "--scene")
+            .map(|v| root.join(&v[1]))
+            .map_or_else(|| workspace::startup_scene(&root), Ok)?;
+        let scene = scene::Scene::load(&scene_path)?;
+        let index = scene
+            .actors
+            .iter()
+            .position(|a| a.id.to_string() == actor || a.name == actor)
+            .ok_or("Capture actor is missing.")?;
+        class_designer::capture(&root, &registry, &class.id, &scene, index)?;
+        println!(
+            "Captured UI composition for {} ({})",
+            class.cpp_name, class.id
+        );
+        return Ok(());
+    }
     if let Some(pair) = args.windows(2).find(|v| v[0] == "--new-script") {
         let parent = args
             .windows(2)
@@ -699,6 +803,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if args.iter().any(|a| a == "--export-psx") {
         let scene = scene_dependencies::Input::load(&workspace::startup_scene(&root)?)?;
         println!("{}", export::export_project(&root, &scene)?.display());
+        return Ok(());
+    }
+    if args.iter().any(|a| a == "--class-registry") {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&class_registry_json(&root)?)?
+        );
         return Ok(());
     }
     if args.iter().any(|a| a == "--reflect") {
@@ -1495,15 +1606,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         };
         let mut scene = scene::Scene::load(&path)?;
         let catalog = scripts::catalog(&root)?;
-        let model = blueprint::registry_from_catalog(&root, &catalog)
-            .model()
-            .map_err(|diagnostics| {
-                diagnostics
-                    .iter()
-                    .map(|d| format!("{}: {}", d.code, d.message))
-                    .collect::<Vec<_>>()
-                    .join("\n")
-            })?;
+        let registry = blueprint::native_registry(&root, &catalog)?;
+        let model = registry.model().map_err(|diagnostics| {
+            diagnostics
+                .iter()
+                .map(|d| format!("{}: {}", d.code, d.message))
+                .collect::<Vec<_>>()
+                .join("\n")
+        })?;
         let class = model
             .placeable()
             .find(|c| c.cpp_name == class || c.id == class)
@@ -1517,19 +1627,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         .join(", ")
                 )
             })?;
-        let mut actor = actor_document::ActorInstance::new(
-            uuid::Uuid::new_v4(),
-            actor_document::ClassReference::new(&class.cpp_name, &class.id),
-            name,
-        );
-        if let Some(root_class) = mcp_tools::root_component_class(&model, class) {
-            let mut component =
-                actor_document::ComponentInstance::new(uuid::Uuid::new_v4(), root_class, "Root");
-            component.root = true;
-            actor.components.push(component);
-        }
-        let id = actor.id;
-        scene.actors.push(actor);
+        let index = editor::place_class(&mut scene, &root, &registry, &model, &class.id)?;
+        scene.actors[index].name = name.into();
+        let id = scene.actors[index].id;
         scene.validate_with_model(Some(&model))?;
         scene.save(&path)?;
         println!(
@@ -2028,6 +2128,27 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 )
             }
         };
+        // Headless validation can finish as soon as its probe is complete. Keep
+        // the timed watchdog as a fallback and use the ordinary Stop lifecycle.
+        let stop_input = if args.iter().any(|arg| arg == "--stop-on-stdin") {
+            let (send, receive) = std::sync::mpsc::channel();
+            std::thread::spawn(move || {
+                use std::io::BufRead;
+                for line in std::io::stdin().lock().lines() {
+                    match line {
+                        Ok(line) if line.trim() == "stop" => {
+                            let _ = send.send(());
+                            break;
+                        }
+                        Ok(_) => {}
+                        Err(_) => break,
+                    }
+                }
+            });
+            Some(receive)
+        } else {
+            None
+        };
         let stop_after = args
             .windows(2)
             .find(|v| v[0] == "--stop-after")
@@ -2035,6 +2156,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mut started = None;
         let mut pocket: Option<pocketstation::HeadlessLink> = None;
         loop {
+            if stop_input
+                .as_ref()
+                .is_some_and(|receive| receive.try_recv().is_ok())
+            {
+                job.control(pipeline::Control::Stop);
+                started = None;
+            }
             if let Some(bridge) = &job.bridge {
                 let has_requests = !bridge.state.lock().unwrap().pocket_requests.is_empty();
                 if has_requests && pocket.is_none() {
@@ -2283,6 +2411,103 @@ fn prepare_editor(editor: &mut editor::Editor) {
             Err(error) => editor.log(format!("--screenshot-input: {error}")),
         }
     }
+    {
+        let id = if args.iter().any(|a| a == "--open-dialogue") {
+            editor
+                .assets
+                .index
+                .usable()
+                .find(|r| r.meta.kind == assets::Kind::Dialogue)
+                .map(|r| r.meta.id)
+        } else {
+            None
+        };
+        if let Some(id) = id {
+            dialogue_editor::open(editor, id);
+        }
+    }
+    if let Some(class) = args
+        .windows(2)
+        .find(|v| v[0] == "--open-ui-class")
+        .map(|v| v[1].as_str())
+    {
+        let id = editor
+            .class_registry
+            .classes
+            .get(class)
+            .or_else(|| editor.class_registry.named(class))
+            .map(|c| c.id.clone());
+        if let Some(id) = id {
+            class_designer::open(editor, &id);
+            if let Some(window) = editor.class_designer.as_mut() {
+                if let Some(selector) = args.windows(2).find(|v| v[0] == "--ui-component")
+                    && let Err(error) =
+                        window.focus_component(&editor.root, &editor.class_registry, &selector[1])
+                {
+                    window.error = Some(error);
+                }
+                window.sample = args
+                    .windows(2)
+                    .find(|v| v[0] == "--ui-preview")
+                    .map_or(0, |v| match v[1].as_str() {
+                        "line" => 1,
+                        "choices" => 2,
+                        "closed" => 3,
+                        "prompt" => 4,
+                        "conversation" => 5,
+                        _ => 0,
+                    });
+                if let Some(value) = args.windows(2).find(|v| v[0] == "--ui-conversation") {
+                    match uuid::Uuid::parse_str(&value[1]) {
+                        Ok(id) => window.conversation.select(Some(id)),
+                        Err(_) => {
+                            window.error = Some("--ui-conversation requires an asset UUID".into())
+                        }
+                    }
+                }
+                if let Some(value) = args.windows(2).find(|v| v[0] == "--ui-preview-language") {
+                    match value[1].parse() {
+                        Ok(language) => editor.scene.preview_language = language,
+                        Err(_) => {
+                            window.error =
+                                Some("--ui-preview-language requires a language index".into())
+                        }
+                    }
+                }
+                for (flag, field) in [
+                    ("--ui-preview-start", &mut window.conversation.entry),
+                    ("--ui-preview-speaker", &mut window.conversation.participant),
+                    ("--ui-preview-timing", &mut window.conversation.style),
+                ] {
+                    if let Some(value) = args.windows(2).find(|v| v[0] == flag) {
+                        match uuid::Uuid::parse_str(&value[1]) {
+                            Ok(id) => *field = Some(id),
+                            Err(_) => window.error = Some(format!("{flag} requires a UUID")),
+                        }
+                    }
+                }
+                for value in args.windows(2).filter(|v| v[0] == "--ui-preview-condition") {
+                    match value[1].split_once('=').and_then(|(id, value)| {
+                        Some((uuid::Uuid::parse_str(id).ok()?, value.parse::<bool>().ok()?))
+                    }) {
+                        Some((id, value)) => {
+                            window.conversation.conditions.insert(id, value);
+                        }
+                        None => {
+                            window.error = Some(
+                                "--ui-preview-condition requires CONDITION_UUID=true|false".into(),
+                            )
+                        }
+                    }
+                }
+                if let Some(value) = args.windows(2).find(|v| v[0] == "--ui-preview-input")
+                    && let Err(error) = window.conversation.input(&value[1])
+                {
+                    window.error = Some(error);
+                }
+            }
+        }
+    }
     // Screenshot automation: open the first generator's Dungeon Style (or the first
     // style asset) with its first piece selected.
     if args.iter().any(|a| a == "--open-dungeon-style") {
@@ -2490,5 +2715,67 @@ fn prepare_editor(editor: &mut editor::Editor) {
         editor.build(true);
     } else if args.iter().any(|a| a == "--screenshot-game") {
         editor.build(true);
+    }
+}
+
+/// Publish the same validated provider catalog used by class placement/designer.
+/// Source classes are compiled to IR by the existing catalog path; this does
+/// not build a native/PSX executable or execute gameplay.
+fn class_registry_json(root: &std::path::Path) -> Result<serde_json::Value, String> {
+    let catalog = scripts::catalog(root)?;
+    let registry = blueprint::native_registry(root, &catalog)?;
+    Ok(serde_json::json!({
+        "schema_version": 1,
+        "catalog_compiled": true,
+        "classes": registry.classes.values().collect::<Vec<_>>(),
+        "function_libraries": registry.function_libraries.values().collect::<Vec<_>>(),
+        "value_types": registry.value_types.values().collect::<Vec<_>>(),
+    }))
+}
+
+#[cfg(test)]
+mod class_registry_cli_tests {
+    use super::*;
+
+    #[test]
+    fn compiled_class_registry_contains_all_three_authored_providers() {
+        use workspace::{CreateOptions, GameplayFlavor, Template};
+        for (flavor, suffix) in [
+            (GameplayFlavor::Cpp, "hpp"),
+            (GameplayFlavor::Blueprint, "epokbp"),
+            (GameplayFlavor::Lua, "lua"),
+        ] {
+            let root = workspace::tests::temp("compiled-class-registry");
+            workspace::create_with_options(
+                &root,
+                "Registry",
+                CreateOptions::new(Template::Basic).with_gameplay(flavor),
+            )
+            .unwrap();
+            let metadata = class_registry_json(&root).unwrap();
+            assert_eq!(metadata["catalog_compiled"], true);
+            let classes = metadata["classes"].as_array().unwrap();
+            let class = classes
+                .iter()
+                .find(|class| class["cpp_name"] == "GameRoot")
+                .expect("The selected provider must publish the actual project class");
+            let source = class["source"]["file"].as_str().unwrap();
+            assert!(source.ends_with(suffix), "{source}");
+            if flavor == GameplayFlavor::Lua {
+                // A parsed name/UUID list is insufficient: the full API must
+                // reject a syntactically valid, ill-typed body through the real
+                // Lua frontend, rather than merely extracting declarations.
+                let path = root.join("assets/scripts/GameRoot.lua");
+                let source = std::fs::read_to_string(&path).unwrap();
+                let source = source.replace(
+                    "return GameRoot",
+                    "---@param amount Fixed\n---@return Fixed\nfunction GameRoot:registry_probe(amount)\n    return amount + self.registry_missing\nend\nreturn GameRoot",
+                );
+                std::fs::write(&path, source).unwrap();
+                let error = class_registry_json(&root).unwrap_err();
+                assert!(error.contains("registry_missing"), "{error}");
+            }
+            std::fs::remove_dir_all(root).unwrap();
+        }
     }
 }

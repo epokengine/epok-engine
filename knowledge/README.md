@@ -17,6 +17,11 @@ methodology, technical debt and continuation plans belong in `knowledge/`.
 
 ## Initiatives
 
+- [Gameplay base and game helpers](initiatives/gameplay-helpers/plan.md) plans
+  interaction and dialogue first, reusable character and world helpers, and the
+  migration of all six templates to C++, Blueprint and Lua with shared gameplay
+  mechanisms and a complete execution and export acceptance matrix.
+
 - [Gameplay API parity](initiatives/gameplay-api-parity/contract.md) defines the
   compatibility contract for complete C++/Blueprint/Lua gameplay coverage, including
   skeletal queries, typed bindings, cooking, and PSX performance acceptance gates.

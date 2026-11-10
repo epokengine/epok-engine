@@ -490,6 +490,19 @@ pub fn render(registry: &Registry) -> String {
     out.push_str("\n-- Catalog-generated Gameplay v2 services.\n");
     out.push_str(&services);
     out.push_str(&namespace_bindings(&bindings));
+    out.push_str("\n-- Reflected enum constants, resolved by the Gameplay v2 compiler.\n");
+    for (name, variants) in &named.enums {
+        let segments = name.split('.').collect::<Vec<_>>();
+        for count in 1..segments.len() {
+            let namespace = segments[..count].join(".");
+            let _ = writeln!(out, "{namespace} = {namespace} or {{}}");
+        }
+        let _ = writeln!(out, "{name} = {{");
+        for (variant, value) in variants {
+            let _ = writeln!(out, "    [\"{variant}\"] = {value},");
+        }
+        out.push_str("}\n");
+    }
     out
 }
 
@@ -850,6 +863,7 @@ mod tests {
             component: None,
             default_components: vec![],
             explicit_abstract: false,
+            default_overrides: Default::default(),
             properties: vec![],
             functions: vec![],
             source: schema::Location {

@@ -422,9 +422,17 @@ pub fn draw(ui: &imgui::Ui, editor: &mut crate::editor::Editor) {
         }
     });
     editor.blueprint_creation = creation;
-    if editor
-        .blueprint_editor
-        .draw_with_options(ui, &editor.class_registry, |ui| {
+    if editor.blueprint_editor.draw_with_options(
+        ui,
+        &editor.class_registry,
+        &crate::hud_editor::Resources {
+            index: &editor.assets.index,
+            strings: crate::localization::project_table(&editor.assets.index)
+                .as_ref()
+                .map(|(_, table)| table),
+            language: editor.scene.preview_language,
+        },
+        |ui| {
             let _disabled = ui.begin_disabled(editor.playing || editor.job.is_some());
             ui.checkbox(
                 "Instrument Blueprint Debugger",
@@ -437,10 +445,13 @@ pub fn draw(ui: &imgui::Ui, editor: &mut crate::editor::Editor) {
             ui.text_wrapped(
                 "Applies to the next Build / Play. Release builds remain uninstrumented.",
             );
-        })
-    {
+        },
+    ) {
         editor.refresh_scripts();
         editor.assets.refresh();
+    }
+    if editor.blueprint_editor.take_strings_request() {
+        crate::localization_editor::open(editor);
     }
     // A map's own Blueprint is part of the map document: its edits become scene
     // edits (dirty, Undo, Save) and its Save button saves the map.
@@ -500,6 +511,12 @@ pub fn edit_binding(editor: &mut crate::editor::Editor, binding: &crate::scene::
                 })
                 .map(|f| f.path)
         });
+        if let Some(id) = binding.class_id.as_deref()
+            && let Err(error) = crate::class_designer::before_behavior(editor, id)
+        {
+            editor.log(error);
+            return;
+        }
         match path {
             Some(path) => {
                 if let Err(error) = editor.blueprint_editor.open(&path) {
@@ -625,7 +642,14 @@ pub fn place_current(
         return Err("Abstract Blueprint classes cannot be placed.".into());
     }
     let files = asset::load_all(&editor.root)?;
-    let template = crate::blueprint_templates::resolve_assets(&files, &editor.class_registry, &id)?;
+    let compositions = crate::class_composition::load(&editor.root)?;
+    compositions.validate(&editor.root, &editor.class_registry)?;
+    let template = crate::blueprint_templates::resolve_class(
+        &files,
+        &editor.class_registry,
+        &id,
+        &compositions.templates(),
+    )?;
     crate::blueprint_templates::validate_resources(&template, &editor.assets.index)?;
     let before = editor.scene.clone();
     let mut candidate = before.clone();
@@ -660,23 +684,30 @@ pub fn capture_current(editor: &mut crate::editor::Editor) -> Result<(), String>
         .ok_or("Open a Blueprint first.")?
         .clone();
     let files = asset::load_all(&editor.root)?;
-    if editor
-        .class_registry
-        .classes
-        .get(&doc.parent)
-        .is_some_and(|c| c.provider.id == "blueprint")
     {
-        let inherited = crate::blueprint_templates::resolve_assets(
+        let compositions = crate::class_composition::load(&editor.root)?;
+        compositions.validate(&editor.root, &editor.class_registry)?;
+        let inherited = crate::blueprint_templates::resolve_class(
             &files,
             &editor.class_registry,
             &doc.parent,
+            &compositions.templates(),
         )?;
         if !inherited.actors.is_empty() {
             return Err("This Blueprint inherits an entity template. Edit its inherited members/children in Actor Template instead of replacing its root with a capture.".into());
         }
     }
-    let mut template =
-        crate::blueprint_templates::capture(&editor.scene, selected, &editor.class_registry)?;
+    if !doc.template.instances.is_empty() {
+        return Err("This Blueprint already owns reusable class instances. Edit its composition in the UI class designer instead of replacing it with a scene capture.".into());
+    }
+    let sources = crate::class_composition::sources(&editor.root, &editor.class_registry)?;
+    let captured = crate::blueprint_templates::capture_with_sources(
+        &editor.scene,
+        selected,
+        &editor.class_registry,
+        &sources,
+    )?;
+    let mut template = captured.template;
     let selected_indices: Vec<_> = (0..editor.scene.actors.len())
         .filter(|&i| editor.scene.is_descendant(i, selected))
         .collect();
@@ -686,9 +717,14 @@ pub fn capture_current(editor: &mut crate::editor::Editor) -> Result<(), String>
         .iter()
         .find(|e| e.parent.is_none())
         .map(|e| e.entity.id);
-    let mut ids = BTreeMap::new();
-    for (entity, index) in template.actors.iter().zip(selected_indices) {
+    let mut ids = captured
+        .identities
+        .values()
+        .map(|id| (*id, *id))
+        .collect::<BTreeMap<_, _>>();
+    for index in selected_indices {
         let source = &editor.scene.actors[index];
+        let local = captured.identities[&source.id];
         let stable = if index == selected {
             existing_root
         } else {
@@ -698,17 +734,21 @@ pub fn capture_current(editor: &mut crate::editor::Editor) -> Result<(), String>
                 .filter(|i| i.class == doc.id)
                 .map(|i| i.template_entity)
         };
-        ids.insert(entity.entity.id, stable.unwrap_or(entity.entity.id));
+        ids.insert(local, stable.unwrap_or(local));
+        if let Some(state) = source
+            .blueprint_instance
+            .as_ref()
+            .filter(|i| i.class == doc.id)
+        {
+            for (original, placed) in &state.component_ids {
+                if let Some(local) = captured.identities.get(placed) {
+                    ids.insert(*local, *original);
+                }
+            }
+        }
     }
-    for entity in &mut template.actors {
-        entity.entity.id = ids[&entity.entity.id];
-        entity.parent = entity.parent.map(|id| ids[&id]);
-    }
-    for reference in &mut template.references {
-        reference.owner = ids[&reference.owner];
-        reference.target = ids[&reference.target];
-    }
-    let resolved = crate::blueprint_templates::resolve(&[&template])?;
+    crate::blueprint_templates::remap_template(&mut template, &ids);
+    let resolved = sources.resolve_layers(&editor.class_registry, &doc.id, &[&template])?;
     crate::blueprint_templates::validate_resources(&resolved, &editor.assets.index)?;
     editor.blueprint_editor.replace_template(template)?;
     editor.blueprint_editor.compile_requested = true;
@@ -725,10 +765,7 @@ pub fn instance_inspector(ui: &imgui::Ui, editor: &mut crate::editor::Editor, in
     else {
         return;
     };
-    if !ui.collapsing_header(
-        "Linked Blueprint instance",
-        imgui::TreeNodeFlags::DEFAULT_OPEN,
-    ) {
+    if !ui.collapsing_header("Linked class instance", imgui::TreeNodeFlags::DEFAULT_OPEN) {
         return;
     }
     let _disabled = ui.begin_disabled(editor.playing);
@@ -737,9 +774,14 @@ pub fn instance_inspector(ui: &imgui::Ui, editor: &mut crate::editor::Editor, in
         class
             .as_ref()
             .map(|c| c.cpp_name.as_str())
-            .unwrap_or("Unavailable Blueprint (preserved)"),
+            .unwrap_or("Unavailable class (preserved)"),
     );
-    if ui.small_button("Open Blueprint")
+    let label = if class.as_ref().is_some_and(|c| c.provider.id == "blueprint") {
+        "Open Blueprint"
+    } else {
+        "Open class behavior"
+    };
+    if ui.small_button(label)
         && let Some(class) = &class
     {
         edit_binding(editor, &binding(class));
@@ -775,7 +817,8 @@ pub fn instance_inspector(ui: &imgui::Ui, editor: &mut crate::editor::Editor, in
             }
         }
         match asset::load_all(&editor.root).and_then(|files| {
-            crate::blueprint_templates::refresh_instances(
+            crate::class_composition::refresh_instances(
+                &editor.root,
                 &mut candidate,
                 &files,
                 &editor.class_registry,

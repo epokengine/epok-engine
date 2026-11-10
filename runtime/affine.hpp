@@ -140,9 +140,16 @@ template<class Number> struct CameraSpace {
         }
     }
     Affine<Number> compose(const Affine<Number>& world) const {
-        auto local=world;Number position[3],camera[3];
-        for(int r=0;r<3;++r){position[r]=world.values[r][3];local.values[r][3]=0.;}
-        auto result=basis.compose(local);
+        Number position[3],camera[3];
+        for(int r=0;r<3;++r)position[r]=world.values[r][3];
+        // Resident geometry is mostly unrotated, and then the 3x3 product is
+        // exactly the view basis. This runs for every drawn object.
+        auto result=basis;
+        if(!world.identity_basis()){
+            auto local=world;
+            for(int r=0;r<3;++r)local.values[r][3]=0.;
+            result=basis.compose(local);
+        }
         point(position,camera);
         for(int r=0;r<3;++r)result.values[r][3]=camera[r];
         return result;

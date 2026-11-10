@@ -21,6 +21,7 @@ fn fixture() -> (TimelineAsset, Registry, crate::scene::Scene) {
             component: None,
             default_components: vec![],
             explicit_abstract: false,
+            default_overrides: Default::default(),
             id: class.clone(),
             provider: schema::native_provider(),
             backend: schema::native_backend(),

@@ -221,8 +221,9 @@ fn wire_dispatch_case(slot: usize, call: &str, returns: &Type) -> Result<String,
         ));
     }
     let packed = wire_pack("epok_wire", "epok_result", returns, 0)?;
+    let composite = returns.requires_wire_value();
     Ok(format!(
-        "case {slot}: {{ const auto epok_result={call}; epok::lua::WireValue epok_wire{{}}; epok_wire.count={words};\n{packed}return epok_wire; }}\n"
+        "case {slot}: {{ const auto epok_result={call}; epok::lua::WireValue epok_wire{{}}; epok_wire.count={words};epok_wire.composite={composite};\n{packed}return epok_wire; }}\n"
     ))
 }
 
@@ -333,6 +334,30 @@ pub fn emit_operation_adapters(
     );
     if operations.is_empty() {
         return Ok((header, None));
+    }
+    // This header can be included while a project's value-declaration header
+    // is still being parsed. Typed function declarations need only the record
+    // name; definitions remain below the complete scene.hh in the source unit.
+    let records = operations
+        .values()
+        .flat_map(|operation| {
+            operation
+                .parameters
+                .iter()
+                .map(|p| &p.value_type)
+                .chain(operation.outputs.iter().map(|p| &p.value_type))
+        })
+        .filter_map(|ty| match ty {
+            Type::Record { cpp_name, .. } => Some(cpp_name.as_str()),
+            _ => None,
+        })
+        .collect::<BTreeSet<_>>();
+    for name in records {
+        if let Some((namespace, local)) = name.rsplit_once("::") {
+            header.push_str(&format!("namespace {namespace} {{ struct {local}; }}\n"));
+        } else {
+            header.push_str(&format!("struct {name};\n"));
+        }
     }
     let mut source = String::from(
         "// Generated Lua receiver calls; target classes are complete in scene.hh.\n#include \"scene.hh\"\n#include \"lua_calls.hpp\"\nnamespace { uint32_t epok_lua_receiver_depth=0; struct EpokLuaReceiverDepth { bool entered; EpokLuaReceiverDepth():entered(epok_lua_receiver_depth<32){if(entered)++epok_lua_receiver_depth;} ~EpokLuaReceiverDepth(){if(entered)--epok_lua_receiver_depth;} }; }\n",
@@ -450,6 +475,7 @@ impl Emitter<'_> {
             Place::VectorComponent { base, index } => {
                 format!("{}[{index}]", self.place(base)?)
             }
+            Place::Member { base, name, .. } => format!("({}).{name}", self.place(base)?),
             Place::Intrinsic {
                 kind, component, ..
             } => {
@@ -726,8 +752,16 @@ fn native_body(
     self_actor: &'static str,
 ) -> Result<String, String> {
     let mut names = BTreeMap::new();
+    let mut parameter_copies = String::new();
     for (i, parameter) in method.parameters.iter().enumerate() {
-        names.insert(parameter.id, format!("epok_p{i}"));
+        if parameter.value_type.requires_wire_value()
+            && method.function.parameters[i].direction != schema::Direction::Value
+        {
+            names.insert(parameter.id, format!("epok_copy_p{i}"));
+            parameter_copies.push_str(&format!("auto epok_copy_p{i}=epok_p{i};\n"));
+        } else {
+            names.insert(parameter.id, format!("epok_p{i}"));
+        }
     }
     for local in &method.locals {
         names.insert(local.id, format!("epok_l{}", local.id.0));
@@ -740,6 +774,7 @@ fn native_body(
         self_actor,
     };
     let mut out = String::from("const auto epok_owner=this->id();(void)epok_owner;\n");
+    out.push_str(&parameter_copies);
     for local in &method.locals {
         // Loop variables are declared by their own `for` statement.
         if method.body_declares_loop_variable(local.id) {
@@ -759,18 +794,18 @@ fn native_body(
 fn vm_body(method: &MethodIr, class_index: u32, slot: usize) -> Result<String, String> {
     let returns = &method.function.returns;
     let void = *returns == Type::Void;
-    let wide = returns.wire_words() > 1
+    let wide = returns.requires_wire_value()
         || method
             .function
             .parameters
             .iter()
-            .any(|parameter| parameter.value_type.wire_words() > 1);
+            .any(|parameter| parameter.value_type.requires_wire_value());
     let mut out = format!(
         "epok::lua::Frame f(*this, kEpokLuaClass_{class_index}, /*slot*/ {slot});\nif (!f.bound()) return{};\n",
         default_return(returns)
     );
     for (i, parameter) in method.function.parameters.iter().enumerate() {
-        if parameter.value_type.wire_words() > 1 {
+        if parameter.value_type.requires_wire_value() {
             let words = parameter.value_type.wire_words();
             if words > 32 {
                 return Err(format!(
@@ -779,7 +814,7 @@ fn vm_body(method: &MethodIr, class_index: u32, slot: usize) -> Result<String, S
                 ));
             }
             out.push_str(&format!(
-                "epok::lua::WireValue epok_argument_{i}{{}};epok_argument_{i}.count={words};\n{}f.arg(epok_argument_{i});\n",
+                "epok::lua::WireValue epok_argument_{i}{{}};epok_argument_{i}.count={words};epok_argument_{i}.composite=true;\n{}f.arg(epok_argument_{i});\n",
                 wire_pack(
                     &format!("epok_argument_{i}"),
                     &format!("epok_p{i}"),
@@ -861,10 +896,11 @@ pub fn emit_class(
     text.push_str("}\n");
     for (slot, method) in ir.methods.iter().enumerate() {
         text.push_str(&format!(
-            "virtual {} {}({}){} {{\n",
+            "virtual {} {}({}){}{} {{\n",
             bir::cpp_type(&method.function.returns)?,
             method.function.name,
             parameter_list(&method.function)?,
+            if method.function.pure { " const" } else { "" },
             if method.is_override { " override" } else { "" }
         ));
         for i in 0..method.function.parameters.len() {
@@ -934,7 +970,7 @@ pub fn emit_bindings(
         let (mut get, mut set) = (String::new(), String::new());
         let (mut wide_get, mut wide_set) = (String::new(), String::new());
         for (slot, field) in slots.iter().enumerate() {
-            if field.value_type.wire_words() > 1 {
+            if field.value_type.requires_wire_value() {
                 let SlotKey::Property {
                     component: None, ..
                 } = &field.key
@@ -1020,20 +1056,25 @@ pub fn emit_bindings(
         // A method the parent does not declare has no qualified parent call to
         // emit: `self.Parent::report()` would not compile for a method this
         // class introduces, and `__epok_super` can never reach that slot.
-        let inherited: BTreeSet<&str> = registry
-            .ancestry(&ir.parent_cpp_name)
-            .iter()
-            .flat_map(|c| c.functions.iter().map(|f| f.name.as_str()))
-            .collect();
+        // A pure virtual declaration can hide an older concrete ancestor. Only
+        // the nearest declaration determines whether a qualified call exists.
+        let mut inherited = BTreeMap::new();
+        for parent in registry.ancestry(&ir.parent_cpp_name).into_iter().rev() {
+            for function in &parent.functions {
+                inherited
+                    .entry(function.name.as_str())
+                    .or_insert(!function.abstract_method);
+            }
+        }
         let (mut self_cases, mut super_cases) = (String::new(), String::new());
         let (mut wide_self_cases, mut wide_super_cases) = (String::new(), String::new());
         for (slot, function) in methods.iter().enumerate() {
             let name = &function.name;
-            let wide = function.returns.wire_words() > 1
+            let wide = function.returns.requires_wire_value()
                 || function
                     .parameters
                     .iter()
-                    .any(|parameter| parameter.value_type.wire_words() > 1);
+                    .any(|parameter| parameter.value_type.requires_wire_value());
             let args = function
                 .parameters
                 .iter()
@@ -1052,7 +1093,7 @@ pub fn emit_bindings(
             } else {
                 vec![(&mut self_cases, format!("self.{name}"))]
             };
-            if inherited.contains(name.as_str()) {
+            if inherited.get(name.as_str()) == Some(&true) {
                 if wide {
                     targets.push((
                         &mut wide_super_cases,
@@ -1136,11 +1177,11 @@ pub fn emit_bindings(
             };
             let mut lowered = Vec::new();
             let mut wire = 0usize;
-            let wide = returns.wire_words() > 1
+            let wide = returns.requires_wire_value()
                 || args
                     .iter()
                     .filter_map(BuiltinArg::value)
-                    .any(|value| value.value_type().wire_words() > 1);
+                    .any(|value| value.value_type().requires_wire_value());
             for arg in args {
                 lowered.push(match arg {
                     BuiltinArg::Value(value) => {
@@ -1359,6 +1400,69 @@ end
         }
     }
 
+    #[test]
+    fn dialogue_one_word_records_keep_their_shape_in_vm_calls_and_nested_members() {
+        let root = crate::workspace::tests::temp("lua-dialogue-record");
+        crate::workspace::create(&root, "Dialogue ABI", crate::workspace::Template::Basic).unwrap();
+        let registry = crate::blueprint::native_registry(&root, &[]).unwrap();
+        let source = r#"---@class EnemyLogic : epok.DialogueInteractionComponent
+local EnemyLogic = epok.DialogueInteractionComponent:extend()
+EnemyLogic.observed = epok.UInt32(0)
+---@override
+function EnemyLogic:dialogue_started(initiator, port, session)
+    EnemyLogic.super.dialogue_started(self, initiator, port, session)
+    local current = epok.dialogue.owner_session(self.ref)
+    if current.generation == session.generation then
+        self.observed = session.generation
+    end
+end
+---@override
+function EnemyLogic:begin_play()
+    local started = epok.dialogue.start(self.ref, self:owner_id(), 0)
+    if started.session.generation > 0 and epok.dialogue.valid(started.session) then
+        epok.dialogue.cancel(started.session)
+    end
+end
+return EnemyLogic
+"#;
+        let (registry, ir) = lower_v2("assets/scripts/EnemyLogic.lua", source, &registry);
+        let class = registry.classes["956f4946-0c61-42f8-899e-2db063b42420"].clone();
+        let shell = emit_class(
+            &class,
+            &ir,
+            &registry,
+            BodyMode::Vm { class_index: 0 },
+            None,
+        )
+        .unwrap();
+        assert!(
+            shell.contains("count=1;epok_argument_2.composite=true;"),
+            "{shell}"
+        );
+        let symbols = BTreeMap::from([(class.id.clone(), crate::lua_vm::chunk_symbol(&class.id))]);
+        let bindings = emit_bindings(&[(class, ir.clone())], &registry, &symbols).unwrap();
+        assert!(
+            bindings.contains("epok_wire.count=1;epok_wire.composite=true;"),
+            "{bindings}"
+        );
+        let chunk = crate::lua_vm::emit_chunk(
+            &ir,
+            &crate::lua_vm::field_slots_for_ir(&ir, &registry),
+            &crate::lua_vm::method_slots(&ir, &registry),
+            std::path::Path::new("assets/scripts/EnemyLogic.lua"),
+        )
+        .unwrap();
+        assert!(chunk.contains("__epok_wide_super(self,"), "{chunk}");
+        assert!(
+            chunk.contains(", 1, true)"),
+            "the nested handle must remain composite: {chunk}"
+        );
+        if crate::lua_bytecode::available() {
+            crate::lua_bytecode::cook("@DialogueRecord", &chunk).unwrap();
+        }
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
     fn enemy_logic(body: &str) -> String {
         format!(
             "{}\n{body}\nreturn EnemyLogic\n",
@@ -1393,6 +1497,63 @@ end
         }
         // A native build never reaches the VM runtime or its class indices.
         assert!(!text.contains("lua_runtime.hpp") && !text.contains("kEpokLuaClass_"));
+    }
+    #[test]
+    fn pure_event_overrides_are_const_in_native_and_vm_and_reject_effects() {
+        let mut registry = lua_asset::tests::registry();
+        let parent = registry
+            .classes
+            .get_mut(crate::object_model::ACTOR_COMPONENT_ID)
+            .unwrap();
+        let mut query = parent.functions[0].clone();
+        query.id = "6553c389-2475-5d1d-8881-4860f6833b08".into();
+        query.name = "can_interact".into();
+        query.parameters.clear();
+        query.returns = Type::Bool;
+        query.pure = true;
+        query.event = true;
+        query.callable = true;
+        let mut effect = query.clone();
+        effect.id = "7ab3f972-6630-568d-ab78-e5066252c82f".into();
+        effect.name = "effect".into();
+        effect.pure = false;
+        effect.returns = Type::Void;
+        parent.functions.extend([query, effect]);
+        registry.normalize_functions();
+        let source = enemy_logic(
+            "---@override\nfunction EnemyLogic:can_interact()\nreturn EnemyLogic.super.can_interact(self)\nend\n",
+        );
+        let (compiled, ir) = lower_v2("assets/scripts/EnemyLogic.lua", &source, &registry);
+        let class = compiled.classes["956f4946-0c61-42f8-899e-2db063b42420"].clone();
+        for mode in [BodyMode::Native, BodyMode::Vm { class_index: 0 }] {
+            let text = emit_class(&class, &ir, &compiled, mode, None).unwrap();
+            assert!(
+                text.contains("bool can_interact() const override"),
+                "{text}"
+            );
+        }
+        for body in ["self.health = 0.0", "self:effect()"] {
+            let file = lua_asset::tests::file(&enemy_logic(&format!(
+                "---@override\nfunction EnemyLogic:can_interact()\n{body}\nreturn true\nend\n"
+            )));
+            let decl = lua_asset::extract(&file).unwrap();
+            let class = lua_asset::declarations(&decl, &file, &registry).unwrap();
+            let chunk = crate::lua_frontend::parse(&file).unwrap();
+            let errors = crate::lua_frontend::lower_class_with_profile(
+                &decl,
+                &chunk,
+                &class,
+                &registry,
+                crate::settings::LuaProfile::GameplayV2,
+            )
+            .unwrap_err();
+            assert!(
+                errors
+                    .iter()
+                    .any(|e| e.to_string().contains("Pure functions")),
+                "{errors:?}"
+            );
+        }
     }
 
     /// A vector property is a native `epok::Fixed[N]`, so reading one of its
@@ -1694,6 +1855,43 @@ end
             text.contains("#line 19 \"assets/scripts/EnemyLogic.lua\"\nreturn this->health;"),
             "{text}"
         );
+    }
+
+    #[test]
+    fn lua_vm_abstract_overrides_have_virtual_dispatch_without_qualified_parent_calls() {
+        for wide in [false, true] {
+            let mut registry = lua_asset::tests::registry();
+            let component = registry
+                .classes
+                .get_mut(crate::object_model::ACTOR_COMPONENT_ID)
+                .unwrap();
+            let hit = component
+                .functions
+                .iter_mut()
+                .find(|f| f.name == "hit")
+                .unwrap();
+            if wide {
+                hit.parameters[0].value_type = Type::Vector { length: 3 };
+            }
+            let mut abstract_hit = hit.clone();
+            abstract_hit.id = "e9a252a9-c9fa-535e-9af4-d2b81a793c2c".into();
+            abstract_hit.overrides = vec![hit.id.clone()];
+            abstract_hit.abstract_method = true;
+            let base = registry
+                .classes
+                .get_mut(lua_asset::tests::ENEMY_BASE_ID)
+                .unwrap();
+            base.abstract_class = true;
+            base.functions.push(abstract_hit);
+            let source = enemy_logic("---@override\nfunction EnemyLogic:hit(amount)\nend\n")
+                .replace("epok.ActorComponent", "EnemyBase");
+            let (registry, ir) = lower("assets/scripts/EnemyLogic.lua", &source, &registry);
+            let class = registry.classes[lua_asset::tests::CLASS_ID].clone();
+            let symbols = BTreeMap::from([(class.id.clone(), "epok_lua_chunk_0".to_string())]);
+            let bindings = emit_bindings(&[(class, ir)], &registry, &symbols).unwrap();
+            assert!(bindings.contains("self.hit("), "{bindings}");
+            assert!(!bindings.contains("::hit("), "{bindings}");
+        }
     }
 
     #[test]

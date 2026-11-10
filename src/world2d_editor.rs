@@ -1524,6 +1524,7 @@ fn frame_start(e: &mut Editor, views: &[View], size: [f32; 2]) {
     }
 }
 fn drop_target(ui: &Ui, e: &mut Editor, world: [f32; 2]) {
+    crate::game_helper_catalog::scene_drop(ui, e);
     if let Some(target) = ui.drag_drop_target()
         && let Some(Ok(payload)) =
             target.accept_payload::<u8, _>("EPOK_CONTENT", imgui::DragDropFlags::empty())

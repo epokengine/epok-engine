@@ -14,9 +14,10 @@ use std::collections::{BTreeMap, BTreeSet};
 use uuid::Uuid;
 
 /// Highest scene document version this editor writes and accepts.
-pub const SCENE_VERSION: u32 = 6;
+pub const SCENE_VERSION: u32 = 8;
+pub const FIRST_ACTOR_SCENE_VERSION: u32 = 6;
 
-fn is_false(value: &bool) -> bool {
+pub(crate) fn is_false(value: &bool) -> bool {
     !*value
 }
 fn default_true() -> bool {
@@ -475,7 +476,7 @@ pub fn remap_scene_script(script: &mut SceneScript, map: &IdentityMap, fresh_id:
     }
 }
 
-fn remap_json(value: &mut Value, map: &IdentityMap) {
+pub(crate) fn remap_json(value: &mut Value, map: &IdentityMap) {
     match value {
         Value::String(text) => {
             if let Ok(id) = Uuid::parse_str(text)
@@ -841,6 +842,7 @@ pub(crate) mod tests {
             component: None,
             default_components: vec![],
             explicit_abstract: false,
+            default_overrides: Default::default(),
             properties: vec![],
             functions: vec![],
             source: Location {

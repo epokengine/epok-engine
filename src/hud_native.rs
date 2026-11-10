@@ -17,7 +17,7 @@ pub const HUD_PREVIEW_CAP_SIMULATE: u32 = 1;
 pub const HUD_PREVIEW_CAP_BLUEPRINT: u32 = 2;
 
 #[repr(C)]
-struct Node {
+pub(crate) struct Node {
     parent: i32,
     flags: i32,
     /// Anchor min/max, pivot, position and size in Q12, then the rotation in
@@ -50,6 +50,7 @@ struct Node {
 #[derive(Clone, Copy, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Command(pub [i32; 24]);
 unsafe extern "C" {
+    fn epok_hud_text_storage(sizes: *mut u32);
     fn epok_hud_compile(
         nodes: *const Node,
         count: u32,
@@ -75,6 +76,14 @@ unsafe extern "C" {
         font_table: *const i32,
         font_words: u32,
     ) -> u32;
+}
+
+pub(crate) fn text_storage() -> [u32; 2] {
+    let mut sizes = [0; 2];
+    unsafe {
+        epok_hud_text_storage(sizes.as_mut_ptr());
+    }
+    sizes
 }
 fn fixed(v: f32) -> i32 {
     (f64::from(v) * 4096.).round() as i32
@@ -116,7 +125,7 @@ pub fn resolve(parent: hud::Rect, r: &hud::RectTransform) -> hud::Rect {
 /// the index order `hud::font_ids` fixes. Fixed-width values, no pointers, like
 /// every other record on this boundary. Decoding is not repeated here: the
 /// cooked atlases already live in `scene.fonts`, keyed by asset id.
-fn font_table(scene: &Scene, ids: &[uuid::Uuid]) -> Vec<i32> {
+pub(crate) fn font_table(scene: &Scene, ids: &[uuid::Uuid]) -> Vec<i32> {
     let mut out = vec![];
     for id in ids {
         let Some(data) = scene.fonts.get(id) else {
@@ -148,7 +157,7 @@ fn font_table(scene: &Scene, ids: &[uuid::Uuid]) -> Vec<i32> {
 /// One wire node per actor, in actor order. `ids` is the texture bank the image
 /// indices address, `font_ids` the cooked fonts a label's index addresses. Shared by the command compiler and the layout query so the
 /// editor never marshals the scene two different ways.
-fn nodes(scene: &Scene, ids: &[uuid::Uuid], font_ids: &[uuid::Uuid]) -> Vec<Node> {
+pub(crate) fn nodes(scene: &Scene, ids: &[uuid::Uuid], font_ids: &[uuid::Uuid]) -> Vec<Node> {
     scene
         .actors
         .iter()
@@ -173,10 +182,13 @@ fn nodes(scene: &Scene, ids: &[uuid::Uuid], font_ids: &[uuid::Uuid]) -> Vec<Node
                 text: [0; 512],
             };
             if let Some(c) = &e.canvas {
+                if c.screen_overlay {
+                    n.flags |= 16384;
+                }
                 if c.enabled {
                     n.flags |= 4;
                 }
-                n.canvas_focused = c.focused;
+                n.canvas_focused = hud::canvas_focus(scene, c);
             }
             if e.rect.is_some() {
                 n.flags |= 8;
@@ -248,7 +260,7 @@ fn nodes(scene: &Scene, ids: &[uuid::Uuid], font_ids: &[uuid::Uuid]) -> Vec<Node
                     n.flags |= 1024;
                 }
                 n.focusable[0] = i32::from(c.enabled);
-                n.focusable[1..5].copy_from_slice(&c.neighbors);
+                n.focusable[1..5].copy_from_slice(&hud::focus_neighbors(scene, c));
                 n.focusable[5] = i32::from(c.order);
                 n.focusable[6..9].copy_from_slice(&color(c.highlight));
                 if c.kind == hud::FocusKind::Toggle {
@@ -256,6 +268,9 @@ fn nodes(scene: &Scene, ids: &[uuid::Uuid], font_ids: &[uuid::Uuid]) -> Vec<Node
                 }
                 if c.checked {
                     n.flags |= 4096;
+                }
+                if c.outline {
+                    n.flags |= 8192;
                 }
             }
             n
@@ -366,7 +381,17 @@ pub fn compile(scene: &Scene) -> (Vec<Command>, [u32; 6]) {
 }
 
 pub fn render(scene: &Scene, commands: &[Command], seconds: f32, fade: u8) -> Vec<u8> {
-    render_with_background(scene, scene, commands, seconds, fade, true).0
+    render_with_background(scene, scene, commands, seconds, fade, true, None).0
+}
+
+/// A preview may draw resources referenced by live bound content, such as a
+/// conversation portrait, in addition to textures in its authored controls.
+pub(crate) fn render_with_textures(
+    scene: &Scene,
+    commands: &[Command],
+    textures: &[uuid::Uuid],
+) -> Vec<u8> {
+    render_with_background(scene, scene, commands, 0., 0, true, Some(textures)).0
 }
 
 /// A screen-sized RGBA layer of the 2D world that Native PC Play composes with the 3D image
@@ -389,7 +414,7 @@ pub fn render_overlay_layers(
     seconds: f32,
     fade: u8,
 ) -> (Vec<u8>, Vec<ScreenLayer>) {
-    render_with_background(scene, resources, commands, seconds, fade, false)
+    render_with_background(scene, resources, commands, seconds, fade, false, None)
 }
 
 /// Texture ids at and above this one name a SubViewport2D picture drawn this frame.
@@ -402,6 +427,7 @@ fn render_with_background(
     seconds: f32,
     fade: u8,
     opaque_background: bool,
+    texture_ids: Option<&[uuid::Uuid]>,
 ) -> (Vec<u8>, Vec<ScreenLayer>) {
     let [width, height] = scene.display_size.map(usize::from);
     let pixels = if opaque_background {
@@ -409,7 +435,8 @@ fn render_with_background(
     } else {
         [0, 0, 0, fade].repeat(width * height)
     };
-    let ids = crate::texture::ids(resources);
+    let authored = crate::texture::ids(resources);
+    let ids = texture_ids.unwrap_or(&authored);
     let textures: Vec<_> = ids
         .iter()
         .map(|id| {

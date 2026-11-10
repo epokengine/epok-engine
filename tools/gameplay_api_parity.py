@@ -141,6 +141,20 @@ GAMEPLAY_MODULES = {
     "visibility",
     "world2d",
     "gameplay-api",
+    "gameplay-control",
+    "interaction",
+    "dialogue-helpers",
+    "ui-anchor",
+    "character3d",
+    "character2d",
+    "character-commands",
+    "character-input",
+    "character-animation",
+    "world-gameplay",
+    "camera-rig",
+    "health",
+    "projectile3d",
+    "device-io",
 }
 
 CATEGORY_BY_MODULE = {
@@ -159,6 +173,20 @@ CATEGORY_BY_MODULE = {
     "hud": "ui_text",
     "hud-core": "ui_text",
     "input": "input_time",
+    "gameplay-control": "input_time",
+    "interaction": "components_hierarchy",
+    "dialogue-helpers": "ui_text",
+    "ui-anchor": "ui_text",
+    "character3d": "collision_3d",
+    "character2d": "gameplay_2d",
+    "character-commands": "components_hierarchy",
+    "character-input": "input_time",
+    "character-animation": "skeletal_animation",
+    "world-gameplay": "components_hierarchy",
+    "camera-rig": "cameras_scenes",
+    "health": "components_hierarchy",
+    "projectile3d": "collision_3d",
+    "device-io": "memory_card",
     "lifecycle": "objects_actors",
     "lighting": "materials_visuals",
     "memory-card": "memory_card",
@@ -574,6 +602,315 @@ def generate(catalog_path: Path = DEFAULT_CATALOG) -> dict[str, Any]:
                 "status": "implemented" if complete else "pending",
             }
         )
+        if module == "gameplay-control":
+            row = capabilities[-1]
+            row["example_ids"] = ["docs/gameplay-controls.md"]
+            row["test_ids"] = [
+                "tests/runtime/gameplay_control.cpp",
+                "tests/integration/verify_gameplay_control.py",
+                "gameplay_control_contract_is_reflected_with_pinned_ids_and_effects",
+                "gameplay_control_capture_consumes_frame_input_before_native_ticks",
+                "gameplay_control_capture_runs_before_native_play_simulation",
+            ]
+            row["cost_evidence"] = [
+                "knowledge/initiatives/gameplay-helpers/p1-delivery.md",
+                "tools/gameplay_helpers_baseline.py --build",
+            ]
+            row["error_contract"] = (
+                "Invalid, exhausted or expired captures fail without releasing another owner; "
+                "unavailable actions return neutral samples. See docs/gameplay-controls.md."
+            )
+        if module == "interaction":
+            row = capabilities[-1]
+            row["example_ids"] = ["docs/input-collision.md#interaction-helpers-p2-preview"]
+            row["test_ids"] = [
+                "tests/runtime/interaction.cpp",
+                "tests/integration/verify_interaction.py",
+                "interaction_native_contract_and_demand_loading",
+                "interaction_routes_frame_input_and_preserves_typed_bindings",
+                "pure_event_overrides_are_const_and_reject_mutation",
+                "pure_event_overrides_are_const_in_native_and_vm_and_reject_effects",
+            ]
+            row["cost_evidence"] = [
+                "knowledge/initiatives/gameplay-helpers/plan.md#phase-2-interaction-and-trigger-helpers",
+                "artifacts/gameplay-helpers/p2/providers/result.json",
+                "artifacts/gameplay-helpers/p2/basic-build-after-header-gate.log",
+            ]
+            row["error_contract"] = (
+                "Requests return explicit availability/lifetime/domain/busy results; sensors "
+                "report missing bindings and remove registrations on disable or replacement. "
+                "P2 acceptance evidence is recorded in the gameplay helpers plan."
+            )
+        if module == "dialogue-helpers":
+            row = capabilities[-1]
+            row["example_ids"] = ["docs/input-collision.md#dialogue-helpers-p3-preview"]
+            row["test_ids"] = [
+                "tests/runtime/dialogue.cpp",
+                "tests/integration/verify_dialogue_helpers.py",
+                "dialogue_session_facade_uses_registered_records_and_bounded_wire_values",
+                "dialogue_helpers_place_shared_presenter_and_preserve_component_bindings",
+                "dialogue_helpers_open_from_interaction_present_choices_and_release_control",
+                "dialogue_one_word_records_keep_their_shape_in_vm_calls_and_nested_members",
+            ]
+            row["cost_evidence"] = [
+                "knowledge/initiatives/gameplay-helpers/plan.md#phase-3-dialogue-assets-and-session-runtime",
+                "artifacts/gameplay-helpers/p3/providers/result.json",
+                "artifacts/gameplay-helpers/p3/basic-unused-result.json",
+            ]
+            row["error_contract"] = (
+                "Generation-checked handles reject stale operations; start reports explicit "
+                "availability/binding/resource errors. Required source/presenter loss cancels "
+                "the modal session and releases capture; cooking diagnoses text/HUD limits."
+            )
+        if module == "health":
+            row = capabilities[-1]
+            row["example_ids"] = ["docs/health.md"]
+            row["test_ids"] = [
+                "tests/runtime/health.cpp",
+                "tests/integration/verify_health.py",
+            ]
+            row["cost_evidence"] = [
+                "artifacts/gameplay-helpers/p8/health/validation.json",
+            ]
+            row["error_contract"] = (
+                "make_state clamps initial to maximum; current above maximum is invalid. "
+                "Damage/heal preserve invalid states and return InvalidState. Nonpositive "
+                "amounts do nothing. Positive amounts saturate without overflow. Depleted "
+                "and revived report actual transitions only. Callers own storage, hit "
+                "eligibility, consequences and feedback; operations have no object access."
+            )
+        if module == "projectile3d":
+            row = capabilities[-1]
+            row["example_ids"] = ["docs/projectiles.md"]
+            row["test_ids"] = [
+                "tests/runtime/projectile3d.cpp",
+                "tests/integration/verify_dungeon_combat.py",
+                "projectile_pool_exposes_typed_bounded_records_without_unused_factories",
+            ]
+            row["cost_evidence"] = [
+                "artifacts/gameplay-helpers/p8/combat/providers/consolidated-validation.json",
+            ]
+            row["expected_complexity"] = (
+                "Bounded eight-actor pool; step performs at most four rays against a shared "
+                "collision snapshot, with O(colliders) worst-case query work. No automatic polling."
+            )
+            row["error_contract"] = (
+                "Live same-Level owners and active unattached visual actors are required; actors "
+                "must have no enabled collider. Managed sprites require active Sprite3DComponents. "
+                "Invalid request configuration, ranges, deltas, filters or context refuse the "
+                "batch without advancing shots. Per-slot stale bindings stop the affected shot; "
+                "arithmetic overflow preserves that shot and reports InvalidDelta, while other "
+                "valid slots can advance. Handles reject stale/cross-pool "
+                "use. Batch results survive reset and expire on the next step. Project rules "
+                "own targeting, teams, firing, damage, rewards and presentation."
+            )
+        if module == "device-io":
+            row = capabilities[-1]
+            row["example_ids"] = ["docs/device-transactions.md"]
+            row["test_ids"] = [
+                "tests/runtime/device_io.cpp",
+                "tests/runtime/memory_card_api.cpp",
+                "tests/integration/verify_dungeon_economy_policies.py",
+                "projectile_pool_exposes_typed_bounded_records_without_unused_factories",
+            ]
+            row["expected_complexity"] = (
+                "One owned bounded 140-byte packet; byte access and snapshots are O(1). "
+                "Polling advances the existing asynchronous transport without allocating."
+            )
+            row["error_contract"] = (
+                "Invalid ports, lengths, byte values and indices reject without starting I/O. "
+                "Busy staging rejects mutation. Handles include component identity and request "
+                "generation; stale and cross-component handles cannot read, poll or cancel work. "
+                "Disable and end play cancel owned requests. A late host-bridge reply remains "
+                "occupied until drained and cannot be stolen by a later transaction. Project "
+                "rules own protocols, installation, retries, rewards and save-before-ack."
+            )
+        if module == "camera-rig":
+            row = capabilities[-1]
+            row["example_ids"] = ["docs/camera-rigs.md"]
+            row["test_ids"] = [
+                "tests/runtime/camera_rig.cpp",
+                "tests/integration/verify_camera_rigs.py",
+                "tests/integration/verify_camera_views.py",
+                "camera_presets_have_inspectable_defaults_and_optional_runtime_pools",
+                "native_constructor_defaults_are_constant_and_inherit_without_shadowing",
+                "camera_placement_through_mcp_keeps_native_components_and_undo",
+                "native_camera_helper_uses_optional_header_and_inherited_components",
+                "camera_native_types_select_optional_header_without_comment_or_string_matches",
+            ]
+            row["cost_evidence"] = [
+                "knowledge/initiatives/gameplay-helpers/p5-progress.md",
+                "artifacts/gameplay-helpers/p5/camera-validation.json",
+            ]
+            row["error_contract"] = (
+                "Invalid owner, target, arm or tuning returns a status without applying a pose. "
+                "Zero delta does not advance smoothing; callback reentry returns Busy. "
+                "References use live object identities. Retraction is immediate and extension can be smoothed."
+            )
+            if qualified in {
+                "epok::SpringArmComponent::solve_shared",
+                "epok::SpringArmComponent::adaptive_pull_in",
+            }:
+                row["test_ids"] = [
+                    "tests/runtime/camera_rig.cpp",
+                    "tests/integration/verify_spatial_query_context.py",
+                ]
+                row["cost_evidence"] = [
+                    "artifacts/gameplay-helpers/p8/shared-camera-providers/result.json",
+                    "artifacts/gameplay-helpers/p8/shared-camera-footprint/result.json",
+                ]
+                row["error_contract"] = (
+                    "Shared solve requires a live active owner and same-Level query context/ignore identity. "
+                    "Invalid references return InvalidTarget without querying. Revision zero disables reuse; "
+                    "nonzero reuse also matches consumer, mask, origin, offset and ignore identity. Context "
+                    "reset, typed publication and typed movement invalidate cached rays. Arm reset refreshes "
+                    "the next query. Cache replacement re-queries and never drops work. Adaptive clearance "
+                    "halves a close hit fraction before applying the configured minimum."
+                )
+        if module == "character3d":
+            row = capabilities[-1]
+            row["example_ids"] = ["docs/character-motor.md", "docs/character-classes.md"]
+            row["test_ids"] = [
+                "tests/runtime/character3d.cpp",
+                "tests/runtime/character3d_lifecycle.cpp",
+                "tests/runtime/character3d_shared.cpp",
+                "tests/integration/verify_character_motor.py",
+                "tests/integration/verify_character_motor_shared.py",
+                "character_motor_uses_shared_reflected_records_without_an_unused_pool",
+                "tests/runtime/tick_groups.cpp",
+                "tests/integration/verify_character_classes.py",
+                "character_classes_compose_native_bodies_and_keep_unused_pools_out",
+                "native_character_classes_run_physics_before_presentation_in_both_domains",
+            ]
+            row["cost_evidence"] = [
+                "knowledge/initiatives/gameplay-helpers/p5-progress.md",
+                "artifacts/gameplay-helpers/p5/motor-validation.json",
+                "artifacts/gameplay-helpers/p5/character-classes-validation.json",
+                "artifacts/gameplay-helpers/p8/motor-shared-api/providers-final/result.json",
+                "artifacts/gameplay-helpers/p8/motor-shared-api/providers-final/standalone-result.json",
+            ]
+            row["error_contract"] = (
+                "Zero delta retains commands; invalid owner/configuration reports an explicit status "
+                "without moving the body. Successful simulation consumes the pending jump once. "
+                "Stop clears commands while velocity and gravity continue; lifecycle resets state. "
+                "Clear velocity retains grounded contact; set facing rejects values outside +/-360000 degrees. "
+                "Shared simulation requires a live same-Level context. Invalid context retains pending jumps "
+                "without moving. Revision zero forces queries; nonzero support reuse also matches context "
+                "reset epoch, owner/body identity, generation, parent, pose, scale and tuning. The caller "
+                "must advance the support revision for contact-affecting world changes."
+            )
+        if module == "character2d":
+            row = capabilities[-1]
+            row["example_ids"] = ["docs/character-classes.md"]
+            row["test_ids"] = [
+                "tests/runtime/character2d.cpp", "tests/runtime/world2d_service.cpp",
+                "tests/runtime/tick_groups.cpp", "tests/integration/verify_character_classes.py",
+                "character_classes_compose_native_bodies_and_keep_unused_pools_out",
+                "native_character_classes_run_physics_before_presentation_in_both_domains",
+            ]
+            row["cost_evidence"] = [
+                "knowledge/initiatives/gameplay-helpers/p5-progress.md",
+                "artifacts/gameplay-helpers/p5/character-classes-validation.json",
+            ]
+            row["error_contract"] = (
+                "Zero delta preserves commands. Invalid owner, foreign body, missing solid collider, "
+                "invalid delta/tuning/vector reports a status without applying movement. Jump edges "
+                "latch until an applied step; stopping clears commands and retains physical velocity. "
+                "Non-floating bodies use normalized up direction; floating bodies use the full desired velocity."
+            )
+        if qualified.startswith("epok::SpatialQueryContextComponent::"):
+            row = capabilities[-1]
+            row["example_ids"] = ["docs/spatial-query-context.md"]
+            row["test_ids"] = [
+                "tests/runtime/spatial_query_context.cpp",
+                "tests/integration/verify_spatial_query_context.py",
+                "tests/integration/verify_query_context_footprint.py",
+            ]
+            row["cost_evidence"] = [
+                "artifacts/gameplay-helpers/p8/shared-camera-providers/result.json",
+                "artifacts/gameplay-helpers/p8/shared-camera-footprint/result.json",
+            ]
+            row["error_contract"] = (
+                "Queries require an active live owner and same-Level actor arguments; stale, "
+                "foreign-Level or invalid nonempty ignore references return default results "
+                "without querying. Movement rejects inactive subjects; publication accepts them "
+                "to remove disabled bounds. Reset clears the batch. Manual batches require "
+                "publication after direct edits and reset after collision ownership changes."
+            )
+        if module == "world-gameplay":
+            row = capabilities[-1]
+            row["example_ids"] = ["docs/world-gameplay-helpers.md"]
+            row["test_ids"] = [
+                "tests/runtime/world_gameplay.cpp",
+                "tests/integration/verify_world_gameplay.py",
+                "world_gameplay_helpers_share_native_contracts_presets_and_optional_factories",
+                "world_gameplay_native_parents_are_derivable_in_all_three_providers",
+                "world_pickups_collect_once_through_native_physics_in_both_domains",
+                "helper_preview_resolves_composition_without_writes_and_rejects_overflow",
+                "world_helpers_duplicate_shared_bindings_reset_and_round_trip_in_both_domains",
+                "named_enum_constants_keep_types_in_aot_vm_and_editor_definitions",
+            ]
+            row["cost_evidence"] = ["knowledge/initiatives/gameplay-helpers/plan.md#phase-6-helper-catalog-pickups-doors-and-switches"]
+            row["error_contract"] = (
+                "Pickup state is independent of activity and rewards once; invalid initiators, "
+                "missing flags and reentry fail without collection. Door changes commit before "
+                "physics and revalidate requirements; disable cancels pending work. Flags may "
+                "be read while inactive but not after destruction. Switches emit only actual "
+                "changes. Results report queued, unchanged, unavailable or a specific refusal."
+            )
+        if module == "character-animation":
+            row = capabilities[-1]
+            row["example_ids"] = ["docs/character-animation.md"]
+            row["test_ids"] = [
+                "tests/runtime/character_animation.cpp", "tests/integration/verify_character_animation.py",
+                "locomotion_drivers_use_editable_configuration_and_optional_factories",
+                "locomotion_types_select_animation_without_input_or_query_services",
+                "local_record_fields_lower_to_typed_copy_updates_in_every_backend",
+                "native_locomotion_drivers_apply_project_policies_after_both_motors",
+            ]
+            row["cost_evidence"] = ["knowledge/initiatives/gameplay-helpers/p5-progress.md"]
+            row["error_contract"] = (
+                "Zero delta preserves playback. Invalid owner/motor/visual/configuration or missing clip "
+                "returns an explicit status without applying a selection. Reentry returns Busy. "
+                "Bindings must be active objects in the same Level; callbacks revalidate identities. "
+                "Disabled/reset drivers leave the visual untouched. Sprite loop policy belongs to its asset."
+            )
+        if module in {"character-commands", "character-input"}:
+            row = capabilities[-1]
+            row["example_ids"] = ["docs/character-classes.md#command-producers"]
+            row["test_ids"] = [
+                "tests/runtime/character_commands.cpp",
+                "tests/integration/verify_character_commands.py",
+                "command_producers_share_reflection_composition_and_optional_capabilities",
+                "character_command_native_types_select_only_their_required_services",
+            ]
+            row["cost_evidence"] = ["knowledge/initiatives/gameplay-helpers/p5-progress.md"]
+            row["error_contract"] = (
+                "Zero delta preserves pending commands. Invalid owner/motor/target/configuration "
+                "returns an explicit status and releases only this source's current submission. "
+                "Callback reentry returns Busy. A newer producer or direct motor submission cannot "
+                "be stopped by an older producer. Sources must share the controlled motor's Level. "
+                "Local-player capture retains physics and consumes jump edges only after submission."
+            )
+        if module == "ui-anchor":
+            row = capabilities[-1]
+            row["example_ids"] = ["docs/hud.md#follow-a-world-actor"]
+            row["test_ids"] = [
+                "tests/runtime/ui_anchor.cpp",
+                "tests/integration/verify_dialogue_helpers.py",
+                "screen_anchor_is_an_independent_optional_ui_component",
+                "native_ui_anchors_follow_world_targets_without_interaction",
+                "dialogue_widget_classes_spawn_with_authored_pagination_and_anchors_in_native_play",
+            ]
+            row["cost_evidence"] = [
+                "knowledge/initiatives/gameplay-helpers/p4-widget-classes.md#anchored-composition-implementation",
+                "artifacts/gameplay-helpers/p4/validation.json",
+            ]
+            row["error_contract"] = (
+                "Invalid content or an oversized container returns an explicit status without moving it. "
+                "Unavailable world projections use a visible fallback; clearing a target or disabling "
+                "the anchor freezes its last position."
+            )
     return {
         "schema_version": SCHEMA_VERSION,
         "initiative": "gameplay-api-parity",

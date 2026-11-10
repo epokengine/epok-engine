@@ -452,12 +452,31 @@ fn add_component_menu(ui: &imgui::Ui, editor: &mut Editor, actor: uuid::Uuid) ->
     let mut added = false;
     ui.popup("add-component", || {
         let classes = editor.addable_component_classes(actor);
-        for group in ["Shared", "Domain"] {
-            if !classes.iter().any(|(g, _, _)| *g == group) {
+        let model = editor.object_model();
+        let category = |group, name: &str| {
+            if model
+                .as_ref()
+                .and_then(|m| m.class(name))
+                .and_then(crate::game_helper_catalog::group)
+                .is_some()
+            {
+                "Game Helpers"
+            } else {
+                group
+            }
+        };
+        for group in ["Game Helpers", "Shared", "Domain"] {
+            if !classes
+                .iter()
+                .any(|(g, class, _)| category(*g, class) == group)
+            {
                 continue;
             }
             ui.text_disabled(group);
-            for (_, class, label) in classes.iter().filter(|(g, _, _)| *g == group) {
+            for (_, class, label) in classes
+                .iter()
+                .filter(|(g, class, _)| category(*g, class) == group)
+            {
                 if ui.menu_item(label) {
                     if editor.catalog.iter().any(|script| script.name == *class) {
                         editor.select_actor(Some(actor));
@@ -2280,11 +2299,41 @@ pub(crate) fn reflected_property_table(
     properties: &std::collections::BTreeMap<String, serde_json::Value>,
     overrides: &std::collections::BTreeSet<String>,
 ) -> Option<PropertyAction> {
-    let cpp_name = e
-        .object_model()
-        .and_then(|model| model.class(class_name).map(|c| c.cpp_name.clone()))
+    reflected_properties(
+        ui,
+        &PropertyContext {
+            scene: &e.scene,
+            registry: &e.class_registry,
+            assets: &e.assets.index,
+        },
+        id_prefix,
+        class_name,
+        properties,
+        overrides,
+    )
+}
+
+pub(crate) struct PropertyContext<'a> {
+    pub scene: &'a crate::scene::Scene,
+    pub registry: &'a crate::blueprint::Registry,
+    pub assets: &'a crate::assets::Index,
+}
+pub(crate) fn reflected_properties(
+    ui: &imgui::Ui,
+    context: &PropertyContext<'_>,
+    id_prefix: &str,
+    class_name: &str,
+    properties: &std::collections::BTreeMap<String, serde_json::Value>,
+    overrides: &std::collections::BTreeSet<String>,
+) -> Option<PropertyAction> {
+    let cpp_name = context
+        .registry
+        .classes
+        .get(class_name)
+        .or_else(|| context.registry.named(class_name))
+        .map(|c| c.cpp_name.clone())
         .unwrap_or_else(|| class_name.to_owned());
-    let declared = e.class_registry.properties(&cpp_name);
+    let declared = context.registry.properties(&cpp_name);
     let mut action = None;
     if declared.is_empty() && properties.is_empty() {
         ui.text_disabled("No reflected properties");
@@ -2311,18 +2360,26 @@ pub(crate) fn reflected_property_table(
             &format!("##{id_prefix}-{}", property.name),
             &mut value,
             &property.value_type,
-            &e.scene,
-            &e.class_registry,
-            &e.assets.index,
+            context.scene,
+            context.registry,
+            context.assets,
         ) {
             action = Some(PropertyAction::Set(property.name.clone(), value));
         }
+        crate::blueprint_editor::record_control(
+            ui,
+            &format!("{id_prefix}:value:{}", property.name),
+        );
         if overrides.contains(&property.name) {
             ui.text_colored(OVERRIDE_COLOUR, "override");
             ui.same_line();
             if ui.small_button(format!("Reset to inherited##{id_prefix}-{}", property.name)) {
                 action = Some(PropertyAction::Reset(property.name.clone()));
             }
+            crate::blueprint_editor::record_control(
+                ui,
+                &format!("{id_prefix}:reset:{}", property.name),
+            );
         }
     }
     for key in properties
@@ -2376,6 +2433,15 @@ pub(crate) fn edit_class_button(
         {
             ui.text_disabled("Engine class (read-only)");
             return;
+        }
+        if e.object_model().is_some_and(|m| {
+            m.class(&class.id).is_some_and(|c| {
+                c.domain == crate::reflection_schema::Domain::UI
+                    && c.family == crate::reflection_schema::ClassFamily::Actor
+            })
+        }) && script_button(ui, "Edit UI Class")
+        {
+            crate::class_designer::open(e, &class.id);
         }
         let label = match class.provider.id.as_str() {
             "blueprint" => "Open Blueprint",
@@ -2448,7 +2514,6 @@ fn entity_actor_inspector(ui: &imgui::Ui, e: &mut Editor, entity: usize) {
     let Some(actor) = crate::actor_scripts::owner(&e.scene, entity).cloned() else {
         return;
     };
-    let index = e.scene.actor_index(actor.id).unwrap();
     let _id = ui.push_id("entity-actor");
     if heading(ui, &format!("{CODE} {} (Actor Class)", actor.class.name)) {
         muted(
@@ -2462,11 +2527,9 @@ fn entity_actor_inspector(ui: &imgui::Ui, e: &mut Editor, entity: usize) {
             "entity-actor",
             actor.class.class_id.as_deref().unwrap_or(&actor.class.name),
             &actor.properties,
-            &actor.overrides,
+            &crate::blueprint_templates::placement_property_overrides(&actor, actor.id),
         ) {
-            let target = &mut e.scene.actors[index];
-            apply_property_action(action, &mut target.properties, &mut target.overrides);
-            e.changed();
+            e.edit_actor_property(actor.id, actor.id, action);
         }
     }
     for component in &actor.components {
@@ -2502,15 +2565,9 @@ fn entity_actor_inspector(ui: &imgui::Ui, e: &mut Editor, entity: usize) {
                     .as_deref()
                     .unwrap_or(&component.class.name),
                 &component.properties,
-                &component.overrides,
+                &crate::blueprint_templates::placement_property_overrides(&actor, component.id),
             ) {
-                let target = e.scene.actors[index]
-                    .components
-                    .iter_mut()
-                    .find(|c| c.id == component.id)
-                    .unwrap();
-                apply_property_action(action, &mut target.properties, &mut target.overrides);
-                e.changed();
+                e.edit_actor_property(actor.id, component.id, action);
             }
         }
         if remove {
@@ -2591,7 +2648,7 @@ fn actor_inspector(ui: &imgui::Ui, e: &mut Editor) {
                         c.root,
                         c.inherited,
                         c.properties.clone(),
-                        c.overrides.clone(),
+                        crate::blueprint_templates::placement_property_overrides(&e.scene.actors[index], c.id),
                     )
                 })
                 .collect();
@@ -2655,19 +2712,8 @@ fn actor_inspector(ui: &imgui::Ui, e: &mut Editor) {
             #[cfg(test)]
             record_script_control(ui, "Add Component");
             add_component_menu(ui, e, id);
-            if let Some((component, action)) = edit
-                && let Some(position) = e.scene.actors[index]
-                    .components
-                    .iter()
-                    .position(|c| c.id == component)
-            {
-                let target = &mut e.scene.actors[index].components[position];
-                let (mut properties, mut overrides) =
-                    (target.properties.clone(), target.overrides.clone());
-                apply_property_action(action, &mut properties, &mut overrides);
-                target.properties = properties;
-                target.overrides = overrides;
-                e.changed();
+            if let Some((component, action)) = edit {
+                e.edit_actor_property(id, component, action);
             }
             if let Some(component) = remove {
                 e.remove_actor_component(id, component);
@@ -2676,7 +2722,7 @@ fn actor_inspector(ui: &imgui::Ui, e: &mut Editor) {
         if heading(ui, "\u{eb2b} Properties") {
             let (properties, overrides) = (
                 e.scene.actors[index].properties.clone(),
-                e.scene.actors[index].overrides.clone(),
+                crate::blueprint_templates::placement_property_overrides(&e.scene.actors[index], id),
             );
             let class = e.scene.actors[index].class.clone();
             if let Some(action) = reflected_property_table(
@@ -2687,11 +2733,7 @@ fn actor_inspector(ui: &imgui::Ui, e: &mut Editor) {
                 &properties,
                 &overrides,
             ) {
-                let (mut properties, mut overrides) = (properties, overrides);
-                apply_property_action(action, &mut properties, &mut overrides);
-                e.scene.actors[index].properties = properties;
-                e.scene.actors[index].overrides = overrides;
-                e.changed();
+                e.edit_actor_property(id, id, action);
             }
             muted(
                 ui,
@@ -2723,6 +2765,33 @@ pub(crate) fn map_settings(ui: &imgui::Ui, e: &mut Editor) {
             ui.text(e.scene.actors.len().to_string());
             ui.separator();
             scene_blueprint_settings(ui, e);
+            ui.separator();
+            if heading(ui, "Runtime Spawn Reserve") {
+                let _disabled = ui.begin_disabled(e.playing);
+                let mut authored = e.scene.spawn_reserve.is_some();
+                let mut slots = e.scene.spawn_slots() as i32;
+                let toggled = ui.checkbox("Author reserve##spawn_reserve", &mut authored);
+                let dragged = authored
+                    && crate::gui::Drag::new("Actor slots##spawn_reserve")
+                        .speed(1.)
+                        .range(0, crate::scene::Scene::SPAWN_RESERVE as i32)
+                        .build(ui, &mut slots);
+                if toggled || dragged {
+                    let before = e.scene.spawn_reserve;
+                    e.scene.spawn_reserve = authored.then_some(slots.max(0) as usize);
+                    if let Err(error) = e.scene.validate() {
+                        e.scene.spawn_reserve = before;
+                        e.last_error = Some(error);
+                    } else {
+                        e.changed();
+                    }
+                }
+                drop(_disabled);
+                muted(
+                    ui,
+                    "Slots for actors created at runtime. Authoring it also sizes object storage for this map's live peak; a spawn beyond it is refused.",
+                );
+            }
             ui.separator();
             if heading(ui, "Current Scene HUD Budget") {
                 let mut values = [
@@ -2971,6 +3040,8 @@ pub(crate) fn inspector(ui: &imgui::Ui, e: &mut Editor) {
     crate::dungeon_editor::apply_pending(e);
     crate::dungeon_style_editor::window(ui, e);
     crate::data_table_editor::window(ui, e);
+    crate::dialogue_editor::window(ui, e);
+    crate::class_designer::window(ui, e);
     crate::dungeon_recipe_editor::window(ui, e);
     crate::dungeon_room_editor::window(ui, e);
     crate::dungeon_seeds::window(ui, e);
@@ -2989,6 +3060,7 @@ pub(crate) fn inspector(ui: &imgui::Ui, e: &mut Editor) {
             return;
         }
         crate::project_browser::inspector_drop(ui, e);
+        crate::game_helper_catalog::inspector_drop(e);
         // A 2D actor selected from any view (Hierarchy, Scene, MCP) gets the 2D Inspector.
         let selected_2d = e
             .selected_actor
@@ -3014,16 +3086,7 @@ pub(crate) fn inspector(ui: &imgui::Ui, e: &mut Editor) {
         crate::blueprint_workflow::instance_inspector(ui, e, index);
         let mut entity = e.scene.actors[index].clone();
         let original = entity.clone();
-        // Focus links point at rect elements by actor index; the picker shows
-        // them by name so the author never types one.
-        let focus_targets: Vec<(usize, String)> = e
-            .scene
-            .actors
-            .iter()
-            .enumerate()
-            .filter(|(_, a)| a.rect.is_some())
-            .map(|(i, a)| (i, a.name.clone()))
-            .collect();
+        let focus_targets = crate::hud::focus_targets(&e.scene, index);
         let mut requested_parent = None;
         ui.disabled(e.playing, || {
             let glyph = if entity.kind == "Camera" {
@@ -3040,9 +3103,11 @@ pub(crate) fn inspector(ui: &imgui::Ui, e: &mut Editor) {
                 ui,
                 &mut entity,
                 &focus_targets,
-                &crate::hud_editor::font_choices(&e.assets.index),
-                strings.as_ref(),
-                e.scene.preview_language,
+                &crate::hud_editor::Resources {
+                    index: &e.assets.index,
+                    strings: strings.as_ref(),
+                    language: e.scene.preview_language,
+                },
             ) {
                 crate::localization_editor::open(e);
             }
@@ -3340,6 +3405,7 @@ fn scene_view(
             .uv1([(1. + uv[0]) * 0.5, (1. + uv[1]) * 0.5])
             .build(ui);
         crate::project_browser::scene_drop(ui, e);
+        crate::game_helper_catalog::scene_drop(ui, e);
         let hovered = ui.is_item_hovered();
         // A text field may own ActiveId until navigation explicitly relinquishes it.
         let navigation_hovered = ui

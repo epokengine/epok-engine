@@ -191,6 +191,55 @@ pub fn scene_header_with_registry_for(
     class_registry: &crate::blueprint::Registry,
     skeletal_queries: crate::skeletal_compile::QueryDemand,
 ) -> Result<String, String> {
+    scene_header_for_purpose(
+        scene,
+        catalog,
+        resources,
+        emit_resources,
+        layout_scene,
+        class_registry,
+        skeletal_queries,
+        HeaderPurpose::Scene,
+    )
+}
+/// A spawn prototype's header: compact base records and an initializer that
+/// writes only the slots it is given. It never touches anything the host scene
+/// owns (visibility, lighting, fog, navigation, localization), and it shares the
+/// host's string table rather than carrying a copy.
+pub fn prototype_header(
+    scene: &Scene,
+    catalog: &[scripts::Script],
+    resources: &Scene,
+    class_registry: &crate::blueprint::Registry,
+) -> Result<String, String> {
+    scene_header_for_purpose(
+        scene,
+        catalog,
+        resources,
+        false,
+        resources,
+        class_registry,
+        crate::skeletal_compile::QueryDemand::ALL,
+        HeaderPurpose::Prototype,
+    )
+}
+#[derive(Clone, Copy, PartialEq)]
+enum HeaderPurpose {
+    Scene,
+    Prototype,
+}
+#[allow(clippy::too_many_arguments)]
+fn scene_header_for_purpose(
+    scene: &Scene,
+    catalog: &[scripts::Script],
+    resources: &Scene,
+    emit_resources: bool,
+    layout_scene: &Scene,
+    class_registry: &crate::blueprint::Registry,
+    skeletal_queries: crate::skeletal_compile::QueryDemand,
+    purpose: HeaderPurpose,
+) -> Result<String, String> {
+    let prototype = purpose == HeaderPurpose::Prototype;
     scene.validate()?;
     let mut prepared = scene.clone();
     prepared.sync_actor_components();
@@ -330,10 +379,17 @@ pub fn scene_header_with_registry_for(
         }
     }
     text.push_str("}\n");
-    text.push_str(&format!(
-        "namespace epok {{\ninline std::array<ActorData, {}> objects = {{{{\n",
-        scene.actors.len() + 32
-    ));
+    text.push_str(&if prototype {
+        format!(
+            "namespace epok {{\ninline const std::array<SceneActorInitialData, {}> initial_objects = {{{{\n",
+            scene.actors.len()
+        )
+    } else {
+        format!(
+            "namespace epok {{\ninline std::array<ActorData, {}> objects = {{{{\n",
+            scene.actors.len() + 32
+        )
+    });
     let fixed = |v: f32| format!("Fixed({}, Fixed::RAW)", (v as f64 * 4096.).round() as i32);
     for (index, e) in scene.actors.iter().enumerate() {
         if e.scale.iter().any(|v| *v > 64.) {
@@ -406,7 +462,28 @@ pub fn scene_header_with_registry_for(
             + 32 * 12
             + 513
     ));
-    for (i, colors) in scene.bake.as_ref().unwrap().colors.iter().enumerate() {
+    let bake = scene.bake.as_ref().unwrap();
+    let baked_colors: Vec<&[[u8; 3]]> = scene
+        .actors
+        .iter()
+        .enumerate()
+        .map(|(i, actor)| {
+            if bake.actor_ids.is_empty() {
+                bake.colors[i].as_slice()
+            } else {
+                bake.preview_colors(
+                    actor.id,
+                    if crate::lighting::baked(actor) {
+                        crate::lighting::quad_count(actor) * 4
+                    } else {
+                        0
+                    },
+                )
+                .unwrap_or(&[])
+            }
+        })
+        .collect();
+    for (i, colors) in baked_colors.iter().enumerate() {
         if !colors.is_empty() {
             text.push_str(&format!(
                 "inline constexpr uint8_t baked_{i}[{}][3]={{{}}};\n",
@@ -419,16 +496,20 @@ pub fn scene_header_with_registry_for(
             ));
         }
     }
-    if let Some(strings) = &scene.strings {
-        text.push_str(&crate::localization::header(strings));
-    }
-    text.push_str(
-        r#"
+    if prototype {
+        text.push_str("\ninline void initialize_components(PrototypeSlots objects){\n");
+    } else {
+        if let Some(strings) = &scene.strings {
+            text.push_str(&crate::localization::header(strings));
+        }
+        text.push_str(
+            r#"
 inline void initialize_components(){
 epok::set_visibility_track(nullptr);
 "#,
-    );
-    text.push_str(crate::localization::install(scene.strings.as_deref()));
+        );
+        text.push_str(crate::localization::install(scene.strings.as_deref()));
+    }
     let color = |c: &[f32; 3]| {
         c.iter()
             .map(|v| ((v * 255.).round() as u8).to_string())
@@ -442,17 +523,19 @@ epok::set_visibility_track(nullptr);
             s.bytes().map(|b| format!("\\{b:03o}")).collect::<String>()
         )
     };
-    text.push_str(&format!(
-        "lighting_environment=LightingEnvironment{{{{{}}},{}}};\n",
-        scene
-            .environment
-            .ambient
-            .iter()
-            .map(|v| fixed(*v))
-            .collect::<Vec<_>>()
-            .join(","),
-        scene.environment.point_lights
-    ));
+    if !prototype {
+        text.push_str(&format!(
+            "lighting_environment=LightingEnvironment{{{{{}}},{}}};\n",
+            scene
+                .environment
+                .ambient
+                .iter()
+                .map(|v| fixed(*v))
+                .collect::<Vec<_>>()
+                .join(","),
+            scene.environment.point_lights
+        ));
+    }
     let clips = crate::audio::clip_ids(resources);
     for (i, e) in scene.actors.iter().enumerate() {
         if let Some(audio) = &e.audio {
@@ -508,7 +591,7 @@ epok::set_visibility_track(nullptr);
         if crate::lighting::baked(e) {
             text.push_str(&format!(
                 "objects[{i}].baked_colors=baked_{i};objects[{i}].baked_color_count={};\n",
-                scene.bake.as_ref().unwrap().colors[i].len()
+                baked_colors[i].len()
             ));
         }
         if let Some(l) = &e.light {
@@ -539,8 +622,12 @@ epok::set_visibility_track(nullptr);
         if let Some(c) = &e.canvas {
             text.push_str(&format!(
                 "objects[{i}].canvas.enabled={};objects[{i}].canvas.focused={};\n",
-                c.enabled, c.focused
+                c.enabled,
+                crate::hud::canvas_focus(scene, c)
             ));
+            if c.screen_overlay {
+                text.push_str(&format!("objects[{i}].canvas.screen_overlay=true;\n"));
+            }
         }
         if let Some(r) = &e.rect {
             text.push_str(&format!(
@@ -617,7 +704,9 @@ epok::set_visibility_track(nullptr);
             text.push_str(&format!(
                 "objects[{i}].focusable=Focusable{{{},{{{}}},{},{{{}}},FocusKind({}),{}}};\n",
                 c.enabled,
-                c.neighbors.map(|v| v.to_string()).join(","),
+                crate::hud::focus_neighbors(scene, c)
+                    .map(|v| v.to_string())
+                    .join(","),
                 c.order,
                 c.highlight
                     .iter()
@@ -627,6 +716,9 @@ epok::set_visibility_track(nullptr);
                 c.kind as u8,
                 c.checked
             ));
+            if c.outline {
+                text.push_str(&format!("objects[{i}].focusable.outline=true;\n"));
+            }
         }
     }
 
@@ -634,11 +726,22 @@ epok::set_visibility_track(nullptr);
     text.push_str(&crate::particles::generate(scene, &texture_ids));
     text.push_str(&crate::collision::cpp_setup(scene));
     text.push_str(&crate::terrain_compile::collider_cpp(scene));
-    text.push_str(&navigation_init);
-    text.push_str(&dungeon_init);
+    if !prototype {
+        text.push_str(&navigation_init);
+        text.push_str(&dungeon_init);
+    }
     text.push_str(&crate::palette::cpp_setup(scene));
-    text.push_str(&crate::effects::cpp_setup(scene));
-    text.push_str(crate::localization::apply(scene.strings.as_deref()));
+    if prototype {
+        // The slots are outside the host's `localization.apply` traversal until
+        // they exist, so a spawn outside the first language translates itself.
+        text.push_str(&format!(
+            "if(localization.language)for(size_t i=0;i<{};++i)if(objects[i].text.key>=0)objects[i].text.set_text(localization.get(objects[i].text.key));\n",
+            scene.actors.len()
+        ));
+    } else {
+        text.push_str(&crate::effects::cpp_setup(scene));
+        text.push_str(crate::localization::apply(scene.strings.as_deref()));
+    }
     text.push_str("}\n");
 
     let mut order: Vec<_> = (0..scene.actors.len()).collect();
@@ -664,14 +767,19 @@ epok::set_visibility_track(nullptr);
         "inline constexpr size_t terrain_count = {};\n",
         scene.actors.iter().filter(|e| tiled(e)).count()
     ));
-    text.push_str("inline void initialize_scripts() {initialize_components();}\n");
+    if !prototype {
+        text.push_str("inline void initialize_scripts() {initialize_components();}\n");
+    }
     text.push_str(&actor_table_with_registry(
         scene,
         class_registry,
         &clips,
         &pictures,
     )?);
-    text.push_str("#ifdef EPOK_EDITOR_PREVIEW\ninline void initialize_editor_preview() {initialize_components();}\n#endif\n}\n");
+    if !prototype {
+        text.push_str("#ifdef EPOK_EDITOR_PREVIEW\ninline void initialize_editor_preview() {initialize_components();}\n#endif\n");
+    }
+    text.push_str("}\n");
     crate::visibility_track::rewrite(scene, text)
 }
 fn tiled(e: &crate::scene::Actor) -> bool {
@@ -682,20 +790,17 @@ pub fn stage(root: &Path, scene: &Scene) -> Result<PathBuf, String> {
     stage_into(root, scene, &root.join(".epok/build"))
 }
 pub fn refresh_linked_scene(root: &Path, scene: &mut Scene) -> Result<(), String> {
-    if scene
-        .actors
-        .iter()
-        .any(|entity| entity.blueprint_instance.is_some())
-    {
-        let catalog = crate::scripts::catalog(root)?;
-        let registry = crate::blueprint::registry_from_catalog(root, &catalog);
-        crate::blueprint_templates::refresh_instances(
-            scene,
-            &crate::blueprint_asset::load_all(root)?,
-            &registry,
-        )?;
+    if scene.actors.is_empty() {
+        return Ok(());
     }
-    Ok(())
+    let catalog = crate::scripts::catalog(root)?;
+    let registry = crate::blueprint::native_registry(root, &catalog)?;
+    crate::class_composition::refresh_instances(
+        root,
+        scene,
+        &crate::blueprint_asset::load_all(root)?,
+        &registry,
+    )
 }
 #[cfg(test)]
 pub fn stage_into(root: &Path, scene: &Scene, build: &Path) -> Result<PathBuf, String> {
@@ -976,6 +1081,12 @@ fn stage_with_playback(
     )?;
     playback.scene_input("lua-mode".into(), lua.signature())?;
     let blueprint_files = crate::blueprint_asset::load_all(root)?;
+    let compositions = crate::class_composition::load(root)?;
+    compositions.validate(root, &blueprint_registry)?;
+    playback.scene_input(
+        crate::class_composition::SOURCE_SET.into(),
+        compositions.signature(root),
+    )?;
     playback.scene_input(
         "blueprint-sources".into(),
         crate::blueprint_dependencies::source_set(&blueprint_files),
@@ -990,7 +1101,12 @@ fn stage_with_playback(
     let templates = crate::blueprint_spawn::prepare(root, &catalog, &asset_index)?;
     let mut hud_budget = scene.hud_budget.clone();
     for bank in &mut banks {
-        crate::blueprint_templates::refresh_instances(bank, &blueprint_files, &blueprint_registry)?;
+        crate::blueprint_templates::refresh_class_instances(
+            bank,
+            &blueprint_files,
+            &blueprint_registry,
+            &compositions.templates(),
+        )?;
         bank.display_size = scene.display_size;
         crate::mesh::resolve(bank, &asset_index)?;
         crate::terrain::resolve(bank, &asset_index)?;
@@ -998,6 +1114,7 @@ fn stage_with_playback(
         crate::skeletal::resolve(bank, &asset_index)?;
         crate::texture::resolve(bank, &asset_index)?;
         crate::hud::resolve_fonts(bank, &asset_index)?;
+        crate::localization::resolve_runtime(bank, &asset_index, &blueprint_registry)?;
         bank.validate()?;
         if !rendering.streaming_geometry
             && bank
@@ -1017,11 +1134,7 @@ fn stage_with_playback(
         } else {
             crate::audio::validate_assets(bank, &asset_index)?;
         }
-        hud_budget.layouts = hud_budget.layouts.max(bank.hud_budget.layouts);
-        hud_budget.rectangles = hud_budget.rectangles.max(bank.hud_budget.rectangles);
-        hud_budget.texts = hud_budget.texts.max(bank.hud_budget.texts);
-        hud_budget.glyphs = hud_budget.glyphs.max(bank.hud_budget.glyphs);
-        hud_budget.rotated = hud_budget.rotated.max(bank.hud_budget.rotated);
+        hud_budget.include(&bank.hud_budget);
     }
     let mut timeline_scenes = banks.clone();
     timeline_scenes.extend(templates.iter().map(|t| t.scene.clone()));
@@ -1066,15 +1179,17 @@ fn stage_with_playback(
         &effect_registry,
     )?;
     let mut resource_scenes = banks.clone();
+    // A prefab has no authored HUD budget: its field only holds the default, and
+    // merging that would size every game for the largest possible interface. A
+    // spawned widget draws beside its host scene, so reserve the busiest bank
+    // plus the largest prefab, and leave a higher authored budget untouched.
+    let mut spawned_hud = crate::hud::Budget::EMPTY;
     for template in &templates {
         resource_scenes.push(template.scene.clone());
-        hud_budget.layouts = hud_budget.layouts.max(template.scene.hud_budget.layouts);
-        hud_budget.rectangles = hud_budget
-            .rectangles
-            .max(template.scene.hud_budget.rectangles);
-        hud_budget.texts = hud_budget.texts.max(template.scene.hud_budget.texts);
-        hud_budget.glyphs = hud_budget.glyphs.max(template.scene.hud_budget.glyphs);
-        hud_budget.rotated = hud_budget.rotated.max(template.scene.hud_budget.rotated);
+        spawned_hud.include(&crate::hud::usage(&template.scene)?);
+    }
+    for bank in &banks {
+        hud_budget.include(&crate::hud::usage(bank)?.plus(&spawned_hud));
     }
     let playback_sources = || {
         timelines
@@ -1141,6 +1256,31 @@ fn stage_with_playback(
     };
     resource_scenes.push(referenced.clone());
     let shared_resources = crate::scene_bank::resources(&resource_scenes);
+    let selected_resources = crate::dialogue_cook::Selection::prepare(
+        &blueprint_files,
+        &resource_scenes,
+        &blueprint_registry,
+        &asset_index,
+        &extra_resources,
+    )?;
+    let dialogues = crate::dialogue_cook::Bundle::prepare_widgets(
+        &selected_resources,
+        &asset_index,
+        class_registry,
+        scene.display_size,
+        &shared_resources.fonts,
+        &resource_scenes,
+    )?;
+    for bank in &mut banks {
+        dialogues.install_languages(bank);
+    }
+    crate::dialogue_presenter::validate(&banks, &shared_resources, class_registry, &dialogues)?;
+    for (id, signature) in &dialogues.dependencies {
+        playback.scene_input(id.clone(), signature.clone())?;
+    }
+    if !dialogues.variants.is_empty() {
+        artifacts.runtime_capabilities.insert("dialogue".into());
+    }
     if let Some(bundle) = &mut stream {
         bundle.append_texture_pixels(&shared_resources)?;
         bundle.write(build)?;
@@ -1160,7 +1300,7 @@ fn stage_with_playback(
         crate::scene_dependencies::hash((&storage, &bank_paths, &external)),
     )?;
     crate::scene_files::stage(build, &banks, &external)?;
-    let generated = crate::scene_bank::header_with_templates_for(
+    let mut generated = crate::scene_bank::header_with_templates_for(
         &banks,
         &catalog,
         stream.as_ref(),
@@ -1173,6 +1313,53 @@ fn stage_with_playback(
         &external,
         rendering.mesh_triangle_budget,
     )?;
+    generated += &dialogues.header(&shared_resources)?;
+    if generated.contains("#define EPOK_DIALOGUE_USED 1") {
+        artifacts.runtime_capabilities.insert("dialogue".into());
+    }
+    if generated.contains("#define EPOK_INTERACTION_USED 1") {
+        artifacts.runtime_capabilities.insert("interaction".into());
+        artifacts
+            .runtime_capabilities
+            .insert("gameplay-control".into());
+    }
+    if generated.contains("#define EPOK_CAMERA_RIG_USED 1") {
+        artifacts.runtime_capabilities.insert("camera-rig".into());
+    }
+    if generated.contains("#define EPOK_CAMERA_INPUT_USED 1") {
+        artifacts
+            .runtime_capabilities
+            .insert("gameplay-control".into());
+    }
+    if generated.contains("#define EPOK_UI_ANCHOR_USED 1") {
+        artifacts.runtime_capabilities.insert("ui-anchor".into());
+    }
+    if generated.contains("#define EPOK_WORLD_GAMEPLAY_USED 1") {
+        artifacts
+            .runtime_capabilities
+            .insert("world-gameplay".into());
+    }
+    if generated.contains("#define EPOK_CHARACTER_COMMANDS_USED 1") {
+        artifacts
+            .runtime_capabilities
+            .insert("character-commands".into());
+    }
+    if generated.contains("#define EPOK_CHARACTER_ANIMATION_USED 1") {
+        artifacts
+            .runtime_capabilities
+            .insert("character-animation".into());
+    }
+    if generated.contains("#define EPOK_CHARACTER_INPUT_USED 1") {
+        artifacts.runtime_capabilities.extend(
+            [
+                "character-input",
+                "character-commands",
+                "gameplay-control",
+                "camera-rig",
+            ]
+            .map(str::to_owned),
+        );
+    }
     let streamed_music = crate::audio::clip_ids(&shared_resources)
         .into_iter()
         .map(|id| asset_index.resolve(id))
@@ -1331,6 +1518,17 @@ fn stage_with_playback(
     let needs_timelines = !timelines.is_empty()
         || artifacts.runtime_capabilities.contains("timeline")
         || needs_effects;
+    // Banks, class templates and every provider's observed calls participate.
+    // Unknown native includes/dynamic class creation conservatively retain it.
+    let particle_flags = if crate::script_backend::particle_pool_required(
+        &timeline_scenes,
+        needs_effects,
+        &artifacts,
+    ) {
+        ""
+    } else {
+        "CPPFLAGS += -DEPOK_NO_PARTICLES\n"
+    };
     let blueprint_flags = if needs_effects {
         "CPPFLAGS += -DEPOK_BLUEPRINTS -DEPOK_TIMELINES -DEPOK_EFFECTS\n"
     } else if needs_timelines {
@@ -1350,9 +1548,74 @@ fn stage_with_playback(
     } else {
         ""
     };
+    if artifacts.runtime_capabilities.contains("dialogue") {
+        artifacts
+            .runtime_capabilities
+            .extend(["interaction", "gameplay-control", "text-reveal"].map(str::to_owned));
+    }
+    let gameplay_control_flags = if artifacts.runtime_capabilities.contains("gameplay-control") {
+        "CPPFLAGS += -DEPOK_GAMEPLAY_CONTROL\n"
+    } else {
+        ""
+    };
+    let ui_anchor_flags = if artifacts.runtime_capabilities.contains("ui-anchor") {
+        "CPPFLAGS += -DEPOK_UI_ANCHOR\n"
+    } else {
+        ""
+    };
+    let camera_rig_flags = if artifacts.runtime_capabilities.contains("camera-rig") {
+        "CPPFLAGS += -DEPOK_CAMERA_RIG\n"
+    } else {
+        ""
+    };
+    let command_flags = if artifacts
+        .runtime_capabilities
+        .contains("character-commands")
+    {
+        "CPPFLAGS += -DEPOK_CHARACTER_COMMANDS\n"
+    } else {
+        ""
+    };
+    let character_input_flags = if artifacts.runtime_capabilities.contains("character-input") {
+        "CPPFLAGS += -DEPOK_CHARACTER_INPUT\n"
+    } else {
+        ""
+    };
+    let animation_flags = if artifacts
+        .runtime_capabilities
+        .contains("character-animation")
+    {
+        "CPPFLAGS += -DEPOK_CHARACTER_ANIMATION\n"
+    } else {
+        ""
+    };
+    let world_gameplay_flags = if artifacts.runtime_capabilities.contains("world-gameplay") {
+        "CPPFLAGS += -DEPOK_WORLD_GAMEPLAY\n"
+    } else {
+        ""
+    };
+    let script_profile = crate::workspace::optional_manifest(root)?
+        .map(|manifest| manifest.build.script_optimization)
+        .unwrap_or_default()
+        .make_default();
     let sources = format!(
-        "SCRIPT_SRCS := {}\n{blueprint_flags}{playback_flags}{rumble_flags}{}{}",
+        "SCRIPT_SRCS := {}\n{script_profile}{blueprint_flags}{playback_flags}{rumble_flags}{gameplay_control_flags}{ui_anchor_flags}{camera_rig_flags}{command_flags}{character_input_flags}{animation_flags}{world_gameplay_flags}{particle_flags}{}{}{}{}{}",
         native_sources.join(" "),
+        if artifacts.runtime_capabilities.contains("interaction") {
+            "CPPFLAGS += -DEPOK_INTERACTION\n"
+        } else {
+            ""
+        },
+        if artifacts.runtime_capabilities.contains("text-reveal") {
+            "CPPFLAGS += -DEPOK_TEXT_REVEAL\n"
+        } else {
+            ""
+        },
+        if artifacts.runtime_capabilities.contains("dialogue") {
+            "CPPFLAGS += -DEPOK_DIALOGUE\n"
+        } else {
+            ""
+        },
         lua.cppflags(),
         lua.libraries()
     );
@@ -1400,6 +1663,34 @@ pub fn runtime_sources() -> &'static [(&'static str, &'static [u8])] {
             include_bytes!("../runtime/gameplay_api.hpp").as_slice(),
         ),
         (
+            "health.hpp",
+            include_bytes!("../runtime/health.hpp").as_slice(),
+        ),
+        (
+            "character3d.hpp",
+            include_bytes!("../runtime/character3d.hpp").as_slice(),
+        ),
+        (
+            "character2d.hpp",
+            include_bytes!("../runtime/character2d.hpp").as_slice(),
+        ),
+        (
+            "character_commands.hpp",
+            include_bytes!("../runtime/character_commands.hpp").as_slice(),
+        ),
+        (
+            "character_input.hpp",
+            include_bytes!("../runtime/character_input.hpp").as_slice(),
+        ),
+        (
+            "character_animation.hpp",
+            include_bytes!("../runtime/character_animation.hpp").as_slice(),
+        ),
+        (
+            "camera_rig.hpp",
+            include_bytes!("../runtime/camera_rig.hpp").as_slice(),
+        ),
+        (
             "dungeon_map.hpp",
             include_bytes!("../runtime/dungeon_map.hpp").as_slice(),
         ),
@@ -1414,6 +1705,50 @@ pub fn runtime_sources() -> &'static [(&'static str, &'static [u8])] {
         (
             "object_model.hpp",
             include_bytes!("../runtime/object_model.hpp").as_slice(),
+        ),
+        (
+            "object_storage.hpp",
+            include_bytes!("../runtime/object_storage.hpp").as_slice(),
+        ),
+        (
+            "gameplay_control.hpp",
+            include_bytes!("../runtime/gameplay_control.hpp").as_slice(),
+        ),
+        (
+            "interaction.hpp",
+            include_bytes!("../runtime/interaction.hpp").as_slice(),
+        ),
+        (
+            "world_gameplay.hpp",
+            include_bytes!("../runtime/world_gameplay.hpp").as_slice(),
+        ),
+        (
+            "projectile3d.hpp",
+            include_bytes!("../runtime/projectile3d.hpp").as_slice(),
+        ),
+        (
+            "device_io.hpp",
+            include_bytes!("../runtime/device_io.hpp").as_slice(),
+        ),
+        (
+            "lua_value_storage.hpp",
+            include_bytes!("../runtime/lua_value_storage.hpp").as_slice(),
+        ),
+        (
+            "dialogue.hpp",
+            include_bytes!("../runtime/dialogue.hpp").as_slice(),
+        ),
+        (
+            "dialogue_helpers.hpp",
+            include_bytes!("../runtime/dialogue_helpers.hpp").as_slice(),
+        ),
+        (
+            "ui_anchor.hpp",
+            include_bytes!("../runtime/ui_anchor.hpp").as_slice(),
+        ),
+        (
+            "ui_anchor_service.hpp",
+            include_bytes!("../runtime/ui_anchor_service.hpp").as_slice(),
         ),
         (
             "world2d.hpp",
@@ -1820,6 +2155,10 @@ pub fn runtime_sources() -> &'static [(&'static str, &'static [u8])] {
             include_bytes!("../runtime/fixed_trigonometry.hpp").as_slice(),
         ),
         (
+            "camera_projection.hpp",
+            include_bytes!("../runtime/camera_projection.hpp").as_slice(),
+        ),
+        (
             "camera_aim.hpp",
             include_bytes!("../runtime/camera_aim.hpp").as_slice(),
         ),
@@ -2010,6 +2349,12 @@ fn actor_table_with_registry(
     .with_clips(&clip_index)
     .with_scene(scene)
     .with_pictures(pictures);
+    let mut interaction_order = scene
+        .actors
+        .iter()
+        .flat_map(|a| a.components.iter().map(|c| c.id))
+        .collect::<Vec<_>>();
+    interaction_order.sort();
     let mut components_text = String::new();
     // Namespace-scope constants (World2D frame clips) the generated setters reference.
     let mut statics = String::new();
@@ -2026,6 +2371,14 @@ fn actor_table_with_registry(
         })?;
         registry_slots += 1 + actor.components.len();
         let mut setters = String::new();
+        if model.is_a(&class.id, crate::dialogue_layout::PRESENTER)
+            && let Some(profile) = crate::dialogue_layout::Profile::read(scene, registry, *source)?
+        {
+            setters += &format!(
+                "epok::dialogue::bind_widget_layout(actor,UINT64_C({}));",
+                profile.key()
+            );
+        }
         setters.push_str(&property_setters(
             &format!("registry.resolve<{}>(actor.id())", class.cpp_name),
             "self",
@@ -2168,6 +2521,13 @@ fn actor_table_with_registry(
                         scene.name, actor.name, component.name
                     ),
                 )?);
+            }
+            if model.is_a(&component_class.id, "310e882c-2353-55bc-bba3-f3d54277f671") {
+                let rank = interaction_order
+                    .binary_search(&component.id)
+                    .map_err(|_| "Missing component identity")?
+                    + 1;
+                setters.push_str(&format!("if(auto* target=registry.resolve<{}>(components[{position}]);target&&target->selection_order==0)target->selection_order={rank};\n",component_class.cpp_name));
             }
         }
         let components_symbol = if records.is_empty() {
@@ -2464,6 +2824,41 @@ mod tests {
             error.contains("XA music: assets/Theme.wav; video: assets/Intro.mp4, assets/End.mp4")
         );
         assert!(error.contains("remove the videos") && error.contains("Package PSX Disc"));
+    }
+
+    #[test]
+    fn scene_header_matches_cached_lighting_by_identity_after_actor_insertion() {
+        let mut scene = Scene::default();
+        let mesh = scene
+            .actors
+            .iter_mut()
+            .find(|actor| actor.kind == "Mesh")
+            .unwrap();
+        mesh.lighting.receive = crate::lighting::Receive::Baked;
+        mesh.lighting.static_geometry = true;
+        mesh.material.unlit = false;
+        scene.bake = Some(crate::lighting::bake(&scene).unwrap());
+        let baked = scene
+            .actors
+            .iter()
+            .position(crate::lighting::baked)
+            .unwrap();
+        let id = scene.actors[baked].id;
+        let vertices = scene.bake.as_ref().unwrap().colors[baked].len();
+        scene.bake.as_mut().unwrap().colors[baked].fill([17, 29, 43]);
+        let mut empty = crate::scene::Actor::cube("Input driver".into());
+        empty.kind = "Empty".into();
+        scene.actors.insert(0, empty);
+        scene.sync_actor_components();
+        assert!(crate::lighting::valid_bake(&scene));
+        let index = scene.actor_index(id).unwrap();
+        let header = scene_header(&scene, &[]).unwrap();
+        assert!(header.contains(&format!(
+            "inline constexpr uint8_t baked_{index}[{vertices}][3]="
+        )));
+        assert!(header.contains(&format!("objects[{index}].baked_colors=baked_{index};objects[{index}].baked_color_count={vertices};")));
+        assert!(header.contains("{17,29,43}"));
+        assert!(!header.contains("inline constexpr uint8_t baked_0["));
     }
 
     #[test]
@@ -2860,10 +3255,12 @@ mod tests {
         s.actors[index].focusable = Some(crate::hud::Focusable {
             enabled: true,
             neighbors: [3, -1, 0, 2],
+            navigation: None,
             order: 7,
             highlight: [1., 0.5, 0.],
             kind: crate::hud::FocusKind::Toggle,
             checked: true,
+            outline: true,
         });
         s.actors[canvas].canvas.as_mut().unwrap().focused = 1;
         s.sync_actor_components();
@@ -2880,6 +3277,7 @@ mod tests {
         assert!(header.contains(&format!(
             "objects[{index}].focusable=Focusable{{true,{{3,-1,0,2}},7,{{255,128,0}},FocusKind(1),true}};"
         )));
+        assert!(header.contains(&format!("objects[{index}].focusable.outline=true;")));
         assert!(header.contains(&format!("objects[{canvas}].canvas.focused=1;")));
         // A label's font index and alignment are appended after its wrap flag;
         // the built-in atlas keeps index -1 so unchanged scenes are unchanged.

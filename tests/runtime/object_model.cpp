@@ -10,6 +10,8 @@
 #include "../../runtime/epok.hpp"
 
 namespace epok {
+// Object lifecycle tests do not allocate renderer/HUD data slots.
+int entity_index(const ActorData*){return -1;}
 // Audio service stub: the component forwards to it and nothing else here plays sound.
 unsigned audio_plays = 0, audio_stops = 0;
 bool audio_playing = false;
@@ -37,6 +39,11 @@ bool trace_is(const char* expected) {
 }
 
 unsigned actor_destructors = 0, component_destructors = 0;
+struct StoragePrefix {virtual ~StoragePrefix()=default;uint64_t prefix=7;};
+unsigned storage_destructors=0;
+struct alignas(64) StorageProbe:StoragePrefix,Object {
+    ~StorageProbe()override{++storage_destructors;}
+};
 // Counters live outside the objects: pool storage is reused after end_play, so reading a
 // destroyed actor would be undefined behaviour.
 unsigned actor_ends = 0, component_ends = 0;
@@ -136,11 +143,11 @@ struct MaskActor:Actor3D {
 namespace epok {
 const ClassDescriptor object_classes[] = {
     {MaskActor::static_class_id,Actor3D::static_class_id,ObjectFamily::Actor,ObjectDomain::World3D,0,uint8_t(ObjectClassPlaceable|ObjectClassSpawnable),
-     &object_construct<MaskActor>,&object_destruct,sizeof(MaskActor),alignof(MaskActor),&ObjectPool<MaskActor,1>::acquire,&ObjectPool<MaskActor,1>::release,0,nullptr,false,false,false},
+     &object_construct<MaskActor>,&object_destruct,sizeof(MaskActor),alignof(MaskActor),&SharedObjectPool<MaskActor,1>::acquire,&SharedObjectPool<MaskActor,1>::release,0,nullptr,false,false,false},
     {MaskTick::static_class_id,ActorComponent::static_class_id,ObjectFamily::Component,ObjectDomain::None,object_domain_bit(ObjectDomain::World3D),0,
-     &object_construct<MaskTick>,&object_destruct,sizeof(MaskTick),alignof(MaskTick),&ObjectPool<MaskTick,2>::acquire,&ObjectPool<MaskTick,2>::release,0,nullptr,true,false},
+     &object_construct<MaskTick>,&object_destruct,sizeof(MaskTick),alignof(MaskTick),&SharedObjectPool<MaskTick,2>::acquire,&SharedObjectPool<MaskTick,2>::release,0,nullptr,true,false},
     {MaskFrame::static_class_id,ActorComponent::static_class_id,ObjectFamily::Component,ObjectDomain::None,object_domain_bit(ObjectDomain::World3D),0,
-     &object_construct<MaskFrame>,&object_destruct,sizeof(MaskFrame),alignof(MaskFrame),&ObjectPool<MaskFrame,2>::acquire,&ObjectPool<MaskFrame,2>::release,0,nullptr,false,true},
+     &object_construct<MaskFrame>,&object_destruct,sizeof(MaskFrame),alignof(MaskFrame),&SharedObjectPool<MaskFrame,2>::acquire,&SharedObjectPool<MaskFrame,2>::release,0,nullptr,false,true},
     {Object::static_class_id, 0, ObjectFamily::Object, ObjectDomain::None, 0, ObjectClassAbstract, nullptr, nullptr, sizeof(Object), alignof(Object), nullptr, nullptr},
     {Actor::static_class_id, Object::static_class_id, ObjectFamily::Actor, ObjectDomain::None, 0, ObjectClassAbstract, nullptr, nullptr, sizeof(Actor), alignof(Actor), nullptr, nullptr},
     {Actor3D::static_class_id, Actor::static_class_id, ObjectFamily::Actor, ObjectDomain::World3D, 0, uint8_t(ObjectClassPlaceable | ObjectClassSpawnable), nullptr, nullptr, sizeof(Actor3D), alignof(Actor3D), nullptr, nullptr},
@@ -148,24 +155,24 @@ const ClassDescriptor object_classes[] = {
     {UIActor::static_class_id, Actor::static_class_id, ObjectFamily::Actor, ObjectDomain::UI, 0, uint8_t(ObjectClassPlaceable | ObjectClassSpawnable), nullptr, nullptr, sizeof(UIActor), alignof(UIActor), nullptr, nullptr},
     {SceneScriptActor::static_class_id, Actor::static_class_id, ObjectFamily::Actor, ObjectDomain::None, 0, ObjectClassSceneManaged, nullptr, nullptr, sizeof(SceneScriptActor), alignof(SceneScriptActor), nullptr, nullptr},
     {ActorComponent::static_class_id, Object::static_class_id, ObjectFamily::Component, ObjectDomain::None, 0, ObjectClassAbstract, nullptr, nullptr, sizeof(ActorComponent), alignof(ActorComponent), nullptr, nullptr},
-    {SceneComponent3D::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::World3D, object_domain_bit(ObjectDomain::World3D), ObjectClassRoot, &object_construct<SceneComponent3D>, &object_destruct, sizeof(SceneComponent3D), alignof(SceneComponent3D), &ObjectPool<SceneComponent3D, 4>::acquire, &ObjectPool<SceneComponent3D, 4>::release,0,nullptr,false,false,false},
-    {SceneComponent2D::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::World2D, object_domain_bit(ObjectDomain::World2D), ObjectClassRoot, &object_construct<SceneComponent2D>, &object_destruct, sizeof(SceneComponent2D), alignof(SceneComponent2D), &ObjectPool<SceneComponent2D, 4>::acquire, &ObjectPool<SceneComponent2D, 4>::release},
+    {SceneComponent3D::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::World3D, object_domain_bit(ObjectDomain::World3D), ObjectClassRoot, &object_construct<SceneComponent3D>, &object_destruct, sizeof(SceneComponent3D), alignof(SceneComponent3D), &SharedObjectPool<SceneComponent3D, 4>::acquire, &SharedObjectPool<SceneComponent3D, 4>::release,0,nullptr,false,false,false},
+    {SceneComponent2D::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::World2D, object_domain_bit(ObjectDomain::World2D), ObjectClassRoot, &object_construct<SceneComponent2D>, &object_destruct, sizeof(SceneComponent2D), alignof(SceneComponent2D), &SharedObjectPool<SceneComponent2D, 4>::acquire, &SharedObjectPool<SceneComponent2D, 4>::release},
     {UIComponent::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::UI, object_domain_bit(ObjectDomain::UI), ObjectClassAbstract, nullptr, nullptr, sizeof(UIComponent), alignof(UIComponent), nullptr, nullptr},
-    {RectTransformComponent::static_class_id, UIComponent::static_class_id, ObjectFamily::Component, ObjectDomain::UI, object_domain_bit(ObjectDomain::UI), ObjectClassRoot, &object_construct<RectTransformComponent>, &object_destruct, sizeof(RectTransformComponent), alignof(RectTransformComponent), &ObjectPool<RectTransformComponent, 4>::acquire, &ObjectPool<RectTransformComponent, 4>::release},
+    {RectTransformComponent::static_class_id, UIComponent::static_class_id, ObjectFamily::Component, ObjectDomain::UI, object_domain_bit(ObjectDomain::UI), ObjectClassRoot, &object_construct<RectTransformComponent>, &object_destruct, sizeof(RectTransformComponent), alignof(RectTransformComponent), &SharedObjectPool<RectTransformComponent, 4>::acquire, &SharedObjectPool<RectTransformComponent, 4>::release},
     {AudioComponent::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::None,
      uint8_t(object_domain_bit(ObjectDomain::World3D) | object_domain_bit(ObjectDomain::World2D) | object_domain_bit(ObjectDomain::UI)),
-     ObjectClassMultiple, &object_construct<AudioComponent>, &object_destruct, sizeof(AudioComponent), alignof(AudioComponent), &ObjectPool<AudioComponent, 4>::acquire, &ObjectPool<AudioComponent, 4>::release},
+     ObjectClassMultiple, &object_construct<AudioComponent>, &object_destruct, sizeof(AudioComponent), alignof(AudioComponent), &SharedObjectPool<AudioComponent, 4>::acquire, &SharedObjectPool<AudioComponent, 4>::release},
     {Level::static_class_id, Object::static_class_id, ObjectFamily::Level, ObjectDomain::None, 0, ObjectClassAbstract, nullptr, nullptr, sizeof(Level), alignof(Level), nullptr, nullptr},
     {World::static_class_id, Object::static_class_id, ObjectFamily::World, ObjectDomain::None, 0, ObjectClassAbstract, nullptr, nullptr, sizeof(World), alignof(World), nullptr, nullptr},
     // Test content classes, as the cook would emit them for Blueprint subclasses.
-    {ProbeActor::static_class_id, Actor3D::static_class_id, ObjectFamily::Actor, ObjectDomain::World3D, 0, uint8_t(ObjectClassPlaceable | ObjectClassSpawnable), &object_construct<ProbeActor>, &object_destruct, sizeof(ProbeActor), alignof(ProbeActor), &ObjectPool<ProbeActor, 4>::acquire, &ObjectPool<ProbeActor, 4>::release},
-    {Probe2D::static_class_id, Actor2D::static_class_id, ObjectFamily::Actor, ObjectDomain::World2D, 0, uint8_t(ObjectClassPlaceable | ObjectClassSpawnable), &object_construct<Probe2D>, &object_destruct, sizeof(Probe2D), alignof(Probe2D), &ObjectPool<Probe2D, 2>::acquire, &ObjectPool<Probe2D, 2>::release},
-    {ProbeUI::static_class_id, UIActor::static_class_id, ObjectFamily::Actor, ObjectDomain::UI, 0, uint8_t(ObjectClassPlaceable | ObjectClassSpawnable), &object_construct<ProbeUI>, &object_destruct, sizeof(ProbeUI), alignof(ProbeUI), &ObjectPool<ProbeUI, 2>::acquire, &ObjectPool<ProbeUI, 2>::release},
-    {ProbeScript::static_class_id, SceneScriptActor::static_class_id, ObjectFamily::Actor, ObjectDomain::None, 0, ObjectClassSceneManaged, &object_construct<ProbeScript>, &object_destruct, sizeof(ProbeScript), alignof(ProbeScript), &ObjectPool<ProbeScript, 1>::acquire, &ObjectPool<ProbeScript, 1>::release},
-    {ProbeRoot::static_class_id, SceneComponent3D::static_class_id, ObjectFamily::Component, ObjectDomain::World3D, object_domain_bit(ObjectDomain::World3D), ObjectClassRoot, &object_construct<ProbeRoot>, &object_destruct, sizeof(ProbeRoot), alignof(ProbeRoot), &ObjectPool<ProbeRoot, 4>::acquire, &ObjectPool<ProbeRoot, 4>::release},
+    {ProbeActor::static_class_id, Actor3D::static_class_id, ObjectFamily::Actor, ObjectDomain::World3D, 0, uint8_t(ObjectClassPlaceable | ObjectClassSpawnable), &object_construct<ProbeActor>, &object_destruct, sizeof(ProbeActor), alignof(ProbeActor), &SharedObjectPool<ProbeActor, 4>::acquire, &SharedObjectPool<ProbeActor, 4>::release},
+    {Probe2D::static_class_id, Actor2D::static_class_id, ObjectFamily::Actor, ObjectDomain::World2D, 0, uint8_t(ObjectClassPlaceable | ObjectClassSpawnable), &object_construct<Probe2D>, &object_destruct, sizeof(Probe2D), alignof(Probe2D), &SharedObjectPool<Probe2D, 2>::acquire, &SharedObjectPool<Probe2D, 2>::release},
+    {ProbeUI::static_class_id, UIActor::static_class_id, ObjectFamily::Actor, ObjectDomain::UI, 0, uint8_t(ObjectClassPlaceable | ObjectClassSpawnable), &object_construct<ProbeUI>, &object_destruct, sizeof(ProbeUI), alignof(ProbeUI), &SharedObjectPool<ProbeUI, 2>::acquire, &SharedObjectPool<ProbeUI, 2>::release},
+    {ProbeScript::static_class_id, SceneScriptActor::static_class_id, ObjectFamily::Actor, ObjectDomain::None, 0, ObjectClassSceneManaged, &object_construct<ProbeScript>, &object_destruct, sizeof(ProbeScript), alignof(ProbeScript), &SharedObjectPool<ProbeScript, 1>::acquire, &SharedObjectPool<ProbeScript, 1>::release},
+    {ProbeRoot::static_class_id, SceneComponent3D::static_class_id, ObjectFamily::Component, ObjectDomain::World3D, object_domain_bit(ObjectDomain::World3D), ObjectClassRoot, &object_construct<ProbeRoot>, &object_destruct, sizeof(ProbeRoot), alignof(ProbeRoot), &SharedObjectPool<ProbeRoot, 4>::acquire, &SharedObjectPool<ProbeRoot, 4>::release},
     {ProbeComponent::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::None,
      uint8_t(object_domain_bit(ObjectDomain::World3D) | object_domain_bit(ObjectDomain::World2D) | object_domain_bit(ObjectDomain::UI)),
-     0, &object_construct<ProbeComponent>, &object_destruct, sizeof(ProbeComponent), alignof(ProbeComponent), &ObjectPool<ProbeComponent, 4>::acquire, &ObjectPool<ProbeComponent, 4>::release},
+     0, &object_construct<ProbeComponent>, &object_destruct, sizeof(ProbeComponent), alignof(ProbeComponent), &SharedObjectPool<ProbeComponent, 4>::acquire, &SharedObjectPool<ProbeComponent, 4>::release},
 };
 const size_t object_class_count = sizeof(object_classes) / sizeof(object_classes[0]);
 }
@@ -211,9 +218,9 @@ void reset() {
     actor_ends = component_ends = 0;
     suicide_on_begin = false;
     chain_spawns = 0;
-    assert((ObjectPool<ProbeActor, 4>::live() == 0));
-    assert((ObjectPool<ProbeComponent, 4>::live() == 0));
-    assert((ObjectPool<AudioComponent, 4>::live() == 0));
+    assert((SharedObjectPool<ProbeActor, 4>::live() == 0));
+    assert((SharedObjectPool<ProbeComponent, 4>::live() == 0));
+    assert((SharedObjectPool<AudioComponent, 4>::live() == 0));
 }
 ObjectId spawn(uint64_t class_id, const char* name, ObjectId parent = {}) {
     return game_level.spawn_actor(class_of(class_id), name, parent);
@@ -231,7 +238,7 @@ void identity_and_storage() {
     assert(!base->is_a(Actor2D::static_class_id));
     assert(registry_storage.resolve<Actor>(id) && registry_storage.resolve<Actor3D>(id));
     assert(!registry_storage.resolve<ActorComponent>(id));
-    assert((ObjectPool<ProbeActor, 4>::live() == 1));
+    assert((SharedObjectPool<ProbeActor, 4>::live() == 1));
     // Three inheritance levels for a component: RectTransform -> UIComponent -> ActorComponent.
     assert(object_class_is_a(RectTransformComponent::static_class_id, UIComponent::static_class_id));
     assert(object_class_is_a(RectTransformComponent::static_class_id, ActorComponent::static_class_id));
@@ -242,7 +249,7 @@ void identity_and_storage() {
     assert(game_level.destroy_actor(id));
     assert(!registry_storage.get(id) && !registry_storage.resolve<Actor>(id));
     assert(actor_destructors == destructors + 1);
-    assert((ObjectPool<ProbeActor, 4>::live() == 0));
+    assert((SharedObjectPool<ProbeActor, 4>::live() == 0));
     const ObjectId again = spawn(ProbeActor::static_class_id, "B");
     assert(again.valid() && again.index == id.index && again.generation != id.generation);
     assert(!registry_storage.get(id) && registry_storage.get(again));
@@ -350,7 +357,7 @@ void capacity_and_rollback() {
     ObjectId spawned[2] = {};
     assert(small.spawn_batch(requests, 2, spawned) == 0);
     assert(small.actor_count() == 0 && tiny.live() == 1 && tiny.stats.rejected > 0);
-    assert((ObjectPool<ProbeActor, 4>::live() == 0));   // no orphan actors or components
+    assert((SharedObjectPool<ProbeActor, 4>::live() == 0));   // no orphan actors or components
     level = &game_level;
     active_object_registry = &registry_storage;
 }
@@ -549,12 +556,14 @@ void size_report() {
     std::printf("  ObjectId %zu  ObjectSlot %zu  ClassDescriptor %zu  ObjectRegistryStorage<32> %zu\n",
                 sizeof(ObjectId), sizeof(ObjectSlot), sizeof(ClassDescriptor), sizeof(ObjectRegistryStorage<32>));
     std::printf("  pool storage_bytes: Actor3D x4 %zu  SceneComponent3D x4 %zu  AudioComponent x4 %zu\n",
-                ObjectPool<Actor3D, 4>::storage_bytes, ObjectPool<SceneComponent3D, 4>::storage_bytes,
-                ObjectPool<AudioComponent, 4>::storage_bytes);
+                SharedObjectPool<Actor3D, 4>::storage_bytes, SharedObjectPool<SceneComponent3D, 4>::storage_bytes,
+                SharedObjectPool<AudioComponent, 4>::storage_bytes);
 }
 }  // namespace
 
 int main() {
+    static object_storage::Arena<4000> arena;
+    object_storage::Binding binding(arena);
 #ifdef _MSC_VER
     _set_error_mode(_OUT_TO_STDERR);
     _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
@@ -572,6 +581,18 @@ int main() {
     attachment_rules();
     reset();
     size_report();
+    {
+        using Pool=SharedObjectPool<StorageProbe,2>;
+        auto* a=Pool::acquire();auto* b=Pool::acquire();
+        assert(a&&b&&!Pool::acquire()&&Pool::live()==2);
+        assert(reinterpret_cast<uintptr_t>(static_cast<StorageProbe*>(a))%64==0);
+        Pool::release(a);assert(storage_destructors==1&&Pool::live()==1);
+        auto* reused=Pool::acquire();assert(reused&&Pool::live()==2);
+        Pool::release(b);Pool::release(reused);
+        assert(storage_destructors==3&&Pool::live()==0);
+    }
+    assert(arena.stats.live_allocations==0&&arena.stats.used_units==0);
+    std::printf("  shared storage peak %u bytes, %u objects\n",arena.stats.peak_units*16,arena.stats.peak_allocations);
     std::puts("Object model identity, pools, lifecycle order, deferral, components, attachment tests passed.");
     return 0;
 }

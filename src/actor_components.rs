@@ -12,6 +12,159 @@ pub const TIMELINE: &str = "1d067605-c408-40b8-b2c2-718b8cf0c602";
 pub const EFFECT: &str = "1d067605-c408-40b8-b2c2-718b8cf0c603";
 pub const PALETTE: &str = "1d067605-c408-40b8-b2c2-718b8cf0c604";
 pub const SHADOW: &str = "1d067605-c408-40b8-b2c2-718b8cf0c605";
+pub const CAPACITY: usize = 8;
+
+pub fn validate_with_model(
+    model: &crate::object_model::Model,
+    actor: &crate::actor_document::ActorInstance,
+) -> Result<(), String> {
+    if actor.components.len() > CAPACITY {
+        return Err(format!(
+            "{} has {} components, above the runtime limit of {CAPACITY} per actor.",
+            actor.name,
+            actor.components.len()
+        ));
+    }
+    let owner = actor
+        .class
+        .resolve(model)
+        .ok_or_else(|| format!("`{}` is not a reflected class", actor.class.name))?;
+    let specs: Vec<_> = actor
+        .components
+        .iter()
+        .map(|c| crate::object_model::ComponentSpec {
+            id: c.id,
+            class: c
+                .class
+                .class_id
+                .clone()
+                .unwrap_or_else(|| c.class.name.clone()),
+            root: c.root,
+        })
+        .collect();
+    model
+        .validate_component_set(&owner.id, &specs)
+        .map_err(|diagnostics| {
+            diagnostics
+                .iter()
+                .map(|d| d.message.clone())
+                .collect::<Vec<_>>()
+                .join("\n")
+        })
+}
+pub fn component_removal_refusal(
+    component: &crate::actor_document::ComponentInstance,
+) -> Option<&'static str> {
+    if component.root {
+        Some("the root component cannot be removed")
+    } else if component.inherited {
+        Some("inherited from the class; disable instead")
+    } else {
+        None
+    }
+}
+/// Component choices shared by scene placement and class composition authoring.
+pub fn addable_classes(
+    model: &om::Model,
+    actor: &ActorInstance,
+) -> Vec<(&'static str, String, String)> {
+    let Some(owner) = actor.class.resolve(model) else {
+        return vec![];
+    };
+    let mut choices = model
+        .iter()
+        .filter(|class| {
+            class.component.is_some() && model.validate_component(&owner.id, &class.id).is_ok()
+        })
+        .filter(|class| {
+            let mut candidate = actor.clone();
+            candidate.components.push(ComponentInstance::new(
+                uuid::Uuid::new_v4(),
+                ClassReference::new(&class.cpp_name, &class.id),
+                "ComponentPreview",
+            ));
+            validate_with_model(model, &candidate).is_ok()
+        })
+        .map(|class| {
+            let group = if class.component.as_ref().unwrap().owners.len() == 1 {
+                "Domain"
+            } else {
+                "Shared"
+            };
+            (
+                group,
+                class.cpp_name.clone(),
+                crate::actor_document::short_class_name(&class.cpp_name).to_owned(),
+            )
+        })
+        .collect::<Vec<_>>();
+    choices.sort_by(|a, b| {
+        (usize::from(a.0 == "Domain"), &a.2).cmp(&(usize::from(b.0 == "Domain"), &b.2))
+    });
+    choices
+}
+
+/// Add through the model's owner/dependency/cardinality rules, publishing only a
+/// valid component set. Built-in adapters retain the same authored seed data in
+/// the scene Inspector and the class designer.
+pub fn add(
+    actor: &mut ActorInstance,
+    model: &om::Model,
+    class: &str,
+) -> Result<uuid::Uuid, String> {
+    let resolved = model.class(class).ok_or("Component class is unresolved.")?;
+    let owner = actor
+        .class
+        .resolve(model)
+        .ok_or("Owner class is unresolved.")?;
+    model
+        .validate_component(&owner.id, &resolved.id)
+        .map_err(|e| e.message)?;
+    let mut candidate = actor.clone();
+    let name = crate::actor_document::unique_component_name(
+        &candidate,
+        crate::actor_document::short_class_name(&resolved.cpp_name),
+    );
+    let mut component = ComponentInstance::new(
+        uuid::Uuid::new_v4(),
+        ClassReference::new(&resolved.cpp_name, &resolved.id),
+        &name,
+    );
+    match resolved.id.as_str() {
+        PALETTE => {
+            component.properties.insert(
+                "palette_animator".into(),
+                json!(crate::palette::Animator {
+                    texture: candidate
+                        .material
+                        .texture
+                        .or(candidate.sprite.as_ref().and_then(|s| s.texture))
+                        .or(candidate.image.as_ref().and_then(|i| i.texture)),
+                    ..Default::default()
+                }),
+            );
+        }
+        TIMELINE => {
+            component.properties.insert(
+                "timeline".into(),
+                json!(crate::timeline_scene::Component::default()),
+            );
+        }
+        EFFECT => {
+            component.properties.insert(
+                "particle_effect".into(),
+                json!(crate::particle_effect_scene::Component::default()),
+            );
+        }
+        _ => {}
+    }
+    let id = component.id;
+    candidate.components.push(component);
+    validate_with_model(model, &candidate)?;
+    candidate.refresh_components();
+    *actor = candidate;
+    Ok(id)
+}
 
 pub fn domain(actor: &ActorInstance) -> crate::reflection_schema::Domain {
     use crate::reflection_schema::Domain;
