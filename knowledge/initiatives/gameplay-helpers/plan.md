@@ -50,6 +50,23 @@ stage fails for all 18, and all of it is still-open debt:
   plus resources). In the scenario stage, the guards, boss and closure routes ran
   from disc, and the original and exported runs matched. The only failure left is
   the missing `terminal/install/status/transfer/ACK` evidence.
+- **Next step for the interrupted ACK, paused on 10 November at the weekly usage
+  limit.** The route has not been written yet. The runtime and policy already cover
+  the case:
+  - `DungeonEconomyPolicy.hpp`: after the save, `ack_started` puts the transaction
+    in phase 4. `ack_sent` then moves it to phase 5, or returns error 23 on failure.
+    Phases 5 and 6 poll the receipt until the claim arrives (output 24) or 4 s pass
+    (output 23). `ack_pending` survives a failure, so a retry does not credit ore
+    twice.
+  - `pocketstation_async.hpp` retries unanswered requests and times out after 5 s.
+
+  Plan: add `--interrupted-ack` to `verify_dungeon_complete_economy.py`. After the
+  `ore save` wait at line 165, while `economy()[13]` (the operation) is 6 or 7, take
+  the slot-2 card away or block it. Check error 23, then that ore stays 40 and is
+  not credited twice. Restore the card, retry action 5, and check output 24. Find
+  out first how the Redux Lua API removes or reinserts a memory card. Then call it
+  from `complete_economy` in `dungeon_routes.py` and replace the fixed `False` at
+  line 302.
 - **Dungeon Complete, all flavors.** The required scenario
   `terminal/install/status/transfer/ACK` has no interrupted-ACK evidence from the
   PocketStation transfer.
