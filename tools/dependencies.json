@@ -25,7 +25,7 @@
     {
       "name": "PCSX-Redux",
       "version": "29417.20261024.9.x64",
-      "url": "https://distrib.app/storage/assets/c2a/cca/2e3/7cf50595dae6930489b0cfa6ac527c579e0bbd7bdde3dd09294620e/pcsx-redux-nightly-29417.20261024.9-x64.zip",
+      "url": "https://github.com/epokengine/epok-engine/releases/download/toolchain-pcsx-redux-29417/pcsx-redux-nightly-29417.20261024.9-x64.zip",
       "archive": "pcsx-redux-nightly-29417.20261024.9-x64.zip",
       "directory": "redux",
       "sha256": "e80e22532172a3b0dd5ae6159a56fc69162dbeda7fdd1fbebe5c644dd717bb3a"
