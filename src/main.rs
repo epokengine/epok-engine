@@ -201,6 +201,8 @@ mod reflection_schema;
 #[cfg(test)]
 mod repo_policy_tests;
 mod rumble;
+#[cfg_attr(not(windows), allow(dead_code))]
+mod runner_resources;
 #[cfg(test)]
 mod runtime_api_tests;
 mod sample_template;

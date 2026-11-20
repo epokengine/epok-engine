@@ -796,10 +796,23 @@ pub(crate) fn build_runner(
         "runner={runner:?};blueprints={native_blueprints};controls={gameplay_control};interaction={interaction};world_gameplay={world_gameplay};reveal={text_reveal};dialogue={dialogue};anchor={ui_anchor};camera={camera_rig};commands={character_commands};player_input={character_input};animation={character_animation};registry={registry_capacity};objects=1;platform={};flags=cpp20,exceptions,o2,editor-preview,no-warnings",
         if cfg!(windows) { "msvc" } else { "posix" }
     );
+    // Version block, manifest and icon: an anonymous, freshly built executable
+    // is what antivirus heuristics quarantine. Only the link step consumes it,
+    // so it keys the executable but not the (expensive) object cache.
+    let resources = cfg!(windows).then(|| {
+        crate::runner_resources::runner_res(if runner == Runner::HudPreview {
+            "Epok native HUD preview"
+        } else {
+            "Epok native PC play runner"
+        })
+    });
     use sha2::{Digest, Sha256};
     let mut hash = Sha256::new();
     hash.update(&compiler_signature);
     hash.update(&compile_configuration);
+    if let Some(resources) = &resources {
+        hash.update(resources);
+    }
     for (path, bytes) in &files {
         hash.update(path.to_string_lossy().as_bytes());
         hash.update([0]);
@@ -1018,6 +1031,12 @@ pub(crate) fn build_runner(
         linker.arg("-o").arg(&output);
     }
     linker.args(objects);
+    if let Some(resources) = &resources {
+        fs::write(stage.join("runner.res"), resources).map_err(|e| e.to_string())?;
+        // The .res already carries the manifest; a linker-generated one would
+        // be a duplicate RT_MANIFEST resource.
+        linker.args(["runner.res", "/link", "/MANIFEST:NO"]);
+    }
     if !run_host_command(&mut linker, &log, cancel)? {
         return Err(native_compile_error(runner, &log));
     }
@@ -1488,6 +1507,18 @@ public:
         let original = scene.clone();
         let catalog = crate::scripts::native_catalog(&root).unwrap();
         let exe = build(&root, &scene, &catalog, &AtomicBool::new(false)).unwrap();
+        #[cfg(windows)]
+        {
+            // The linked .rsrc section carries the runner's version block and
+            // manifest (see `runner_resources`), and the process still starts.
+            let image = fs::read(&exe).unwrap();
+            let description = "Epok native HUD preview"
+                .encode_utf16()
+                .flat_map(u16::to_le_bytes)
+                .collect::<Vec<_>>();
+            assert!(image.windows(description.len()).any(|w| w == description));
+            assert!(image.windows(9).any(|w| w == b"asInvoker"));
+        }
         let mut session = Session::launch(&exe, scene.clone()).unwrap();
         let first = session.wait_frame().unwrap().clone();
         assert_eq!(first.actors, 1);
