@@ -122,6 +122,9 @@ pub struct Manager {
     generation: u64,
     watch: crate::file_watch::Watch,
     pub revision: u64,
+    /// Bumped whenever `index` is replaced. `revision` only marks a requested
+    /// rescan; this marks the moment its result became visible.
+    pub index_revision: u64,
     scan_requested: bool,
     settle_at: Option<Instant>,
 }
@@ -164,6 +167,7 @@ impl Manager {
             worker_key: None,
             generation: 0,
             revision: 0,
+            index_revision: 0,
             scan_requested: true,
             settle_at: None,
         }
@@ -173,6 +177,7 @@ impl Manager {
     pub fn adopt(&mut self, index: Index, cache: ScanCache) {
         self.generation += 1;
         self.index = index;
+        self.index_revision = self.index_revision.wrapping_add(1);
         self.cache = cache;
         self.scan_requested = false;
         self.refresh_editor = false;
@@ -258,6 +263,7 @@ impl Manager {
                     if generation == self.generation {
                         self.cache = cache;
                         self.index = index;
+                        self.index_revision = self.index_revision.wrapping_add(1);
                         self.update_pending();
                         self.refresh_editor = true;
                         if !relinks.is_empty() && !self.busy {

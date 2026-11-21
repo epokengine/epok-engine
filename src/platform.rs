@@ -1598,15 +1598,20 @@ const EDITOR_FA_GLYPHS: &[u32] = &[
     0x25a0, 0x25a0, // square: constant falloff
     0x25d0, 0x25d0, // circle-half-stroke: smooth falloff
     0xe2ca, 0xe2ca, // wand-magic-sparkles: fit to sprite / scene
+    0xf001, 0xf001, // music: audio assets in search
+    0xf002, 0xf002, // magnifying-glass: global search
     0xf005, 0xf005, // star: default animation
     0xf008, 0xf008, // film: AnimatedSprite2D, animations
     0xf00a, 0xf00a, // table-cells: 2D grid
     0xf00c, 0xf00c, // check: camera path step done
     0xf00e, 0xf00e, // magnifying-glass-plus: 2D zoom in
     0xf010, 0xf010, // magnifying-glass-minus: 2D zoom out
+    0xf013, 0xf013, // gear: settings in search
     0xf028, 0xf028, // volume-high: AudioPlayer2D
+    0xf031, 0xf031, // font: font assets in search
     0xf03d, 0xf03d, // video: Camera2D
     0xf03e, 0xf03e, // image: Sprite2D
+    0xf042, 0xf042, // circle-half-stroke: materials in search
     0xf048, 0xf048, // backward-step: camera path start
     0xf04b, 0xf04c, // play / pause: animation preview
     0xf051, 0xf051, // forward-step: move frame later
@@ -1619,21 +1624,29 @@ const EDITOR_FA_GLYPHS: &[u32] = &[
     0xf06e, 0xf06e, // eye: look through the path
     0xf071, 0xf071, // triangle-exclamation: camera path step pending
     0xf076, 0xf076, // magnet: 2D snapping
+    0xf078, 0xf078, // chevron-down: toolbar dropdowns
+    0xf07b, 0xf07b, // folder: folders in search
     0xf0aa, 0xf0ab, // circle-arrow-up / down: raise, lower
     0xf0b2, 0xf0b2, // up-down-left-right: 2D move tool
     0xf0c1, 0xf0c1, // link: RemoteTransform2D
     0xf0c4, 0xf0c4, // scissors: cut key, sprite sheet slicer
     0xf0c8, 0xf0c8, // square: tile rectangle tool
+    0xf0ce, 0xf0ce, // table: data tables in search
     0xf0db, 0xf0db, // table-columns: split screen
+    0xf0e7, 0xf0e7, // bolt: editor commands in search
+    0xf0e8, 0xf0e8, // sitemap: Blueprints in search
     0xf0eb, 0xf0eb, // lightbulb: PointLight2D
     0xf0ec, 0xf0ec, // arrow-right-arrow-left: flip horizontally
     0xf104, 0xf105, // angle-left / right: previous, next key
     0xf10b, 0xf10b, // mobile: PocketStation
     0xf111, 0xf111, // circle: camera path step to do
+    0xf121, 0xf121, // code: scripts in search
     0xf125, 0xf125, // crop: tile selection tool
     0xf12d, 0xf12d, // eraser: tile eraser
     0xf140, 0xf140, // bullseye: set height, Area2D
+    0xf15b, 0xf15b, // file: other assets in search
     0xf1b2, 0xf1b2, // cube: RigidBody2D
+    0xf1da, 0xf1da, // clock-rotate-left: recent search results
     0xf1f8, 0xf1f8, // trash: delete a key
     0xf1fb, 0xf1fb, // eyedropper: tile picker
     0xf1fc, 0xf1fc, // paintbrush: paint tile
@@ -1653,10 +1666,12 @@ const EDITOR_FA_GLYPHS: &[u32] = &[
     0xf424, 0xf424, // up-right-and-down-left-from-center: 2D scale tool
     0xf45c, 0xf45c, // square-full: StaticBody2D, Collider2D
     0xf4d7, 0xf4d7, // route: PathFollow2D
+    0xf51f, 0xf51f, // compact-disc: Package Disc
     0xf522, 0xf522, // dice: noise
     0xf53f, 0xf53f, // palette: CanvasModulate2D
     0xf546, 0xf546, // ruler-combined: 2D rulers
     0xf547, 0xf547, // ruler-horizontal: flatten
+    0xf550, 0xf550, // timeline: timelines in search
     0xf554, 0xf554, // person-walking: NavigationAgent2D
     0xf55b, 0xf55b, // bezier-curve: Path2D
     0xf565, 0xf565, // crop-simple: sprite region
@@ -1666,6 +1681,7 @@ const EDITOR_FA_GLYPHS: &[u32] = &[
     0xf5ee, 0xf5ee, // draw-polygon: Polygon2D
     0xf5fd, 0xf5fd, // layer-group: z index
     0xf6d9, 0xf6d9, // dungeon: Dungeon Generator
+    0xf6e3, 0xf6e3, // hammer: Build
     0xf6fa, 0xf6fa, // mask: Depth2D
     0xf6fc, 0xf6fc, // mountain: sharp falloff
     0xf70c, 0xf70c, // person-running: CharacterBody2D

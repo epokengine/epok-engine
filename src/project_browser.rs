@@ -112,6 +112,20 @@ impl State {
         e.focus_project = true;
         e.project_browser = state;
     }
+    /// Show `folder` (project-relative) in the Content Browser and bring it forward.
+    pub(crate) fn reveal_folder(e: &mut Editor, folder: &str) {
+        let mut state = std::mem::take(&mut e.project_browser);
+        state.navigate(e, folder.to_string());
+        state.filter = 0;
+        state.scanned = None;
+        e.project_search.clear();
+        e.focus_project = true;
+        e.project_browser = state;
+    }
+    /// The last error an open/rename/import reported in the Content Browser.
+    pub(crate) fn error(&self) -> Option<&str> {
+        self.error.as_deref()
+    }
     fn save(&mut self, root: &Path) {
         let result = (|| -> Result<(), String> {
             fs::create_dir_all(root.join("UserSettings")).map_err(|e| e.to_string())?;
@@ -213,29 +227,7 @@ fn kind<'a>(e: &'a Editor, entry: &Entry) -> &'a str {
         .flatten()
         .find(|r| r.path == p)
     {
-        return match r.meta.kind {
-            assets::Kind::AudioClip | assets::Kind::MusicSequence => "Audio",
-            assets::Kind::SoundBank => "SoundBank",
-            assets::Kind::Texture => "Texture",
-            assets::Kind::EditableMesh | assets::Kind::SkeletalMesh | assets::Kind::ModelSource => {
-                "Mesh"
-            }
-            assets::Kind::Terrain => "Terrain",
-            assets::Kind::AnimationClip => "Animation",
-            assets::Kind::Material => "Material",
-            assets::Kind::Skeleton => "Skeleton",
-            assets::Kind::Font => "Font",
-            assets::Kind::TileSet => "TileSet",
-            assets::Kind::StringTable => "String Table",
-            assets::Kind::Dialogue => "Dialogue",
-            assets::Kind::DialogueStyle => "Dialogue Style",
-            assets::Kind::DataTable => "Data Table",
-            assets::Kind::DungeonStyle => "Dungeon Style",
-            assets::Kind::DungeonRecipe => "Dungeon Recipe",
-            assets::Kind::DungeonRoom => "Dungeon Room",
-            assets::Kind::Video => "Video",
-            assets::Kind::PocketStationApp => "PocketStation App",
-        };
+        return kind_label(&r.meta.kind);
     }
     if entry.path.ends_with(".epokbp") {
         "Blueprint"
@@ -253,6 +245,32 @@ fn kind<'a>(e: &'a Editor, entry: &Entry) -> &'a str {
         "Asset"
     } else {
         crate::content_preview::source_kind(Path::new(&entry.path)).unwrap_or("Source")
+    }
+}
+/// The Content Browser's name for an imported asset kind (filters, icons, search).
+pub(crate) fn kind_label(kind: &assets::Kind) -> &'static str {
+    match kind {
+        assets::Kind::AudioClip | assets::Kind::MusicSequence => "Audio",
+        assets::Kind::SoundBank => "SoundBank",
+        assets::Kind::Texture => "Texture",
+        assets::Kind::EditableMesh | assets::Kind::SkeletalMesh | assets::Kind::ModelSource => {
+            "Mesh"
+        }
+        assets::Kind::Terrain => "Terrain",
+        assets::Kind::AnimationClip => "Animation",
+        assets::Kind::Material => "Material",
+        assets::Kind::Skeleton => "Skeleton",
+        assets::Kind::Font => "Font",
+        assets::Kind::TileSet => "TileSet",
+        assets::Kind::StringTable => "String Table",
+        assets::Kind::Dialogue => "Dialogue",
+        assets::Kind::DialogueStyle => "Dialogue Style",
+        assets::Kind::DataTable => "Data Table",
+        assets::Kind::DungeonStyle => "Dungeon Style",
+        assets::Kind::DungeonRecipe => "Dungeon Recipe",
+        assets::Kind::DungeonRoom => "Dungeon Room",
+        assets::Kind::Video => "Video",
+        assets::Kind::PocketStationApp => "PocketStation App",
     }
 }
 fn unprocessed(entry: &Entry) -> bool {
@@ -280,21 +298,27 @@ fn request_preview(e: &Editor, s: &mut State, entry: &Entry) -> PathBuf {
 }
 // The file name is an identity on disk; the browser presents the asset's name.
 fn display_name(entry: &Entry) -> &str {
-    if !entry.folder {
-        for suffix in [
-            ".particle-effect.json",
-            ".timeline.json",
-            ".epokasset",
-            ".epokbp",
-            ".epokclass",
-            ".epokmap",
-        ] {
-            if let Some(name) = entry.name.strip_suffix(suffix) {
-                return name;
-            }
+    if entry.folder {
+        &entry.name
+    } else {
+        display_file_name(&entry.name)
+    }
+}
+/// A file name without the suffix of an Epok document type.
+pub(crate) fn display_file_name(name: &str) -> &str {
+    for suffix in [
+        ".particle-effect.json",
+        ".timeline.json",
+        ".epokasset",
+        ".epokbp",
+        ".epokclass",
+        ".epokmap",
+    ] {
+        if let Some(name) = name.strip_suffix(suffix) {
+            return name;
         }
     }
-    &entry.name
+    name
 }
 
 // Embedded Font Awesome glyphs, shared by tile and list views.
@@ -304,7 +328,7 @@ pub const ASSET_ICON_RANGES: &[u32] = &[
     0xf279, 0xf279, 0xf550, 0xf550, 0xf5d7, 0xf5d7, 0xf6d9, 0xf6d9, 0xf6fc, 0xf6fc, 0xf70e, 0xf70e,
     0,
 ];
-fn type_icon(kind: &str) -> (&'static str, [f32; 4]) {
+pub(crate) fn type_icon(kind: &str) -> (&'static str, [f32; 4]) {
     match kind {
         "Folder" => ("\u{f07b}", GOLD),
         "Blueprint" => ("\u{f0e8}", [0.24, 0.64, 0.90, 1.]),

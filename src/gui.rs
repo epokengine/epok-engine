@@ -747,6 +747,214 @@ pub(crate) fn icon(ui: &imgui::Ui, glyph: &str, id: &str, tip: &str, active: boo
     }
     result
 }
+// Toolbar glyphs (Font Awesome; listed in platform::EDITOR_FA_GLYPHS).
+const HAMMER: &str = "\u{f6e3}";
+const DISC: &str = "\u{f51f}";
+const COLUMNS: &str = "\u{f0db}";
+const CHEVRON: &str = "\u{f078}";
+const MAGNIFIER: &str = "\u{f002}";
+const TOOLBAR_BUTTON_HEIGHT: f32 = 28.;
+const TOOLBAR_GAP: f32 = 6.;
+const TOOLBAR_SEPARATOR: f32 = 17.;
+
+fn toolbar_button_width(ui: &imgui::Ui, glyph: &str, label: &str, dropdown: bool) -> f32 {
+    let mut width = 12. + ui.calc_text_size(glyph)[0] + 7. + ui.calc_text_size(label)[0] + 12.;
+    if dropdown {
+        width += ui.calc_text_size(CHEVRON)[0] + 8.;
+    }
+    width
+}
+
+/// A labelled toolbar action: tinted icon, text, optional dropdown chevron, and
+/// the same rounded frame, hover and pressed states for every button.
+fn toolbar_button(
+    ui: &imgui::Ui,
+    id: &str,
+    glyph: &str,
+    tint: [f32; 4],
+    label: &str,
+    dropdown: bool,
+    tip: &str,
+) -> bool {
+    let width = toolbar_button_width(ui, glyph, label, dropdown);
+    let p = ui.cursor_screen_pos();
+    let pressed = ui.invisible_button(id, [width, TOOLBAR_BUTTON_HEIGHT]);
+    #[cfg(test)]
+    record_script_control(ui, label);
+    let (hovered, held) = (ui.is_item_hovered(), ui.is_item_active());
+    let (fill, border) = if held {
+        (gray(34), [0.2, 0.52, 0.85, 1.])
+    } else if hovered {
+        (gray(60), gray(88))
+    } else {
+        (gray(43), gray(58))
+    };
+    let draw = ui.get_window_draw_list();
+    let b = [p[0] + width, p[1] + TOOLBAR_BUTTON_HEIGHT];
+    draw.add_rect(p, b, fill).filled(true).rounding(4.).build();
+    draw.add_rect(p, b, border).rounding(4.).build();
+    let y = p[1] + (TOOLBAR_BUTTON_HEIGHT - ui.text_line_height()) * 0.5;
+    let mut x = p[0] + 12.;
+    draw.add_text([x, y], tint, glyph);
+    x += ui.calc_text_size(glyph)[0] + 7.;
+    draw.add_text([x, y], gray(if hovered { 245 } else { 225 }), label);
+    if dropdown {
+        x += ui.calc_text_size(label)[0] + 8.;
+        draw.add_text([x, y + 1.], gray(160), CHEVRON);
+    }
+    if ui.is_item_hovered_with_flags(imgui::ItemHoveredFlags::DELAY_SHORT) {
+        ui.tooltip_text(tip);
+    }
+    pressed
+}
+
+/// The toolbar's entry to global search: drawn as a search field with its
+/// shortcut, so it reads as a place to type rather than another action.
+fn toolbar_search(ui: &imgui::Ui, width: f32) -> bool {
+    let p = ui.cursor_screen_pos();
+    let pressed = ui.invisible_button("##toolbar-search", [width, TOOLBAR_BUTTON_HEIGHT]);
+    #[cfg(test)]
+    record_script_control(ui, "Search");
+    let hovered = ui.is_item_hovered();
+    let draw = ui.get_window_draw_list();
+    let b = [p[0] + width, p[1] + TOOLBAR_BUTTON_HEIGHT];
+    draw.add_rect(p, b, gray(if hovered { 24 } else { 19 }))
+        .filled(true)
+        .rounding(14.)
+        .build();
+    draw.add_rect(p, b, if hovered { gray(92) } else { gray(58) })
+        .rounding(14.)
+        .build();
+    let y = p[1] + (TOOLBAR_BUTTON_HEIGHT - ui.text_line_height()) * 0.5;
+    draw.add_text([p[0] + 12., y], gray(150), MAGNIFIER);
+    draw.add_text(
+        [p[0] + 34., y],
+        gray(if hovered { 175 } else { 135 }),
+        "Search...",
+    );
+    let shortcut = "Ctrl+P";
+    let key_width = ui.calc_text_size(shortcut)[0] + 10.;
+    let key_x = b[0] - 8. - key_width;
+    if key_x > p[0] + 34. + ui.calc_text_size("Search...")[0] + 8. {
+        draw.add_rect([key_x, p[1] + 6.], [key_x + key_width, b[1] - 6.], gray(40))
+            .filled(true)
+            .rounding(3.)
+            .build();
+        draw.add_text([key_x + 5., y], gray(150), shortcut);
+    }
+    if ui.is_item_hovered_with_flags(imgui::ItemHoveredFlags::DELAY_SHORT) {
+        ui.tooltip_text(
+            "Search scripts, Blueprints, scenes, assets, actors and settings (Ctrl+P)",
+        );
+    }
+    pressed
+}
+
+fn toolbar_separator(ui: &imgui::Ui) {
+    ui.same_line_with_spacing(0., 0.);
+    let p = ui.cursor_screen_pos();
+    let x = p[0] + TOOLBAR_SEPARATOR * 0.5;
+    ui.get_window_draw_list()
+        .add_line([x, p[1] + 5.], [x, p[1] + TOOLBAR_BUTTON_HEIGHT - 5.], gray(62))
+        .build();
+    ui.dummy([TOOLBAR_SEPARATOR, TOOLBAR_BUTTON_HEIGHT]);
+    ui.same_line_with_spacing(0., 0.);
+}
+
+/// Right-hand toolbar group: build actions | search | layout.
+fn toolbar_actions(ui: &imgui::Ui, e: &mut Editor, width: f32, height: f32) {
+    let search_width = (width * 0.16).clamp(150., 230.);
+    let actions = [
+        (
+            "##toolbar-build",
+            HAMMER,
+            [0.97, 0.72, 0.33, 1.],
+            "Build",
+            "Compile the game for the selected target",
+            "build",
+        ),
+        (
+            "##toolbar-package-disc",
+            DISC,
+            [0.46, 0.72, 0.97, 1.],
+            "Package Disc",
+            "Build a PlayStation disc image of the project",
+            "export-disc",
+        ),
+    ];
+    let total = actions
+        .iter()
+        .map(|(_, glyph, _, label, _, _)| toolbar_button_width(ui, glyph, label, false))
+        .sum::<f32>()
+        + TOOLBAR_GAP
+        + TOOLBAR_SEPARATOR * 2.
+        + search_width
+        + toolbar_button_width(ui, COLUMNS, "Layout", true);
+    let top = ((height - TOOLBAR_BUTTON_HEIGHT) * 0.5).floor();
+    ui.same_line_with_pos((width - total - 12.).max(0.));
+    ui.set_cursor_pos([ui.cursor_pos()[0], top]);
+    for (i, (id, glyph, tint, label, tip, action)) in actions.into_iter().enumerate() {
+        if i > 0 {
+            ui.same_line_with_spacing(0., TOOLBAR_GAP);
+        }
+        if toolbar_button(ui, id, glyph, tint, label, false, tip) {
+            e.action(action);
+        }
+    }
+    toolbar_separator(ui);
+    if toolbar_search(ui, search_width) {
+        e.global_search.open_with("");
+    }
+    toolbar_separator(ui);
+    if toolbar_button(
+        ui,
+        "##toolbar-layout",
+        COLUMNS,
+        gray(200),
+        "Layout",
+        true,
+        "Window layouts",
+    ) {
+        ui.open_popup("layout-menu");
+    }
+    let anchor = [ui.item_rect_max()[0], ui.item_rect_max()[1] + 4.];
+    if crate::busy_ui::popup_open("layout-menu") {
+        unsafe {
+            imgui::sys::igSetNextWindowPos(
+                anchor.into(),
+                imgui::sys::ImGuiCond_Appearing as i32,
+                [1., 0.].into(),
+            );
+        }
+    }
+    let _vars = [
+        ui.push_style_var(imgui::StyleVar::WindowPadding([10., 8.])),
+        ui.push_style_var(imgui::StyleVar::ItemSpacing([10., 7.])),
+        ui.push_style_var(imgui::StyleVar::PopupRounding(4.)),
+    ];
+    ui.popup("layout-menu", || {
+        if ui
+            .menu_item_config("Sequencer")
+            .enabled(e.timeline_editor.open)
+            .build()
+        {
+            e.timeline_editor.layout = true;
+        }
+        if ui.menu_item("Default") {
+            e.reset_layout = true;
+        }
+    });
+    // A crisp edge between the toolbar band and the dock space below.
+    let window = ui.window_pos();
+    ui.get_window_draw_list()
+        .add_line(
+            [window[0], window[1] + height - 1.],
+            [window[0] + width, window[1] + height - 1.],
+            gray(16),
+        )
+        .build();
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn draw(
     ui: &imgui::Ui,
@@ -1016,6 +1224,25 @@ fn draw_workspace(
         });
     });
     about_dialog(ui, e);
+    // Ctrl+P works from text fields too: it never edits text in ImGui.
+    if !background
+        && !e.game_capture
+        && ui.io().key_ctrl
+        && !ui.io().key_shift
+        && !ui.io().key_alt
+        && ui.is_key_pressed_no_repeat(imgui::Key::P)
+        && !e.global_search.is_open()
+        // Opening a popup at the root level would dismiss another open dialog.
+        && !unsafe {
+            imgui::sys::igIsPopupOpen_ID(
+                0,
+                (imgui::sys::ImGuiPopupFlags_AnyPopupId
+                    | imgui::sys::ImGuiPopupFlags_AnyPopupLevel) as i32,
+            )
+        }
+    {
+        e.global_search.open_with("");
+    }
     if !background && !text_input_active(ui) && !e.game_capture {
         crate::mesh_editor::shortcuts(ui, e);
         crate::terrain_editor::shortcuts(ui, e);
@@ -1110,36 +1337,7 @@ fn draw_workspace(
                     },
                 );
             }
-            ui.same_line_with_pos(size[0] - 270.);
-            if ui.button("Build") {
-                e.action("build");
-            }
-            ui.same_line();
-            if ui.button("Package Disc") {
-                e.action("export-disc");
-            }
-            ui.same_line();
-            if ui.button(format!("{SEARCH}##projectsearch")) {
-                unsafe {
-                    imgui::sys::igSetWindowFocus_Str(c"\u{eb30} Project###Project".as_ptr());
-                }
-            }
-            ui.same_line();
-            if ui.button("Layout  \u{eab4}") {
-                ui.open_popup("layout-menu");
-            }
-            ui.popup("layout-menu", || {
-                if ui
-                    .menu_item_config("Sequencer")
-                    .enabled(e.timeline_editor.open)
-                    .build()
-                {
-                    e.timeline_editor.layout = true;
-                }
-                if ui.menu_item("Default") {
-                    e.reset_layout = true;
-                }
-            });
+            toolbar_actions(ui, e, size[0], toolbar_height);
         });
     drop(_padding);
     let padding = ui.push_style_var(imgui::StyleVar::WindowPadding([0., 0.]));
@@ -1326,6 +1524,9 @@ fn draw_workspace(
     e.timeline_editor
         .draw(ui, &e.root, &e.class_registry, &e.scene, &e.assets.index);
     e.view_dirty |= e.timeline_editor.scene_preview.scene.is_some();
+    if !background {
+        crate::global_search::draw(ui, e);
+    }
     if e.close_requested {
         ui.open_popup("Unsaved scene");
         e.close_requested = false;

@@ -102,6 +102,7 @@ mod game_helper_catalog;
 mod game_helpers;
 mod gameplay_control;
 mod gizmo;
+mod global_search;
 mod gui;
 mod helper_install;
 mod hub;

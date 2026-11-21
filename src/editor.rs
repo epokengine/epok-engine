@@ -224,6 +224,8 @@ pub struct Editor {
     pub tool: usize,
     pub project_search: String,
     pub project_browser: crate::project_browser::State,
+    /// Ctrl+P: fuzzy search across scripts, Blueprints, scenes, assets, actors and settings.
+    pub global_search: crate::global_search::State,
     pub script_editor: crate::script_editor::State,
     pub selected_asset: Option<PathBuf>,
     pub asset_inspector: crate::asset_inspector::State,
@@ -512,6 +514,14 @@ impl Editor {
         if std::env::args().any(|v| v == "--screenshot-dependencies") {
             crate::settings_ui::open_dependencies(&mut editor);
             editor.dependencies.warning = false;
+        }
+        if let Some(pair) = std::env::args()
+            .collect::<Vec<_>>()
+            .windows(2)
+            .find(|v| v[0] == "--screenshot-global-search")
+        {
+            editor.dependencies.warning = false;
+            editor.global_search.open_with(&pair[1]);
         }
         if std::env::args().any(|v| v == "--screenshot-artifact-dependencies") {
             editor.artifact_dependencies.open = true;
@@ -850,6 +860,7 @@ impl Editor {
             tool: 1,
             project_search: String::new(),
             project_browser: crate::project_browser::State::default(),
+            global_search: crate::global_search::State::default(),
             selected_asset: None,
             asset_inspector: Default::default(),
             inspector_font: None,

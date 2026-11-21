@@ -78,6 +78,60 @@ impl State {
         );
     }
 }
+/// Editor Preferences navigation: page label and the words its search matches.
+pub(crate) const PREFERENCE_PAGES: &[(&str, &str)] = &[
+    ("Viewports", "grid camera speed navigation"),
+    (
+        "Play",
+        "game integer scale filter emulator serial NOTPSXSerial nops COM fast controller rumble vibration",
+    ),
+    ("Integrations / MCP", "server integrations mcp connection port key"),
+    (
+        "Dependencies",
+        "tools paths install repair make MIPS Nugget PCSX psxavenc mkpsxiso libclang",
+    ),
+];
+/// Project Settings navigation, in page order (`project_page` indexes it).
+pub(crate) const PROJECT_PAGES: &[(&str, &str)] = &[
+    (
+        "Description",
+        "name project scripting lua execution native VM bytecode source interpreter",
+    ),
+    (
+        "Maps & Build",
+        "startup scene scenes table EXE external disc file build compilation asset report generate play target content data transition fade loading text image",
+    ),
+    (
+        "Rendering",
+        "resolution display video NTSC interlaced progressive pixels dithering RGB555 banding retained packets visibility geometry static movement position interpolation smoothing camera experimental FPS performance",
+    ),
+    (
+        "Streaming",
+        "geometry pool pages memory CD disc music XA triangle budget preload nearby prefetch experimental FPS performance",
+    ),
+    (
+        "Debug",
+        "HUD overlay FPS CPU GTE GPU DMA SPU audio bars runtime performance",
+    ),
+    (
+        "Controls",
+        "controller pad multitap keyboard mouse gamepad analog profile mapping input rumble vibration assignment device",
+    ),
+];
+/// Open Editor Preferences (`preferences`) or Project Settings at one page.
+pub fn open_page(e: &mut Editor, preferences: bool, page: usize) {
+    if preferences {
+        open_preferences(e);
+        e.settings.preferences_page = page.min(PREFERENCE_PAGES.len() - 1);
+        e.settings.preferences_search.clear();
+    } else {
+        open_project(e);
+        if e.settings.project_open {
+            e.settings.project_page = page.min(PROJECT_PAGES.len() - 1);
+            e.settings.project_search.clear();
+        }
+    }
+}
 pub fn open_project(e: &mut Editor) {
     match crate::workspace::read_manifest(&e.root) {
         Ok(value) => {
@@ -354,7 +408,7 @@ pub fn windows(ui: &imgui::Ui, e: &mut Editor) {
             let height=(available[1]-60.).max(200.);
             ui.child_window(format!("nav-{title}")).size([215.,height]).build(||{
                 ui.text_disabled(if preferences{"GENERAL"}else{"PROJECT"});
-                let pages: &[(&str,&str)]=if preferences{&[("Viewports","grid camera speed navigation"),("Play","game integer scale filter emulator serial NOTPSXSerial nops COM fast controller rumble vibration"),("Integrations / MCP","server integrations mcp connection port key"),("Dependencies","tools paths install repair make MIPS Nugget PCSX psxavenc mkpsxiso libclang")]}else{&[("Description","name project scripting lua execution native VM bytecode source interpreter"),("Maps & Build","startup scene scenes table EXE external disc file build compilation asset report generate play target content data transition fade loading text image"),("Rendering","resolution display video NTSC interlaced progressive pixels dithering RGB555 banding retained packets visibility geometry static movement position interpolation smoothing camera experimental FPS performance"),("Streaming","geometry pool pages memory CD disc music XA triangle budget preload nearby prefetch experimental FPS performance"),("Debug","HUD overlay FPS CPU GTE GPU DMA SPU audio bars runtime performance"),("Controls","controller pad multitap keyboard mouse gamepad analog profile mapping input rumble vibration assignment device") ]};
+                let pages: &[(&str,&str)]=if preferences{PREFERENCE_PAGES}else{PROJECT_PAGES};
                 let page=if preferences{&mut state.preferences_page}else{&mut state.project_page};
                 let query=if preferences{&state.preferences_search}else{&state.project_search};
                 for (i,(label,keywords)) in pages.iter().enumerate(){
