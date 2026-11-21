@@ -1939,6 +1939,10 @@ struct ActorContext<'a> {
     passthrough: Vec<bool>,
     resolved: Vec<bool>,
     roots: Vec<usize>,
+    /// Ancestors opened this frame to bring a newly selected actor into view.
+    reveal: Vec<bool>,
+    /// The selected actor whose row is scrolled into view this frame.
+    target: Option<usize>,
     /// The placeable classes the actor menu's creation items offer.
     classes: &'a [ActorClass],
 }
@@ -1955,6 +1959,8 @@ fn actor_context<'a>(e: &Editor, classes: &'a [ActorClass]) -> ActorContext<'a> 
         passthrough: vec![false; actors.len()],
         resolved: vec![false; actors.len()],
         roots: Vec::new(),
+        reveal: vec![false; actors.len()],
+        target: None,
         classes,
     };
     let mut parent = vec![None; actors.len()];
@@ -1986,6 +1992,21 @@ fn actor_context<'a>(e: &Editor, classes: &'a [ActorClass]) -> ActorContext<'a> 
                 cx.visible[p] = true;
                 current = parent[p];
             }
+        }
+    }
+    // A selection made elsewhere (Scene, search, MCP) opens its branch so the
+    // highlighted row can be shown, even under a collapsed parent.
+    if e.reveal_selected {
+        cx.target = e
+            .selected_actor
+            .and_then(|id| index_of.get(&id).copied())
+            .or(e.selected)
+            .filter(|i| *i < actors.len());
+        let mut current = cx.target.and_then(|i| parent[i]);
+        for _ in 0..actors.len() {
+            let Some(p) = current else { break };
+            cx.reveal[p] = true;
+            current = parent[p];
         }
     }
     // A logical parent outside the current domain still holds the branch's place.
@@ -2049,10 +2070,13 @@ fn actor_node(
     }
     if !cx.in_domain[index] {
         let _muted = ui.push_style_color(C::Text, gray(120));
-        let node = ui
+        let mut config = ui
             .tree_node_config(label)
-            .flags(flags & !imgui::TreeNodeFlags::LEAF)
-            .push();
+            .flags(flags & !imgui::TreeNodeFlags::LEAF);
+        if cx.reveal[index] {
+            config = config.opened(true, Condition::Always);
+        }
+        let node = config.push();
         drop(_muted);
         if let Some(_node) = node {
             for child in &cx.children[index] {
@@ -2064,7 +2088,14 @@ fn actor_node(
     if e.is_actor_selected(id) {
         flags |= imgui::TreeNodeFlags::SELECTED;
     }
-    let node = ui.tree_node_config(label).flags(flags).push();
+    let mut config = ui.tree_node_config(label).flags(flags);
+    if cx.reveal[index] {
+        config = config.opened(true, Condition::Always);
+    }
+    let node = config.push();
+    if cx.target == Some(index) && !ui.is_item_visible() {
+        ui.set_scroll_here_y_with_ratio(0.5);
+    }
     out.rows.push(id);
     #[cfg(test)]
     record_script_control(ui, &format!("Hierarchy actor {id}"));
@@ -3725,7 +3756,9 @@ fn scene_view(
                     .as_ref()
                     .filter(|_| e.timeline_editor.open && !e.playing)
                     .unwrap_or(&e.scene);
-                e.selected = crate::picking::pick(scene, &e.view, pixel);
+                let picked = crate::picking::pick(scene, &e.view, pixel)
+                    .and_then(|index| Some((index, scene.actors.get(index)?.id)));
+                e.select_picked(picked);
             }
             e.view_dirty = true;
             e.reveal_selected = e.selected.is_some();
@@ -4328,6 +4361,78 @@ mod interaction_tests {
             "Leaf rows also frame on double click"
         );
         assert!(editor.actor_rename.is_none());
+    }
+
+    /// An actor picked in the Scene view is the Hierarchy's selection too: its
+    /// row is highlighted (a child as well as a root), scrolled into view when
+    /// it was off screen, and empty space clears the highlight.
+    #[test]
+    fn scene_view_picks_select_and_reveal_the_hierarchy_row() {
+        let mut context = crate::gui::tests::imgui_context();
+        configure_input(context.io_mut());
+        context.io_mut().display_size = [900., 650.];
+        context.io_mut().delta_time = 1. / 60.;
+        context
+            .fonts()
+            .add_font(&[imgui::FontSource::DefaultFontData { config: None }]);
+        context.fonts().build_rgba32_texture();
+        context.load_ini_settings("[Window][###Hierarchy]\nPos=10,10\nSize=360,600\nCollapsed=0\n");
+        let root = crate::workspace::tests::temp("hierarchy-scene-pick");
+        let mut editor = Editor::new(root.clone());
+        editor.auto_build = false;
+        editor.scene.actors.clear();
+        editor.catalog = crate::mcp_tests::actor_catalog();
+        editor.class_registry =
+            crate::blueprint::registry_from_catalog(&editor.root, &editor.catalog);
+        editor.registry_revision += 1;
+        editor.create_actor("epok::Actor3D");
+        let player = editor.selected_actor.unwrap();
+        editor.create_actor_under("epok::Actor3D", Some(player));
+        let visual = editor.selected_actor.unwrap();
+        for _ in 0..60 {
+            editor.create_actor("epok::Actor3D");
+        }
+        let last = editor.selected_actor.unwrap();
+        editor.select_actor(None);
+
+        fn frame(ctx: &mut imgui::Context, e: &mut Editor) {
+            SCRIPT_BUTTONS.with(|buttons| buttons.borrow_mut().clear());
+            let ui = ctx.frame();
+            hierarchy(ui, e);
+            ctx.render();
+        }
+        // What the Scene view does with a pick, without rendering the scene.
+        fn pick(ctx: &mut imgui::Context, e: &mut Editor, id: Option<uuid::Uuid>) {
+            let picked = id.map(|id| (e.scene.actor_index(id).unwrap(), id));
+            e.select_picked(picked);
+            e.reveal_selected = e.selected.is_some();
+            for _ in 0..4 {
+                frame(ctx, e);
+            }
+        }
+        let highlighted = |id: uuid::Uuid| script_control(&format!("Hierarchy highlighted {id}"));
+        for _ in 0..3 {
+            frame(&mut context, &mut editor);
+        }
+        // The picked child, not a row selected earlier in the Hierarchy.
+        editor.select_actor(Some(player));
+        pick(&mut context, &mut editor, Some(visual));
+        assert_eq!(editor.selected_actor, Some(visual));
+        assert_eq!(editor.selected, editor.scene.actor_index(visual));
+        assert!(highlighted(visual).is_some(), "the picked child is highlighted");
+        assert!(highlighted(player).is_none(), "the previous row is not");
+        // A row far below the fold is scrolled into the 600 px panel.
+        let before = script_control(&format!("Hierarchy actor {last}")).unwrap();
+        assert!(before[1] > 610., "the last row starts off screen: {before:?}");
+        pick(&mut context, &mut editor, Some(last));
+        let row = highlighted(last).expect("the picked root is highlighted");
+        assert!((10. ..610.).contains(&row[1]), "scrolled into view: {row:?}");
+        // Empty space clears the selection and the highlight.
+        pick(&mut context, &mut editor, None);
+        assert!(editor.selected.is_none() && editor.selected_actor.is_none());
+        assert!(highlighted(last).is_none());
+        drop(context);
+        let _ = std::fs::remove_dir_all(root);
     }
 
     /// The actor menu keeps Save as Dungeon Room in place, disabled on a leaf,

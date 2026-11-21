@@ -815,7 +815,7 @@ pub fn view(ui: &imgui::Ui, e: &mut Editor, texture: imgui::TextureId) {
     }
     if hovered && ui.is_mouse_clicked(imgui::MouseButton::Left) && !e.playing {
         if grab.is_none() && spin.is_none() {
-            e.selected = order
+            let picked = order
                 .iter()
                 .rev()
                 .find(|i| {
@@ -826,7 +826,9 @@ pub fn view(ui: &imgui::Ui, e: &mut Editor, texture: imgui::TextureId) {
                         p[0] >= r[0] && p[0] <= r[0] + r[2] && p[1] >= r[1] && p[1] <= r[1] + r[3]
                     })
                 })
-                .copied();
+                .copied()
+                .and_then(|index| Some((index, e.scene.actors.get(index)?.id)));
+            e.select_picked(picked);
         }
         e.hud_drag = e
             .selected

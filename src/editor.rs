@@ -1277,6 +1277,19 @@ impl Editor {
         self.set_actor_selection(actor.into_iter().collect(), actor);
         self.selection_anchor = actor;
     }
+    /// A click in a view picked `picked` (its index in the scene the view
+    /// shows, and its identity). Select it as a Hierarchy click would, so the
+    /// Hierarchy, Inspector and gizmo follow one selection; empty space
+    /// clears it. An actor only a preview scene holds keeps the index alone.
+    pub fn select_picked(&mut self, picked: Option<(usize, uuid::Uuid)>) {
+        match picked.filter(|(_, id)| self.scene.actor_index(*id).is_some()) {
+            Some((_, id)) => self.select_actor(Some(id)),
+            None => {
+                self.select_actor(None);
+                self.selected = picked.map(|(index, _)| index);
+            }
+        }
+    }
     /// Replaces the Hierarchy selection with `actors`, `primary` among them.
     fn set_actor_selection(&mut self, actors: Vec<uuid::Uuid>, primary: Option<uuid::Uuid>) {
         self.selected_actor = primary;
