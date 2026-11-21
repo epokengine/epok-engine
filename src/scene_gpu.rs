@@ -264,6 +264,8 @@ pub struct SceneGpu {
     cached_terrain_revision: u64,
     brush_fill: Vertices,
     brush_edges: Vertices,
+    edit_fill: Vertices,
+    edit_edges: Vertices,
 }
 struct RenderInput<'a> {
     scene: &'a Scene,
@@ -735,6 +737,8 @@ impl SceneGpu {
             cached_terrain_revision: 0,
             brush_fill: Vertices::new(device),
             brush_edges: Vertices::new(device),
+            edit_fill: Vertices::new(device),
+            edit_edges: Vertices::new(device),
         }
     }
     pub fn render(
@@ -1130,6 +1134,10 @@ impl SceneGpu {
         let (brush_fill, brush_ring) = brush_overlay(scene, input.terrain);
         self.brush_fill.upload(device, queue, &brush_fill);
         self.brush_edges.upload(device, queue, &brush_ring);
+        // Geometry editing feedback follows the cursor the same way.
+        let (edit_fill, edit_edges) = mesh_edit_overlay(scene, input.mesh, view);
+        self.edit_fill.upload(device, queue, &edit_fill);
+        self.edit_edges.upload(device, queue, &edit_edges);
         // Native PC 2D layers: one full-screen triangle each, the under_3d canvases first,
         // then the Depth2D buckets. Vertex counts of the two groups.
         let mut layer_draws = [0u32; 2];
@@ -1299,6 +1307,11 @@ impl SceneGpu {
             pass.set_vertex_buffer(0, self.brush_fill.buffer.slice(..));
             pass.draw(0..self.brush_fill.count, 0..1);
         }
+        if self.edit_fill.count > 0 {
+            pass.set_pipeline(&self.mesh_pipelines[1]);
+            pass.set_vertex_buffer(0, self.edit_fill.buffer.slice(..));
+            pass.draw(0..self.edit_fill.count, 0..1);
+        }
         pass.set_pipeline(&self.line_pipeline);
         if input.grid {
             pass.set_vertex_buffer(0, self.grid.buffer.slice(..));
@@ -1315,6 +1328,10 @@ impl SceneGpu {
         if self.brush_edges.count > 0 {
             pass.set_vertex_buffer(0, self.brush_edges.buffer.slice(..));
             pass.draw(0..self.brush_edges.count, 0..1);
+        }
+        if self.edit_edges.count > 0 {
+            pass.set_vertex_buffer(0, self.edit_edges.buffer.slice(..));
+            pass.draw(0..self.edit_edges.count, 0..1);
         }
     }
 }
@@ -1380,6 +1397,112 @@ fn vertex(out: &mut Vec<u8>, p: [f32; 3], color: [u8; 3]) {
 fn line(out: &mut Vec<u8>, a: [f32; 3], b: [f32; 3], color: [u8; 3]) {
     vertex(out, a, color);
     vertex(out, b, color);
+}
+/// Geometry-editing feedback over the edited mesh: translucent fills on the
+/// selected faces and on the face under the cursor, bright outlines, and the
+/// hovered edge or vertex. It follows the cursor, so like the terrain brush it
+/// is rebuilt every render from the edited actor alone.
+fn mesh_edit_overlay(
+    scene: &Scene,
+    state: &crate::mesh_editor::State,
+    view: &crate::viewport::View,
+) -> (Vec<u8>, Vec<u8>) {
+    use crate::mesh_editor::{Hit, Mode};
+    /// Toward the camera, so a fill wins the depth test against the face it
+    /// covers from either side without visibly floating.
+    const LIFT: f32 = 0.012;
+    const SELECTED: [f32; 3] = [1., 0.72, 0.16];
+    const HOVER: [f32; 3] = [0.3, 0.76, 1.];
+    const BOTH: [f32; 3] = [1., 0.9, 0.55];
+    let mut fill = Vec::new();
+    let mut lines = Vec::new();
+    let Some(index) = state.target.filter(|_| state.open) else {
+        return (fill, lines);
+    };
+    let Some(doc) = scene
+        .actors
+        .get(index)
+        .and_then(|actor| actor.editable_mesh.as_ref())
+        .and_then(|mesh| mesh.document.as_ref())
+    else {
+        return (fill, lines);
+    };
+    let world = scene.world_matrix(index);
+    let eye = view.unproject([0., 0.], 0.);
+    let toward_eye = |points: &[[f32; 3]]| -> [f32; 3] {
+        let n = points.len() as f32;
+        let center: [f32; 3] =
+            std::array::from_fn(|c| points.iter().map(|p| p[c]).sum::<f32>() / n);
+        let d = crate::lighting::unit(crate::lighting::sub(eye, center));
+        d.map(|v| v * LIFT)
+    };
+    let push = |out: &mut Vec<u8>, p: [f32; 3], color: [f32; 3]| {
+        // Mode 1 is the translucent blend the navigation overlay uses.
+        for v in p.into_iter().chain(color).chain([0., 0., 0., 1.]) {
+            out.extend_from_slice(&v.to_le_bytes());
+        }
+    };
+    let rgb = |c: [f32; 3]| c.map(|v| (v * 255.).round() as u8);
+    for f in &doc.faces {
+        let selected = state.mode == Mode::Faces && state.selected.contains(&f.id);
+        let hovered = state.hover == Some(Hit::Face(f.id));
+        if !selected && !hovered {
+            continue;
+        }
+        let corners = if f.vertices[2] == f.vertices[3] { 3 } else { 4 };
+        let points = doc.points(f).map(|v| world.point(v));
+        let lift = toward_eye(&points[..corners]);
+        let p = points.map(|v| std::array::from_fn::<f32, 3, _>(|c| v[c] + lift[c]));
+        let color = match (selected, hovered) {
+            (true, true) => BOTH,
+            (true, false) => SELECTED,
+            _ => HOVER,
+        };
+        let order: &[usize] = if corners == 3 {
+            &[0, 1, 2]
+        } else {
+            &[0, 1, 2, 0, 2, 3]
+        };
+        for &i in order {
+            push(&mut fill, p[i], color);
+        }
+        for i in 0..corners {
+            line(&mut lines, p[i], p[(i + 1) % corners], rgb(color));
+        }
+    }
+    let point = |i: u32| world.point(doc.vertices[i as usize]);
+    let mut emphasize = |a: [f32; 3], b: [f32; 3], color: [f32; 3]| {
+        // Three nearby strokes read as one thick line at any distance.
+        let lift = toward_eye(&[a, b]);
+        for k in [0., 1., 2.] {
+            let o: [f32; 3] = lift.map(|v| v * k);
+            line(
+                &mut lines,
+                std::array::from_fn(|c| a[c] + o[c]),
+                std::array::from_fn(|c| b[c] + o[c]),
+                rgb(color),
+            );
+        }
+    };
+    if state.mode == Mode::Edges {
+        for edge in &state.edges {
+            emphasize(point(edge[0]), point(edge[1]), SELECTED);
+        }
+    }
+    match state.hover {
+        Some(Hit::Edge(edge)) => emphasize(point(edge[0]), point(edge[1]), HOVER),
+        Some(Hit::Vertex(v)) => {
+            let p = point(v);
+            for axis in 0..3 {
+                let (mut a, mut b) = (p, p);
+                a[axis] -= 0.07;
+                b[axis] += 0.07;
+                emphasize(a, b, HOVER);
+            }
+        }
+        _ => {}
+    }
+    (fill, lines)
 }
 /// Brush cursor projected onto the terrain: a disc tessellated in rings so
 /// every vertex sits on the sampled surface, and a bright rim. Brightness
@@ -1627,6 +1750,7 @@ fn geometry_cached(
     mut cache: Option<&mut StaticColors>,
 ) -> GeometryBuffers {
     let (yaw, pitch, view_center) = (view.yaw, view.pitch, view.center);
+    let dim_others = state.open && state.dim_others && state.target.is_some();
     let mut draws = Vec::<Draw>::new();
     let mut edges = Vec::new();
     let lighting = crate::lighting::Lighting::unshadowed(scene);
@@ -1717,16 +1841,10 @@ fn geometry_cached(
                 let color = q
                     .vertex_colors
                     .map_or(color, |colors| crate::vertex_colors::tint(colors[v], color));
-                if state.open
-                    && state.target == Some(index)
-                    && q.id.is_some_and(|id| state.selected.contains(&id))
-                {
-                    let highlight = if q.vertex_colors.is_some() && q.material.texture.is_some() {
-                        [128, 90, 28]
-                    } else {
-                        [255, 180, 55]
-                    };
-                    std::array::from_fn(|c| ((color[c] as u16 + highlight[c]) / 2) as u8)
+                // Selection is drawn as an overlay; editing one mesh can
+                // darken everything else so the edited geometry stands out.
+                if dim_others && state.target != Some(index) {
+                    color.map(|c| (u16::from(c) * 2 / 5) as u8)
                 } else {
                     color
                 }
@@ -1772,11 +1890,10 @@ fn geometry_cached(
                 continue;
             }
             let p = q.points.map(|v| world.point(v));
-            let color = if state.open
-                && state.target == Some(index)
-                && q.id.is_some_and(|id| state.selected.contains(&id))
-            {
-                [255, 225, 90]
+            let color = if state.open && state.target == Some(index) {
+                // While editing, the mesh shows its faces, not the actor's
+                // selection outline; selected elements are an overlay.
+                [104, 122, 142]
             } else if selected == Some(index) {
                 [238, 165, 74]
             } else {
@@ -1838,6 +1955,10 @@ fn geometry_cached(
     }
     // Light helpers are editor-only, using the entity's inherited transform.
     for (i, e) in scene.actors.iter().enumerate() {
+        if state.open && state.target == Some(i) {
+            // Editing this actor's geometry: its light helper is object-level.
+            continue;
+        }
         if let Some(l) = &e.light {
             let m = scene.world_matrix(i);
             let p = m.point([0.; 3]);
@@ -3984,5 +4105,89 @@ mod tests {
             .unwrap(),
         )
         .unwrap();
+    }
+}
+
+#[cfg(test)]
+mod edit_overlay_tests {
+    use crate::mesh_editor::{Hit, State};
+
+    const VERTEX: usize = 40;
+
+    fn scene() -> (crate::scene::Scene, [uuid::Uuid; 2]) {
+        let mut doc = crate::mesh::Document::default();
+        let (group, slot) = (doc.groups[0].id, doc.materials[0].id);
+        for x in [0., 2.] {
+            doc.add_face(
+                [[x, 0., 0.], [x, 0., 1.], [x + 1., 0., 1.], [x + 1., 0., 0.]],
+                group,
+                slot,
+            );
+        }
+        let faces = [doc.faces[0].id, doc.faces[1].id];
+        let doc = std::sync::Arc::new(doc);
+        let mut scene = crate::scene::Scene::default();
+        scene.actors.clear();
+        for (name, x) in [("Edited", 0.), ("Other", 5.)] {
+            let mut actor = crate::scene::Actor::cube(name.into());
+            actor.position = [x, 0., 0.];
+            actor.editable_mesh = Some(crate::mesh::Component {
+                document: Some(doc.clone()),
+                ..crate::mesh::Component::new(uuid::Uuid::new_v4())
+            });
+            scene.actors.push(actor);
+        }
+        (scene, faces)
+    }
+    fn brightness(vertices: &[u8]) -> f32 {
+        vertices
+            .chunks(VERTEX)
+            .map(|v| {
+                (3..6)
+                    .map(|i| f32::from_le_bytes(v[i * 4..i * 4 + 4].try_into().unwrap()))
+                    .sum::<f32>()
+            })
+            .sum()
+    }
+
+    #[test]
+    fn selection_and_hover_are_drawn_over_the_edited_mesh_only_while_editing() {
+        let (scene, [first, second]) = scene();
+        let view = crate::viewport::View::default();
+        let mut state = State::default();
+        state.selected.insert(first);
+        state.target = Some(0);
+        assert_eq!(super::mesh_edit_overlay(&scene, &state, &view), (vec![], vec![]));
+        state.open = true;
+        let (fill, lines) = super::mesh_edit_overlay(&scene, &state, &view);
+        assert_eq!(fill.len(), 6 * VERTEX, "one selected quad: two triangles");
+        assert_eq!(lines.len(), 4 * 2 * VERTEX, "and its four outline edges");
+        state.hover = Some(Hit::Face(second));
+        assert_eq!(super::mesh_edit_overlay(&scene, &state, &view).0.len(), 12 * VERTEX);
+        state.hover = Some(Hit::Face(first));
+        assert_eq!(
+            super::mesh_edit_overlay(&scene, &state, &view).0.len(),
+            6 * VERTEX,
+            "a hovered selected face is drawn once"
+        );
+        state.hover = Some(Hit::Vertex(0));
+        let (_, lines) = super::mesh_edit_overlay(&scene, &state, &view);
+        assert_eq!(lines.len(), (4 + 3 * 3) * 2 * VERTEX, "outline plus a thick cross");
+    }
+
+    #[test]
+    fn editing_dims_the_other_meshes_and_restores_them_after() {
+        let (scene, _) = scene();
+        let view = crate::viewport::View::default();
+        let mut state = State::default();
+        let normal = brightness(&super::geometry(&scene, Some(0), 0., &state, &view).0);
+        state.open = true;
+        state.target = Some(0);
+        let dimmed = brightness(&super::geometry(&scene, Some(0), 0., &state, &view).0);
+        assert!(dimmed < normal * 0.8, "{dimmed} vs {normal}");
+        assert!(dimmed > normal * 0.5, "the edited mesh keeps its colors");
+        state.dim_others = false;
+        let off = brightness(&super::geometry(&scene, Some(0), 0., &state, &view).0);
+        assert!((off - normal).abs() < 1e-3, "the switch turns dimming off");
     }
 }

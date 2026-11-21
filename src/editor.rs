@@ -224,6 +224,8 @@ pub struct Editor {
     pub tool: usize,
     pub project_search: String,
     pub project_browser: crate::project_browser::State,
+    /// The Hierarchy's dock node; geometry editing takes its place.
+    pub hierarchy_dock: u32,
     /// Ctrl+P: fuzzy search across scripts, Blueprints, scenes, assets, actors and settings.
     pub global_search: crate::global_search::State,
     pub script_editor: crate::script_editor::State,
@@ -522,6 +524,20 @@ impl Editor {
         {
             editor.dependencies.warning = false;
             editor.global_search.open_with(&pair[1]);
+        }
+        if let Some(pair) = std::env::args()
+            .collect::<Vec<_>>()
+            .windows(2)
+            .find(|v| v[0] == "--screenshot-geometry-edit")
+        {
+            // "<actor name>" or "<actor name>:<material slot>"
+            let (actor, material) = pair[1]
+                .split_once(':')
+                .map_or((pair[1].as_str(), None), |(a, m)| (a, Some(m)));
+            editor.dependencies.warning = false;
+            if let Err(error) = crate::mesh_editor::edit_actor_named(&mut editor, actor, material) {
+                editor.log(format!("--screenshot-geometry-edit: {error}"));
+            }
         }
         if std::env::args().any(|v| v == "--screenshot-artifact-dependencies") {
             editor.artifact_dependencies.open = true;
@@ -860,6 +876,7 @@ impl Editor {
             tool: 1,
             project_search: String::new(),
             project_browser: crate::project_browser::State::default(),
+            hierarchy_dock: 0,
             global_search: crate::global_search::State::default(),
             selected_asset: None,
             asset_inspector: Default::default(),
@@ -1130,7 +1147,11 @@ impl Editor {
     }
     pub fn reset_scene_tools(&mut self) {
         self.hud_simulation.stop();
+        // Keep revisions increasing so the Scene renderer never reuses a cache.
+        let (revision, dim_others) = (self.mesh_editor.revision, self.mesh_editor.dim_others);
         self.mesh_editor = Default::default();
+        self.mesh_editor.revision = revision.wrapping_add(1);
+        self.mesh_editor.dim_others = dim_others;
         self.terrain_editor = Default::default();
         self.skeletal_ui = Default::default();
         self.selected_asset = None;
@@ -1292,6 +1313,14 @@ impl Editor {
     }
     /// Replaces the Hierarchy selection with `actors`, `primary` among them.
     fn set_actor_selection(&mut self, actors: Vec<uuid::Uuid>, primary: Option<uuid::Uuid>) {
+        // Choosing another actor ends geometry editing, as leaving an element
+        // mode does elsewhere; the mesh's edits are already saved.
+        if self.mesh_editor.open
+            && let (Some(id), Some(target)) = (primary, crate::mesh_editor::target_actor(self))
+            && id != target
+        {
+            crate::mesh_editor::close(self);
+        }
         self.selected_actor = primary;
         self.selected_actors = actors;
         self.selected = primary.and_then(|id| self.scene.actor_index(id));

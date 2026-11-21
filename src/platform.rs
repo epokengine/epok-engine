@@ -1597,13 +1597,16 @@ fn capture(
 const EDITOR_FA_GLYPHS: &[u32] = &[
     0x25a0, 0x25a0, // square: constant falloff
     0x25d0, 0x25d0, // circle-half-stroke: smooth falloff
+    0xe098, 0xe098, // arrow-trend-up: Ramp shape
+    0xe289, 0xe289, // stairs: Stairs shape
     0xe2ca, 0xe2ca, // wand-magic-sparkles: fit to sprite / scene
     0xf001, 0xf001, // music: audio assets in search
     0xf002, 0xf002, // magnifying-glass: global search
     0xf005, 0xf005, // star: default animation
     0xf008, 0xf008, // film: AnimatedSprite2D, animations
     0xf00a, 0xf00a, // table-cells: 2D grid
-    0xf00c, 0xf00c, // check: camera path step done
+    0xf00c, 0xf00c, // check: camera path step done, geometry Done
+    0xf00d, 0xf00d, // xmark: clear selection
     0xf00e, 0xf00e, // magnifying-glass-plus: 2D zoom in
     0xf010, 0xf010, // magnifying-glass-minus: 2D zoom out
     0xf013, 0xf013, // gear: settings in search

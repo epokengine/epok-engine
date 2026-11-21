@@ -147,6 +147,7 @@ mod mesh;
 mod mesh_compile;
 mod mesh_editor;
 mod mesh_ops;
+mod mesh_subdivide;
 mod midi;
 mod model_import;
 mod music;

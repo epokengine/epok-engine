@@ -1008,6 +1008,8 @@ pub fn draw(
             crate::memory_ui::window(ui, e);
         }
     }
+    // Panel buttons change the geometry selection too; show it this frame.
+    crate::mesh_editor::redraw_on_change(e);
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1409,7 +1411,11 @@ fn draw_workspace(
     if !background && e.critical_busy() {
         return;
     }
-    hierarchy(ui, e);
+    // Geometry editing replaces the Hierarchy until the mode ends, once its
+    // panel has taken the Hierarchy's dock node (see mesh_editor::window).
+    if !e.mesh_editor.open || !e.mesh_editor.docked {
+        hierarchy(ui, e);
+    }
     map_settings(ui, e);
     inspector(ui, e);
     project(ui, e, asset_font);
@@ -2305,6 +2311,10 @@ fn hierarchy_rename_finished(ui: &imgui::Ui, submit: bool, focus_requested: bool
 pub(crate) fn hierarchy(ui: &imgui::Ui, e: &mut Editor) {
     let actors = placeable_actor_classes(e);
     ui.window("\u{eb86} Hierarchy###Hierarchy").build(|| {
+        let dock = unsafe { imgui::sys::igGetWindowDockID() };
+        if dock != 0 {
+            e.hierarchy_dock = dock;
+        }
         let mut out = HierarchyResult::default();
         let mut actor_out = ActorResult::default();
         if ui.is_window_focused_with_flags(imgui::WindowFocusedFlags::ROOT_AND_CHILD_WINDOWS)
@@ -3722,9 +3732,12 @@ fn scene_view(
         // Overlay controls own their clicks, even though they overlap the image.
         let over_tools = (7. ..=43.).contains(&local[0]) && (9. ..=121.).contains(&local[1]);
         let over_axes = local[0] >= available[0] - 95. && local[1] <= 85.;
+        let over_banner = crate::mesh_editor::banner_rect(ui, e, position, available)
+            .is_some_and(|[a, b]| (a[0]..=b[0]).contains(&mouse[0]) && (a[1]..=b[1]).contains(&mouse[1]));
         let eligible = hovered
             && !over_tools
             && !over_axes
+            && !over_banner
             && !over_orientation
             && !over_path_key
             && !e.playing
@@ -3734,10 +3747,27 @@ fn scene_view(
             && ui.io().mouse_wheel == 0.
             && e.drag_axis.is_none();
         let pixel = crate::picking::texture_pixel(mouse, position, factor, uv);
+        // Geometry editing highlights the element a click would select.
+        crate::mesh_editor::hover(
+            e,
+            (eligible && !crate::mesh_editor::boxing(e)).then_some(pixel),
+        );
         // A brush needs press-drag-release, which the click gesture cannot
         // express. While the terrain tool is stroking it owns the viewport, so
         // selection and the gizmo never fight it for the same drag.
         let sculpting = crate::terrain_editor::drag(ui, e, pixel, eligible);
+        // Geometry editing turns left drags into box or paint selection.
+        let selecting = !sculpting
+            && crate::mesh_editor::drag(
+                ui,
+                e,
+                [
+                    position,
+                    [position[0] + available[0], position[1] + available[1]],
+                ],
+                |mouse| crate::picking::texture_pixel(mouse, position, factor, uv),
+                eligible,
+            );
         if !sculpting
             && e.scene_click.update(
                 mouse,
@@ -3746,9 +3776,11 @@ fn scene_view(
                 ui.is_mouse_down(imgui::MouseButton::Left),
                 eligible,
             )
+            && !selecting
         {
             e.selected_asset = None;
-            if !crate::mesh_editor::pick(e, pixel, ui.io().key_ctrl) {
+            let op = crate::mesh_editor::SelectOp::click(ui.io().key_shift, ui.io().key_ctrl);
+            if !crate::mesh_editor::pick(e, pixel, op) {
                 let scene = e
                     .timeline_editor
                     .scene_preview
@@ -3801,6 +3833,7 @@ fn scene_view(
             });
         drop(tool_spacing);
         drop(tool_padding);
+        crate::mesh_editor::banner(ui, e, position, available);
         crate::gizmo::draw_orientation(ui, &e.view, &e.scene_orientation, orientation_position);
     });
     if !orientation_visible {

@@ -542,10 +542,21 @@ pub fn pick(
     direction: [f32; 3],
     visible: impl Fn(&Face) -> bool,
 ) -> Option<(Uuid, f32)> {
+    pick_indexed(doc, origin, direction, |_, f| visible(f))
+}
+/// [`pick`], with each face's index in `doc.faces` for callers that keep
+/// per-face data alongside the document.
+pub fn pick_indexed(
+    doc: &Document,
+    origin: [f32; 3],
+    direction: [f32; 3],
+    visible: impl Fn(usize, &Face) -> bool,
+) -> Option<(Uuid, f32)> {
     doc.faces
         .iter()
-        .filter(|f| visible(f))
-        .filter_map(|f| {
+        .enumerate()
+        .filter(|(i, f)| visible(*i, f))
+        .filter_map(|(_, f)| {
             let p = doc.points(f);
             [
                 hit(origin, direction, [p[0], p[1], p[2]]),
