@@ -59,18 +59,72 @@ pub struct Face {
 fn default_uv() -> [[f32; 2]; 4] {
     [[0., 0.], [1., 0.], [1., 1.], [0., 1.]]
 }
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(try_from = "MeshSource")]
 pub struct Document {
     pub version: u32,
     pub vertices: Vec<[f32; 3]>,
     pub faces: Vec<Face>,
     pub groups: Vec<Group>,
     pub materials: Vec<Slot>,
+    pub spline: Option<crate::spline::Spline>,
+}
+
+// A free mesh stores its vertices and faces. A procedural mesh stores its
+// control points in their place. Both resolve to the same document for builds.
+#[derive(Deserialize)]
+struct MeshSource {
+    version: u32,
+    vertices: Option<Vec<[f32; 3]>>,
+    faces: Option<Vec<Face>>,
+    groups: Vec<Group>,
+    materials: Vec<Slot>,
+    spline: Option<crate::spline::Spline>,
+}
+impl TryFrom<MeshSource> for Document {
+    type Error = String;
+    fn try_from(source: MeshSource) -> Result<Self, String> {
+        let mut doc = Self {
+            version: source.version,
+            groups: source.groups,
+            materials: source.materials,
+            vertices: Vec::new(),
+            faces: Vec::new(),
+            spline: None,
+        };
+        match (source.vertices, source.faces, source.spline) {
+            (Some(vertices), Some(faces), None) => {
+                doc.vertices = vertices;
+                doc.faces = faces;
+            }
+            (None, None, Some(spline)) => spline.apply(&mut doc)?,
+            _ => return Err("A mesh needs either vertices and faces or a spline.".into()),
+        }
+        Ok(doc)
+    }
+}
+impl Serialize for Document {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeStruct;
+        let mut source =
+            serializer.serialize_struct("Document", if self.spline.is_some() { 4 } else { 5 })?;
+        source.serialize_field("version", &self.version)?;
+        if let Some(spline) = &self.spline {
+            source.serialize_field("spline", spline)?;
+        } else {
+            source.serialize_field("vertices", &self.vertices)?;
+            source.serialize_field("faces", &self.faces)?;
+        }
+        source.serialize_field("groups", &self.groups)?;
+        source.serialize_field("materials", &self.materials)?;
+        source.end()
+    }
 }
 impl Default for Document {
     fn default() -> Self {
         Self {
             version: 1,
+            spline: None,
             vertices: vec![],
             faces: vec![],
             groups: vec![Group {
@@ -396,6 +450,7 @@ impl Document {
     }
     pub fn subset(&self, faces: &BTreeSet<Uuid>) -> Self {
         let mut d = self.clone();
+        d.spline = None;
         d.faces.retain(|f| faces.contains(&f.id));
         d.compact();
         d

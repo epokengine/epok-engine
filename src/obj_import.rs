@@ -111,6 +111,7 @@ pub fn parse(
     }
     let mut doc = Document {
         version: 1,
+        spline: None,
         vertices: vec![],
         faces: vec![],
         groups: vec![],

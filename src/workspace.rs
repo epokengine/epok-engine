@@ -447,15 +447,17 @@ pub enum Template {
     Platformer2D,
     Dungeon,
     DungeonComplete,
+    Race,
 }
 impl Template {
-    pub const ALL: [Self; 6] = [
+    pub const ALL: [Self; 7] = [
         Self::Basic,
         Self::Sample,
         Self::ThirdPerson,
         Self::Platformer2D,
         Self::Dungeon,
         Self::DungeonComplete,
+        Self::Race,
     ];
     /// The spelling `--template` accepts and the preview file stem.
     pub fn key(self) -> &'static str {
@@ -466,13 +468,21 @@ impl Template {
             Self::Platformer2D => "platformer-2d",
             Self::Dungeon => "dungeon",
             Self::DungeonComplete => "dungeon-complete",
+            Self::Race => "race",
         }
     }
     pub fn parse(value: &str) -> Option<Self> {
         Self::ALL.into_iter().find(|t| t.key() == value)
     }
-    pub fn supports(self, _flavor: GameplayFlavor) -> bool {
-        true
+    pub fn default_gameplay(self) -> GameplayFlavor {
+        if self == Self::Race {
+            GameplayFlavor::Lua
+        } else {
+            GameplayFlavor::Cpp
+        }
+    }
+    pub fn supports(self, flavor: GameplayFlavor) -> bool {
+        self != Self::Race || flavor == GameplayFlavor::Lua
     }
 }
 
@@ -535,7 +545,7 @@ impl CreateOptions {
     pub fn new(template: Template) -> Self {
         Self {
             template,
-            gameplay: GameplayFlavor::default(),
+            gameplay: template.default_gameplay(),
             target: TargetPlatform::default(),
         }
     }
@@ -549,22 +559,19 @@ impl CreateOptions {
 pub fn creation_options(template: &str, gameplay: &str) -> Result<CreateOptions, String> {
     let template = Template::parse(template).ok_or_else(|| {
         format!(
-            "Unknown template: {template}. Use basic, sample, third-person, platformer-2d, dungeon or dungeon-complete."
+            "Unknown template: {template}. Use basic, sample, third-person, platformer-2d, dungeon, dungeon-complete or race."
         )
     })?;
     let gameplay = GameplayFlavor::parse(gameplay).ok_or_else(|| {
         format!("Unknown gameplay flavor: {gameplay}. Use cpp, blueprint or lua.")
     })?;
     if !template.supports(gameplay) {
-        return Err(
-            "Dungeon Complete includes C++ gameplay and a Pocket Lua minigame. Choose cpp.".into(),
-        );
+        return Err("Race uses Lua gameplay. Choose lua.".into());
     }
     Ok(CreateOptions::new(template).with_gameplay(gameplay))
 }
 
-/// Creation with the historic signature: C++ starter gameplay for a PlayStation
-/// project. Existing callers and old automation keep working unchanged.
+/// Create a PlayStation project using the template's default authoring language.
 #[cfg(test)]
 pub fn create(destination: &Path, name: &str, template: Template) -> Result<Project, String> {
     create_with_options(destination, name, CreateOptions::new(template))
@@ -577,9 +584,7 @@ pub fn create_with_options(
 ) -> Result<Project, String> {
     validate_name(name)?;
     if !options.template.supports(options.gameplay) {
-        return Err(
-            "Dungeon Complete includes C++ gameplay and a Pocket Lua minigame. Choose C++.".into(),
-        );
+        return Err("Race uses Lua gameplay. Choose Lua.".into());
     }
     // Claim a NEW directory exclusively. Never merge into or overwrite existing content.
     let parent = destination
@@ -617,6 +622,7 @@ fn populate(destination: &Path, name: &str, options: CreateOptions) -> Result<Pr
         Template::DungeonComplete => {
             crate::dungeon_complete_template::create(destination, gameplay)?
         }
+        Template::Race => crate::race_template::create(destination)?,
         Template::Basic => crate::basic_template::create(destination, gameplay)?,
         Template::Sample => crate::sample_template::create(destination, gameplay)?,
     };
@@ -634,7 +640,7 @@ fn populate(destination: &Path, name: &str, options: CreateOptions) -> Result<Pr
         scene_storage: Some(Default::default()),
         rendering: if matches!(
             template,
-            Template::ThirdPerson | Template::Platformer2D | Template::Dungeon
+            Template::ThirdPerson | Template::Platformer2D | Template::Dungeon | Template::Race
         ) {
             crate::settings::Rendering {
                 width: 320,
@@ -651,6 +657,11 @@ fn populate(destination: &Path, name: &str, options: CreateOptions) -> Result<Pr
         default_sound_bank: None,
         default_scene_script_parent: None,
     };
+    if template == Template::Race {
+        manifest.rendering.sprite_triangle_budget = 64;
+        manifest.rendering.mesh_triangle_budget = Some(1152);
+        manifest.rendering.geometry_draw_distance = 72;
+    }
     if template == Template::Dungeon {
         manifest.rendering.sprite_triangle_budget = crate::dungeon_template::SPRITE_TRIANGLE_BUDGET;
     }

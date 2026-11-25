@@ -158,8 +158,14 @@ impl Hub {
     /// Selects a template card and brings it into view, for screenshots of the New
     /// Project view.
     pub fn select_template(&mut self, template: Template) {
-        self.template = template;
+        self.choose_template(template);
         self.reveal_template = true;
+    }
+    fn choose_template(&mut self, template: Template) {
+        self.template = template;
+        if !template.supports(self.gameplay) {
+            self.gameplay = template.default_gameplay();
+        }
     }
     pub fn open_new_project(&mut self) {
         self.creating = true;
@@ -759,10 +765,7 @@ impl Hub {
             draw.add_text([text[0], text[1] + 24.], MUTED, info.summary);
             drop(draw);
             if pressed {
-                self.template = info.template;
-                if !info.supports(self.gameplay) {
-                    self.gameplay = workspace::GameplayFlavor::Cpp;
-                }
+                self.choose_template(info.template);
             }
             if selected && self.reveal_template {
                 ui.set_scroll_here_y_with_ratio(1.);
@@ -1244,7 +1247,7 @@ pub fn verify_interactions(context: &mut imgui::Context) {
         let expected = if project_templates::info(hub.template).supports(flavor) {
             flavor
         } else {
-            workspace::GameplayFlavor::Cpp
+            hub.template.default_gameplay()
         };
         assert_eq!(
             hub.gameplay, expected,

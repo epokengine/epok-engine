@@ -10,9 +10,12 @@ fn linear(c:vec3<f32>) -> vec3<f32> {
 @vertex fn vertex(v:Vertex) -> Output {
     let s=camera.values.x; let c=camera.values.y; let sp=camera.values.z; let cp=camera.values.w;
     let zoom=camera.center.w; let p=v.position-camera.center.xyz;
-    let x=(p.x*c-p.z*s)*camera.orbit.z;
+    let horizontal=p.x*c-p.z*s;
     let z=p.x*s+p.z*c;
-    let y=p.y*cp+z*sp;
+    let vertical=p.y*cp+z*sp;
+    let cr=cos(camera.orbit.w); let sr=sin(camera.orbit.w);
+    let x=(horizontal*cr+vertical*sr)*camera.orbit.z;
+    let y=vertical*cr-horizontal*sr;
     let depth=camera.orbit.x+z*cp-p.y*sp;
     let near=1.0; let far=20000.0;
     // Same camera and 960x600 reference coordinates as viewport::project / gizmos.
@@ -53,7 +56,8 @@ struct LayerOutput { @builtin(position) position: vec4<f32>, @location(0) @inter
         let ndc=vec2<f32>(p.x/camera.extent.x*2.0-1.0,1.0-p.y/camera.extent.y*2.0);
         let zoom=camera.center.w; let sp=camera.values.z; let cp=camera.values.w;
         let ray=vec3<f32>(ndc.x*camera.orbit.y/(2.9*zoom),ndc.y/(2.9*zoom),1.0);
-        let elevation=(ray.y*cp-sp)/length(ray);
+        let vertical=ray.x*camera.orbit.z*sin(camera.orbit.w)+ray.y*cos(camera.orbit.w);
+        let elevation=(vertical*cp-sp)/length(ray);
         var color=camera.horizon.rgb;
         if elevation>=0.0 {color=mix(camera.horizon.rgb,camera.sky.rgb,min(elevation/0.7,1.0));}
         else {color=mix(camera.horizon.rgb,camera.ground.rgb,min(-elevation/0.25,1.0));}

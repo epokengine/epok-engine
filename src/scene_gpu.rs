@@ -226,7 +226,7 @@ pub struct SceneGpu {
     texture_banks: Vec<TextureBank>,
     texture_layout: wgpu::BindGroupLayout,
     texture_sampler: wgpu::Sampler,
-    cached_angles: [f32; 2],
+    cached_angles: [f32; 3],
     cached_view_dependent_geometry: bool,
     shadow_pipeline: wgpu::RenderPipeline,
     shadows: Vertices,
@@ -688,7 +688,7 @@ impl SceneGpu {
             texture_banks,
             texture_layout: layout,
             texture_sampler: sampler,
-            cached_angles: [f32::NAN; 2],
+            cached_angles: [f32::NAN; 3],
             cached_view_dependent_geometry: false,
             line_pipeline: make_pipeline(wgpu::PrimitiveTopology::LineList, false, false, 0, 0),
             background_pipeline: make_pipeline(
@@ -945,7 +945,8 @@ impl SceneGpu {
             || self.cached_bake_revision != input.baked_revision
             || scene_changed
             || self.cached_skeletal_poses != skeletal_poses
-            || (self.cached_view_dependent_geometry && self.cached_angles != [view.yaw, view.pitch])
+            || (self.cached_view_dependent_geometry
+                && self.cached_angles != [view.yaw, view.pitch, view.roll])
             || self.cached_selected != selected
             || self.cached_wire != input.wire
             || self.cached_lighting != view.lighting
@@ -1052,7 +1053,7 @@ impl SceneGpu {
             self.cached_bake_revision = input.baked_revision;
             self.cached_fog_distance = view.distance;
             self.draw_ranges = ranges;
-            self.cached_angles = [view.yaw, view.pitch];
+            self.cached_angles = [view.yaw, view.pitch, view.roll];
             // Camera motion changes only the uniform for opaque static meshes.
             // Rebuild vertices when billboard sprites, particles, fog, or
             // translucent sorting actually depend on the view direction.
@@ -1218,7 +1219,7 @@ impl SceneGpu {
                 .projection_aspect
                 .unwrap_or(self.size.width as f32 / self.size.height as f32),
             if view.mirror_x { -1. } else { 1. },
-            0.,
+            view.roll,
         ]
         .into_iter()
         .chain(sky_uniform(input.background, input.sky_gradient, self.size))
@@ -1416,7 +1417,7 @@ fn mesh_edit_overlay(
     const BOTH: [f32; 3] = [1., 0.9, 0.55];
     let mut fill = Vec::new();
     let mut lines = Vec::new();
-    let Some(index) = state.target.filter(|_| state.open) else {
+    let Some(index) = state.target.filter(|_| state.open && !state.editing_spline()) else {
         return (fill, lines);
     };
     let Some(doc) = scene
@@ -1879,9 +1880,12 @@ fn geometry_cached(
                     && !q.material.double_sided,
             });
         }
-        for (qi, q) in quads.iter().enumerate().filter(|_| {
-            wire || selected == Some(index) || (state.open && state.target == Some(index))
-        }) {
+        // The spline tool draws the editable curve and its handles over the
+        // surface. Show its tessellation when the author selects Wireframe.
+        let editing_mesh = state.open && state.target == Some(index);
+        let editing_curve = editing_mesh && state.editing_spline();
+        let show_edges = wire || (!editing_curve && (selected == Some(index) || editing_mesh));
+        for (qi, q) in quads.iter().enumerate().filter(|_| show_edges) {
             if let GeometryPass::Baked(selection) = pass
                 && selection
                     .get(&e.id)
@@ -2033,11 +2037,7 @@ fn geometry_cached(
     }
     let (sy, cy) = yaw.sin_cos();
     let (sp, cp) = pitch.sin_cos();
-    let camera = [
-        [cy, 0., -sy],
-        [sy * sp, cp, cy * sp],
-        [sy * cp, -sp, cy * cp],
-    ];
+    let camera = view.basis();
     if !matches!(pass, GeometryPass::Static(_)) {
         for q in crate::sprites::preview(scene, camera, phase)
             .into_iter()

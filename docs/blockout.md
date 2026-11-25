@@ -4,6 +4,20 @@ Use **GameObject > 3D Object > Blockout Mesh** (or the same entry in the Hierarc
 
 Import OBJ models through **Project > Import...** or drop an OBJ onto the Project browser. The importer creates a mesh package in the current project folder without changing the selected actor. Material libraries are read beside the source OBJ; referenced PNG textures must already be imported into the corresponding project folder. Assign the resulting package through **Mesh Renderer > Mesh**. Engine geometry cannot be edited.
 
+## Build along a 3D spline
+
+Choose **GameObject > 3D Object > Spline 3D**. The editor opens a straight road with two control points. **Set path shape** also offers a closed **Circuit** and a **Vertical loop** with separate entry and exit lanes.
+
+- **Shift-click** in Scene to append a point. Click a point to select it, then drag to move it. **Draw plane** chooses the local XZ, XY or YZ plane. Each new point starts at the last point's depth along the plane normal. Use **Local XYZ** for exact coordinates and **Bank (degrees)** to tilt a section of track.
+- **Insert after point** splits the selected span, or extends the path from its open end. **Closed circuit** joins the last point to the first. **Steps per span** controls smoothness and face count.
+- Choose **Road** for a ribbon, **Railing** for a handrail with evenly spaced posts, or **Wall** for a solid strip. Adjust **Width**, **Height** and **Post spacing** as applicable. The Mesh Renderer sets the instance material and texture.
+
+Edits save to the mesh asset, including the points and the profile. **Undo** and **Redo** work on whole edits, including a complete drag. Reopen the controls through **Mesh Renderer > Edit spline...**. Play and exported games use the baked mesh.
+
+In **Materials**, add a slot and select its texture. In **Path**, choose the starting point of a segment and assign its **Outgoing surface**. The closing segment starts at the final point. An inserted midpoint inherits the surface and gameplay marker of its span.
+
+Enable **Sample from gameplay** and choose a channel used by just one placed spline in the map. Lua can call `epok.spline.sample(channel, distance, lateral, height)` for a world-space position, rotation, half-width, signed lateral bend, full length and outgoing marker. Closed paths wrap distance in either direction. Open paths clamp at the endpoints. The Race template uses these samples to keep a hovercraft and its camera aligned through inversions.
+
 ## Build and organize a room
 
 1. Add **Box**, **Plane**, **Ramp** or **Stairs** shapes. Origin snaps to the selected grid; size is in local scene units. Keep the initial box or select and delete its faces.

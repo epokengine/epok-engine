@@ -923,6 +923,14 @@ public:
     EPOK_FUNCTION(BlueprintCallable, Id="e687c218-94b4-4db8-ad06-7a14cfec7ad9") void set_enabled(bool value) {auto* data=entity_slot();if(data)data->text.enabled=value;}
     EPOK_FUNCTION(BlueprintCallable, Id="60b81db3-178c-4639-95ce-bfc9b9c47847") void set_number(int32_t value) {auto* data=entity_slot();if(!data)return;char text[16]={};char reversed[16]={};uint32_t magnitude=value<0?uint32_t(-int64_t(value)):uint32_t(value);uint32_t count=0;do{reversed[count++]=char('0'+magnitude%10);magnitude/=10;}while(magnitude&&count<15);uint32_t out=0;if(value<0)text[out++]='-';while(count)text[out++]=reversed[--count];text[out]=0;data->text.set_text(text);}
     EPOK_FUNCTION(BlueprintCallable, Id="9d40fb20-8d06-4ea1-afba-5c743418b301") void set_unsigned(uint32_t value) {auto* data=entity_slot();if(!data)return;char text[16]={};char reversed[16]={};uint32_t count=0;do{reversed[count++]=char('0'+value%10);value/=10;}while(value&&count<15);uint32_t out=0;while(count)text[out++]=reversed[--count];text[out]=0;data->text.set_text(text);}
+    // Time-trial and HUD clocks, in minutes, seconds and hundredths.
+    EPOK_FUNCTION(BlueprintCallable, Id="7186a8f5-9ca0-4323-809c-b42f59b42e32") void set_stopwatch(Fixed seconds) {
+        auto* data=entity_slot();if(!data)return;
+        uint32_t cs=seconds.raw()>0?uint32_t((int64_t(seconds.raw())*100)>>12):0;
+        uint32_t minutes=cs/6000;if(minutes>99)minutes=99;
+        char value[]={char('0'+minutes/10),char('0'+minutes%10),':',char('0'+cs/1000%6),char('0'+cs/100%10),'.',char('0'+cs/10%10),char('0'+cs%10),0};
+        data->text.set_text(value);
+    }
     EPOK_FUNCTION(BlueprintCallable, Id="f8757d62-0492-45fe-a27f-0a018532f842") void clear_text() {auto* data=entity_slot();if(data){data->text.value[0]=0;data->text.key=-1;}}
     // Shows string table entry `key` (its number in the Localization editor) in the
     // current language, and keeps following it when the language changes.

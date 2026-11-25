@@ -14,7 +14,7 @@ pub struct Info {
     preview: &'static [u8],
 }
 
-pub const CATALOG: [Info; 6] = [
+pub const CATALOG: [Info; Template::ALL.len()] = [
     Info {
         template: Template::Basic,
         title: "Basic",
@@ -101,6 +101,18 @@ inventory, save system, MIDI music, sound effects and streamed geometry.",
             "MIDI music and geometry streaming for CD or PCDrv",
         ],
         preview: include_bytes!("../resources/templates/previews/dungeon-complete.png"),
+    },
+    Info {
+        template: Template::Race,
+        title: "Race",
+        summary: "A high-speed antigravity time trial.",
+        description: "Pilot a hovercraft through two vertical loops on Meridian Circuit. Chase a three-lap time by steering onto boost pads and keeping clear of the edges.",
+        features: &[
+            "One banked circuit with editable 3D spline control points",
+            "Per-span surfaces and marked boost lanes",
+            "Lua handling, chase camera, sound and race timing",
+        ],
+        preview: include_bytes!("../resources/templates/previews/race.png"),
     },
 ];
 

@@ -11,6 +11,7 @@ pub enum Preset {
     Empty,
     Cube,
     BlockoutMesh,
+    Spline,
     Sprite,
     Terrain,
     DungeonGenerator,
@@ -27,10 +28,11 @@ pub enum Preset {
 
 impl Preset {
     /// Every preset, in menu order.
-    pub const ALL: [Preset; 15] = [
+    pub const ALL: [Preset; 16] = [
         Preset::Empty,
         Preset::Cube,
         Preset::BlockoutMesh,
+        Preset::Spline,
         Preset::Sprite,
         Preset::Terrain,
         Preset::DungeonGenerator,
@@ -51,6 +53,7 @@ impl Preset {
             Preset::Empty | Preset::Camera => None,
             Preset::Cube
             | Preset::BlockoutMesh
+            | Preset::Spline
             | Preset::Sprite
             | Preset::Terrain
             | Preset::DungeonGenerator => Some("3D Object"),
@@ -68,6 +71,7 @@ impl Preset {
             Preset::Empty => "Create Empty",
             Preset::Cube => "Cube",
             Preset::BlockoutMesh => "Blockout Mesh",
+            Preset::Spline => "Spline 3D",
             Preset::Sprite => "Sprite (Billboard)",
             Preset::Terrain => "Terrain",
             Preset::DungeonGenerator => "Dungeon Generator",
@@ -90,6 +94,7 @@ impl Preset {
             Preset::BlockoutMesh => {
                 "A cube with its own editable mesh under assets/Meshes, opened for Edit geometry."
             }
+            Preset::Spline => "Draw a 3D curve to build a road, railing or wall.",
             Preset::Sprite => {
                 "A textured quad that turns to face the camera. Choose its texture in the Inspector."
             }
@@ -122,6 +127,7 @@ impl Preset {
             Preset::Empty => "create-3d-empty",
             Preset::Cube => "create-3d-cube",
             Preset::BlockoutMesh => "create-3d-blockout-mesh",
+            Preset::Spline => "create-3d-spline",
             Preset::Sprite => "create-3d-sprite",
             Preset::Terrain => "create-3d-terrain",
             Preset::DungeonGenerator => "create-3d-dungeon-generator",
@@ -166,6 +172,7 @@ pub fn create(e: &mut Editor, preset: Preset, parent: Option<Uuid>) -> Option<Uu
     // own recipes do that, given the parent before they record the step.
     let id = match preset {
         Preset::BlockoutMesh => crate::mesh_editor::allocate_actor_data_under(e, parent)?,
+        Preset::Spline => crate::mesh_editor::create_spline(e, parent)?,
         Preset::Terrain => match crate::terrain_editor::create_under(e, parent) {
             Ok(id) => id,
             Err(error) => {
@@ -268,7 +275,11 @@ fn configure(actor: &mut crate::scene::Actor, preset: Preset) -> f32 {
             actor.kind = "Camera".into();
             1.5
         }
-        Preset::Empty | Preset::BlockoutMesh | Preset::Terrain | Preset::DungeonGenerator => 0.,
+        Preset::Empty
+        | Preset::BlockoutMesh
+        | Preset::Spline
+        | Preset::Terrain
+        | Preset::DungeonGenerator => 0.,
     }
 }
 
@@ -318,6 +329,17 @@ mod tests {
                     assert_eq!(actor.position, [4., 0.5, -2.], "a root stands at the pivot");
                 }
                 Preset::BlockoutMesh => assert!(actor.editable_mesh.is_some()),
+                Preset::Spline => assert!(
+                    actor
+                        .editable_mesh
+                        .as_ref()
+                        .unwrap()
+                        .document
+                        .as_ref()
+                        .unwrap()
+                        .spline
+                        .is_some()
+                ),
                 Preset::Sprite => assert!(has(&editor, id, "epok::Sprite3DComponent")),
                 Preset::Terrain => assert!(actor.terrain.is_some()),
                 Preset::DungeonGenerator => {

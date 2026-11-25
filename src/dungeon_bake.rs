@@ -263,6 +263,7 @@ impl Builder {
         Self {
             document: Document {
                 version: 1,
+                spline: None,
                 vertices: Vec::new(),
                 faces: Vec::new(),
                 groups: GROUPS

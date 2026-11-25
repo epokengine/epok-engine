@@ -121,6 +121,7 @@ pub struct State {
     pub selected: BTreeSet<Uuid>,
     pub vertices: BTreeSet<u32>,
     pub mode: Mode,
+    pub spline_editor: crate::spline_editor::State,
     pub edges: BTreeSet<crate::mesh_ops::Edge>,
     pub hidden: BTreeSet<Uuid>,
     pub locked: BTreeSet<Uuid>,
@@ -178,6 +179,7 @@ impl Default for State {
             selected: BTreeSet::new(),
             vertices: BTreeSet::new(),
             mode: Mode::Faces,
+            spline_editor: Default::default(),
             edges: BTreeSet::new(),
             hidden: BTreeSet::new(),
             locked: BTreeSet::new(),
@@ -217,6 +219,9 @@ impl Default for State {
     }
 }
 impl State {
+    pub fn editing_spline(&self) -> bool {
+        self.open && self.doc.as_ref().is_some_and(|d| d.spline.is_some())
+    }
     pub fn visible(&self, doc: &Document, group: Uuid) -> bool {
         !self.hidden.iter().any(|g| doc.contains_group(group, *g))
             && self.isolate.is_none_or(|g| doc.contains_group(group, g))
@@ -280,6 +285,7 @@ pub fn close(e: &mut Editor) {
     e.mesh_editor.docked = false;
     e.mesh_editor.hover = None;
     e.mesh_editor.gesture = Gesture::Idle;
+    e.mesh_editor.spline_editor.cancel_drag();
     e.mesh_editor.session_start = None;
     let target = target_actor(e);
     preview(e);
@@ -356,6 +362,7 @@ pub fn synchronize(e: &mut Editor) {
                 {
                     match mesh::document(&record) {
                         Ok(doc) => {
+                            e.mesh_editor.spline_editor = Default::default();
                             e.mesh_editor.doc = Some(doc);
                             e.mesh_editor.undo.clear();
                             e.mesh_editor.redo.clear();
@@ -408,6 +415,7 @@ fn publish(e: &mut Editor, doc: Document, scene: Option<Scene>) -> Result<(), St
         e.mesh_editor.slot = doc.materials.first().map(|s| s.id);
     }
     e.mesh_editor.record = Some(record);
+    e.mesh_editor.spline_editor.cancel_drag();
     e.mesh_editor.doc = Some(doc);
     if let Some(scene) = scene {
         e.scene = scene;
@@ -476,8 +484,8 @@ pub fn undo(e: &mut Editor, redo: bool) -> Result<(), String> {
     }
     Ok(())
 }
-fn fresh_path(_e: &Editor) -> String {
-    format!("assets/Meshes/Blockout-{}.epokasset", Uuid::new_v4())
+fn fresh_path(label: &str) -> String {
+    format!("assets/Meshes/{label}-{}.epokasset", Uuid::new_v4())
 }
 pub fn create_component(e: &mut Editor, entity: &mut Actor) -> Result<(), String> {
     let mut doc = Document::default();
@@ -489,7 +497,15 @@ pub fn create_component(e: &mut Editor, entity: &mut Actor) -> Result<(), String
         doc.groups[0].id,
         doc.materials[0].id,
     );
-    let id = mesh::create(&e.root, &fresh_path(e), &doc)?;
+    attach_new_mesh(e, entity, "Blockout", doc)
+}
+fn attach_new_mesh(
+    e: &mut Editor,
+    entity: &mut Actor,
+    label: &str,
+    doc: Document,
+) -> Result<(), String> {
+    let id = mesh::create(&e.root, &fresh_path(label), &doc)?;
     let mut c = mesh::Component::new(id);
     c.document = Some(Arc::new(doc));
     entity.editable_mesh = Some(c);
@@ -506,6 +522,12 @@ pub fn allocate_actor_data(e: &mut Editor) {
 /// Creates a blockout actor under `parent` (`None` is the map root) and opens
 /// its mesh for editing, returning the new actor.
 pub fn allocate_actor_data_under(e: &mut Editor, parent: Option<uuid::Uuid>) -> Option<uuid::Uuid> {
+    allocate_mesh_actor(e, parent, false)
+}
+pub fn create_spline(e: &mut Editor, parent: Option<Uuid>) -> Option<Uuid> {
+    allocate_mesh_actor(e, parent, true)
+}
+fn allocate_mesh_actor(e: &mut Editor, parent: Option<Uuid>, spline: bool) -> Option<Uuid> {
     if e.playing {
         return None;
     }
@@ -513,13 +535,28 @@ pub fn allocate_actor_data_under(e: &mut Editor, parent: Option<uuid::Uuid>) -> 
         e.log("Scene entity limit: 512");
         return None;
     }
-    let mut entity = Actor::cube("Blockout".into());
+    let mut entity = Actor::cube(if spline {
+        e.scene.unique_actor_name("Spline 3D")
+    } else {
+        "Blockout".into()
+    });
     entity.position = [0.; 3];
     let created = entity.id;
-    match create_component(e, &mut entity) {
+    let result = if spline {
+        let mut doc = Document::default();
+        crate::spline::Spline::default()
+            .apply(&mut doc)
+            .and_then(|()| attach_new_mesh(e, &mut entity, "Spline", doc))
+    } else {
+        create_component(e, &mut entity)
+    };
+    match result {
         Ok(()) => {
             e.scene.actors.push(entity);
-            e.parent_new_actor(created, parent);
+            let carried = e.parent_new_actor(created, parent);
+            if spline && !carried {
+                e.scene.actors.last_mut().unwrap().position = e.view.center;
+            }
             e.selected = Some(e.scene.actors.len() - 1);
             e.changed();
             e.assets.index = assets::scan(&e.root, &mut Default::default());
@@ -587,7 +624,7 @@ pub fn extract(e: &mut Editor) -> Result<(), String> {
     let mut after = before.clone();
     after.faces.retain(|f| !selected.contains(&f.id));
     after.compact();
-    let path = fresh_path(e);
+    let path = fresh_path("Blockout");
     let mut scene = e.scene.clone();
     let original_scene = scene.clone();
     let id = mesh::create(&e.root, &path, &extracted)?;
@@ -760,7 +797,15 @@ pub fn component(ui: &Ui, e: &mut Editor, entity: &mut Actor) {
     if let Some(error) = &m.error {
         ui.text_wrapped(error);
     }
-    if button(ui, "Edit geometry...") {
+    let spline = m.document.as_ref().is_some_and(|doc| doc.spline.is_some());
+    if button(
+        ui,
+        if spline {
+            "Edit spline..."
+        } else {
+            "Edit geometry..."
+        },
+    ) {
         match e.assets.index.resolve(m.asset).cloned() {
             Ok(r) => open(e, r, e.selected),
             Err(error) => e.log(error),
@@ -769,7 +814,10 @@ pub fn component(ui: &Ui, e: &mut Editor, entity: &mut Actor) {
     if button(ui, "Make independent copy") {
         let result = (|| {
             let r = e.assets.index.resolve(m.asset)?.clone();
-            let path = assets::inside(&e.root, &fresh_path(e))?;
+            let path = assets::inside(
+                &e.root,
+                &fresh_path(if spline { "Spline" } else { "Blockout" }),
+            )?;
             let id = assets::duplicate(&r, &path)?;
             m.asset = id;
             m.document = Some(Arc::new(mesh::document(&r)?));
@@ -811,7 +859,7 @@ pub fn component(ui: &Ui, e: &mut Editor, entity: &mut Actor) {
 /// The edited actor and its mesh, when a geometry editing session owns the
 /// Scene view.
 fn session(e: &Editor) -> Option<(usize, &Document)> {
-    if !e.mesh_editor.open {
+    if !e.mesh_editor.open || e.mesh_editor.editing_spline() {
         return None;
     }
     let index = e.mesh_editor.target?;
@@ -1138,7 +1186,7 @@ pub fn drag(
     to_pixel: impl Fn([f32; 2]) -> [f32; 2],
     eligible: bool,
 ) -> bool {
-    if !e.mesh_editor.open || e.playing {
+    if !e.mesh_editor.open || e.mesh_editor.editing_spline() || e.playing {
         e.mesh_editor.gesture = Gesture::Idle;
         return false;
     }
@@ -1224,7 +1272,11 @@ fn add_instance(e: &mut Editor) -> Result<(), String> {
     }
     let record = e.mesh_editor.record.as_ref().ok_or("No mesh open")?;
     let doc = mesh::document(record)?;
-    let mut entity = Actor::cube("Blockout".into());
+    let mut entity = Actor::cube(if doc.spline.is_some() {
+        e.scene.unique_actor_name("Spline 3D")
+    } else {
+        "Blockout".into()
+    });
     entity.position = [0.; 3];
     entity.material = Default::default();
     let mut component = mesh::Component::new(record.meta.id);
@@ -1287,6 +1339,9 @@ pub fn shortcuts(ui: &Ui, e: &mut Editor) {
         && ui.is_key_pressed_no_repeat(imgui::Key::Escape)
     {
         // A drag in progress is dropped first; the next Escape leaves the mode.
+        if e.mesh_editor.spline_editor.cancel_drag() {
+            return;
+        }
         if ui.is_mouse_down(imgui::MouseButton::Left)
             && !matches!(e.mesh_editor.gesture, Gesture::Idle | Gesture::Cancelled)
         {
@@ -1307,6 +1362,7 @@ pub fn shortcuts(ui: &Ui, e: &mut Editor) {
 }
 pub fn geometry_shortcuts(ui: &Ui, e: &mut Editor) {
     if !e.mesh_editor.open
+        || e.mesh_editor.editing_spline()
         || e.playing
         || ui.io().want_text_input
         || ui.io().key_ctrl
@@ -1508,7 +1564,10 @@ pub fn window(ui: &Ui, e: &mut Editor) {
         close(e);
         return;
     }
-    prune_selection(e);
+    let spline = e.mesh_editor.editing_spline();
+    if !spline {
+        prune_selection(e);
+    }
     // Take the Hierarchy's place: while the mode lasts the Hierarchy is hidden,
     // so nothing else can be chosen until the mode ends. A floating Hierarchy
     // has no dock node; then the panel floats and the Hierarchy stays.
@@ -1524,7 +1583,7 @@ pub fn window(ui: &Ui, e: &mut Editor) {
     }
     let mut open = true;
     let _padding = ui.push_style_var(imgui::StyleVar::WindowPadding([10., 8.]));
-    ui.window("\u{f304} Geometry###Blockout")
+    ui.window(if spline { "Spline 3D###Blockout" } else { "\u{f304} Geometry###Blockout" })
         .opened(&mut open)
         .position([20., 80.], Condition::FirstUseEver)
         .size([340., (ui.io().display_size[1] - 110.).min(720.)], Condition::FirstUseEver)
@@ -1535,15 +1594,38 @@ pub fn window(ui: &Ui, e: &mut Editor) {
             if e.mesh_editor.docked {
                 e.mesh_editor.dock_pending = false;
             }
-            let Some(doc) = e.mesh_editor.doc.clone() else {
-                return;
-            };
             let Some(record) = e.mesh_editor.record.clone() else {
                 return;
             };
+            let _disabled = ui.begin_disabled(spline && e.critical_busy());
             if header(ui, e) {
                 return;
             }
+            if spline {
+                if e.mesh_editor.target.is_none() && button(ui, "Add instance to scene") {
+                    let result = add_instance(e);
+                    report(e, result);
+                }
+                if button(ui, "Reload external changes") {
+                    open_asset_reload(e, &record);
+                }
+                let Some(doc) = &e.mesh_editor.doc else { return; };
+                let Some(curve) = doc.spline.clone() else { return; };
+                let faces = doc.faces.len();
+                let slots = doc.materials.clone();
+                if let Some(_tabs) = ui.tab_bar("Spline tabs") {
+                    if let Some(_tab) = ui.tab_item("Path") {
+                        crate::spline_editor::panel(ui, e, &curve, faces, &slots);
+                    }
+                    if let Some(_tab) = ui.tab_item("Materials") {
+                        slot_controls(ui, e, &slots);
+                    }
+                }
+                return;
+            }
+            let Some(doc) = e.mesh_editor.doc.clone() else {
+                return;
+            };
             categories(ui, e);
             ui.separator();
             let footer = ui.frame_height_with_spacing() + 6.;
@@ -1588,18 +1670,20 @@ fn header(ui: &Ui, e: &mut Editor) -> bool {
     {
         ui.tooltip_text(format!("{name}\n{}", assets::path_string(&e.root, &record.path)));
     }
-    for (i, (mode, label, tip)) in MODES.into_iter().enumerate() {
-        if i > 0 {
-            ui.same_line_with_spacing(0., 2.);
-        }
-        let active = (e.mesh_editor.mode == mode)
-            .then(|| ui.push_style_color(imgui::StyleColor::Button, [0.16, 0.36, 0.62, 1.]));
-        if button(ui, label) {
-            set_mode(e, mode);
-        }
-        drop(active);
-        if ui.is_item_hovered() {
-            ui.tooltip_text(tip);
+    if !e.mesh_editor.editing_spline() {
+        for (i, (mode, label, tip)) in MODES.into_iter().enumerate() {
+            if i > 0 {
+                ui.same_line_with_spacing(0., 2.);
+            }
+            let active = (e.mesh_editor.mode == mode)
+                .then(|| ui.push_style_color(imgui::StyleColor::Button, [0.16, 0.36, 0.62, 1.]));
+            if button(ui, label) {
+                set_mode(e, mode);
+            }
+            drop(active);
+            if ui.is_item_hovered() {
+                ui.tooltip_text(tip);
+            }
         }
     }
     // Four icon buttons, right-aligned; they wrap below on a narrow panel.
@@ -1871,7 +1955,7 @@ pub fn banner_rect(
     origin: [f32; 2],
     available: [f32; 2],
 ) -> Option<[[f32; 2]; 2]> {
-    if !e.mesh_editor.open {
+    if !e.mesh_editor.open || e.mesh_editor.editing_spline() {
         return None;
     }
     let size = banner_layout(ui, e, available[0]).size;
@@ -2554,6 +2638,12 @@ fn groups_panel(ui: &Ui, e: &mut Editor, doc: &Document) {
     }
 }
 fn materials_panel(ui: &Ui, e: &mut Editor, doc: &Document) {
+    let Some(id) = slot_controls(ui, e, &doc.materials) else {
+        return;
+    };
+    face_assignment(ui, e, doc, id);
+}
+fn slot_controls(ui: &Ui, e: &mut Editor, slots: &[mesh::Slot]) -> Option<Uuid> {
     ui.input_text(crate::gui::field(ui, "Slot name"), &mut e.mesh_editor.name)
         .build();
     if button(ui, "New material slot") {
@@ -2572,7 +2662,7 @@ fn materials_panel(ui: &Ui, e: &mut Editor, doc: &Document) {
         }
         report(e, result);
     }
-    for slot in &doc.materials {
+    for slot in slots {
         if ui
             .selectable_config(&slot.name)
             .selected(e.mesh_editor.slot == Some(slot.id))
@@ -2582,15 +2672,12 @@ fn materials_panel(ui: &Ui, e: &mut Editor, doc: &Document) {
             e.mesh_editor.name = slot.name.clone();
         }
     }
-    let Some(id) = e.mesh_editor.slot else {
-        return;
-    };
-    let Some(slot) = doc.materials.iter().find(|s| s.id == id) else {
-        return;
-    };
+    let id = e.mesh_editor.slot?;
+    let slot = slots.iter().find(|s| s.id == id)?;
     let mut mat = slot.material.clone();
     if ui.color_edit3(crate::gui::field(ui, "Default color"), &mut mat.color)
         | ui.checkbox("Default unlit", &mut mat.unlit)
+        | crate::texture::picker(ui, &e.assets.index, &mut mat)
     {
         let result = edit(e, |d| {
             d.materials
@@ -2616,11 +2703,17 @@ fn materials_panel(ui: &Ui, e: &mut Editor, doc: &Document) {
             let i = d.materials.iter().position(|s| s.id == id).unwrap();
             if i > 0 {
                 d.materials.swap(i, i - 1);
+                if let Some(curve) = d.spline.clone() {
+                    curve.apply(d)?;
+                }
             }
             Ok(())
         });
         report(e, result);
     }
+    Some(id)
+}
+fn face_assignment(ui: &Ui, e: &mut Editor, doc: &Document, id: Uuid) {
     if button(ui, "Assign to selected faces") {
         let selected = e.mesh_editor.selected.clone();
         let result = edit(e, |d| {

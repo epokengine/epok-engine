@@ -263,6 +263,8 @@ fn scene_header_for_purpose(
     text.push_str(&navigation_table);
     let (dungeon_table, dungeon_init) = crate::dungeon_query::cpp(scene);
     text.push_str(&dungeon_table);
+    let (spline_table, spline_init) = crate::spline_path::cpp(scene)?;
+    text.push_str(&spline_table);
     if emit_resources {
         text.push_str(&crate::texture::header(resources)?);
         text.push_str(&crate::vertex_colors::Palette::scene(resources)?.header());
@@ -729,6 +731,7 @@ epok::set_visibility_track(nullptr);
     if !prototype {
         text.push_str(&navigation_init);
         text.push_str(&dungeon_init);
+        text.push_str(&spline_init);
     }
     text.push_str(&crate::palette::cpp_setup(scene));
     if prototype {
@@ -1689,6 +1692,10 @@ pub fn runtime_sources() -> &'static [(&'static str, &'static [u8])] {
         (
             "camera_rig.hpp",
             include_bytes!("../runtime/camera_rig.hpp").as_slice(),
+        ),
+        (
+            "spline_path.inl",
+            include_bytes!("../runtime/spline_path.inl").as_slice(),
         ),
         (
             "dungeon_map.hpp",

@@ -37,6 +37,19 @@ struct EPOK_VALUE(Id="cc7e971c-0dbe-4388-a93a-c25f24690011") RumbleSnapshot {
 struct EPOK_VALUE(Id="1a95f3e5-4d5b-4bcb-90ac-34d7fb61bc77") GameplayVector3 {
     Fixed x=0.0,y=0.0,z=0.0;
 };
+// Query a cooked map spline in world units. The lateral offset follows its bank.
+struct EPOK_VALUE(Id="cf4f3fe7-68e5-43dc-b428-16ae2e3b455d") SplinePose {
+    bool valid=false;
+    GameplayVector3 position{},rotation{};
+    Fixed length=0.0,half_width=0.0,bend=0.0;
+    uint32_t marker=0;
+};
+#include "spline_path.inl"
+struct EPOK_FUNCTION_LIBRARY(Category="Spline", Id="980053b2-83a3-44ae-b2d1-ab1bdebe0871") SplineLibrary {
+    EPOK_FUNCTION(BlueprintPure, Id="08693de1-e74c-42f9-983f-17dd6da79a7e") static SplinePose sample(uint32_t channel,Fixed distance,Fixed lateral,Fixed height){
+        return spline_path::sample(channel,distance,lateral,height);
+    }
+};
 struct EPOK_VALUE(Id="b8f68929-ed24-4c76-8fdd-52b785024d74") GameplayVector2 {
     Fixed x=0.0,y=0.0;
 };

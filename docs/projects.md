@@ -19,7 +19,7 @@ Project location and project name stay at the bottom with the resolved destinati
 
 ### Gameplay flavors
 
-The flavor is a generation choice. A Lua project can gain C++ classes and Blueprints afterwards, a C++ project can gain Lua scripts, and a scene can bind all three at once. All six templates record their installation choice and semantic class references in `ProjectSettings/Template.epoksettings`; the descriptor continues to own project settings. See [starter classes and roles](starter-templates.md) for generated files and inheritance.
+The flavor is a generation choice. A Lua project can gain C++ classes and Blueprints afterwards, a C++ project can gain Lua scripts, and a scene can bind all three at once. All templates record their installation choice and semantic class references in `ProjectSettings/Template.epoksettings`; the descriptor continues to own project settings. See [starter classes and roles](starter-templates.md) for generated files and inheritance.
 
 | Flavor | What the template writes | Console build |
 | --- | --- | --- |
@@ -27,7 +27,15 @@ The flavor is a generation choice. A Lua project can gain C++ classes and Bluepr
 | Blueprint | A project-owned graph under `assets/Blueprints` | The backend generates native code; the source you edit stays visual |
 | Lua | Project-owned `.lua` under `assets/scripts` | Built with the project's Lua execution setting, which starts on the ahead-of-time native mode |
 
-All six templates accept every authoring flavor and share the same actors, transforms, colliders and resources. Basic writes an editable, inert GameRoot Actor class. Dungeon Complete writes game policies and ordinary editable HUD/modal widget classes in the selected language, alongside shared native mechanisms and its Pocket Lua game. Lua template rules use Native C++ AOT: edit the Lua source; generated C++ belongs to build output. The required template acceptance matrix has 18 combinations. The engine retains separate VM bytecode/source functionality and regression coverage.
+The six original templates accept every authoring flavor and share the same actors, transforms, colliders and resources. Basic writes an editable, inert GameRoot Actor class. Dungeon Complete writes game policies and ordinary editable HUD/modal widget classes in the selected language, alongside shared native mechanisms and its Pocket Lua game. Lua template rules use Native C++ AOT: edit the Lua source; generated C++ belongs to build output. Race adds a Lua-only starter. The engine retains separate VM bytecode/source functionality and regression coverage.
+
+### Race
+
+Race opens on Meridian Circuit, a three-lap antigravity time trial with two vertical loops. Steer with the directional pad or left stick. Cross or Up accelerates, Square or Down brakes, and Start restarts after the finish. Crossing the orange chevrons in their marked lane starts a short charge. The amber meter fills and the turbines wind up before the thrust kicks in. The cyan meter shows the remaining thrust. Scraping a barrier cancels the charge or thrust.
+
+![The Meridian Race hovercraft charges a boost and enters the first vertical loop](images/meridian-race.gif)
+
+Edit the Meridian Track spline to reshape the course. In Materials, import or choose textures for its slots. In Path, select a control point and set its outgoing surface and marker. RacePilot.lua reads channel 0 and uses marker 1 for a left boost and marker 2 for a right boost.
 
 ### Dungeon Complete
 

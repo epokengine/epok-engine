@@ -13,7 +13,7 @@ Basic's GameRoot has the ordinary inherited 3D root component. Add lifecycle
 events, properties, components or derived classes through the normal source and
 class tools. Its initial class has no authored callbacks or active helpers.
 
-All six templates offer C++, Blueprint and Lua AOT authoring. Dungeon Complete
+Race generates two Lua components on the hovercraft. RacePilot handles steering and laps. RaceBoost controls the pad charge, twin exhausts, camera and HUD meter. The spline, textures and sound clips live under `assets/Race`. The other six templates offer C++, Blueprint and Lua AOT authoring. Dungeon Complete
 places shared data bindings and writes its game policies and ordinary UIActor
 widgets in the selected language. Its Blueprint compositions live in their class
 assets; C++/Lua use ordinary companion class compositions. Lua UUIDs and template

@@ -92,7 +92,7 @@ for editable dialogue visuals.
 
 ## Template rules and widget classes
 
-All six templates generate C++, Blueprint or Lua AOT authoring. Shared character,
+Six templates support C++, Blueprint and Lua AOT. Race generates its pilot and boost controller in Lua. Shared character,
 camera, interaction, UI and device mechanisms keep the same contracts; project
 rules stay in the selected language. Generated Lua C++ belongs to build output.
 The engine's optional VM execution modes retain separate engine coverage.

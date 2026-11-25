@@ -3646,6 +3646,8 @@ fn scene_view(
             .uv0([(1. - uv[0]) * 0.5, (1. - uv[1]) * 0.5])
             .uv1([(1. + uv[0]) * 0.5, (1. + uv[1]) * 0.5])
             .build(ui);
+        #[cfg(test)]
+        record_script_control(ui, "3D Scene image");
         crate::project_browser::scene_drop(ui, e);
         crate::game_helper_catalog::scene_drop(ui, e);
         let hovered = ui.is_item_hovered();
@@ -3710,20 +3712,12 @@ fn scene_view(
             e.view.look(ui.io().mouse_delta, true);
             e.view_dirty = true;
         }
-        let over_path_key = crate::camera_path_ui::overlay(
-            ui,
-            e,
-            [
-                position,
-                [position[0] + available[0], position[1] + available[1]],
-            ],
-            |p| {
-                [
-                    position[0] + (p[0] - (1. - uv[0]) * 480.) * factor,
-                    position[1] + (p[1] - (1. - uv[1]) * 300.) * factor,
-                ]
-            },
-        );
+        let clip = [position, [position[0] + available[0], position[1] + available[1]]];
+        let to_panel = |p: [f32; 2]| [
+            position[0] + (p[0] - (1. - uv[0]) * 480.) * factor,
+            position[1] + (p[1] - (1. - uv[1]) * 300.) * factor,
+        ];
+        let over_path_key = crate::camera_path_ui::overlay(ui, e, clip, to_panel);
         if !e.mesh_editor.open && !e.terrain_editor.sculpting() {
             crate::gizmo::draw(ui, e, position, available, factor, uv);
         }
@@ -3755,18 +3749,16 @@ fn scene_view(
         // A brush needs press-drag-release, which the click gesture cannot
         // express. While the terrain tool is stroking it owns the viewport, so
         // selection and the gizmo never fight it for the same drag.
-        let sculpting = crate::terrain_editor::drag(ui, e, pixel, eligible);
+        let spline_gesture = crate::spline_editor::overlay(ui, e, pixel, eligible && !e.critical_busy(), clip, to_panel);
+        let sculpting = crate::terrain_editor::drag(ui, e, pixel, eligible && !spline_gesture);
         // Geometry editing turns left drags into box or paint selection.
         let selecting = !sculpting
             && crate::mesh_editor::drag(
                 ui,
                 e,
-                [
-                    position,
-                    [position[0] + available[0], position[1] + available[1]],
-                ],
+                clip,
                 |mouse| crate::picking::texture_pixel(mouse, position, factor, uv),
-                eligible,
+                eligible && !spline_gesture,
             );
         if !sculpting
             && e.scene_click.update(
@@ -3774,7 +3766,7 @@ fn scene_view(
                 ui.is_mouse_clicked(imgui::MouseButton::Left),
                 ui.is_mouse_released(imgui::MouseButton::Left),
                 ui.is_mouse_down(imgui::MouseButton::Left),
-                eligible,
+                eligible && !spline_gesture,
             )
             && !selecting
         {
@@ -3995,6 +3987,117 @@ fn game_view(
 #[cfg(test)]
 mod interaction_tests {
     use super::*;
+
+    #[test]
+    fn spline_scene_draw_drag_undo_and_reopen() {
+        let mut context = crate::gui::tests::imgui_context();
+        configure_input(context.io_mut());
+        context.io_mut().display_size = [1200., 800.];
+        context.io_mut().delta_time = 1. / 60.;
+        context.fonts().build_rgba32_texture();
+        context.load_ini_settings("[Window][###Scene]\nPos=10,10\nSize=1100,700\nCollapsed=0\n");
+        let root = crate::workspace::tests::temp("spline-scene");
+        let project =
+            crate::workspace::create(&root, "Spline", crate::workspace::Template::Basic).unwrap();
+        let mut editor = Editor::open(project).unwrap();
+        editor.auto_build = false;
+        editor.view = crate::viewport::View {
+            distance: 20.,
+            ..Default::default()
+        };
+        editor.action("create-3d-spline");
+        let index = editor.selected.unwrap();
+        let actor = editor.scene.actors[index].id;
+        editor.scene.actors[index].rotation = [10., 30., 0.];
+        editor.scene.actors[index].scale = [1.3, 1., 0.8];
+        editor.changed();
+        let frame = |ctx: &mut imgui::Context, e: &mut Editor| {
+            scene_view(
+                ctx.frame(),
+                e,
+                imgui::TextureId::new(1),
+                imgui::TextureId::new(2),
+                [960., 600.],
+            );
+            ctx.render();
+        };
+        frame(&mut context, &mut editor);
+        frame(&mut context, &mut editor);
+        let center = script_control("3D Scene image").unwrap();
+        let size = editor.scene_panel_size;
+        let scale = (size[0] / 960.).max(size[1] / 600.);
+        let world = editor.scene.world_matrix(index);
+        let view = editor.view;
+        let screen = |p| {
+            let p = crate::viewport::project(&view, world.point(p));
+            [
+                center[0] + (p[0] - 480.) * scale,
+                center[1] + (p[1] - 300.) * scale,
+            ]
+        };
+        let curve = |e: &Editor| e.mesh_editor.doc.as_ref().unwrap().spline.clone().unwrap();
+        let point = [2., 0., 5.];
+        context.io_mut().add_mouse_pos_event(screen(point));
+        context.io_mut().add_key_event(imgui::Key::ModShift, true);
+        frame(&mut context, &mut editor);
+        context
+            .io_mut()
+            .add_mouse_button_event(imgui::MouseButton::Left, true);
+        frame(&mut context, &mut editor);
+        context
+            .io_mut()
+            .add_mouse_button_event(imgui::MouseButton::Left, false);
+        context.io_mut().add_key_event(imgui::Key::ModShift, false);
+        frame(&mut context, &mut editor);
+        let appended = curve(&editor);
+        assert_eq!(appended.points.len(), 3, "{:?}", editor.mesh_editor.error);
+        // ImGui rounds the supplied mouse position to whole screen pixels.
+        let on_target = |actual: [f32; 3], expected| {
+            actual[1].abs() < 0.0001
+                && screen(actual)
+                    .iter()
+                    .zip(screen(expected))
+                    .all(|(a, b)| (a - b).abs() < 1.5)
+        };
+        assert!(on_target(appended.points[2].position, point));
+        let moved = [3.5, 0., 4.];
+        context
+            .io_mut()
+            .add_mouse_button_event(imgui::MouseButton::Left, true);
+        frame(&mut context, &mut editor);
+        context.io_mut().add_mouse_pos_event(screen(moved));
+        frame(&mut context, &mut editor);
+        assert_eq!(curve(&editor), appended, "drag commits once on release");
+        context
+            .io_mut()
+            .add_mouse_button_event(imgui::MouseButton::Left, false);
+        frame(&mut context, &mut editor);
+        let edited = curve(&editor);
+        assert!(on_target(edited.points[2].position, moved), "{edited:?}");
+        crate::mesh_editor::undo(&mut editor, false).unwrap();
+        assert_eq!(curve(&editor), appended);
+        crate::mesh_editor::undo(&mut editor, true).unwrap();
+        assert!(editor.save());
+        let reopened = crate::scene::Scene::load(&editor.scene_path()).unwrap();
+        let index = reopened.actor_index(actor).unwrap();
+        let doc = reopened.actors[index]
+            .editable_mesh
+            .as_ref()
+            .unwrap()
+            .document
+            .as_ref()
+            .unwrap();
+        assert_eq!(doc.spline.as_ref(), Some(&edited));
+        let catalog = crate::scripts::catalog(&root).unwrap();
+        let registry = crate::scripts::declaration_registry(&root).unwrap();
+        let header = crate::project::scene_header_with_registry(
+            &reopened, &catalog, &reopened, true, &reopened, &registry,
+        )
+        .unwrap();
+        assert!(header.contains("MeshGeometry"));
+        drop(editor);
+        std::fs::remove_dir_all(root).unwrap();
+    }
 
     #[test]
     fn camera_speed_dropdown_changes_navigation_and_preserves_scene_data() {

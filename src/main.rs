@@ -196,6 +196,7 @@ mod psx_loop_quality;
 mod psx_music_optimizer;
 mod psx_music_settings;
 mod psx_sequence;
+mod race_template;
 mod rail_aim;
 mod rail_navigation;
 mod reflection;
@@ -249,6 +250,9 @@ mod skeleton2d;
 mod sound_bank;
 mod soundfont_asset;
 mod source_cache;
+mod spline;
+mod spline_editor;
+mod spline_path;
 mod sprites;
 mod sprites_editor;
 mod spu_encoder;
@@ -392,7 +396,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .windows(2)
             .find(|v| v[0] == "--gameplay")
             .map(|v| v[1].as_str())
-            .unwrap_or("cpp");
+            .unwrap_or_else(|| {
+                workspace::Template::parse(template).map_or("cpp", |t| t.default_gameplay().key())
+            });
         let options = workspace::creation_options(template, gameplay)?;
         let project = workspace::create_with_options(&destination, name, options)?;
         println!("Created project: {}", project.root.display());

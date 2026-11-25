@@ -109,10 +109,15 @@ impl Invocation {
         // Dependency certification launches many independent preprocessor jobs.
         // Keeping Make at two workers made every scene-only Play rescan PsyQo
         // almost serially, even when the certified SDK archive was reusable.
-        let jobs = std::thread::available_parallelism()
+        let available = std::thread::available_parallelism()
             .map(std::num::NonZeroUsize::get)
             .unwrap_or(2)
             .clamp(1, 16);
+        let jobs = std::env::var("EPOK_BUILD_JOBS")
+            .ok()
+            .and_then(|v| v.parse::<usize>().ok())
+            .unwrap_or(available)
+            .clamp(1, available);
         command
             .current_dir(&self.directory)
             .env("PATH", &self.search)

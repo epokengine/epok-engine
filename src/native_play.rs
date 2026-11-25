@@ -95,7 +95,8 @@ impl Frame {
         }
         let eye = matrix.point([0.; 3]);
         let distance = 1.;
-        crate::viewport::View {
+        let mut view = crate::viewport::View {
+            roll: 0.,
             yaw: forward[0].atan2(forward[2]),
             pitch: (-forward[1]).clamp(-1., 1.).asin(),
             center: std::array::from_fn(|axis| eye[axis] + forward[axis] * distance),
@@ -111,7 +112,12 @@ impl Frame {
             distance_scaled_speed: false,
             mirror_x: camera.camera_mirror_x,
             lighting: true,
-        }
+        };
+        let [right, up, _] = view.basis();
+        let camera_right = matrix.vector([1., 0., 0.]);
+        view.roll =
+            crate::lighting::dot(camera_right, up).atan2(crate::lighting::dot(camera_right, right));
+        view
     }
 }
 

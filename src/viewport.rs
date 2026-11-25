@@ -10,6 +10,8 @@ pub struct Image {
 pub struct View {
     pub yaw: f32,
     pub pitch: f32,
+    /// Roll around the viewing direction, in radians.
+    pub roll: f32,
     pub center: [f32; 3],
     pub zoom: f32,
     /// Distance from the eye to the orbit pivot; independent of the lens zoom.
@@ -28,6 +30,7 @@ impl Default for View {
         Self {
             yaw: 0.65,
             pitch: 0.5576,
+            roll: 0.,
             center: [0.; 3],
             zoom: 0.85,
             distance: 12.,
@@ -78,6 +81,7 @@ impl View {
     /// Snap the authoring camera to look along one signed world axis.
     /// A small pole offset preserves a stable horizontal basis for subsequent orbiting.
     pub fn snap_to_axis(&mut self, axis: usize, direction: f32) {
+        self.roll = 0.;
         let sign = if direction.is_sign_negative() {
             -1.
         } else {
@@ -109,6 +113,7 @@ impl View {
         let default = Self::default();
         self.yaw = default.yaw;
         self.pitch = default.pitch;
+        self.roll = 0.;
     }
     pub fn frame_bounds(&mut self, low: [f32; 3], high: [f32; 3]) {
         self.frame_bounds_in_panel(low, high, [960., 600.]);
@@ -135,7 +140,14 @@ impl View {
     pub fn basis(&self) -> [[f32; 3]; 3] {
         let (s, c) = self.yaw.sin_cos();
         let (sp, cp) = self.pitch.sin_cos();
-        [[c, 0., -s], [s * sp, cp, c * sp], [s * cp, -sp, c * cp]]
+        let right = [c, 0., -s];
+        let up = [s * sp, cp, c * sp];
+        let (sr, cr) = self.roll.sin_cos();
+        [
+            std::array::from_fn(|i| right[i] * cr + up[i] * sr),
+            std::array::from_fn(|i| up[i] * cr - right[i] * sr),
+            [s * cp, -sp, c * cp],
+        ]
     }
     pub fn pan(&mut self, delta: [f32; 2], factor: f32) {
         let [right, up, _] = self.basis();
@@ -627,6 +639,7 @@ mod tests {
         let mut view = View {
             yaw: 4.2,
             pitch: -0.8,
+            roll: 0.,
             center: [3., -2., 7.],
             zoom: 1.7,
             distance: 42.,

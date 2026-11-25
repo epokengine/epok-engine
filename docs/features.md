@@ -23,13 +23,12 @@ unbounded or validated on every host and console. See [Known boundaries](#known-
   name, startup scene, Play profile and transition settings. Paths passed to the
   editor can be either the folder or descriptor. Canonical path resolution and
   a per-project lock prevent the same project being edited twice.
-- **Templates.** New-project choices are Basic, Sample, Third Person and Platformer 2D, each with a C++, Blueprint or Lua gameplay flavor that decides only the starter implementation.
+- **Templates.** Basic, Sample, Third Person, Platformer 2D, Dungeon and Dungeon Complete support C++, Blueprint and Lua. [Race](projects.md#race) ships a Lua antigravity time trial with an editable spline circuit and boost pads.
   Creation claims a new directory and never merges into existing content.
 - **Template browser and project defaults.** New project presents a thumbnail,
   title and summary per template with a large preview, and a Project Defaults
-  block holding the gameplay flavor and target platform. Template, flavor and
-  platform are independent choices; the flavor decides only which starter source
-  is written and is not recorded in the descriptor. Creation is transactional and
+  block holding the gameplay flavor and target platform. The selected template determines the available gameplay flavors. The flavor
+  controls which starter source is written. Creation is transactional and
   removes a folder it claimed if a template fails part way.
 - **Dependencies pane.** External tool setup is a Hub pane beside Projects and
   New project, drawn from the same page the editor shows inside Preferences, with
