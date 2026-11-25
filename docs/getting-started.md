@@ -31,7 +31,9 @@ xcode-select --install
 make run
 ```
 
-The macOS script installs Rust and the MIPS compiler through Homebrew, builds `psxavenc` and mkpsxiso from their pinned source revisions, downloads PCSX-Redux into `.tools/macos/redux`, and writes an ignored `Local.epokconfig` containing the native executable paths. It does not change the shell PATH: use `make run` or `./tools/run-macos.sh` to start the editor.
+The macOS script initializes the pinned Nugget SDK, installs Rust and the MIPS toolchain from the PCSX-Redux Homebrew tap, and builds `psxavenc` and `mkpsxiso` from their pinned source revisions. First-time setup writes an ignored `Local.epokconfig` up front, so the editor can locate each dependency as it becomes available. If a download fails, rerun setup to finish the installation.
+
+Setup and repair reuse a local PCSX-Redux app or one in `/Applications`. For a fresh install, setup fetches the current Apple Silicon disk image from the [official PCSX-Redux download catalog](https://distrib.app/pub/org/pcsx-redux/project/dev-macos-arm), verifies its checksum, and installs it under `.tools/macos/redux`. Use the same emulator build and OpenBIOS when comparing performance captures.
 
 On Linux x86_64, run:
 
@@ -83,7 +85,7 @@ The alias only affects the current PowerShell session. Before the first setup, u
 | `make run-release` | Build and open the optimized editor |
 | `make build` | Compile the debug editor |
 | `make release` | Compile the optimized editor binary |
-| `make app` | On macOS, create `target/release/Epok Engine.app` and ask whether to copy/replace it on the Desktop |
+| `make app` | On macOS, create `target/release/EpokEngine.app` and ask whether to copy/replace it on the Desktop |
 | `make check` | Check formatting, run default tests, strict Clippy and a debug build, stopping on failure |
 | `make test` / `make lint` | Run default tests or strict Clippy separately |
 | `make fmt` / `make fmt-check` | Apply formatting or check it without edits |
@@ -100,7 +102,7 @@ make build-psx PROJECT=examples/sample-game
 
 Run Make from the repository root, or use `make -C <checkout> ...`. Relative project and capture paths resolve from that root. Cargo's normal environment configuration remains available, including `CARGO_TARGET_DIR`.
 
-With the default Cargo target directory, `make release` writes `target/release/epok-editor.exe` on Windows. Unix host builds use `target/release/epok-editor` without `.exe`. On Apple Silicon macOS, `make app` builds both host binaries and assembles `target/release/Epok Engine.app`, a single Finder item containing Epok's executable, reflection extractor, Nugget SDK and any locally built audio/disc tools. It asks before replacing `~/Desktop/Epok Engine.app`. Run `make setup` first for full Play support; it installs the Homebrew MIPS compiler and stores PCSX-Redux inside the app's local tools folder.
+With the default Cargo target directory, `make release` writes `target/release/epok-editor.exe` on Windows. Unix host builds use `target/release/epok-editor` without `.exe`. On Apple Silicon macOS, `make app` builds both host binaries and assembles `target/release/EpokEngine.app`. It includes the pinned Nugget SDK and the local tools available at packaging time, and asks before replacing `~/Desktop/EpokEngine.app`. Keep the bundle's path free of spaces for native builds. Run `make setup` first to include the available tools in the bundle.
 
 ## First session
 

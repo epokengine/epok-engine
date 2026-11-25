@@ -30,7 +30,7 @@ help:
 	@echo   make run-release  - Open the optimized editor
 	@echo   make build        - Compile the debug editor
 	@echo   make release      - Compile the optimized editor binary, not a distribution
-	@echo   make app          - On macOS, create Epok Engine.app and optionally copy it to Desktop
+	@echo   make app          - On macOS, create EpokEngine.app and optionally copy it to Desktop
 	@echo   make check        - Check formatting, tests, lint and debug build in order
 	@echo   make test         - Run GPU-free default tests
 	@echo   make lint         - Run Clippy with warnings as errors

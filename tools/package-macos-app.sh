@@ -8,24 +8,19 @@ set -euo pipefail
 }
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=tools/macos-dependencies.sh
+source "$root/tools/macos-dependencies.sh"
 cargo="$root/tools/cargo-macos.sh"
-output="$root/target/release/Epok Engine.app"
+output="$root/target/release/EpokEngine.app"
 work="$(mktemp -d "${TMPDIR:-/tmp}/epok-app.XXXXXX")"
-bundle="$work/Epok Engine.app"
+bundle="$work/EpokEngine.app"
 home="$bundle/Contents/Resources/Epok"
-desktop="$HOME/Desktop/Epok Engine.app"
+desktop="$HOME/Desktop/EpokEngine.app"
 
 cleanup() {
     rm -rf "$work"
 }
 trap cleanup EXIT
-
-require_directory() {
-    [[ -d "$1" ]] || {
-        echo "Missing $2: $1" >&2
-        exit 1
-    }
-}
 
 require_file() {
     [[ -f "$1" ]] || {
@@ -34,7 +29,9 @@ require_file() {
     }
 }
 
-require_directory "$root/third_party/nugget" "the pinned Nugget SDK"
+sdk="$root/third_party/nugget"
+sdk_revision="$(nugget_revision "$root")"
+prepare_nugget "$root" "$sdk_revision"
 
 echo "Compiling the optimized Epok editor..."
 "$cargo" build --locked --release --bins
@@ -44,66 +41,47 @@ extractor="$root/target/release/epok-header-tool"
 require_file "$editor" "the release editor binary"
 require_file "$extractor" "the release reflection extractor"
 
-mkdir -p "$bundle/Contents/MacOS" "$home/third_party" "$home/.tools/macos"
+mkdir -p "$bundle/Contents/MacOS" "$home/third_party/nugget" "$home/$macos_tools/bin"
 install -m 755 "$editor" "$bundle/Contents/MacOS/epok-editor"
 install -m 755 "$extractor" "$bundle/Contents/MacOS/epok-header-tool"
 
-# Keep optional local tools inside the bundle when setup has produced them. The
-# editor otherwise resolves the usual command names from the user's PATH.
-psxavenc="psxavenc"
-mkpsxiso="mkpsxiso"
-if [[ -x "$root/.tools/macos/bin/psxavenc" ]]; then
-    ditto "$root/.tools/macos/bin" "$home/.tools/macos/bin"
-    psxavenc=".tools/macos/bin/psxavenc"
-    mkpsxiso=".tools/macos/bin/mkpsxiso"
+# Include each available local tool. The same relative paths also let the
+# bundle discover tools installed later from the Dependencies panel.
+for binary in psxavenc mkpsxiso; do
+    if [[ -x "$root/$macos_tools/bin/$binary" ]]; then
+        install -m 755 "$root/$macos_tools/bin/$binary" "$home/$macos_tools/bin/$binary"
+    fi
+done
+if [[ -d "$root/$macos_redux_app" ]]; then
+    mkdir -p "$home/$macos_tools/redux"
+    ditto "$root/$macos_redux_app" "$home/$macos_redux_app"
 fi
-if [[ -d "$root/.tools/macos/redux/PCSX-Redux.app" ]]; then
-    ditto "$root/.tools/macos/redux" "$home/.tools/macos/redux"
+if [[ -f "$root/$macos_libclang/libclang.dylib" ]]; then
+    ditto "$root/$macos_tools/libclang" "$home/$macos_tools/libclang"
 fi
 
 # Finder launches do not inherit a shell's Homebrew PATH. Record the compiler
-# location when it is available so native Play works from the copied app too.
-toolchain_bin=""
-if compiler="$(command -v mipsel-none-elf-g++ 2>/dev/null)"; then
-    toolchain_bin="$(dirname "$compiler")"
-fi
-emulator="pcsx-redux"
-for name in pcsx-redux PCSX-Redux; do
-    if [[ -x "$home/.tools/macos/redux/PCSX-Redux.app/Contents/MacOS/$name" ]]; then
-        emulator=".tools/macos/redux/PCSX-Redux.app/Contents/MacOS/$name"
-        break
-    fi
-done
-for candidate in \
-    /Applications/PCSX-Redux.app/Contents/MacOS/pcsx-redux \
-    /Applications/PCSX-Redux.app/Contents/MacOS/PCSX-Redux; do
-    if [[ "$emulator" == "pcsx-redux" && -x "$candidate" ]]; then
-        emulator="$candidate"
-        break
-    fi
-done
+# location so native Play works from the copied app too.
+toolchain_bin="$(macos_toolchain_bin)"
+emulator="$(redux_executable "$home/$macos_redux_app" || redux_executable /Applications/PCSX-Redux.app || true)"
+emulator="${emulator#"$home/"}"
+write_macos_config "$home/Editor.epokconfig" "$toolchain_bin" \
+    "${emulator:-$macos_redux_app/Contents/MacOS/PCSX-Redux}"
+chmod 644 "$home/Editor.epokconfig"
 
-# editor_home() recognizes this standard application resource location, so
-# relative paths remain valid even after Finder moves the bundle.
-cat > "$home/Editor.epokconfig" <<EOF
-make: make
-toolchain_bin: "$toolchain_bin"
-nugget: third_party/nugget
-emulator: "$emulator"
-psxavenc: $psxavenc
-mkpsxiso: $mkpsxiso
-code: ""
-web_port: 8077
-auto_build: true
-EOF
-
-ditto "$root/third_party/nugget" "$home/third_party/nugget"
-rm -rf "$home/third_party/nugget/.git"
-printf '%s\n' 'c702235f366fb1cd8c18e0a5a5392e0acae8a079' > "$home/third_party/nugget/.epok-pinned-revision"
+# Archive the pinned trees so the app can move without their Git metadata.
+sdk_snapshot="$home/third_party/nugget"
+git -C "$sdk" archive "$sdk_revision" | tar -xf - -C "$sdk_snapshot"
+psxlua_revision="$(git -C "$sdk" rev-parse "$sdk_revision:third_party/psxlua")"
+mkdir -p "$sdk_snapshot/third_party/psxlua"
+git -C "$sdk/third_party/psxlua" archive "$psxlua_revision" | tar -xf - -C "$sdk_snapshot/third_party/psxlua"
+printf '%s\n' "$sdk_revision" > "$sdk_snapshot/.epok-pinned-revision"
 install -m 644 "$root/LICENSE" "$home/LICENSE"
 mkdir -p "$home/tools"
 install -m 755 "$root/tools/setup-macos.sh" "$home/tools/setup-macos.sh"
 install -m 755 "$root/tools/bundle-serial.py" "$home/tools/bundle-serial.py"
+install -m 644 "$root/tools/macos-dependencies.sh" "$home/tools/macos-dependencies.sh"
+install -m 644 "$root/tools/dependencies.json" "$home/tools/dependencies.json"
 install -m 644 "$root/tools/serial-dependency.json" "$home/tools/serial-dependency.json"
 
 # macOS's native converter produces the ICNS directly from the checked-in

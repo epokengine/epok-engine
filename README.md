@@ -123,7 +123,7 @@ xcode-select --install
 make run
 ```
 
-The setup script installs Rust and the upstream MIPS toolchain with Homebrew, builds pinned host audio/disc utilities under `.tools/macos/`, downloads PCSX-Redux into `.tools/macos/redux/`, and writes an untracked `Local.epokconfig`. Start Epok with `make run` or `./tools/run-macos.sh`; neither command requires changing your shell PATH.
+The setup script configures the local dependency paths, installs Rust and the PCSX-Redux MIPS toolchain with Homebrew, and builds pinned audio and disc utilities under `.tools/macos/`. If PCSX-Redux is missing, setup downloads and verifies the current Apple Silicon build from the upstream catalog. Start Epok with `make run` or `./tools/run-macos.sh`.
 
 On Linux x86_64, run:
 
@@ -156,7 +156,7 @@ See [Getting started](docs/getting-started.md) for configuration and troubleshoo
 | `cargo run --locked` | Open the project Hub |
 | `cargo run --locked -- --project examples/sample-game` | Open the included sample project |
 | `cargo build --locked --release` | Build the optimized editor |
-| `make app` (macOS) | Build `Epok Engine.app` and optionally replace its Desktop copy |
+| `make app` (macOS) | Build `EpokEngine.app` and optionally replace its Desktop copy |
 | `cargo test --locked` | Run the default Rust test suite |
 | `.\.tools\mips\bin\make.exe check` | Run formatting, tests, Clippy and the debug build |
 
