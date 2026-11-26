@@ -66,7 +66,9 @@ mkdir -p "$tools/src" "$tools/bin"
 
 if [[ ! -x "$toolchain_bin/mipsel-none-elf-g++" || ! -x "$toolchain_bin/mipsel-none-elf-objcopy" ]]; then
     echo "Installing the PCSX-Redux MIPS toolchain through Homebrew..."
-    brew install pcsx-redux/mips/mipsel-none-elf-gcc
+    # Homebrew trusts each fully qualified install target. List binutils
+    # explicitly so Homebrew can load it when resolving GCC's dependencies.
+    brew install pcsx-redux/mips/mipsel-none-elf-binutils pcsx-redux/mips/mipsel-none-elf-gcc
     brew_prefix="$(brew --prefix)"
     toolchain_bin="$brew_prefix/bin"
     [[ -x "$toolchain_bin/mipsel-none-elf-g++" && -x "$toolchain_bin/mipsel-none-elf-objcopy" ]] || {
