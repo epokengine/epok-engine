@@ -433,10 +433,20 @@ impl State {
             return;
         };
         let result = install.child.try_wait();
+        #[cfg(target_os = "macos")]
+        let reloaded = if self.owner == crate::workspace::editor_home() {
+            // First-time setup saves its paths before installing the tools.
+            // Use those paths for progress and keep them visible after a failure.
+            Config::editable(&self.owner).map(|(_, draft)| {
+                self.draft = draft;
+                self.error = None;
+            })
+        } else {
+            // A project can have its own dependency overrides.
+            Ok(())
+        };
+        self.check();
         if matches!(result, Ok(None)) {
-            // Files may appear before setup has finished. Rechecking makes the
-            // live counter reflect actual completed dependency checks.
-            self.check();
             return;
         }
         let install = self.installer.take().unwrap();
@@ -444,19 +454,8 @@ impl State {
             Ok(Some(status)) if status.success() => {
                 #[cfg(target_os = "macos")]
                 {
-                    // macOS setup writes one coherent Local.epokconfig for its
-                    // shared Homebrew/local toolchain. Reload it instead of
-                    // overwriting it with the pre-install editor draft.
-                    match Config::editable(&self.owner) {
-                        Ok((owner, draft)) => {
-                            self.owner = owner;
-                            self.draft = draft;
-                            self.check();
-                            format!(
-                                "macOS setup completed and its saved paths were reloaded. Log: {}",
-                                install.log.display()
-                            )
-                        }
+                    match reloaded {
+                        Ok(()) => format!("macOS setup completed. Log: {}", install.log.display()),
                         Err(error) => format!(
                             "Setup completed, but could not reload its configuration: {error}"
                         ),

@@ -13,12 +13,13 @@ case ${1:-} in
 esac
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-tools="$root/.tools/macos"
-sdk="$root/third_party/nugget"
-sdk_revision="c702235f366fb1cd8c18e0a5a5392e0acae8a079"
-sdk_marker="$sdk/.epok-pinned-revision"
-psxlua="$sdk/third_party/psxlua"
-psxlua_revision="abed030e686b4e34987851bd0a028c93b1f73967"
+# shellcheck source=tools/macos-dependencies.sh
+source "$root/tools/macos-dependencies.sh"
+tools="$root/$macos_tools"
+
+# Finder starts the editor with a system PATH. Use Apple Silicon Homebrew
+# there as well as in shells that already have their own Homebrew on PATH.
+export PATH="$PATH:/opt/homebrew/bin:/opt/homebrew/sbin"
 
 require() {
     command -v "$1" >/dev/null 2>&1 || { echo "Missing required command: $1" >&2; exit 1; }
@@ -34,6 +35,21 @@ require hdiutil
 require ditto
 xcrun --find clang >/dev/null
 
+sdk_revision="$(nugget_revision "$root")"
+toolchain_bin="$(macos_toolchain_bin)"
+emulator="$(
+    redux_executable "$root/$macos_redux_app" || redux_executable /Applications/PCSX-Redux.app || true
+)"
+emulator="${emulator#"$root/"}"
+config="$root/Local.epokconfig"
+if [[ ! -e "$config" ]]; then
+    # These paths become usable as each tool is installed, including on a
+    # partial first run. Keep any existing configuration until the tools are ready.
+    write_macos_config "$config" "$toolchain_bin" "${emulator:-$macos_redux_app/Contents/MacOS/PCSX-Redux}"
+fi
+
+prepare_nugget "$root" "$sdk_revision"
+
 # NOTPSXSerial's managed executable needs Mono on macOS. The editor also checks
 # this at first Serial Play and installs it through an existing Homebrew setup.
 if ! command -v mono >/dev/null 2>&1; then
@@ -46,72 +62,32 @@ if ! command -v cargo >/dev/null 2>&1 && [[ ! -x "$(brew --prefix rustup)/bin/ca
         --component rustfmt --component clippy
 fi
 
-if [[ -d "$root/.git" && ! -e "$sdk/.git" ]]; then
-    git -C "$root" -c submodule.recurse=false submodule update --init -- third_party/nugget
-fi
-if [[ -e "$sdk/.git" ]]; then
-    [[ "$(git -C "$sdk" rev-parse HEAD)" == "$sdk_revision" ]] || {
-        echo "Nugget is not at the pinned revision $sdk_revision." >&2
-        exit 1
-    }
-elif [[ -f "$sdk_marker" && "$(<"$sdk_marker")" == "$sdk_revision" ]]; then
-    # Application bundles contain a verified SDK snapshot, not its original
-    # checkout metadata. The marker is written only by package-macos-app.sh.
-    echo "Verified bundled Nugget $sdk_revision"
-else
-    echo "Nugget is missing; initialize third_party/nugget first." >&2
-    exit 1
-fi
-for file in psyqo/psyqo.mk common.mk third_party/EASTL/include/EASTL/array.h third_party/EABase/include/Common/EABase/eabase.h; do
-    [[ -f "$sdk/$file" ]] || { echo "Incomplete Nugget SDK: $file" >&2; exit 1; }
-done
-
-# The Lua VM execution modes build their interpreter from psxlua, a nested
-# submodule of the pinned Nugget mirror. Only this one is initialized: the
-# mirror carries other nested submodules whose paths are not all valid after
-# mirroring, which is why the SDK itself is never initialized recursively.
-if [[ -e "$sdk/.git" && ! -f "$psxlua/src/lparser.c" ]]; then
-    git -C "$sdk" -c submodule.recurse=false submodule update --init -- third_party/psxlua
-fi
-[[ -f "$psxlua/src/lparser.c" ]] || {
-    echo "psxlua is missing; initialize third_party/nugget/third_party/psxlua first." >&2
-    exit 1
-}
-if [[ -e "$psxlua/.git" ]]; then
-    [[ "$(git -C "$psxlua" rev-parse HEAD)" == "$psxlua_revision" ]] || {
-        echo "psxlua is not at the pinned revision $psxlua_revision." >&2
-        exit 1
-    }
-fi
-echo "Verified psxlua $psxlua_revision"
-
 mkdir -p "$tools/src" "$tools/bin"
 
-if ! command -v mipsel-none-elf-g++ >/dev/null 2>&1; then
+if [[ ! -x "$toolchain_bin/mipsel-none-elf-g++" || ! -x "$toolchain_bin/mipsel-none-elf-objcopy" ]]; then
     echo "Installing the PCSX-Redux MIPS toolchain through Homebrew..."
-    brew install nikitabobko/tap/brew-install-path
-    formulas="$tools/pcsx-redux-formulas"
-    if [[ ! -d "$formulas/.git" ]]; then
-        git clone --depth 1 https://github.com/grumpycoders/pcsx-redux.git "$formulas"
-    elif $repair; then
-        git -C "$formulas" pull --ff-only
-    fi
-    sed -i '' 's|https://ftpmirror.gnu.org/gnu/|https://mirrors.kernel.org/gnu/|' \
-        "$formulas/tools/macos-mips/mipsel-none-elf-binutils.rb" \
-        "$formulas/tools/macos-mips/mipsel-none-elf-gcc.rb"
-    brew install-path "$formulas/tools/macos-mips/mipsel-none-elf-binutils.rb"
-    brew install-path "$formulas/tools/macos-mips/mipsel-none-elf-gcc.rb"
+    # Homebrew trusts each fully qualified install target. List binutils
+    # explicitly so Homebrew can load it when resolving GCC's dependencies.
+    brew install pcsx-redux/mips/mipsel-none-elf-binutils pcsx-redux/mips/mipsel-none-elf-gcc
+    brew_prefix="$(brew --prefix)"
+    toolchain_bin="$brew_prefix/bin"
+    [[ -x "$toolchain_bin/mipsel-none-elf-g++" && -x "$toolchain_bin/mipsel-none-elf-objcopy" ]] || {
+        echo "Homebrew did not link the MIPS compiler and binutils in $toolchain_bin." >&2
+        exit 1
+    }
 fi
 
 source_at() {
-    local name="$1" url="$2" ref="$3" directory="$tools/src/$1"
-    if [[ ! -d "$directory/.git" ]]; then
-        git clone --depth 1 --branch "$ref" --recurse-submodules "$url" "$directory"
-    elif $repair; then
-        git -C "$directory" fetch --depth 1 origin "$ref"
-        git -C "$directory" checkout --detach FETCH_HEAD
-        git -C "$directory" submodule update --init --recursive
+    local url="$2" ref="$3" directory="$tools/src/$1"
+    if [[ ! -e "$directory/.git" ]]; then
+        git clone --depth 1 --branch "$ref" "$url" "$directory"
+    elif $repair || ! git -C "$directory" rev-parse --verify --quiet "refs/tags/$ref" >/dev/null; then
+        git -C "$directory" fetch --depth 1 origin "refs/tags/$ref:refs/tags/$ref"
     fi
+    git -C "$directory" checkout --detach "refs/tags/$ref"
+    # A previous run can have cloned the parent repository before a nested
+    # download failed. Finish the checkout every time we need to build it.
+    git -C "$directory" submodule update --init --checkout --recursive
 }
 
 if [[ ! -x "$tools/bin/psxavenc" || $repair == true ]]; then
@@ -142,92 +118,73 @@ if [[ ! -x "$tools/bin/mkpsxiso" || $repair == true ]]; then
     install -m 755 "$tools/src/mkpsxiso/build/mkpsxiso" "$tools/bin/mkpsxiso"
 fi
 
-redux_dir="$tools/redux"
-redux_version="f9cd9b2c"
-redux_url="https://distrib.app/storage/assets/cea/1f4/3be/c574513277b755e1d3ef4a864f30bc7819fb746dcfef48c14f69727/PCSX-Redux-f9cd9b2c-Arm.dmg"
-redux_sha256="72019d6170a79de022985c790519b81dbc6dcd8edb383323ed6a06e1f4c1f04d"
-redux_binary_sha256="c48a388de3cb9563780b85d7ccc2a06bcadf2ce0cc7b7ec030fc2840c41afbb8"
-redux_config_path=""
-redux_binary=""
-for name in pcsx-redux PCSX-Redux; do
-    candidate=".tools/macos/redux/PCSX-Redux.app/Contents/MacOS/$name"
-    if [[ -x "$root/$candidate" ]]; then
-        redux_config_path="$candidate"
-        redux_binary="$root/$candidate"
-        break
-    fi
-done
-if [[ -n "$redux_binary" && "$(shasum -a 256 "$redux_binary" | awk '{print $1}')" != "$redux_binary_sha256" ]]; then
-    if $repair; then
-        redux_binary=""
-        redux_config_path=""
-    else
-        echo "Installed PCSX-Redux is not the pinned build $redux_version; its timings are not comparable. Run with --repair to replace it." >&2
-    fi
-fi
-if [[ -z "$redux_binary" ]]; then
-    echo "Downloading PCSX-Redux $redux_version for macOS Apple Silicon..."
-    redux_temp="$(mktemp -d "${TMPDIR:-/tmp}/epok-redux.XXXXXX")"
-    cleanup_redux() { rm -rf "$redux_temp"; }
-    trap cleanup_redux EXIT
-    # A fixed build, not the newest development build: emulated cycle counts
-    # differ between builds, so every capture on this host must use the same
-    # emulator and its bundled OpenBIOS to be comparable.
-    archive="$redux_temp/PCSX-Redux-${redux_version}-Arm.dmg"
-    # Keep curl's actual transfer meter in the editor's live install log.
-    curl --fail --location --retry 2 --progress-bar "$redux_url" --output "$archive"
-    [[ "$(shasum -a 256 "$archive" | awk '{print $1}')" == "$redux_sha256" ]] || {
-        echo "PCSX-Redux download failed its SHA-256 integrity check." >&2
-        exit 1
-    }
-    mount_plist="$redux_temp/mount.plist"
-    hdiutil attach -nobrowse -readonly -plist "$archive" > "$mount_plist"
-    mountpoint="$(python3 - "$mount_plist" <<'PY'
-import plistlib, sys
-for entity in plistlib.load(open(sys.argv[1], "rb")).get("system-entities", []):
-    point = entity.get("mount-point")
-    if point:
-        print(point)
-        break
-else:
-    raise SystemExit("PCSX-Redux disk image did not mount")
-PY
-)"
-    redux_app="$(find "$mountpoint" -maxdepth 3 -type d -name 'PCSX-Redux.app' -print -quit)"
-    [[ -n "$redux_app" ]] || {
-        hdiutil detach "$mountpoint" >/dev/null
-        echo "PCSX-Redux disk image did not contain PCSX-Redux.app." >&2
-        exit 1
-    }
-    staged_app="$redux_temp/PCSX-Redux.app"
-    ditto "$redux_app" "$staged_app"
-    hdiutil detach "$mountpoint" >/dev/null
-    mkdir -p "$redux_dir"
-    rm -rf "$redux_dir/PCSX-Redux.app"
-    mv "$staged_app" "$redux_dir/PCSX-Redux.app"
-    for name in pcsx-redux PCSX-Redux; do
-        candidate=".tools/macos/redux/PCSX-Redux.app/Contents/MacOS/$name"
-        if [[ -x "$root/$candidate" ]]; then
-            redux_config_path="$candidate"
-            redux_binary="$root/$candidate"
-            break
-        fi
-    done
-fi
+install_redux() (
+    # PCSX-Redux publishes this catalog for its own macOS updater. Individual
+    # nightly URLs expire, so resolve the download from the catalog each time.
+    local host="https://distrib.app" catalog build metadata asset sha3
+    catalog="$host/storage/manifests/pcsx-redux/dev-macos-arm"
+    build="$(curl -fsSL --retry 2 "$catalog/manifest.json" | python3 -c '
+import json, sys
+print(max(int(build["id"]) for build in json.load(sys.stdin)["builds"]))
+')"
+    metadata="$(curl -fsSL --retry 2 "$catalog/manifest-$build.json" | python3 -c '
+import json, re, sys
+build = json.load(sys.stdin)
+path, sha3 = build["path"], build["hashes"]["sha3"]
+if not re.fullmatch(r"/storage/assets/[0-9a-f/]+/PCSX-Redux-[0-9a-f]{8}-Arm\.dmg", path):
+    raise SystemExit("PCSX-Redux catalog did not contain a macOS Arm disk image.")
+if not re.fullmatch(r"[0-9a-f]{64}", sha3):
+    raise SystemExit("PCSX-Redux catalog did not contain a valid SHA3-256 checksum.")
+print(path, sha3)
+')"
+    read -r asset sha3 <<< "$metadata"
 
-if [[ -n "$redux_binary" ]]; then
-    emulator="$redux_config_path"
-else
-    emulator=""
-    for candidate in \
-        /Applications/PCSX-Redux.app/Contents/MacOS/pcsx-redux \
-        /Applications/PCSX-Redux.app/Contents/MacOS/PCSX-Redux; do
-        if [[ -x "$candidate" ]]; then
-            emulator="$candidate"
-            break
+    local destination="$root/$macos_redux_app" work mountpoint mounted=false
+    mkdir -p "$(dirname "$destination")"
+    work="$(mktemp -d "$(dirname "$destination")/.install.XXXXXX")"
+    mountpoint="$work/mount"
+    cleanup_redux() {
+        if $mounted && ! hdiutil detach "$mountpoint" >/dev/null; then
+            return 1
         fi
-    done
-    [[ -n "$emulator" ]] || { echo "PCSX-Redux installation did not produce an executable." >&2; exit 1; }
+        rm -rf "$work"
+    }
+    trap cleanup_redux EXIT
+
+    local archive="$work/PCSX-Redux.dmg" staged_app="$work/PCSX-Redux.app"
+    echo "Downloading ${asset##*/} (build $build)..."
+    curl --fail --location --retry 2 --progress-bar "$host$asset" --output "$archive"
+    python3 - "$archive" "$sha3" <<'PY'
+import hashlib
+import sys
+
+digest = hashlib.sha3_256()
+with open(sys.argv[1], "rb") as archive:
+    for chunk in iter(lambda: archive.read(1024 * 1024), b""):
+        digest.update(chunk)
+if digest.hexdigest() != sys.argv[2]:
+    raise SystemExit("PCSX-Redux download failed its SHA3-256 integrity check.")
+PY
+    mkdir "$mountpoint"
+    hdiutil attach -nobrowse -readonly -mountpoint "$mountpoint" "$archive" >/dev/null
+    mounted=true
+    ditto "$mountpoint/PCSX-Redux.app" "$staged_app"
+    hdiutil detach "$mountpoint" >/dev/null
+    mounted=false
+    redux_executable "$staged_app" >/dev/null || {
+        echo "PCSX-Redux disk image did not contain a usable executable." >&2
+        exit 1
+    }
+    rm -rf "$destination"
+    mv "$staged_app" "$destination"
+)
+
+# Keep an existing executable during setup and repair so emulator timings
+# remain comparable across runs of the same installation.
+if [[ -z "$emulator" ]]; then
+    install_redux
+    emulator="$(redux_executable "$root/$macos_redux_app")"
+    emulator="${emulator#"$root/"}"
 fi
 
 # C++ script reflection accepts only the pinned libclang 18.1.1, so the one
@@ -235,8 +192,7 @@ fi
 # rejects any other version. The pinned wheel is the same one the other hosts
 # use, verified by hash and extracted as an archive.
 libclang_dir="$tools/libclang"
-libclang=".tools/macos/libclang/libclang-18.1.1.data/platlib/clang/native"
-if [[ ! -f "$root/$libclang/libclang.dylib" || $repair == true ]]; then
+if [[ ! -f "$root/$macos_libclang/libclang.dylib" || $repair == true ]]; then
     echo "Downloading pinned libclang 18.1.1 for macOS Apple Silicon..."
     libclang_temp="$(mktemp -d "${TMPDIR:-/tmp}/epok-libclang.XXXXXX")"
     wheel="$libclang_temp/libclang-18.1.1-py2.py3-none-macosx_11_0_arm64.whl"
@@ -253,24 +209,12 @@ if [[ ! -f "$root/$libclang/libclang.dylib" || $repair == true ]]; then
     ditto -x -k "$wheel" "$libclang_dir"
     rm -rf "$libclang_temp"
 fi
-[[ -f "$root/$libclang/libclang.dylib" ]] || {
+[[ -f "$root/$macos_libclang/libclang.dylib" ]] || {
     echo "Could not locate the pinned libclang.dylib for C++ script reflection." >&2
     exit 1
 }
 
-cat > "$root/Local.epokconfig" <<EOF
-make: make
-toolchain_bin: ""
-nugget: third_party/nugget
-emulator: "$emulator"
-psxavenc: .tools/macos/bin/psxavenc
-mkpsxiso: .tools/macos/bin/mkpsxiso
-libclang: "$libclang"
-code: ""
-web_port: 8077
-auto_build: true
-EOF
-
+write_macos_config "$config" "$toolchain_bin" "$emulator"
 # Include the same verified offline payload used by Windows distributions.
 python3 "$root/tools/bundle-serial.py"
 echo "Ready. Run make run or ./tools/run-macos.sh, then Play."
